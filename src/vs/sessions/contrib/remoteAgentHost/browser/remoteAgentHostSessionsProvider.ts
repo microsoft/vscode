@@ -190,7 +190,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		return {
 			label: folderName,
 			icon: Codicon.remote,
-			repositories: [{ uri, workingDirectory: undefined, detail: providerLabel, baseBranchProtected: undefined }],
+			repositories: [{ uri, workingDirectory: undefined, detail: providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: false,
 		};
 	}
@@ -200,7 +200,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		return {
 			label: folderName,
 			icon: Codicon.remote,
-			repositories: [{ uri, workingDirectory: undefined, detail: this.label, baseBranchProtected: undefined }],
+			repositories: [{ uri, workingDirectory: undefined, detail: this.label, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: true,
 		};
 	}

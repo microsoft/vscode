@@ -740,12 +740,13 @@ class AgentSessionAdapter implements IChatData {
 	}
 
 	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
-		const [repoUri, worktreeUri, branchName, baseBranchProtected] = this._extractRepositoryFromMetadata(session);
+		const [repoUri, worktreeUri, branchName, baseBranchName, baseBranchProtected] = this._extractRepositoryFromMetadata(session);
 
 		const repository: ISessionRepository = {
 			uri: repoUri ?? URI.parse('unknown://'),
 			workingDirectory: worktreeUri,
 			detail: branchName,
+			baseBranchName,
 			baseBranchProtected,
 		};
 
@@ -761,10 +762,10 @@ class AgentSessionAdapter implements IChatData {
 	 * Extract repository/worktree information from session metadata.
 	 * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
 	 */
-	private _extractRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, boolean | undefined] {
+	private _extractRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, string | undefined, boolean | undefined] {
 		const metadata = session.metadata;
 		if (!metadata) {
-			return [undefined, undefined, undefined, undefined];
+			return [undefined, undefined, undefined, undefined, undefined];
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
@@ -774,13 +775,13 @@ class AgentSessionAdapter implements IChatData {
 				authority: 'github',
 				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
 			});
-			return [repositoryUri, undefined, undefined, undefined];
+			return [repositoryUri, undefined, undefined, undefined, undefined];
 		}
 
 		// Background/CLI sessions: check workingDirectoryPath first
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
 		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined, undefined, undefined];
+			return [URI.file(workingDirectoryPath), undefined, undefined, undefined, undefined];
 		}
 
 		// Fall back to repositoryPath + worktreePath
@@ -791,12 +792,14 @@ class AgentSessionAdapter implements IChatData {
 		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
 
 		const worktreeBranchName = metadata?.branchName as string | undefined;
+		const worktreeBaseBranchName = metadata?.baseBranchName as string | undefined;
 		const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
 
 		return [
 			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
 			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
 			worktreeBranchName,
+			worktreeBaseBranchName,
 			worktreeBaseBranchProtected,
 		];
 	}
@@ -1102,7 +1105,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return {
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
-				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 				requiresWorkspaceTrust: true
 			};
 		}
@@ -1116,7 +1119,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return {
 				label: this._labelFromUri(uri),
 				icon: this._iconFromUri(uri),
-				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+				repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 				requiresWorkspaceTrust: false,
 			};
 		}
@@ -1127,7 +1130,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return {
 			label: this._labelFromUri(repositoryUri),
 			icon: this._iconFromUri(repositoryUri),
-			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME
 		};
 	}
