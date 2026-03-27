@@ -135,7 +135,12 @@ declare module 'vscode' {
 	 *
 	 * @return A new chat session input state. This should be created using {@link ChatSessionItemController.createChatSessionInputState}.
 	 */
-	export type ChatSessionControllerGetInputState = (sessionResource: Uri | undefined, context: {}, token: CancellationToken) => ProviderResult<ChatSessionInputState>;
+	export type ChatSessionControllerGetInputState = (sessionResource: Uri | undefined, context: {
+		/**
+		 * The previous input state for the session.
+		 */
+		readonly previousInputState: ChatSessionInputState | undefined;
+	}, token: CancellationToken) => Thenable<ChatSessionInputState> | ChatSessionInputState;
 
 	/**
 	 * Extension callback invoked to fork an existing chat session item managed by a {@linkcode ChatSessionItemController}.
@@ -208,6 +213,8 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new managed ChatSessionInputState object.
+		 *
+		 *
 		 */
 		createChatSessionInputState(groups: ChatSessionProviderOptionGroup[]): ChatSessionInputState;
 	}
@@ -669,6 +676,9 @@ declare module 'vscode' {
 		 */
 		readonly description?: string;
 
+		/**
+		 * The currently selected option for this group. This must be one of the items provided in the `items` array.
+		 */
 		readonly selected?: ChatSessionProviderOptionItem;
 
 		/**
@@ -737,6 +747,16 @@ declare module 'vscode' {
 	 * Represents the current state of user inputs for a chat session.
 	 */
 	export interface ChatSessionInputState {
+		/**
+		 * Fired when the input state is changed by the user.
+		 */
+		readonly onDidChange: Event<void>;
+
+		/**
+		 * The groups of options to show in the UI for user input.
+		 *
+		 * To update the groups you must replace the entire `groups` array with a new array.
+		 */
 		groups: readonly ChatSessionProviderOptionGroup[];
 	}
 }
