@@ -78,6 +78,8 @@ export enum ChatEntitlement {
 	Unavailable = 4,
 	/** Signed-up to Free */
 	Free = 5,
+	/** Signed-up to EDU */
+	EDU = 10,
 	/** Signed-up to Pro */
 	Pro = 6,
 	/** Signed-up to Pro Plus */
