@@ -206,10 +206,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
 				}
 
-				// Continue in Cloud (requires a git repository)
+				// Continue in Cloud (disabled when no git repository)
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
-				if (cloudContrib && cloudContrib.canDelegate && hasGitRepo) {
-					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location));
+				if (cloudContrib && cloudContrib.canDelegate) {
+					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
 				}
 
 				// Offer actions to enter setup if we have no contributions
@@ -223,13 +223,13 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		};
 	}
 
-	private static toAction(provider: AgentSessionProviders, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownAction {
+	private static toAction(provider: AgentSessionProviders, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
 		return {
 			id: contrib.type,
-			enabled: true,
+			enabled,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
-			description: `@${contrib.name}`,
+			description: enabled ? `@${contrib.name}` : localize('chat.cloudRequiresGit', "Requires a Git repository"),
 			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
 			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
