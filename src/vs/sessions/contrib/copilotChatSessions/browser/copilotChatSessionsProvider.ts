@@ -1100,23 +1100,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(key, session);
 		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
-		// Wait for the session to be committed (URI swapped from untitled to real).
-		// Do this asynchronously — sendRequest returns the temp session immediately
-		// so the management service can set it as active. Once committed, fire
-		// onDidReplaceSession so the management service can update its group model.
-		(async () => {
-			const committedResource = await this._waitForCommittedSession(session.resource);
-			const committedSession = await this._waitForSessionInCache(committedResource);
+		// Wait for the session to be committed (URI swapped from untitled to real)
+		const committedResource = await this._waitForCommittedSession(session.resource);
 
-			// Remove the temp from the cache (the adapter now owns the committed key)
-			this._sessionCache.delete(key);
-			this._currentNewSession = undefined;
+		// Wait for _refreshSessionCache to populate the committed adapter
+		const committedSession = await this._waitForSessionInCache(committedResource);
 
-			// Notify listeners that the temp session was replaced by the committed one
-			this._onDidReplaceSession.fire({ original: session, committed: committedSession });
-		})();
+		// Remove the temp from the cache (the adapter now owns the committed key)
+		this._sessionCache.delete(key);
+		this._currentNewSession = undefined;
 
-		return session;
+		// Notify listeners that the temp session was replaced by the committed one
+		this._onDidReplaceSession.fire({ original: session, committed: committedSession });
+
+		return committedSession;
 	}
 
 	/**
