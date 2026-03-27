@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { UriComponents } from '../../../base/common/uri.js';
+import { IElementData } from '../../browserElements/common/browserElements.js';
 import { localize } from '../../../nls.js';
 
 const commandPrefix = 'workbench.action.browser';
@@ -59,7 +60,8 @@ export interface IBrowserViewBounds {
 
 export interface IBrowserViewCaptureScreenshotOptions {
 	quality?: number;
-	rect?: { x: number; y: number; width: number; height: number };
+	screenRect?: { x: number; y: number; width: number; height: number };
+	pageRect?: { x: number; y: number; width: number; height: number };
 }
 
 export interface IBrowserViewState {
@@ -370,6 +372,36 @@ export interface IBrowserViewService {
 	 * @param fingerprint The SHA-256 fingerprint of the certificate to revoke
 	 */
 	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
+
+	/**
+	 * Get captured console logs for a browser view.
+	 * Console messages are automatically captured from the moment the view is created.
+	 * @param id The browser view identifier
+	 * @returns The captured console logs as a single string
+	 */
+	getConsoleLogs(id: string): Promise<string>;
+
+	/**
+	 * Start element inspection mode in a browser view. Sets up a CDP overlay that
+	 * highlights elements on hover. When the user clicks an element, its data is
+	 * returned and the overlay is removed.
+	 * @param id The browser view identifier
+	 * @param cancellationId An identifier that can be passed to {@link cancel} to abort
+	 * @returns The inspected element data, or undefined if cancelled
+	 */
+	getElementData(id: string, cancellationId: number): Promise<IElementData | undefined>;
+
+	/**
+	 * Get element data for the currently focused element in the browser view.
+	 * @param id The browser view identifier
+	 * @returns The focused element's data, or undefined if no element is focused
+	 */
+	getFocusedElementData(id: string): Promise<IElementData | undefined>;
+
+	/**
+	 * Cancel an in-progress request.
+	 */
+	cancel(cancellationId: number): Promise<void>;
 
 	/**
 	 * Update the keybinding accelerators used in browser view context menus.

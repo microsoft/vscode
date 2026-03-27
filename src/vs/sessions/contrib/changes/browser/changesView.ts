@@ -511,7 +511,7 @@ export class ChangesViewPane extends ViewPane {
 		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
 		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
-		welcomeMessage.textContent = localize('changesView.noChanges', "No files have been changed.");
+		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
 		// CI Status widget — bottom pane
 		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.splitViewContainer));

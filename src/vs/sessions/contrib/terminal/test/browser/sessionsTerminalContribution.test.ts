@@ -14,6 +14,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { IChat, ISession } from '../../../sessions/common/sessionData.js';
@@ -664,6 +665,18 @@ suite('SessionsTerminalContribution', () => {
 
 		// No setActiveInstance calls from visibility update since no commands were run
 		assert.strictEqual(activeInstanceSet.length, activeCountBefore, 'should not call setActiveInstance when no command history exists');
+	});
+
+	// --- Remote agent host sessions ---
+
+	test('falls back to home directory for a background session with a remote agent host repository', async () => {
+		const remoteRepoUri = toAgentHostUri(URI.file('/Users/user/repo'), 'my-server');
+		const session = makeAgentSession({ repository: remoteRepoUri, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the home directory');
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
 	});
 });
 
