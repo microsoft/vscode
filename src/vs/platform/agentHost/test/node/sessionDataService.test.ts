@@ -115,6 +115,7 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		await ref.object.createTurn('turn-1');
 		const edits = await ref.object.getFileEdits([]);
 		assert.deepStrictEqual(edits, []);
+		await ref.object.close();
 	});
 
 	test('multiple references share the same database', async () => {
@@ -126,6 +127,7 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 
 		ref1.dispose();
 		ref2.dispose();
+		await ref1.object.close();
 	});
 
 	test('database remains usable until last reference is disposed', async () => {
@@ -139,6 +141,8 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		await ref2.object.createTurn('turn-1');
 
 		ref2.dispose();
+
+		await ref1.object.close();
 	});
 
 	test('new reference after all disposed gets a fresh database', async () => {
@@ -152,5 +156,7 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		// New reference — may or may not be the same object, but must be functional
 		await ref2.object.createTurn('turn-1');
 		assert.notStrictEqual(ref2.object, db1);
+
+		await ref2.object.close();
 	});
 });

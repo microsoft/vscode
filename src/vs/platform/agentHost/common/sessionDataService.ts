@@ -81,6 +81,12 @@ export interface ISessionDatabase extends IDisposable {
 	 * Returns `undefined` if no edit exists for the given key.
 	 */
 	readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined>;
+
+	/**
+	 * Close the database connection. After calling this method, the object is
+	 * considered disposed and all other methods will reject with an error.
+	 */
+	close(): Promise<void>;
 }
 
 /**

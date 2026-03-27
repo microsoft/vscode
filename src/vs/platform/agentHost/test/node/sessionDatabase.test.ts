@@ -371,18 +371,18 @@ suite('SessionDatabase', () => {
 
 		test('methods throw after dispose', async () => {
 			db = await SessionDatabase.open(dbPath());
-			db.dispose();
+			db.close();
 
 			await assert.rejects(
-				() => db.createTurn('turn-1'),
+				() => db!.createTurn('turn-1'),
 				/disposed/,
 			);
 		});
 
 		test('double dispose is safe', async () => {
 			db = await SessionDatabase.open(dbPath());
-			db.dispose();
-			db.dispose(); // should not throw
+			await db.close();
+			await db.close(); // should not throw
 		});
 	});
 
@@ -417,8 +417,8 @@ suite('SessionDatabase', () => {
 
 		test('dispose during open rejects subsequent calls', async () => {
 			db = new SessionDatabase(dbPath());
-			db.dispose();
-			await assert.rejects(() => db.createTurn('turn-1'), /disposed/);
+			await db.close();
+			await assert.rejects(() => db!.createTurn('turn-1'), /disposed/);
 		});
 	});
 });
