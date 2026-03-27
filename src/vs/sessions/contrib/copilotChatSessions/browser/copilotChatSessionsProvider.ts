@@ -28,6 +28,7 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/co
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
@@ -837,13 +838,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Cache of adapted sessions, keyed by resource URI string. */
 	private readonly _sessionCache = new Map<string, IChatData>();
 
-	/**
-	 * Maps from old (untitled) resource URI string → real resource URI for sessions
-	 * whose URI was swapped by the agent host after the first turn.
-	 * Used by {@link _findAgentSession} to look up the current agent session.
-	 */
-	private readonly _resourceSwapMap = new Map<string, URI>();
-
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
 	constructor(
@@ -1104,7 +1098,53 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(key, session);
 		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
-		return session;
+		// Wait for the committed session (real URI) to appear. The agent host
+		// keeps the untitled URI during the first turn, then fires
+		// onDidCommitChatSessionItem which swaps URIs. We detect the committed
+		// session as a new agent session of the same type that wasn't in the
+		// cache before.
+		const existingSessions = new ResourceSet([...this._sessionCache.values()].map(s => s.resource));
+		const committedSession = await this._waitForCommittedSession(session.target, existingSessions);
+
+		// Replace the temporary session with the committed adapter in the cache
+		this._sessionCache.delete(key);
+		this._sessionCache.set(committedSession.resource.toString(), committedSession);
+		this._currentNewSession = undefined;
+		this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [committedSession] });
+
+		return committedSession;
+	}
+
+	/**
+	 * Waits for a committed agent session (with a real, non-untitled URI) to
+	 * appear in the cache. The agent host keeps the untitled URI during the
+	 * first turn and fires onDidCommitChatSessionItem afterwards, which
+	 * triggers a session list update with the real URI.
+	 */
+	private async _waitForCommittedSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<AgentSessionAdapter> {
+		const found = this._findNewAdapterInCache(target, existingSessions);
+		if (found) {
+			return found;
+		}
+		return new Promise<AgentSessionAdapter>(resolve => {
+			const listener = this.agentSessionsService.model.onDidChangeSessions(() => {
+				this._refreshSessionCache();
+				const found = this._findNewAdapterInCache(target, existingSessions);
+				if (found) {
+					listener.dispose();
+					resolve(found);
+				}
+			});
+		});
+	}
+
+	private _findNewAdapterInCache(target: AgentSessionTarget, existingSessions: ResourceSet): AgentSessionAdapter | undefined {
+		for (const session of this._sessionCache.values()) {
+			if (session instanceof AgentSessionAdapter && session.sessionType === target && !existingSessions.has(session.resource)) {
+				return session;
+			}
+		}
+		return undefined;
 	}
 
 	// -- Private --
@@ -1175,24 +1215,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const currentKeys = new Set<string>();
 		const added: IChatData[] = [];
 		const changed: IChatData[] = [];
-		// Collect newly appeared agent sessions that are not yet in the cache.
-		// These are candidates for URI-swap matching in the removal pass below.
-		const newAgentSessions = new Map<string, IAgentSession>();
 
 		for (const session of this.agentSessionsService.model.sessions) {
-			if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
-				// The agent session for the new session has appeared — replace the
-				// temporary new session in the cache with a real AgentSessionAdapter.
-				const key = session.resource.toString();
-				const adapter = new AgentSessionAdapter(session, this.id);
-				currentKeys.add(key);
-				this._sessionCache.set(key, adapter);
-				changed.push(adapter);
-				this._currentNewSession.dispose();
-				this._currentNewSession = undefined;
-				continue;
-			}
-
 			if (session.providerType !== AgentSessionProviders.Background
 				&& session.providerType !== AgentSessionProviders.Cloud) {
 				continue;
@@ -1206,42 +1230,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				existing.update(session);
 				changed.push(existing);
 			} else if (!existing) {
-				newAgentSessions.set(key, session);
+				const adapter = new AgentSessionAdapter(session, this.id);
+				this._sessionCache.set(key, adapter);
+				added.push(adapter);
 			}
 		}
 
 		const removed: IChatData[] = [];
 		for (const [key, cachedSession] of this._sessionCache) {
 			if (!currentKeys.has(key) && cachedSession !== this._currentNewSession) {
-				// Detect URI swap: the cached session (with the untitled URI) disappeared
-				// and a new agent session of the same type appeared in the same cycle.
-				// Keep the original adapter (stable chatId) and update it in-place.
-				if (cachedSession instanceof AgentSessionAdapter) {
-					const swapEntry = [...newAgentSessions.entries()].find(
-						([, s]) => s.providerType === cachedSession.sessionType
-					);
-					if (swapEntry) {
-						const [newKey, newSession] = swapEntry;
-						newAgentSessions.delete(newKey);
-						currentKeys.add(key); // Keep the old key alive
-						cachedSession.update(newSession);
-						this._resourceSwapMap.set(key, newSession.resource);
-						changed.push(cachedSession);
-						continue;
-					}
-				}
-
 				this._sessionCache.delete(key);
-				this._resourceSwapMap.delete(key);
 				removed.push(cachedSession);
 			}
-		}
-
-		// Add remaining new agent sessions that were not matched by a swap
-		for (const [key, session] of newAgentSessions) {
-			const adapter = new AgentSessionAdapter(session, this.id);
-			this._sessionCache.set(key, adapter);
-			added.push(adapter);
 		}
 
 		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
@@ -1258,10 +1258,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (!adapter) {
 			return undefined;
 		}
-		// If the session's URI was swapped, use the real resource for the lookup
-		const key = adapter.resource.toString();
-		const resolvedResource = this._resourceSwapMap.get(key) ?? adapter.resource;
-		return this.agentSessionsService.getSession(resolvedResource);
+		return this.agentSessionsService.getSession(adapter.resource);
 	}
 
 	private _localIdFromchatId(chatId: string): string {
