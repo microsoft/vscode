@@ -211,21 +211,34 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		// Update badge on session changes
-		try {
-			const agentSessionsService = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-			const updateBadge = () => {
-				const unread = countUnreadSessions(agentSessionsService.model.sessions);
-				badge.textContent = unread > 0 ? `${unread}` : '';
-				badge.style.display = unread > 0 ? '' : 'none';
-				widget.setAttribute('aria-label', unread > 0
-					? localize('hideSidebarUnread', "Hide Side Bar, {0} unread session(s)", unread)
-					: localize('hideSidebar', "Hide Side Bar"));
-			};
+		const wireBadge = () => {
+			try {
+				const agentSessionsService = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+				const updateBadge = () => {
+					const unread = countUnreadSessions(agentSessionsService.model.sessions);
+					badge.textContent = unread > 0 ? `${unread}` : '';
+					badge.style.display = unread > 0 ? '' : 'none';
+					widget.setAttribute('aria-label', unread > 0
+						? localize('hideSidebarUnread', "Hide Side Bar, {0} unread session(s)", unread)
+						: localize('hideSidebar', "Hide Side Bar"));
+				};
 
-			updateBadge();
-			widgetDisposables.add(agentSessionsService.model.onDidChangeSessions(() => updateBadge()));
-		} catch {
-			badge.style.display = 'none';
+				updateBadge();
+				widgetDisposables.add(agentSessionsService.model.onDidChangeSessions(() => updateBadge()));
+				return true;
+			} catch {
+				badge.style.display = 'none';
+				return false;
+			}
+		};
+
+		if (!wireBadge()) {
+			// Service not yet available — retry when the sidebar becomes visible
+			const retryDisposable = widgetDisposables.add(this.layoutService.onDidChangePartVisibility(e => {
+				if (e.partId === Parts.SIDEBAR_PART && e.visible && wireBadge()) {
+					retryDisposable.dispose();
+				}
+			}));
 		}
 	}
 
