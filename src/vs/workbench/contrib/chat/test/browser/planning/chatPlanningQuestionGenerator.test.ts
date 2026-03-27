@@ -72,7 +72,23 @@ suite('ChatPlanningQuestionGenerator', () => {
 			userRequest: 'Add a planning scaffold before implementation starts',
 			modelId: undefined,
 			activeFilePath: 'file:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts',
-			selectedText: 'private async _acceptInput(...)'
+			selectedText: 'private async _acceptInput(...)',
+			workspaceFolders: [
+				'file:///workspace',
+				'file:///workspace/extensions'
+			],
+			openEditorFilePaths: [
+				'file:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts',
+				'file:///workspace/src/vs/workbench/contrib/chat/browser/actions/chatActions.ts'
+			],
+			activeFolderFilePaths: [
+				'file:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatListRenderer.ts',
+				'file:///workspace/src/vs/workbench/contrib/chat/browser/widget/input/chatInputPart.ts'
+			],
+			workspaceCandidateFilePaths: [
+				'file:///workspace/src/vs/workbench/contrib/chat/browser/planning/chatPlanningQuestionGenerator.ts',
+				'file:///workspace/src/vs/workbench/contrib/chat/common/planning/chatPlanningTransition.ts'
+			]
 		}, CancellationToken.None);
 
 		assert.strictEqual(questions.length, 2);
@@ -96,6 +112,10 @@ suite('ChatPlanningQuestionGenerator', () => {
 		assert.ok(promptPart.value.includes('User request:\nAdd a planning scaffold before implementation starts'));
 		assert.ok(promptPart.value.includes('Active file:\nfile:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts'));
 		assert.ok(promptPart.value.includes('Selected code or text:\nprivate async _acceptInput(...)'));
+		assert.ok(promptPart.value.includes('Workspace folders:\nfile:///workspace\nfile:///workspace/extensions'));
+		assert.ok(promptPart.value.includes('Open editor files:\nfile:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts\nfile:///workspace/src/vs/workbench/contrib/chat/browser/actions/chatActions.ts'));
+		assert.ok(promptPart.value.includes('Files near the active file:\nfile:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatListRenderer.ts\nfile:///workspace/src/vs/workbench/contrib/chat/browser/widget/input/chatInputPart.ts'));
+		assert.ok(promptPart.value.includes('Workspace files likely related to the request:\nfile:///workspace/src/vs/workbench/contrib/chat/browser/planning/chatPlanningQuestionGenerator.ts\nfile:///workspace/src/vs/workbench/contrib/chat/common/planning/chatPlanningTransition.ts'));
 	});
 
 	test('falls back when no language model is available', async () => {

@@ -14,6 +14,10 @@ export interface IPlanningQuestionGenerationContext {
 	readonly modelId: string | undefined;
 	readonly activeFilePath?: string;
 	readonly selectedText?: string;
+	readonly workspaceFolders?: readonly string[];
+	readonly openEditorFilePaths?: readonly string[];
+	readonly activeFolderFilePaths?: readonly string[];
+	readonly workspaceCandidateFilePaths?: readonly string[];
 }
 
 interface IGeneratedPlanningQuestion {
@@ -102,9 +106,26 @@ function buildPlanningQuestionPrompt(context: IPlanningQuestionGenerationContext
 		sections.push(`Selected code or text:\n${truncate(context.selectedText.trim(), 1200)}`);
 	}
 
+	if (context.workspaceFolders?.length) {
+		sections.push(`Workspace folders:\n${context.workspaceFolders.join('\n')}`);
+	}
+
+	if (context.openEditorFilePaths?.length) {
+		sections.push(`Open editor files:\n${context.openEditorFilePaths.join('\n')}`);
+	}
+
+	if (context.activeFolderFilePaths?.length) {
+		sections.push(`Files near the active file:\n${context.activeFolderFilePaths.join('\n')}`);
+	}
+
+	if (context.workspaceCandidateFilePaths?.length) {
+		sections.push(`Workspace files likely related to the request:\n${context.workspaceCandidateFilePaths.join('\n')}`);
+	}
+
 	sections.push([
 		'Return 3 to 4 questions that help clarify the implementation goal and break the work into concrete coding steps.',
 		'Avoid generic project-management questions.',
+		'Use the workspace context to ask about likely insertion points, affected files, and implementation order when that would sharpen the plan.',
 		'When helpful, include decomposition-oriented options such as auditing existing code, choosing an insertion point, sequencing implementation, and validating behavior.',
 		'For singleSelect and multiSelect questions, defaultValue must reference the option label.'
 	].join(' '));

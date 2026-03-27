@@ -23,7 +23,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
 import { autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { extUri, isEqual } from '../../../../../base/common/resources.js';
+import { basename, dirname, extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -38,6 +38,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -45,8 +46,10 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { ISearchService, QueryType } from '../../../../services/search/common/search.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -408,6 +411,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
@@ -432,6 +436,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -2369,7 +2375,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return true;
 		}
 
-		const questions = await generateDynamicPlanningQuestions(this.languageModelsService, this.getPlanningQuestionGenerationContext(input), CancellationToken.None);
+		const questions = await generateDynamicPlanningQuestions(this.languageModelsService, await this.getPlanningQuestionGenerationContext(input), CancellationToken.None);
 		if (!questions.length) {
 			return false;
 		}
@@ -2414,18 +2420,138 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return lastRequest?.messageText;
 	}
 
-	private getPlanningQuestionGenerationContext(input: string) {
+	private async getPlanningQuestionGenerationContext(input: string) {
 		const editor = this.getPreferredPlanningContextEditor();
 		const model = editor?.getModel();
 		const selection = editor?.getSelection();
 		const selectedText = model && selection && !selection.isEmpty() ? model.getValueInRange(selection) : undefined;
+		const activeFilePath = model?.uri.toString();
+		const [workspaceFolders, openEditorFilePaths, activeFolderFilePaths, workspaceCandidateFilePaths] = await Promise.all([
+			this.getPlanningWorkspaceFolders(),
+			Promise.resolve(this.getPlanningOpenEditorFiles()),
+			this.getPlanningActiveFolderFiles(model?.uri),
+			this.getPlanningWorkspaceCandidateFiles(input, model?.uri)
+		]);
 
 		return {
 			userRequest: input,
 			modelId: this.input.currentLanguageModel,
-			activeFilePath: model?.uri.toString(),
+			activeFilePath,
 			selectedText,
+			workspaceFolders,
+			openEditorFilePaths,
+			activeFolderFilePaths,
+			workspaceCandidateFilePaths,
 		};
+	}
+
+	private async getPlanningWorkspaceFolders(): Promise<string[] | undefined> {
+		const folders = this.workspaceContextService.getWorkspace().folders
+			.map(folder => folder.uri.toString())
+			.filter(Boolean)
+			.slice(0, 4);
+
+		return folders.length ? folders : undefined;
+	}
+
+	private getPlanningOpenEditorFiles(): string[] | undefined {
+		const seen = new Set<string>();
+		const openEditorFiles = this.codeEditorService.listCodeEditors()
+			.map(editor => editor.getModel()?.uri)
+			.filter((uri): uri is URI => !!uri && !this.isChatInternalEditor(uri))
+			.map(uri => uri.toString())
+			.filter(path => {
+				if (!path || seen.has(path)) {
+					return false;
+				}
+
+				seen.add(path);
+				return true;
+			})
+			.slice(0, 6);
+
+		return openEditorFiles.length ? openEditorFiles : undefined;
+	}
+
+	private async getPlanningActiveFolderFiles(activeFile: URI | undefined): Promise<string[] | undefined> {
+		if (!activeFile) {
+			return undefined;
+		}
+
+		try {
+			const parent = dirname(activeFile);
+			const stat = await this.fileService.resolve(parent);
+			const siblingFiles = (stat.children ?? [])
+				.filter(child => !child.isDirectory && child.resource.toString() !== activeFile.toString())
+				.slice(0, 8)
+				.map(child => child.resource.toString());
+
+			return siblingFiles.length ? siblingFiles : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private async getPlanningWorkspaceCandidateFiles(input: string, activeFile: URI | undefined): Promise<string[] | undefined> {
+		const folderQueries = this.workspaceContextService.getWorkspace().folders.map(folder => ({ folder: folder.uri }));
+		if (!folderQueries.length) {
+			return undefined;
+		}
+
+		const filePattern = this.getPlanningWorkspaceSearchPattern(input, activeFile);
+		if (!filePattern) {
+			return undefined;
+		}
+
+		try {
+			const result = await this.searchService.fileSearch({
+				type: QueryType.File,
+				folderQueries,
+				filePattern,
+				maxResults: 8,
+				sortByScore: true
+			}, CancellationToken.None);
+
+			const seen = new Set<string>();
+			const candidateFiles = result.results
+				.map(match => match.resource.toString())
+				.filter(path => {
+					if (!path || seen.has(path) || path === activeFile?.toString()) {
+						return false;
+					}
+
+					seen.add(path);
+					return true;
+				})
+				.slice(0, 8);
+
+			return candidateFiles.length ? candidateFiles : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private getPlanningWorkspaceSearchPattern(input: string, activeFile: URI | undefined): string | undefined {
+		const basenameStem = activeFile ? basename(activeFile).replace(/\.[^.]+$/, '') : undefined;
+		const keywords = this.extractPlanningWorkspaceSearchTerms(input);
+		if (basenameStem && basenameStem.length >= 3) {
+			keywords.unshift(basenameStem);
+		}
+
+		const uniqueKeywords = [...new Set(keywords)].slice(0, 3);
+		return uniqueKeywords.length ? uniqueKeywords.join(' ') : undefined;
+	}
+
+	private extractPlanningWorkspaceSearchTerms(input: string): string[] {
+		const ignoredTerms = new Set([
+			'about', 'after', 'agent', 'before', 'change', 'chat', 'code', 'coding', 'feature', 'file', 'files',
+			'goal', 'goals', 'implementation', 'implement', 'make', 'mode', 'plan', 'planning', 'question',
+			'questions', 'scaffold', 'should', 'that', 'then', 'this', 'update', 'with', 'work'
+		]);
+
+		return (input.toLowerCase().match(/[a-z0-9]{4,}/g) ?? [])
+			.filter(token => !ignoredTerms.has(token))
+			.slice(0, 6);
 	}
 
 	private getPreferredPlanningContextEditor() {
