@@ -690,17 +690,21 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			labelElement.appendChild(restSpan);
 		}
 
-		// Show aggregated diff stats from edit pills
+		// Show aggregated diff stats from edit pills (only when there are actual changes)
 		if (this.diffStatsByPartId.size > 0) {
 			const { added, removed } = this._aggregatedDiff;
-			const diffContainer = $('span.chat-thinking-title-diff');
-			diffContainer.appendChild($('span.label-added', {}, `+${added}`));
-			diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
-			labelElement.appendChild(diffContainer);
+			if (added > 0 || removed > 0) {
+				const diffContainer = $('span.chat-thinking-title-diff');
+				diffContainer.appendChild($('span.label-added', {}, `+${added}`));
+				diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
+				labelElement.appendChild(diffContainer);
 
-			const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
-			const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
-			this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+				const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
+				const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
+				this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+			} else {
+				this._collapseButton.element.ariaLabel = title;
+			}
 		} else {
 			this._collapseButton.element.ariaLabel = title;
 		}
@@ -1803,7 +1807,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Handle tool items
 		if (item.lazy.hasValue) {
-			return; // Already materialized
+			// Already evaluated — but may not have been placed in the DOM yet
+			// (e.g. finalizeTitleIfDefault materialized it before the wrapper existed).
+			const result = item.lazy.value;
+			if (!result.domNode.parentElement) {
+				this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
+			}
+			return;
 		}
 
 		const result = item.lazy.value;
