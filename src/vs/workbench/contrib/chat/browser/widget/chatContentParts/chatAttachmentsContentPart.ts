@@ -73,7 +73,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		const visibleAttachments = this.getVisibleAttachments();
 		const hasMoreAttachments = this.limit && this._variables.length > this.limit && !this._showingAll;
 
-		this.markImageLimitExceeded(visibleAttachments);
+		this.markImageLimitExceeded(this._variables);
 
 		for (const attachment of visibleAttachments) {
 			this.renderAttachment(attachment, container);
@@ -103,9 +103,12 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 
 		// The backend keeps the most-recent images, so mark the oldest ones as exceeded.
+		// Only overwrite NotOmitted or ImageLimitExceeded to avoid clobbering other states (e.g. Partial for GIFs).
 		const excessCount = imageAttachments.length - MAX_IMAGES_PER_REQUEST;
 		for (let i = 0; i < excessCount; i++) {
-			imageAttachments[i].omittedState = OmittedState.ImageLimitExceeded;
+			if (imageAttachments[i].omittedState === OmittedState.NotOmitted || imageAttachments[i].omittedState === OmittedState.ImageLimitExceeded) {
+				imageAttachments[i].omittedState = OmittedState.ImageLimitExceeded;
+			}
 		}
 	}
 

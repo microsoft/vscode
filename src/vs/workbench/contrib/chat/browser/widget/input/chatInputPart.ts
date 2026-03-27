@@ -2562,7 +2562,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (imageAttachments.length > MAX_IMAGES_PER_REQUEST) {
 			const excessCount = imageAttachments.length - MAX_IMAGES_PER_REQUEST;
 			for (let i = 0; i < excessCount; i++) {
-				imageAttachments[i][1].omittedState = OmittedState.ImageLimitExceeded;
+				const attachment = imageAttachments[i][1];
+				if (attachment.omittedState === OmittedState.NotOmitted || attachment.omittedState === OmittedState.ImageLimitExceeded) {
+					attachment.omittedState = OmittedState.ImageLimitExceeded;
+				}
 			}
 			for (let i = excessCount; i < imageAttachments.length; i++) {
 				if (imageAttachments[i][1].omittedState === OmittedState.ImageLimitExceeded) {

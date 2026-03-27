@@ -514,16 +514,16 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			content: hoverElement,
 			style: HoverStyle.Pointer,
 		}));
-	} else if (omittedState === OmittedState.ImageLimitExceeded) {
+	} else if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
-		hoverElement.textContent = localize('chat.imageLimitExceededHover', "This image was not sent because the maximum of {0} images per request was exceeded.", MAX_IMAGES_PER_REQUEST);
+		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
 		disposable.add(hoverService.setupDelayedHover(element, {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
 		}));
-	} else if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
+	} else if (omittedState === OmittedState.ImageLimitExceeded) {
 		element.classList.add('warning');
-		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
+		hoverElement.textContent = localize('chat.imageLimitExceededHover', "This image was not sent because the maximum of {0} images per request was exceeded.", MAX_IMAGES_PER_REQUEST);
 		disposable.add(hoverService.setupDelayedHover(element, {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
