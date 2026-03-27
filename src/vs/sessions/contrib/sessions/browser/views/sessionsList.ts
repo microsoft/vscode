@@ -571,7 +571,7 @@ export interface ISessionsListControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
-	onSessionOpen(resource: URI): void;
+	onSessionOpen(resource: URI, preserveFocus: boolean): void;
 }
 
 /**
@@ -734,7 +734,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element)) {
-				this.options.onSessionOpen(element.resource);
+				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false);
 			}
 		}));
 
