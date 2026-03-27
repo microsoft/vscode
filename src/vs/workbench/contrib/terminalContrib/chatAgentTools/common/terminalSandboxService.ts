@@ -17,7 +17,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
@@ -136,7 +136,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IProductService private readonly _productService: IProductService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@ISandboxHelperService private readonly _sandboxHelperService: ISandboxHelperService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
@@ -335,7 +335,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			});
 		}
 
-		return this._sandboxHelperService.checkSandboxDependencies();
+		return this._tryGetSandboxHelperService()?.checkSandboxDependencies();
+	}
+
+	private _tryGetSandboxHelperService(): ISandboxHelperService | undefined {
+		try {
+			return this._instantiationService.invokeFunction(accessor => accessor.get(ISandboxHelperService));
+		} catch {
+			return undefined;
+		}
 	}
 
 	public async installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
