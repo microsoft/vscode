@@ -772,6 +772,11 @@ export class ChangesViewPane extends ViewPane {
 		// Create the tree
 		if (!this.tree && this.listContainer) {
 			const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
+			const actionRunner = this.renderDisposables.add(new ChangesViewActionRunner(
+				() => this.viewModel.activeSessionResourceObs.get(),
+				() => this.getSessionDiscardRef(),
+				() => this.getTreeSelection(),
+			));
 			this.tree = this.instantiationService.createInstance(
 				WorkbenchCompressibleObjectTree<ChangesTreeElement>,
 				'ChangesViewTree',
@@ -965,44 +970,16 @@ export class ChangesViewPane extends ViewPane {
 
 		const spaceForTreeAndCI = Math.max(0, bodyHeight - fixedUsed - ciMargin);
 
-		// Give the tree priority, then CI gets the rest (with min/max on CI body)
-		const treeContentHeight = this.tree.contentHeight;
-		let treeHeight: number;
-		let ciBodyHeight = 0;
+	private getSessionDiscardRef(): string {
+		const versionMode = this.viewModel.versionModeObs.get();
+		const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.get();
+		const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.get();
 
-		if (!ciVisible) {
-			treeHeight = Math.min(spaceForTreeAndCI, treeContentHeight);
-		} else {
-			// Reserve space for the CI header
-			const spaceAfterCIHeader = Math.max(0, spaceForTreeAndCI - ciHeaderHeight);
-
-			// Give the tree what it needs first, up to available space
-			treeHeight = Math.min(spaceAfterCIHeader, treeContentHeight);
-
-			// Remaining goes to CI body
-			const remainingForCIBody = Math.max(0, spaceAfterCIHeader - treeHeight);
-			const ciDesiredBodyHeight = Math.max(0, ciDesiredHeight - ciHeaderHeight);
-
-			ciBodyHeight = Math.min(ciDesiredBodyHeight, remainingForCIBody);
-
-			// Ensure CI body gets at least MIN_BODY_HEIGHT if there's content
-			if (ciDesiredBodyHeight > 0 && ciBodyHeight < CIStatusWidget.MIN_BODY_HEIGHT) {
-				const minCIBody = Math.min(CIStatusWidget.MIN_BODY_HEIGHT, ciDesiredBodyHeight);
-				const needed = minCIBody - ciBodyHeight;
-				const canTake = Math.max(0, treeHeight - 0); // tree can shrink to 0
-				const taken = Math.min(needed, canTake);
-				treeHeight -= taken;
-				ciBodyHeight += taken;
-			}
-
-			// Cap CI body at MAX_BODY_HEIGHT
-			ciBodyHeight = Math.min(ciBodyHeight, CIStatusWidget.MAX_BODY_HEIGHT);
-
-			ciWidget!.layout(ciBodyHeight);
-		}
-
-		this.tree.layout(treeHeight, this.currentBodyWidth);
-		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
+		return versionMode === ChangesVersionMode.LastTurn
+			? lastCheckpointRef
+				? `${lastCheckpointRef}^`
+				: ''
+			: firstCheckpointRef ?? '';
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1044,6 +1021,32 @@ export class ChangesViewPaneContainer extends ViewPaneContainer {
 	override create(parent: HTMLElement): void {
 		super.create(parent);
 		parent.classList.add('changes-viewlet');
+	}
+}
+
+// --- Action Runner
+
+class ChangesViewActionRunner extends ActionRunner {
+
+	constructor(
+		private readonly getSessionResource: () => URI | undefined,
+		private readonly getSessionDiscardRef: () => string,
+		private readonly getSelectedFileItems: () => IChangesFileItem[]
+	) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: URI): Promise<void> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const sessionResource = this.getSessionResource();
+		const discardRef = this.getSessionDiscardRef();
+		const selection = this.getSelectedFileItems();
+		const contextIsSelected = selection.some(s => isEqual(s.uri, context));
+		const actualContext = contextIsSelected ? selection.map(s => s.uri) : [context];
+		await action.run(sessionResource, discardRef, ...actualContext);
 	}
 }
 
