@@ -444,6 +444,14 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('terminal.integrated.suggest.enabled', { settingValue: this.getValueToReport(key, target), source });
 				return;
+			case TerminalContribSettingId.TerminalSandboxEnabled:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'isidorn';
+					comment: 'This is used to know if terminal sandbox is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('chat.tools.terminal.sandbox.enabled', { settingValue: this.getValueToReport(key, target), source });
+				return;
 		}
 	}
 
