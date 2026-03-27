@@ -69,7 +69,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				return;
 			}
 
-			// Get changes from ISessionData
+			// Get changes from ISession
 			const sessionData = sessionManagementService.getSession(resource);
 			const changes = sessionData?.changes.get();
 			if (!changes || changes.length === 0) {
