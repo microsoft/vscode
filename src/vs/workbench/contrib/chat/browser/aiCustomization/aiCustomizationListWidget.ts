@@ -483,22 +483,6 @@ export function sectionToPromptType(section: AICustomizationManagementSection): 
 	}
 }
 
-function sectionToIcon(section: AICustomizationManagementSection): ThemeIcon {
-	switch (section) {
-		case AICustomizationManagementSection.Agents:
-			return agentIcon;
-		case AICustomizationManagementSection.Skills:
-			return skillIcon;
-		case AICustomizationManagementSection.Instructions:
-			return instructionsIcon;
-		case AICustomizationManagementSection.Hooks:
-			return hookIcon;
-		case AICustomizationManagementSection.Prompts:
-		default:
-			return promptIcon;
-	}
-}
-
 /**
  * An ordered create action for the add button.
  */
@@ -1564,19 +1548,25 @@ export class AICustomizationListWidget extends Disposable {
 
 		return allItems
 			.filter(item => item.type === promptType)
-			.map((item: IExternalCustomizationItem) => ({
-				id: item.uri.toString(),
-				uri: item.uri,
-				name: item.name,
-				filename: basename(item.uri),
-				description: item.description,
-				promptType,
-				disabled: false,
-				groupKey: item.groupKey,
-				badge: item.badge,
-				badgeTooltip: item.badgeTooltip,
-				storage: this.inferStorageFromUri(item.uri),
-			}))
+			.map((item: IExternalCustomizationItem) => {
+				const pluginUri = this.findPluginUri(item.uri);
+				const storage = pluginUri ? PromptsStorage.plugin : this.inferStorageFromUri(item.uri);
+
+				return {
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: item.name,
+					filename: basename(item.uri),
+					description: item.description,
+					promptType,
+					disabled: false,
+					groupKey: item.groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
+					storage,
+					pluginUri,
+				};
+			})
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
@@ -1590,15 +1580,17 @@ export class AICustomizationListWidget extends Disposable {
 			return PromptsStorage.local;
 		}
 
+		// Check if under the active project root (Sessions window may use
+		// an active root that is not a workspace folder, e.g. worktree/repo)
+		const activeProjectRoot = this.workspaceService.getActiveProjectRoot();
+		if (activeProjectRoot && isEqualOrParent(uri, activeProjectRoot)) {
+			return PromptsStorage.local;
+		}
+
 		// Check if under user data prompts home
 		const promptsHome = this.userDataProfileService.currentProfile.promptsHome;
 		if (isEqualOrParent(uri, promptsHome)) {
 			return PromptsStorage.user;
-		}
-
-		// Check if under a plugin location
-		if (this.findPluginUri(uri)) {
-			return PromptsStorage.plugin;
 		}
 
 		// Default to user for remaining files (e.g. user-scoped files
@@ -1664,33 +1656,29 @@ export class AICustomizationListWidget extends Disposable {
 			const hasExplicitGroups = matchedItems.some(item => item.groupKey !== undefined);
 			if (hasExplicitGroups) {
 				// Auto-build group definitions from the items' groupKey values,
-				// preserving the order of first appearance. Items without a
-				// groupKey are placed into a fallback "Other" group.
-				const groupOrder: string[] = [];
+				// preserving insertion order. Items without a groupKey are
+				// placed into a fallback "Other" group. Uses a Map for O(1)
+				// lookups instead of repeated array scans.
 				const ungroupedKey = '__ungrouped__';
-				for (const item of matchedItems) {
-					const key = item.groupKey ?? ungroupedKey;
-					if (!groupOrder.includes(key)) {
-						groupOrder.push(key);
-					}
-				}
-
-				const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
-					groupOrder.map(key => ({
-						groupKey: key,
-						label: key === ungroupedKey ? localize('otherGroup', "Other") : key,
-						icon: sectionToIcon(this.currentSection),
-						description: '',
-						items: [],
-					}));
+				const groupsMap = new Map<string, { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }>();
 
 				for (const item of matchedItems) {
 					const key = item.groupKey ?? ungroupedKey;
-					const group = groups.find(g => g.groupKey === key);
-					if (group) {
-						group.items.push(item);
+					let group = groupsMap.get(key);
+					if (!group) {
+						group = {
+							groupKey: key,
+							label: key === ungroupedKey ? localize('otherGroup', "Other") : key,
+							icon: this.getSectionIcon(),
+							description: '',
+							items: [],
+						};
+						groupsMap.set(key, group);
 					}
+					group.items.push(item);
 				}
+
+				const groups = Array.from(groupsMap.values());
 
 				// Sort items within each group
 				for (const group of groups) {
