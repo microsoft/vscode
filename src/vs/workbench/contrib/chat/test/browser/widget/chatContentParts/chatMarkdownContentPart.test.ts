@@ -259,4 +259,12 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(renderedCodeBlocks.length, 1);
 		assert.ok(!renderedCodeBlocks[0].text.startsWith('<?php\n<?php'), 'PHP code with existing tag should not be doubled');
 	});
+
+	test('strips codeblock uri annotations before rendering standard code blocks', () => {
+		createMarkdownPart('```typescript\nconst value = 1;\n<vscode_codeblock_uri>file:///test.ts</vscode_codeblock_uri>\n```');
+
+		assert.strictEqual(renderedCodeBlocks.length, 1);
+		assert.ok(!renderedCodeBlocks[0].text.includes('<vscode_codeblock_uri'));
+		assert.strictEqual(renderedCodeBlocks[0].codemapperUri?.toString(), 'file:///test.ts');
+	});
 });

@@ -449,6 +449,31 @@ export class InlineChatWidget {
 			return this._modelService.getModel(info.uri) ?? undefined;
 		}
 
+		// Fallback: if the code block hasn't been rendered yet (e.g. due to
+		// timing between response completion and list rendering), parse the
+		// markdown directly and create a transient model.
+		const markdown = item.response.getMarkdown();
+		let currentCodeBlockIndex = 0;
+		let foundText: string | undefined;
+
+		for (const line of markdown.split('\n')) {
+			if (line.startsWith('```') && foundText === undefined) {
+				foundText = '';
+			} else if (line.startsWith('```') && foundText !== undefined) {
+				if (currentCodeBlockIndex === codeBlockIndex) {
+					break;
+				}
+				currentCodeBlockIndex++;
+				foundText = undefined;
+			} else if (foundText !== undefined) {
+				foundText += (foundText ? '\n' : '') + line;
+			}
+		}
+
+		if (foundText !== undefined && currentCodeBlockIndex === codeBlockIndex) {
+			return this._modelService.createModel(foundText, null, undefined, true);
+		}
+
 		return undefined;
 	}
 

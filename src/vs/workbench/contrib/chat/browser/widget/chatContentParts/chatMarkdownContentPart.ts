@@ -244,55 +244,47 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						renderOptions.hideToolbar = hideToolbar;
 					}
 					const codeBlockInfo: ICodeBlockData = { languageId, text: codeBlockText, codeBlockIndex: globalIndex, element, parentContextKeyService: contextKeyService, vulns, codemapperUri, renderOptions, chatSessionResource: element.sessionResource };
+					const baseCodeBlockInfo = {
+						ownerMarkdownPartId: this.codeblocksPartId,
+						codeBlockIndex: globalIndex,
+						elementId: element.id,
+						chatSessionResource: element.sessionResource,
+						languageId,
+						editDeltaInfo: EditDeltaInfo.fromText(text),
+					};
 
 					if (element.isCompleteAddedRequest || !codemapperUri || !isEdit) {
 						const ref = this.renderCodeBlock(codeBlockInfo, currentWidth);
-						this.allRefs.push(ref);
-
-						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
-							readonly ownerMarkdownPartId = ownerMarkdownPartId;
-							readonly codeBlockIndex = globalIndex;
-							readonly elementId = element.id;
-							readonly chatSessionResource = element.sessionResource;
-							readonly languageId = languageId;
-							readonly isStreamingEdit = false;
-							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
-							codemapperUri = codeBlockInfo.codemapperUri;
+						this._codeblocks.push({
+							...baseCodeBlockInfo,
+							codemapperUri: codeBlockInfo.codemapperUri,
+							isStreamingEdit: false,
 							get uri() {
 								return ref.object.uri;
-							}
+							},
 							focus() {
 								ref.object.focus();
-							}
-						}();
-						this._codeblocks.push(info);
-						orderedDisposablesList.push(ref);
-						return ref.object.element;
-					} else {
-						const requestId = isRequestVM(element) ? element.id : element.requestId;
-						const ref = this.renderCodeBlockPill(element.sessionResource, requestId, inUndoStop, codeBlockInfo.codemapperUri);
-						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
-							readonly ownerMarkdownPartId = ownerMarkdownPartId;
-							readonly codeBlockIndex = globalIndex;
-							readonly elementId = element.id;
-							readonly codemapperUri = codemapperUri;
-							readonly chatSessionResource = element.sessionResource;
-							readonly isStreamingEdit = !isCodeBlockComplete;
-							get uri() {
-								return undefined;
-							}
-							focus() {
-								return ref.object.element.focus();
-							}
-							readonly languageId = languageId;
-							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
-						}();
-						this._codeblocks.push(info);
+							},
+						});
 						orderedDisposablesList.push(ref);
 						return ref.object.element;
 					}
+
+					const requestId = isRequestVM(element) ? element.id : element.requestId;
+					const ref = this.renderCodeBlockPill(element.sessionResource, requestId, inUndoStop, codemapperUri);
+					this._codeblocks.push({
+						...baseCodeBlockInfo,
+						codemapperUri,
+						isStreamingEdit: !isCodeBlockComplete,
+						get uri() {
+							return undefined;
+						},
+						focus() {
+							return ref.object.element.focus();
+						},
+					});
+					orderedDisposablesList.push(ref);
+					return ref.object.element;
 				},
 				markedOptions: markedOpts,
 				markedExtensions,
@@ -372,7 +364,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.allRefs.length = 0;
 	}
 
-	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined): IDisposableReference<CollapsedCodeBlock> {
+	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI): IDisposableReference<CollapsedCodeBlock> {
 		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionResource, requestId, inUndoStop);
 		const diffListenerStore = new DisposableStore();
 		const ref: IDisposableReference<CollapsedCodeBlock> = {
@@ -389,9 +381,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		// already has finalized diff data (e.g. on session restore).
 		this.allRefs.push(ref);
 		diffListenerStore.add(codeBlock.onDidChangeDiff(() => this.fireAggregatedDiff()));
-		if (codemapperUri) {
-			codeBlock.render(codemapperUri);
-		}
+		codeBlock.render(codemapperUri);
 		return ref;
 	}
 
@@ -409,11 +399,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	private renderCodeBlock(data: ICodeBlockData, currentWidth: number): IDisposableReference<CodeBlockPart> {
 		const ref = this.editorPool.get();
-		const editorInfo = ref.object;
+		this.allRefs.push(ref);
+		ref.object.render(data, currentWidth);
 
-		editorInfo.render(data, currentWidth);
-
-		// There is a scenario where we set the model on the editor in a request and the ResizeObserver is not triggered.
+		// There is a scenario where request code block content changes without a ResizeObserver callback.
 		// Work around it with this targeted onDidHeightChange. But this pattern generally shouldn't be necessary and
 		// shouldn't be copied elsewhere.
 		if (!this._store.isDisposed && isRequestVM(data.element)) {
