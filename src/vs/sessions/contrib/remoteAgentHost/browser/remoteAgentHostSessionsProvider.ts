@@ -188,7 +188,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		const folderName = basename(directoryUri) || workingDirectory;
 		const uri = toAgentHostUri(directoryUri, connectionAuthority);
 		return {
-			label: folderName,
+			label: `${folderName} [${providerLabel}]`,
 			icon: Codicon.remote,
 			repositories: [{ uri, workingDirectory: undefined, detail: providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: false,
@@ -198,7 +198,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {
 		const folderName = basename(uri) || uri.path;
 		return {
-			label: folderName,
+			label: `${folderName} [${this.label}]`,
 			icon: Codicon.remote,
 			repositories: [{ uri, workingDirectory: undefined, detail: this.label, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: true,
