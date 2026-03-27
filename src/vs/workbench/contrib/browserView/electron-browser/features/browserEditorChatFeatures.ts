@@ -23,7 +23,7 @@ import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
-import { IElementData, getDisplayNameFromOuterHTML, createElementContextValue } from '../../../../../platform/browserElements/common/browserElements.js';
+import { IElementData, createElementContextValue } from '../../../../../platform/browserElements/common/browserElements.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -35,10 +35,11 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
+import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
+import { BrowserActionCategory } from '../browserViewActions.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
-import { BrowserActionCategory } from '../browserViewActions.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
@@ -266,14 +267,31 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const bounds = elementData.bounds;
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
+		const container = document.createElement('div');
+		safeSetInnerHtml(container, elementData.outerHTML);
+		const element = container.firstElementChild;
+		const innerText = container.textContent;
+
+		let displayNameShort = element ? `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ''}` : '';
+		let displayNameFull = element ? `${displayNameShort}${element.classList.length ? `.${[...element.classList].join('.')}` : ''}` : '';
+		if (elementData.ancestors && elementData.ancestors.length > 0) {
+			let last = elementData.ancestors[elementData.ancestors.length - 1];
+			let pseudo = '';
+			if (last.tagName.startsWith('::') && elementData.ancestors.length > 1) {
+				pseudo = last.tagName;
+				last = elementData.ancestors[elementData.ancestors.length - 2];
+			}
+			displayNameShort = `${last.tagName.toLowerCase()}${last.id ? `#${last.id}` : ''}${pseudo}`;
+			displayNameFull = `${last.tagName.toLowerCase()}${last.id ? `#${last.id}` : ''}${last.classNames && last.classNames.length ? `.${last.classNames.join('.')}` : ''}${pseudo}`;
+		}
+
 		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-		const value = createElementContextValue(elementData, displayName, attachCss);
+		const value = createElementContextValue(elementData, displayNameFull, attachCss);
 
 		toAttach.push({
 			id: 'element-' + Date.now(),
-			name: displayName,
-			fullName: displayName,
+			name: displayNameShort,
+			fullName: displayNameFull,
 			value: value,
 			modelDescription: attachCss
 				? 'Structured browser element context with HTML path, attributes, and computed styles.'
@@ -284,7 +302,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			attributes: elementData.attributes,
 			computedStyles: attachCss ? elementData.computedStyles : undefined,
 			dimensions: elementData.dimensions,
-			innerText: elementData.innerText,
+			innerText,
 		});
 
 		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');

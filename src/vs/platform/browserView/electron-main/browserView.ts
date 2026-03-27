@@ -484,24 +484,14 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * @param token Cancellation token to abort the inspection.
 	 */
 	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
-		const connection = await this._debugger.attach();
-		try {
-			return await getElementData(connection, token);
-		} finally {
-			connection.dispose();
-		}
+		return getElementData(this, token);
 	}
 
 	/**
 	 * Get element data for the currently focused element.
 	 */
 	async getFocusedElementData(): Promise<IElementData | undefined> {
-		const connection = await this._debugger.attach();
-		try {
-			return await getFocusedElementData(connection);
-		} finally {
-			connection.dispose();
-		}
+		return getFocusedElementData(this);
 	}
 
 	/**

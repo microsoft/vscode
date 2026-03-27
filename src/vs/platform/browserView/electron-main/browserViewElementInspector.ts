@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IElementData, IElementAncestor } from '../../browserElements/common/browserElements.js';
 import { ICDPConnection } from '../common/cdp/types.js';
+import type { BrowserView } from './browserView.js';
 
 type Quad = [number, number, number, number, number, number, number, number];
 
@@ -66,15 +67,17 @@ function useScopedDisposal() {
 }
 
 /**
- * Start element inspection mode on an existing CDP connection. Sets up an
+ * Start element inspection mode on a browser view. Sets up an
  * overlay that highlights elements on hover. When the user clicks, the
  * element data is returned and the overlay is removed.
  *
- * @param connection An attached CDP connection (caller owns its lifetime).
+ * @param browser The browser view to inspect.
  * @param token Cancellation token to abort the inspection.
  */
-export async function getElementData(connection: ICDPConnection, token: CancellationToken): Promise<IElementData | undefined> {
+export async function getElementData(browser: BrowserView, token: CancellationToken): Promise<IElementData | undefined> {
 	using store = useScopedDisposal();
+
+	const connection = store.add(await browser.attach());
 
 	// Important: don't use `Runtime.*` commands in this flow so we can support element selection during debugging
 	await connection.sendCommand('DOM.enable');
@@ -132,11 +135,14 @@ export async function getElementData(connection: ICDPConnection, token: Cancella
 }
 
 /**
- * Get element data for the currently focused element via a CDP connection.
+ * Get element data for the currently focused element in a browser view.
  *
- * @param connection An attached CDP connection (caller owns its lifetime).
+ * @param browser The browser view to inspect.
  */
-export async function getFocusedElementData(connection: ICDPConnection): Promise<IElementData | undefined> {
+export async function getFocusedElementData(browser: BrowserView): Promise<IElementData | undefined> {
+	using store = useScopedDisposal();
+
+	const connection = store.add(await browser.attach());
 	await connection.sendCommand('Runtime.enable');
 
 	const { result } = await connection.sendCommand('Runtime.evaluate', {
@@ -224,18 +230,6 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 
 	const attributes = attributeArrayToRecord(node.attributes);
 
-	let innerText: string | undefined;
-	try {
-		// IMPORTANT: this node itself is untrusted and must not be added to the DOM.
-		//            Parsing is safe and allows us to easily extract contents.
-		const untrustedNodeParsed = new DOMParser().parseFromString(outerHTML, 'text/html').body.firstElementChild;
-		if (!untrustedNodeParsed) {
-			throw new Error('Failed to parse outerHTML.');
-		}
-
-		innerText = untrustedNodeParsed.textContent;
-	} catch { }
-
 	let ancestors: IElementAncestor[] | undefined;
 	try {
 		ancestors = [];
@@ -271,8 +265,7 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 		ancestors,
 		attributes,
 		computedStyles,
-		dimensions: { top: y, left: x, width, height },
-		innerText,
+		dimensions: { top: y, left: x, width, height }
 	};
 }
 
