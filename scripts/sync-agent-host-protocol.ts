@@ -172,7 +172,7 @@ function mergeDuplicateImports(content: string): string {
 
 
 
-function processFile(src: string, dest: string, commitHash: string): void {
+function processFile(src: string, dest: string): void {
 	let content = fs.readFileSync(src, 'utf-8');
 	content = stripExistingHeader(content);
 
@@ -182,7 +182,7 @@ function processFile(src: string, dest: string, commitHash: string): void {
 	content = convertIndentation(content);
 	content = content.split('\n').map(line => line.trimEnd()).join('\n');
 
-	const header = `${COPYRIGHT}\n\n${BANNER}\n// Synced from agent-host-protocol @ ${commitHash}\n`;
+	const header = `${COPYRIGHT}\n\n${BANNER}\n`;
 	content = header + '\n' + content;
 
 	if (!content.endsWith('\n')) {
@@ -219,8 +219,13 @@ function main() {
 			console.error(`  SKIP (not found): ${file.src}`);
 			continue;
 		}
-		processFile(srcPath, file.dest, commitHash);
+		processFile(srcPath, file.dest);
 	}
+
+	// Write the source commit hash to a single version file
+	const versionFile = path.join(DEST_DIR, '.ahp-version');
+	fs.writeFileSync(versionFile, commitHash + '\n', 'utf-8');
+	console.log(`  .ahp-version -> ${commitHash}`);
 
 	console.log();
 	console.log('Done.');
