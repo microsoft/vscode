@@ -39,7 +39,11 @@ function getSessionCwd(session: ISessionData | undefined): URI | undefined {
 		return undefined;
 	}
 	const repo = session.workspace.get()?.repositories[0];
-	return repo?.workingDirectory ?? repo?.uri;
+	const cwd = repo?.workingDirectory ?? repo?.uri;
+	if (cwd?.scheme === AGENT_HOST_SCHEME) {
+		return undefined;
+	}
+	return cwd;
 }
 
 /**
@@ -146,9 +150,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		const sessionCwd = getSessionCwd(session);
-		if (sessionCwd?.scheme === AGENT_HOST_SCHEME) {
-			return;
-		}
 
 		const targetPath = sessionCwd ?? await this._pathService.userHome();
 		const targetKey = targetPath.fsPath.toLowerCase();

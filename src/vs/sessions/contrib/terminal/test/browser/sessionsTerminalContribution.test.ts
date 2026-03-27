@@ -669,13 +669,14 @@ suite('SessionsTerminalContribution', () => {
 
 	// --- Remote agent host sessions ---
 
-	test('does not create a terminal for a background session with a remote agent host repository', async () => {
+	test('falls back to home directory for a background session with a remote agent host repository', async () => {
 		const remoteRepoUri = toAgentHostUri(URI.file('/Users/user/repo'), 'my-server');
 		const session = makeAgentSession({ repository: remoteRepoUri, providerType: AgentSessionProviders.Background });
 		activeSessionObs.set(session, undefined);
 		await tick();
 
-		assert.strictEqual(createdTerminals.length, 0, 'should not create a terminal for remote agent host sessions');
+		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the home directory');
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
 	});
 });
 
