@@ -102,10 +102,10 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			const groups = groupByWorkspace(sessions);
 
-			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Zulu', 'No Workspace']);
+			assert.deepStrictEqual(groups.map(g => g.label), ['Alpha', 'Zulu', 'Unknown']);
 		});
 
-		test('empty workspace label is treated as "No Workspace"', () => {
+		test('empty workspace label is treated as "Unknown"', () => {
 			const sessions = [
 				createSession('1', { workspaceLabel: 'Zulu' }),
 				createSession('2', { workspaceLabel: '' }),
@@ -113,7 +113,7 @@ suite('Sessions - SessionsList Helpers', () => {
 
 			const groups = groupByWorkspace(sessions);
 
-			assert.deepStrictEqual(groups.map(g => g.label), ['Zulu', 'No Workspace']);
+			assert.deepStrictEqual(groups.map(g => g.label), ['Zulu', 'Unknown']);
 			assert.strictEqual(groups[1].sessions.length, 1);
 		});
 
