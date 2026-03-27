@@ -16,9 +16,10 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('PluginMarketplaceService', () => {
@@ -186,8 +187,9 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
 			[ChatConfiguration.PluginsEnabled]: true,
 		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
 		instantiationService.stub(IFileService, {} as unknown as IFileService);
-		instantiationService.stub(IAgentPluginRepositoryService, {} as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(IAgentPluginRepositoryService, { agentPluginsHome: URI.file('/agent-plugins') } as unknown as IAgentPluginRepositoryService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
@@ -233,6 +235,125 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		const service = createService();
 		const result = service.getMarketplacePluginMetadata(URI.file('/any/path'));
 		assert.strictEqual(result, undefined);
+	});
+});
+
+suite('PluginMarketplaceService - installed plugins lifecycle', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
+
+	function makePlugin(name: string, source: string): IMarketplacePlugin {
+		return {
+			name,
+			description: `${name} description`,
+			version: '1.0.0',
+			source,
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: source } as const,
+			marketplace: marketplaceRef.displayLabel,
+			marketplaceReference: marketplaceRef,
+			marketplaceType: MarketplaceType.Copilot,
+		};
+	}
+
+	function createService(): PluginMarketplaceService {
+		const instantiationService = store.add(new TestInstantiationService());
+
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, {} as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, { agentPluginsHome: URI.file('/agent-plugins') } as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+
+		return store.add(instantiationService.createInstance(PluginMarketplaceService));
+	}
+
+	test('installedPlugins observable is empty with no plugins', () => {
+		const service = createService();
+		assert.deepStrictEqual(service.installedPlugins.get(), []);
+	});
+
+	test('addInstalledPlugin makes plugin appear in installedPlugins', () => {
+		const service = createService();
+		const uri = URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin');
+		const plugin = makePlugin('my-plugin', 'my-plugin');
+
+		service.addInstalledPlugin(uri, plugin);
+
+		const installed = service.installedPlugins.get();
+		assert.strictEqual(installed.length, 1);
+		assert.strictEqual(installed[0].plugin.name, 'my-plugin');
+	});
+
+	test('removeInstalledPlugin removes plugin from installedPlugins and metadata', () => {
+		const service = createService();
+		const uri = URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin');
+		const plugin = makePlugin('my-plugin', 'my-plugin');
+
+		service.addInstalledPlugin(uri, plugin);
+		assert.strictEqual(service.installedPlugins.get().length, 1);
+
+		service.removeInstalledPlugin(uri);
+		assert.strictEqual(service.installedPlugins.get().length, 0);
+		assert.strictEqual(service.getMarketplacePluginMetadata(uri), undefined);
+	});
+
+	test('addInstalledPlugin updates metadata for existing entry', () => {
+		const service = createService();
+		const uri = URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin');
+		const v1 = makePlugin('my-plugin', 'my-plugin');
+		const v2 = { ...v1, version: '2.0.0', description: 'updated' };
+
+		service.addInstalledPlugin(uri, v1);
+		service.addInstalledPlugin(uri, v2);
+
+		const installed = service.installedPlugins.get();
+		assert.strictEqual(installed.length, 1);
+		assert.strictEqual(installed[0].plugin.version, '2.0.0');
+		assert.strictEqual(installed[0].plugin.description, 'updated');
+	});
+
+	test('getMarketplacePluginMetadata finds metadata for child URI', () => {
+		const service = createService();
+		const uri = URI.file('/agent-plugins/github.com/microsoft/plugins');
+		const plugin = makePlugin('my-plugin', 'my-plugin');
+
+		service.addInstalledPlugin(uri, plugin);
+
+		const childUri = URI.file('/agent-plugins/github.com/microsoft/plugins/subdir/file.ts');
+		const result = service.getMarketplacePluginMetadata(childUri);
+		assert.strictEqual(result?.name, 'my-plugin');
+	});
+
+	test('multiple plugins can be installed independently', () => {
+		const service = createService();
+		const uri1 = URI.file('/agent-plugins/github.com/microsoft/plugins/plugin-a');
+		const uri2 = URI.file('/agent-plugins/github.com/microsoft/plugins/plugin-b');
+		const pluginA = makePlugin('plugin-a', 'plugin-a');
+		const pluginB = makePlugin('plugin-b', 'plugin-b');
+
+		service.addInstalledPlugin(uri1, pluginA);
+		service.addInstalledPlugin(uri2, pluginB);
+
+		assert.strictEqual(service.installedPlugins.get().length, 2);
+
+		service.removeInstalledPlugin(uri1);
+		const remaining = service.installedPlugins.get();
+		assert.strictEqual(remaining.length, 1);
+		assert.strictEqual(remaining[0].plugin.name, 'plugin-b');
 	});
 });
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
+import { CopilotClient, CopilotSession } from '@github/copilot-sdk';
 import { rgPath } from '@vscode/ripgrep';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IReference } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
@@ -16,11 +16,12 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ToolResultContentType, type IPendingMessage, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
+import { mapSessionEvents } from './mapSessionEvents.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -51,6 +52,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessionWorkingDirs = new Map<string, string>();
 	/** File edit trackers per session, keyed by raw session ID. */
 	private readonly _editTrackers = new Map<string, FileEditTracker>();
+	/** Session database references, keyed by raw session ID. */
+	private readonly _sessionDatabases = this._register(new DisposableMap<string, IReference<ISessionDatabase>>());
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -270,7 +273,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const events = await entry.session.getMessages();
-		return this._mapSessionEvents(session, events);
+		let db: ISessionDatabase | undefined;
+		try {
+			db = this._getSessionDatabase(sessionId);
+		} catch {
+			// Database may not exist yet — that's fine
+		}
+		return mapSessionEvents(session, db, events);
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -278,6 +287,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessions.deleteAndDispose(sessionId);
 		this._clearToolCallsForSession(sessionId);
 		this._sessionWorkingDirs.delete(sessionId);
+		this._sessionDatabases.deleteAndDispose(sessionId);
 		this._denyPendingPermissionsForSession(sessionId);
 	}
 
@@ -306,6 +316,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._activeToolCalls.clear();
 		this._sessionWorkingDirs.clear();
 		this._denyPendingPermissions();
+		this._sessionDatabases.clearAndDisposeAll();
 		await this._client?.stop();
 		this._client = undefined;
 	}
@@ -439,10 +450,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _getSessionDatabase(rawSessionId: string): ISessionDatabase {
+		let ref = this._sessionDatabases.get(rawSessionId);
+		if (!ref) {
+			const session = AgentSession.uri(this.id, rawSessionId);
+			ref = this._sessionDataService.openDatabase(session);
+			this._sessionDatabases.set(rawSessionId, ref);
+		}
+		return ref.object;
+	}
+
 	private _getOrCreateEditTracker(rawSessionId: string): FileEditTracker {
 		let tracker = this._editTrackers.get(rawSessionId);
 		if (!tracker) {
-			tracker = new FileEditTracker(rawSessionId, this._sessionDataService, this._fileService, this._logService);
+			const session = AgentSession.uri(this.id, rawSessionId);
+			const db = this._getSessionDatabase(rawSessionId);
+			tracker = new FileEditTracker(session.toString(), db, this._fileService, this._logService);
 			this._editTrackers.set(rawSessionId, tracker);
 		}
 		return tracker;
@@ -547,6 +570,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 		});
 
+		let turnId: string = '';
+		wrapper.onTurnStart(e => {
+			turnId = e.data.turnId;
+		});
+
 		wrapper.onToolComplete(e => {
 			const trackingKey = `${rawId}:${e.data.toolCallId}`;
 			const tracked = this._activeToolCalls.get(trackingKey);
@@ -567,7 +595,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const tracker = this._editTrackers.get(rawId);
 			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
 			if (tracker && filePath) {
-				const fileEdit = tracker.takeCompletedEdit(filePath);
+				const fileEdit = tracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath);
 				if (fileEdit) {
 					content.push(fileEdit);
 				}
@@ -759,89 +787,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			hooks: this._createSessionHooks(),
 		});
 		return this._trackSession(raw, sessionId);
-	}
-
-	private _mapSessionEvents(session: URI, events: readonly SessionEvent[]): (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] {
-		const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
-		const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined }>();
-
-		for (const e of events) {
-			if (e.type === 'assistant.message' || e.type === 'user.message') {
-				const d = (e as SessionEventPayload<'assistant.message'>).data;
-				result.push({
-					session,
-					type: 'message',
-					role: e.type === 'user.message' ? 'user' : 'assistant',
-					messageId: d?.messageId ?? '',
-					content: d?.content ?? '',
-					toolRequests: d?.toolRequests?.map((tr: { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom' }) => ({
-						toolCallId: tr.toolCallId,
-						name: tr.name,
-						arguments: tr.arguments !== undefined ? tryStringify(tr.arguments) : undefined,
-						type: tr.type,
-					})),
-					reasoningOpaque: d?.reasoningOpaque,
-					reasoningText: d?.reasoningText,
-					encryptedContent: d?.encryptedContent,
-					parentToolCallId: d?.parentToolCallId,
-				});
-			} else if (e.type === 'tool.execution_start') {
-				const d = (e as SessionEventPayload<'tool.execution_start'>).data;
-				if (isHiddenTool(d.toolName)) {
-					continue;
-				}
-				const toolArgs = d.arguments !== undefined ? tryStringify(d.arguments) : undefined;
-				let parameters: Record<string, unknown> | undefined;
-				if (toolArgs) {
-					try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
-				}
-				toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters });
-				const displayName = getToolDisplayName(d.toolName);
-				const toolKind = getToolKind(d.toolName);
-				result.push({
-					session,
-					type: 'tool_start',
-					toolCallId: d.toolCallId,
-					toolName: d.toolName,
-					displayName,
-					invocationMessage: getInvocationMessage(d.toolName, displayName, parameters),
-					toolInput: getToolInputString(d.toolName, parameters, toolArgs),
-					toolKind,
-					language: toolKind === 'terminal' ? getShellLanguage(d.toolName) : undefined,
-					toolArguments: toolArgs,
-					mcpServerName: d.mcpServerName,
-					mcpToolName: d.mcpToolName,
-					parentToolCallId: d.parentToolCallId,
-				});
-			} else if (e.type === 'tool.execution_complete') {
-				const d = (e as SessionEventPayload<'tool.execution_complete'>).data;
-				const info = toolInfoByCallId.get(d.toolCallId);
-				if (!info) {
-					continue;
-				}
-				toolInfoByCallId.delete(d.toolCallId);
-				const displayName = getToolDisplayName(info.toolName);
-				const toolOutput = d.error?.message ?? d.result?.content;
-				const content: IToolResultContent[] = [];
-				if (toolOutput !== undefined) {
-					content.push({ type: ToolResultContentType.Text, text: toolOutput });
-				}
-				result.push({
-					session,
-					type: 'tool_complete',
-					toolCallId: d.toolCallId,
-					result: {
-						success: d.success,
-						pastTenseMessage: getPastTenseMessage(info.toolName, displayName, info.parameters, d.success),
-						content: content.length > 0 ? content : undefined,
-						error: d.error,
-					},
-					isUserRequested: d.isUserRequested,
-					toolTelemetry: d.toolTelemetry !== undefined ? tryStringify(d.toolTelemetry) : undefined,
-				});
-			}
-		}
-		return result;
 	}
 
 	override dispose(): void {

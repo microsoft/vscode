@@ -29,6 +29,7 @@ import {
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
+import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -339,8 +340,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	handleDisposeSession(session: ProtocolURI): void {
 		const agent = this._options.getAgent(session);
 		agent?.disposeSession(URI.parse(session)).catch(() => { });
-		this._stateManager.removeSession(session);
-		this._options.sessionDataService.deleteSessionData(URI.parse(session));
+		this._stateManager.deleteSession(session);
 	}
 
 	async handleListSessions(): Promise<ISessionSummary[]> {
@@ -567,6 +567,13 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	}
 
 	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
+		// Handle session-db: URIs that reference file-edit content stored
+		// in a per-session SQLite database.
+		const dbFields = parseSessionDbUri(uri);
+		if (dbFields) {
+			return this._fetchSessionDbContent(dbFields);
+		}
+
 		try {
 			const content = await this._fileService.readFile(URI.parse(uri));
 			return {
@@ -576,6 +583,25 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			};
 		} catch (_e) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
+		}
+	}
+
+	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<IFetchContentResult> {
+		const sessionUri = URI.parse(fields.sessionUri);
+		const ref = this._options.sessionDataService.openDatabase(sessionUri);
+		try {
+			const content = await ref.object.readFileEditContent(fields.toolCallId, fields.filePath);
+			if (!content) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `File edit not found: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
+			}
+			const bytes = fields.part === 'before' ? content.beforeContent : content.afterContent;
+			return {
+				data: new TextDecoder().decode(bytes),
+				encoding: ContentEncoding.Utf8,
+				contentType: 'text/plain',
+			};
+		} finally {
+			ref.dispose();
 		}
 	}
 

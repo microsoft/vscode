@@ -104,7 +104,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 				name: f.name,
 				status: f.status,
 				storage: f.storage,
-				extensionId: f.extensionId,
+				extensionId: f.extension?.identifier.value,
 				skipReason: f.skipReason,
 				errorMessage: f.errorMessage,
 				duplicateOf: f.duplicateOf,

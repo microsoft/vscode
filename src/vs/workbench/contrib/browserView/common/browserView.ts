@@ -7,11 +7,13 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
-import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
+import { IElementData } from '../../../../platform/browserElements/common/browserElements.js';
+import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -209,6 +211,9 @@ export interface IBrowserViewModel extends IDisposable {
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
+	getConsoleLogs(): Promise<string>;
+	getElementData(token: CancellationToken): Promise<IElementData | undefined>;
+	getFocusedElementData(): Promise<IElementData | undefined>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -464,7 +469,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const result = await this.browserViewService.captureScreenshot(this.id, options);
 		// Store full-page screenshots for display in UI as placeholders
-		if (!options?.rect) {
+		if (!options?.screenRect && !options?.pageRect) {
 			this._screenshot = result;
 		}
 		return result;
@@ -541,6 +546,18 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}
 	}
 
+	async getConsoleLogs(): Promise<string> {
+		return this.browserViewService.getConsoleLogs(this.id);
+	}
+
+	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
+		return this._wrapCancellable(token, (cid) => this.browserViewService.getElementData(this.id, cid));
+	}
+
+	async getFocusedElementData(): Promise<IElementData | undefined> {
+		return this.browserViewService.getFocusedElementData(this.id);
+	}
+
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
 
 	async setSharedWithAgent(shared: boolean): Promise<void> {
@@ -598,6 +615,19 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		if (isShared !== this._sharedWithAgent) {
 			this._sharedWithAgent = isShared;
 			this._onDidChangeSharedWithAgent.fire(isShared);
+		}
+	}
+
+	private static _cancellationIdPool = 0;
+	private async _wrapCancellable<T>(token: CancellationToken, callback: (cancellationId: number) => Promise<T>): Promise<T> {
+		const cancellationId = BrowserViewModel._cancellationIdPool++;
+		const disposable = token.onCancellationRequested(() => {
+			this.browserViewService.cancel(cancellationId);
+		});
+		try {
+			return await callback(cancellationId);
+		} finally {
+			disposable.dispose();
 		}
 	}
 

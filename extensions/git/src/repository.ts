@@ -1365,6 +1365,23 @@ export class Repository implements Disposable {
 			});
 	}
 
+	async restore(resources: Uri[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		await this.run(
+			Operation.Restore(!this.optimisticUpdateEnabled()),
+			async () => {
+				const resourcePaths = resources.map(r => r.fsPath);
+				await this.repository.restore(resourcePaths, options);
+
+				if (options?.staged) {
+					// Index was modified;
+					this.closeDiffEditors([], resourcePaths);
+				} else {
+					// Working tree was modified;
+					this.closeDiffEditors(resourcePaths, []);
+				}
+			});
+	}
+
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
 		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
 		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
