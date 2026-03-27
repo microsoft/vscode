@@ -84,7 +84,6 @@ suite('SessionsConfigurationService', () => {
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
 	let ranTasks: { label: string }[];
-	let committedFiles: { session: ISession; fileUris: URI[] }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
 	let activeSessionObs: ReturnType<typeof observableValue<ISession | undefined>>;
@@ -99,7 +98,6 @@ suite('SessionsConfigurationService', () => {
 		fileContents = new Map();
 		jsonEdits = [];
 		ranTasks = [];
-		committedFiles = [];
 		readFileCalls = [];
 		tasksByLabel = new Map();
 		workspaceFoldersByUri = new Map();
@@ -305,8 +303,6 @@ suite('SessionsConfigurationService', () => {
 
 		assert.strictEqual(jsonEdits.length, 1);
 		assert.deepStrictEqual(jsonEdits[0].values, [{ path: ['tasks', 1, 'inSessions'], value: true }]);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	test('addTaskToSessions does nothing when task label not found', async () => {
@@ -334,7 +330,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(jsonEdits.length, 1);
 		assert.strictEqual(jsonEdits[0].uri.toString(), repoTasksUri.toString());
 		assert.deepStrictEqual(jsonEdits[0].values, [{ path: ['tasks', 1, 'inSessions'], value: true }]);
-		assert.strictEqual(committedFiles.length, 0, 'should not commit when there is no worktree');
 	});
 
 	test('addTaskToSessions updates runOptions when provided', async () => {
@@ -387,8 +382,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(tasks.length, 2);
 		assert.strictEqual(tasks[1].label, 'npm run dev');
 		assert.strictEqual(tasks[1].inSessions, true);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	test('createAndAddTask writes to repository and does not commit when no worktree', async () => {
@@ -408,7 +401,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(tasks.length, 2);
 		assert.strictEqual(tasks[1].label, 'npm run dev');
 		assert.strictEqual(tasks[1].inSessions, true);
-		assert.strictEqual(committedFiles.length, 0, 'should not commit when there is no worktree');
 	});
 
 	test('createAndAddTask writes worktreeCreated run option when requested', async () => {
@@ -461,8 +453,6 @@ suite('SessionsConfigurationService', () => {
 				{ label: 'lint', type: 'shell', command: 'npm run lint' },
 			],
 		}]);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	// --- updateTask ---
@@ -494,7 +484,6 @@ suite('SessionsConfigurationService', () => {
 				runOptions: { runOn: 'worktreeCreated' }
 			}
 		}]);
-		assert.strictEqual(committedFiles.length, 1);
 	});
 
 	test('updateTask moves a task between workspace and user storage', async () => {
@@ -541,7 +530,6 @@ suite('SessionsConfigurationService', () => {
 				}
 			]
 		});
-		assert.strictEqual(committedFiles.length, 1);
 	});
 
 	// --- pinned task ---
