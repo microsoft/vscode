@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -1519,11 +1519,6 @@ export interface IChatService {
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
 	readonly requestInProgressObs: IObservable<boolean>;
-
-	/**
-	 * @deprecated
-	 */
-	registerChatModelChangeListeners(chatSessionType: string, onChange: (chatSessionResource: URI) => void): IDisposable;
 
 	/**
 	 * For tests only!
