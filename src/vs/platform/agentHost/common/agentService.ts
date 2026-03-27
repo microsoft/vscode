@@ -101,6 +101,7 @@ export interface IAgentCreateSessionConfig {
 	readonly model?: string;
 	readonly session?: URI;
 	readonly workingDirectory?: string;
+	readonly editAutoApprovePatterns?: Record<string, boolean>;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
@@ -239,6 +240,10 @@ export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
 	readonly toolInput?: string;
 	/** Short title for the confirmation prompt. */
 	readonly confirmationTitle?: StringOrMarkdown;
+	/** The kind of permission being requested (e.g. 'write', 'shell'). */
+	readonly permissionKind?: string;
+	/** The file path associated with this permission request, if applicable. */
+	readonly permissionPath?: string;
 }
 
 /** Streaming reasoning/thinking content from the assistant. */

@@ -172,6 +172,16 @@ export interface ICreateSessionParams {
 	model?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
+	/**
+	 * Initial edit auto-approve patterns for the session.
+	 *
+	 * If provided, the server applies these patterns to the session state
+	 * immediately at creation time, avoiding a race between session creation
+	 * and the first `session/editAutoApprovePatternsChanged` action.
+	 *
+	 * @see {@link ISessionState.editAutoApprovePatterns} for semantics.
+	 */
+	editAutoApprovePatterns?: Record<string, boolean>;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────

@@ -920,4 +920,129 @@ suite('Protocol WebSocket E2E', function () {
 
 		raw.close();
 	});
+
+	// ---- Edit auto-approve patterns -----------------------------------------
+
+	test('editAutoApprovePatterns on createSession auto-approves matching writes', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-autoapprove-create' });
+
+		const sessionUri = nextSessionUri();
+		await client.call('createSession', {
+			session: sessionUri,
+			provider: 'mock',
+			editAutoApprovePatterns: { '**/*': true },
+		});
+
+		const notif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
+		await client.call<ISubscribeResult>('subscribe', { resource: realSessionUri });
+		client.clearReceived();
+
+		// Start a turn that triggers a write permission request
+		dispatchTurnStarted(client, realSessionUri, 'turn-autoapprove', 'write-file', 1);
+
+		// The write should be auto-approved - we should see tool_start, tool_complete, and turn_complete
+		// but NOT a toolCallReady (pending confirmation). The auto-approved write goes through directly.
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify no toolCallReady without confirmed (pending confirmation) was received.
+		// Note: tool_start emits a paired toolCallReady WITH confirmed (auto-confirm), which is expected.
+		const pendingConfirmNotifs = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'session/toolCallReady')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { confirmed?: string };
+			return !action.confirmed;
+		});
+		assert.strictEqual(pendingConfirmNotifs.length, 0, 'should not have received pending-confirmation toolCallReady for auto-approved write');
+	});
+
+	test('editAutoApprovePatterns blocks write to denied file', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-autoapprove-deny' });
+
+		const sessionUri = nextSessionUri();
+		await client.call('createSession', {
+			session: sessionUri,
+			provider: 'mock',
+			editAutoApprovePatterns: { '**/*': true, '**/.env': false },
+		});
+
+		const notif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
+		await client.call<ISubscribeResult>('subscribe', { resource: realSessionUri });
+		client.clearReceived();
+
+		// Start a turn that tries to write .env (blocked by pattern)
+		dispatchTurnStarted(client, realSessionUri, 'turn-deny', 'write-env', 1);
+
+		// The .env write should NOT be auto-approved - we should see toolCallReady (pending confirmation)
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+
+		// Confirm it manually to let the turn complete
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/toolCallConfirmed',
+				session: realSessionUri,
+				turnId: 'turn-deny',
+				toolCallId: 'tc-write-env-1',
+				approved: true,
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
+
+	test('editAutoApprovePatternsChanged action updates patterns mid-session', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-update');
+
+		// Initially no patterns set - server defaults apply (**/* is true, so .ts files are auto-approved)
+		// Dispatch editAutoApprovePatternsChanged to deny all files
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/editAutoApprovePatternsChanged',
+				session: sessionUri,
+				patterns: { '**/*': false },
+			},
+		});
+
+		// Wait for the action to be broadcast back
+		await client.waitForNotification(n => isActionNotification(n, 'session/editAutoApprovePatternsChanged'));
+		client.clearReceived();
+
+		// Now try writing a file - should be blocked since all patterns deny
+		dispatchTurnStarted(client, sessionUri, 'turn-updated', 'write-file', 2);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		// Should go to pending confirmation since **/* is false
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+
+		// Confirm to clean up
+		client.notify('dispatchAction', {
+			clientSeq: 3,
+			action: {
+				type: 'session/toolCallConfirmed',
+				session: sessionUri,
+				turnId: 'turn-updated',
+				toolCallId: 'tc-write-1',
+				approved: true,
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
 });

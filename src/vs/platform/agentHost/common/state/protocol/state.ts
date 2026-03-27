@@ -292,6 +292,23 @@ export interface ISessionState {
 	 * {@link ISessionActiveClient.customizations | activeClient.customizations}.
 	 */
 	customizations?: ISessionCustomization[];
+	/**
+	 * Client-provided glob patterns that the server uses to decide which
+	 * file-edit permission requests to auto-approve.
+	 *
+	 * Keys are glob patterns and values are booleans:
+	 * `true` means edits matching the pattern are auto-approved by the server,
+	 * `false` means the server MUST request explicit user confirmation via
+	 * `PendingConfirmation`. The last matching pattern wins.
+	 * Edits not matching any pattern are auto-approved.
+	 *
+	 * Clients set this via `editAutoApprovePatterns` on `createSession` or
+	 * by dispatching `session/editAutoApprovePatternsChanged`.
+	 *
+	 * When absent, the server SHOULD apply reasonable defaults (e.g. auto-approve
+	 * all edits except known sensitive files like lock files).
+	 */
+	editAutoApprovePatterns?: Record<string, boolean>;
 }
 
 /**

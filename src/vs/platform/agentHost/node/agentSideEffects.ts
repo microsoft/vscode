@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { match as globMatch } from '../../../base/common/glob.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -98,6 +99,40 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
+	// ---- Edit auto-approve --------------------------------------------------
+
+	/**
+	 * Default edit auto-approve patterns applied when the session has no
+	 * explicit `editAutoApprovePatterns`. Matches the VS Code
+	 * `chat.tools.edits.autoApprove` setting defaults.
+	 */
+	private static readonly _DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
+		'**/*': true,
+		'**/.vscode/*.json': false,
+		'**/.git/**': false,
+		'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
+		'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
+		'**/*.lock': false,
+		'**/*-lock.{yaml,json}': false,
+	};
+
+	/**
+	 * Returns whether a write to `filePath` should be auto-approved based on
+	 * the session's `editAutoApprovePatterns` (or the built-in defaults).
+	 */
+	private _shouldAutoApproveEdit(sessionKey: ProtocolURI, filePath: string): boolean {
+		const state = this._stateManager.getSessionState(sessionKey);
+		const patterns = state?.editAutoApprovePatterns ?? AgentSideEffects._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
+
+		let approved = true;
+		for (const [pattern, isApproved] of Object.entries(patterns)) {
+			if (isApproved !== approved && globMatch(pattern, filePath)) {
+				approved = isApproved;
+			}
+		}
+		return approved;
+	}
+
 	// ---- Agent registration -------------------------------------------------
 
 	/**
@@ -123,6 +158,17 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const sessionKey = e.session.toString();
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
+				// Check if this is a write permission request that can be auto-approved
+				// based on the session's editAutoApprovePatterns.
+				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
+					if (this._shouldAutoApproveEdit(sessionKey, e.permissionPath)) {
+						this._logService.info(`[AgentSideEffects] Auto-approving write to ${e.permissionPath} based on editAutoApprovePatterns`);
+						this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+						agent.respondToPermissionRequest(e.toolCallId, true);
+						return;
+					}
+				}
+
 				const actions = agentMapper.mapProgressEventToActions(e, sessionKey, turnId);
 				if (actions) {
 					if (Array.isArray(actions)) {
@@ -333,6 +379,16 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			workingDirectory: command.workingDirectory,
 		};
 		this._stateManager.createSession(summary);
+
+		// Apply initial edit auto-approve patterns if provided
+		if (command.editAutoApprovePatterns) {
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionEditAutoApprovePatternsChanged,
+				session,
+				patterns: command.editAutoApprovePatterns,
+			});
+		}
+
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session });
 	}
 

@@ -722,4 +722,103 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.steeringMessage, undefined);
 		});
 	});
+
+	// ---- Edit auto-approve patterns -----------------------------------------
+
+	suite('edit auto-approve patterns', () => {
+
+		test('auto-approves write when editAutoApprovePatterns allows it', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// Set patterns on the session state: approve all .ts files
+			stateManager.dispatchClientAction(
+				{ type: 'session/editAutoApprovePatternsChanged' as ActionType.SessionEditAutoApprovePatternsChanged, session: sessionUri.toString(), patterns: { '**/*.ts': true, '**/.env': false } },
+				{ clientId: 'test', clientSeq: 2 },
+			);
+
+			// First, emit a tool_start so the tool call exists in the state
+			agent.fireToolStart(sessionUri, 'turn-1', 'tc-write-1', 'bash', 'Write File');
+
+			// Now fire a tool_ready event with write permission for a .ts file
+			agent.fireToolReady(sessionUri, 'tc-write-1', 'Write src/app.ts', undefined, 'write', '/workspace/src/app.ts');
+
+			// The agent should have been auto-responded to with approved=true
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-1');
+			assert.ok(permCall, 'should auto-respond to permission request');
+			assert.strictEqual(permCall!.approved, true);
+
+			// The tool call should NOT be in PendingConfirmation state (it was auto-approved so the event was swallowed)
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tcPart = state?.activeTurn?.responseParts.find(
+				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-1'
+			) as IToolCallResponsePart | undefined;
+			// The tool_ready event was intercepted, so the tool call should still be in its previous state (Running from tool_start auto-confirm)
+			assert.ok(tcPart);
+			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.Running);
+		});
+
+		test('does not auto-approve write when pattern blocks it', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// Set patterns: block .env files
+			stateManager.dispatchClientAction(
+				{ type: 'session/editAutoApprovePatternsChanged' as ActionType.SessionEditAutoApprovePatternsChanged, session: sessionUri.toString(), patterns: { '**/*': true, '**/.env': false } },
+				{ clientId: 'test', clientSeq: 2 },
+			);
+
+			// Tool start
+			agent.fireToolStart(sessionUri, 'turn-1', 'tc-write-2', 'bash', 'Write File');
+
+			// Fire tool_ready for a blocked file
+			agent.fireToolReady(sessionUri, 'tc-write-2', 'Write .env', undefined, 'write', '/workspace/.env');
+
+			// Should NOT have auto-responded
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-2');
+			assert.ok(!permCall, 'should not auto-respond when file is blocked');
+
+			// The tool call should be in PendingConfirmation state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tcPart = state?.activeTurn?.responseParts.find(
+				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-2'
+			) as IToolCallResponsePart | undefined;
+			assert.ok(tcPart);
+			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.PendingConfirmation);
+		});
+
+		test('uses default patterns when editAutoApprovePatterns is not set', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// No editAutoApprovePatterns set - defaults should apply
+
+			// Tool start
+			agent.fireToolStart(sessionUri, 'turn-1', 'tc-write-3', 'bash', 'Write File');
+
+			// .ts files should be auto-approved (matches **/* true)
+			agent.fireToolReady(sessionUri, 'tc-write-3', 'Write app.ts', undefined, 'write', '/workspace/src/app.ts');
+
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-3');
+			assert.ok(permCall, 'should auto-approve regular files with default patterns');
+			assert.strictEqual(permCall!.approved, true);
+		});
+
+		test('default patterns block .git files', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// No editAutoApprovePatterns set - defaults block .git/**
+
+			agent.fireToolStart(sessionUri, 'turn-1', 'tc-write-4', 'bash', 'Write File');
+			agent.fireToolReady(sessionUri, 'tc-write-4', 'Write .git/config', undefined, 'write', '/workspace/.git/config');
+
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-4');
+			assert.ok(!permCall, 'should not auto-approve .git files with default patterns');
+		});
+	});
 });

@@ -12,6 +12,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, isSessionAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -26,7 +27,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind, ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { getAgentHostIcon } from '../agentSessions.js';
@@ -181,6 +182,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IProductService private readonly _productService: IProductService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._config = config;
@@ -254,6 +256,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (!resolvedSession) {
 					resolvedSession = backendSession;
 					this._sessionToBackend.set(resourceKey, backendSession);
+					// Sync edit auto-approve patterns for newly created sessions
+					this._syncEditAutoApprovePatterns(backendSession, session.registerDisposable(new DisposableStore()));
 				}
 				// For existing sessions, set up pending message sync on the first turn
 				// (after the ChatModel becomes available in the ChatService).
@@ -285,6 +289,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// For existing (non-untitled) sessions, start watching for server-initiated turns
 			// immediately. For untitled sessions, this is deferred to _createAndSubscribe.
 			this._watchForServerInitiatedTurns(resolvedSession, sessionResource);
+
+			// Sync edit auto-approve patterns for reconnected sessions
+			this._syncEditAutoApprovePatterns(resolvedSession, session.registerDisposable(new DisposableStore()));
 		}
 
 		return session;
@@ -441,6 +448,43 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _dispatchAction(action: ISessionAction): void {
 		const seq = this._clientState.applyOptimistic(action);
 		this._config.connection.dispatchAction(action, this._clientState.clientId, seq);
+	}
+
+	// ---- Edit auto-approve patterns -----------------------------------------
+
+	/**
+	 * Reads the `chat.tools.edits.autoApprove` setting and dispatches it as
+	 * the session's `editAutoApprovePatterns`. Also starts watching for config
+	 * changes and redispatches when the setting changes.
+	 */
+	private _syncEditAutoApprovePatterns(backendSession: URI, sessionDisposables: DisposableStore): void {
+		const sessionStr = backendSession.toString();
+
+		const sendPatterns = () => {
+			const patterns = this._getEditAutoApprovePatterns();
+			if (patterns) {
+				this._dispatchAction({
+					type: ActionType.SessionEditAutoApprovePatternsChanged,
+					session: sessionStr,
+					patterns,
+				});
+			}
+		};
+
+		// Send immediately
+		sendPatterns();
+
+		// Re-send when the setting changes
+		sessionDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AutoApproveEdits)) {
+				sendPatterns();
+			}
+		}));
+	}
+
+	private _getEditAutoApprovePatterns(): Record<string, boolean> | undefined {
+		const patterns = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.AutoApproveEdits);
+		return (patterns && typeof patterns === 'object') ? patterns : undefined;
 	}
 
 	// ---- Server-initiated turn detection ------------------------------------
@@ -1133,6 +1177,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				model: rawModelId,
 				provider: this._config.provider,
 				workingDirectory,
+				editAutoApprovePatterns: this._getEditAutoApprovePatterns(),
 			});
 		} catch (err) {
 			// If authentication is required, try to resolve it and retry once
@@ -1144,6 +1189,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						model: rawModelId,
 						provider: this._config.provider,
 						workingDirectory,
+						editAutoApprovePatterns: this._getEditAutoApprovePatterns(),
 					});
 				} else {
 					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));

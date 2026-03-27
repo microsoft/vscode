@@ -103,6 +103,29 @@ export class MockAgent implements IAgent {
 		this._onDidSessionProgress.fire(event);
 	}
 
+	fireToolStart(session: URI, turnId: string, toolCallId: string, toolName: string, displayName: string): void {
+		this._onDidSessionProgress.fire({
+			session,
+			type: 'tool_start',
+			toolCallId,
+			toolName,
+			displayName,
+			invocationMessage: displayName,
+		});
+	}
+
+	fireToolReady(session: URI, toolCallId: string, invocationMessage: string, confirmationTitle?: string, permissionKind?: string, permissionPath?: string): void {
+		this._onDidSessionProgress.fire({
+			session,
+			type: 'tool_ready',
+			toolCallId,
+			invocationMessage,
+			confirmationTitle,
+			permissionKind,
+			permissionPath,
+		});
+	}
+
 	dispose(): void {
 		this._onDidSessionProgress.dispose();
 	}
@@ -220,6 +243,78 @@ export class ScriptedMockAgent implements IAgent {
 					if (approved) {
 						this._fireSequence(session, [
 							{ type: 'delta', session, messageId: 'msg-1', content: 'Allowed.' },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'write-file': {
+				// Fire tool_start, then tool_ready with permissionKind='write' for auto-approve testing
+				const writeStartEvent = {
+					type: 'tool_start' as const,
+					session,
+					toolCallId: 'tc-write-1',
+					toolName: 'edit_file',
+					displayName: 'Edit File',
+					invocationMessage: 'Write to src/app.ts',
+				};
+				const writeReadyEvent = {
+					type: 'tool_ready' as const,
+					session,
+					toolCallId: 'tc-write-1',
+					invocationMessage: 'Write to src/app.ts',
+					toolInput: '{ "path": "/workspace/src/app.ts" }',
+					confirmationTitle: 'Write file',
+					permissionKind: 'write',
+					permissionPath: '/workspace/src/app.ts',
+				};
+				setTimeout(() => {
+					this._onDidSessionProgress.fire(writeStartEvent);
+					setTimeout(() => this._onDidSessionProgress.fire(writeReadyEvent), 5);
+				}, 10);
+				this._pendingPermissions.set('tc-write-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-write-1', result: { pastTenseMessage: 'Wrote file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+							{ type: 'delta', session, messageId: 'msg-1', content: 'File written.' },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'write-env': {
+				// Fire tool_start, then tool_ready with permissionKind='write' for a .env file (blocked by defaults)
+				const envStartEvent = {
+					type: 'tool_start' as const,
+					session,
+					toolCallId: 'tc-write-env-1',
+					toolName: 'edit_file',
+					displayName: 'Edit File',
+					invocationMessage: 'Write to .env',
+				};
+				const envReadyEvent = {
+					type: 'tool_ready' as const,
+					session,
+					toolCallId: 'tc-write-env-1',
+					invocationMessage: 'Write to .env',
+					toolInput: '{ "path": "/workspace/.env" }',
+					confirmationTitle: 'Write file',
+					permissionKind: 'write',
+					permissionPath: '/workspace/.env',
+				};
+				setTimeout(() => {
+					this._onDidSessionProgress.fire(envStartEvent);
+					setTimeout(() => this._onDidSessionProgress.fire(envReadyEvent), 5);
+				}, 10);
+				this._pendingPermissions.set('tc-write-env-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-write-env-1', result: { pastTenseMessage: 'Wrote .env', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+							{ type: 'delta', session, messageId: 'msg-1', content: '.env written.' },
 							{ type: 'idle', session },
 						]);
 					}

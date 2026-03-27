@@ -364,6 +364,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		// Derive display information from the permission request kind
 		const { confirmationTitle, invocationMessage, toolInput } = this._getPermissionDisplay(request);
+		const permissionPath = typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined);
 
 		// Fire a tool_ready event to transition the tool to PendingConfirmation
 		this._onDidSessionProgress.fire({
@@ -373,6 +374,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			invocationMessage,
 			toolInput,
 			confirmationTitle,
+			permissionKind: request.kind,
+			permissionPath,
 		});
 
 		const approved = await deferred.p;

@@ -172,7 +172,7 @@ function createTestServices(disposables: DisposableStore) {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 	});
-	instantiationService.stub(IConfigurationService, { getValue: () => true });
+	instantiationService.stub(IConfigurationService, { getValue: () => true, onDidChangeConfiguration: Event.None });
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
 
@@ -1382,7 +1382,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('setting gate prevents registration', async () => {
 			const { instantiationService } = createTestServices(disposables);
-			instantiationService.stub(IConfigurationService, { getValue: () => false });
+			instantiationService.stub(IConfigurationService, { getValue: () => false, onDidChangeConfiguration: Event.None });
 
 			const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 			// Contribution should exist but not have registered any agents
@@ -1926,6 +1926,109 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(serverRequestEvents.length, 0, 'Client-dispatched turns should not trigger onDidStartServerRequest');
+		});
+	});
+
+	// ---- Edit auto-approve patterns dispatch --------------------------------
+
+	suite('edit auto-approve patterns', () => {
+		test('dispatches editAutoApprovePatterns on new session creation', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const testPatterns = { '**/*': true, '**/.env': false };
+			instantiationService.stub(IConfigurationService, {
+				getValue: ((key: string) => {
+					if (key === 'chat.tools.edits.autoApprove') {
+						return testPatterns;
+					}
+					return true;
+				}) as IConfigurationService['getValue'],
+				onDidChangeConfiguration: Event.None,
+			});
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-autoapprove' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// Trigger a turn to create the backend session, using a cancellable token
+			const cts = new CancellationTokenSource();
+			const turnPromise = chatSession.requestHandler!(
+				makeRequest({ message: 'Hello', sessionResource }),
+				() => { }, [], cts.token,
+			);
+			await timeout(10);
+
+			// Look for the editAutoApprovePatternsChanged action in dispatched actions
+			const patternAction = agentHostService.dispatchedActions.find(
+				d => d.action.type === 'session/editAutoApprovePatternsChanged'
+			);
+			assert.ok(patternAction, 'should dispatch editAutoApprovePatternsChanged action');
+			assert.deepStrictEqual((patternAction!.action as { patterns: Record<string, boolean> }).patterns, testPatterns);
+
+			// Cancel the turn to clean up
+			cts.cancel();
+			await turnPromise;
+			cts.dispose();
+		});
+
+		test('dispatches editAutoApprovePatterns on reconnection to existing session', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const testPatterns = { '**/*.ts': true, '**/*.lock': false };
+			instantiationService.stub(IConfigurationService, {
+				getValue: ((key: string) => {
+					if (key === 'chat.tools.edits.autoApprove') {
+						return testPatterns;
+					}
+					return true;
+				}) as IConfigurationService['getValue'],
+				onDidChangeConfiguration: Event.None,
+			});
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			// Pre-populate a session state
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-autoapprove');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(),
+					provider: 'copilot',
+					title: 'Test',
+					status: SessionStatus.Idle,
+					createdAt: Date.now(),
+					modifiedAt: Date.now(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-autoapprove' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// The editAutoApprovePatternsChanged action should have been dispatched during reconnection
+			const patternAction = agentHostService.dispatchedActions.find(
+				d => d.action.type === 'session/editAutoApprovePatternsChanged'
+			);
+			assert.ok(patternAction, 'should dispatch editAutoApprovePatternsChanged action on reconnection');
+			assert.deepStrictEqual((patternAction!.action as { patterns: Record<string, boolean> }).patterns, testPatterns);
 		});
 	});
 });
