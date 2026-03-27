@@ -332,8 +332,13 @@ suite('Workbench - TerminalEnvironment', () => {
 				strictEqual(env['NODE_REPL_EXTERNAL_MODULE'], 'test-module');
 				strictEqual(env['VSCODE_NODE_OPTIONS'], undefined);
 				strictEqual(env['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
+			} else {
+				// On other platforms, VSCODE_* and NODE_* vars should not be restored
+				strictEqual(env['NODE_OPTIONS'], undefined);
+				strictEqual(env['NODE_REPL_EXTERNAL_MODULE'], undefined);
+				strictEqual(env['VSCODE_NODE_OPTIONS'], undefined);
+				strictEqual(env['VSCODE_NODE_REPL_EXTERNAL_MODULE'], undefined);
 			}
-			// On other platforms, behavior may differ (currently not implemented)
 		});
 	});
 	suite('getWorkspaceForTerminal', () => {
