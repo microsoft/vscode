@@ -6,10 +6,61 @@
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as child_process from 'child_process';
 import * as fs from 'fs';
 import { BaseServiceConfigurationProvider } from './configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
+
+type IsExecutableFile = (candidate: string) => boolean;
+
+function defaultIsExecutableFile(candidate: string): boolean {
+	try {
+		return fs.existsSync(candidate) && !fs.lstatSync(candidate).isDirectory();
+	} catch {
+		return false;
+	}
+}
+
+function getCaseInsensitiveEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
+	const foundKey = Object.keys(env).find(k => k.toUpperCase() === key.toUpperCase());
+	return foundKey ? env[foundKey] : undefined;
+}
+
+export function resolveNodeExecutableFromPath(
+	env: NodeJS.ProcessEnv,
+	cwd: string,
+	isExecutableFile: IsExecutableFile = defaultIsExecutableFile,
+	platform: NodeJS.Platform = process.platform,
+): string | null {
+	const pathValue = getCaseInsensitiveEnvValue(env, 'PATH');
+	if (!pathValue) {
+		return null;
+	}
+
+	const searchPaths = pathValue.split(path.delimiter).filter(Boolean);
+	const windowsExecutableSuffixes = platform === 'win32'
+		? (getCaseInsensitiveEnvValue(env, 'PATHEXT') || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)
+		: [];
+
+	for (const pathEntry of searchPaths) {
+		const baseDir = path.isAbsolute(pathEntry) ? pathEntry : path.join(cwd, pathEntry);
+
+		if (platform === 'win32') {
+			for (const ext of windowsExecutableSuffixes) {
+				const candidate = path.join(baseDir, `node${ext}`);
+				if (isExecutableFile(candidate)) {
+					return candidate;
+				}
+			}
+		}
+
+		const candidate = path.join(baseDir, 'node');
+		if (isExecutableFile(candidate)) {
+			return candidate;
+		}
+	}
+
+	return null;
+}
 
 export class ElectronServiceConfigurationProvider extends BaseServiceConfigurationProvider {
 
@@ -92,18 +143,13 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private findNodePath(): string | null {
-		try {
-			const out = child_process.execFileSync('node', ['-e', 'console.log(process.execPath)'], {
-				windowsHide: true,
-				timeout: 2000,
-				cwd: vscode.workspace.workspaceFolders?.[0].uri.fsPath,
-				encoding: 'utf-8',
-			});
-			return out.trim();
-		} catch (error) {
+		const cwd = vscode.workspace.workspaceFolders?.[0].uri.fsPath ?? process.cwd();
+		const resolvedNodePath = resolveNodeExecutableFromPath(process.env, cwd);
+		if (!resolvedNodePath) {
 			vscode.window.showWarningMessage(vscode.l10n.t("Could not detect a Node installation to run TS Server."));
-			return null;
 		}
+
+		return resolvedNodePath;
 	}
 
 	private validatePath(nodePath: string | null): string | null {
