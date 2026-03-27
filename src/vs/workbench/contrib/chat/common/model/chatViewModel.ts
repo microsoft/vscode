@@ -94,6 +94,7 @@ export interface IChatRequestViewModel {
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
+	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
 	readonly timestamp: number;
 	/** The kind of pending request, or undefined if not pending */
@@ -461,6 +462,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	currentRenderedHeight: number | undefined;
+
+	get attachedContext() {
+		return this._model.attachedContext;
+	}
 
 	get modelId() {
 		return this._model.modelId;

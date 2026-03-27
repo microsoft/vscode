@@ -9,6 +9,7 @@ import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
+import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IChatMarkdownContent, ResponseModelState } from '../chatService/chatService.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
@@ -116,7 +117,7 @@ const agentEditedFileEventSchema = Adapt.object<IChatAgentEditedFileEvent, IChat
 });
 
 const chatVariableSchema = Adapt.object<IChatRequestVariableData, IChatRequestVariableData>({
-	variables: Adapt.t(v => v.variables, Adapt.array(Adapt.value((a, b) => a.name === b.name))),
+	variables: Adapt.t(v => v.variables.map(IChatRequestVariableEntry.toExport), Adapt.array(Adapt.value((a, b) => a.name === b.name))),
 });
 
 const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestData>({
@@ -155,7 +156,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 });
 
 const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISerializableChatModelInputState>({
-	attachments: Adapt.v(i => i.attachments, objectsEqual),
+	attachments: Adapt.v(i => i.attachments.map(IChatRequestVariableEntry.toExport), objectsEqual),
 	mode: Adapt.v(i => i.mode, (a, b) => a.id === b.id),
 	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier),
 	inputText: Adapt.v(i => i.inputText),
