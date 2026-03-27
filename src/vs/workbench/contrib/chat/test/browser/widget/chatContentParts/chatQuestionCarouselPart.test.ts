@@ -366,9 +366,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
+			// Default option 'b' is re-sorted to appear first
 			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
-			assert.strictEqual(listItems[0].classList.contains('selected'), false);
-			assert.strictEqual(listItems[1].classList.contains('selected'), true, 'Default option should be selected');
+			assert.strictEqual(listItems[0].classList.contains('selected'), true, 'Default option should be re-sorted to first and selected');
+			assert.strictEqual(listItems[1].classList.contains('selected'), false);
 		});
 
 		test('default options are pre-selected for multiSelect', () => {
@@ -387,10 +388,11 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
+			// Default options 'a' and 'c' are re-sorted to appear first
 			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
 			assert.strictEqual(listItems[0].classList.contains('checked'), true, 'First default option should be checked');
-			assert.strictEqual(listItems[1].classList.contains('checked'), false);
-			assert.strictEqual(listItems[2].classList.contains('checked'), true, 'Third default option should be checked');
+			assert.strictEqual(listItems[1].classList.contains('checked'), true, 'Second default option should be checked (re-sorted from third)');
+			assert.strictEqual(listItems[2].classList.contains('checked'), false, 'Non-default option should not be checked');
 		});
 	});
 
