@@ -106,9 +106,9 @@ export class TypeScriptVersionManager extends Disposable {
 	}
 
 	private getBundledPickItem(): QuickPickItem {
-		const bundledVersion = this.versionProvider.bundledVersion;
+		const bundledVersion = this.versionProvider.defaultVersion;
 		return {
-			label: (this.currentVersion.eq(bundledVersion)
+			label: (!this.useWorkspaceTsdkSetting || !vscode.workspace.isTrusted
 				? '• '
 				: '') + vscode.l10n.t("Use VS Code's Version"),
 			description: bundledVersion.displayName,
