@@ -167,9 +167,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IGitService gitService: IGitService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, gitService, location),
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, gitService, chatWidgetService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
 			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
 		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -189,12 +190,15 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}];
 	}
 
-	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, gitService: IGitService, location: ActionLocation): IActionWidgetDropdownActionProvider {
+	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, gitService: IGitService, chatWidgetService: IChatWidgetService, location: ActionLocation): IActionWidgetDropdownActionProvider {
 		return {
 			getActions: () => {
 				const actions: IActionWidgetDropdownAction[] = [];
 				const contributions = chatSessionsService.getAllChatSessionContributions();
-				const hasGitRepo = !Iterable.isEmpty(gitService.repositories);
+				const widget = chatWidgetService.lastFocusedWidget;
+				const hasGitRepo = widget?.viewModel?.model.repoData
+					? true
+					: !Iterable.isEmpty(gitService.repositories);
 
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);

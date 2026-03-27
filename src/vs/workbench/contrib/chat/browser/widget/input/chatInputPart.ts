@@ -2288,6 +2288,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.updateAgentSessionTypeContextKey();
 							this.refreshChatSessionPickers();
 						},
+						hasGitRepository: () => {
+							return !!this._widget?.viewModel?.model.repoData;
+						},
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
@@ -2386,6 +2389,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.updateWidgetLockStateFromSessionType(provider);
 							this.updateAgentSessionTypeContextKey();
 							this.refreshChatSessionPickers();
+						},
+						hasGitRepository: () => {
+							return !!this._widget?.viewModel?.model.repoData;
 						},
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;

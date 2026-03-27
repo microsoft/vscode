@@ -98,6 +98,11 @@ export interface ISessionTypePickerDelegate {
 	 * and update pickers accordingly.
 	 */
 	onDidChangeActiveSessionProvider?: Event<AgentSessionTarget>;
+	/**
+	 * Returns whether the current session's workspace has a git repository.
+	 * Used to gate cloud delegation which requires a GitHub repository.
+	 */
+	hasGitRepository?(): boolean;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');

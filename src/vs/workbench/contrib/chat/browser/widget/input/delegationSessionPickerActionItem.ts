@@ -95,6 +95,9 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	private _hasGitRepository(): boolean {
+		if (this.delegate.hasGitRepository) {
+			return this.delegate.hasGitRepository();
+		}
 		return !Iterable.isEmpty(this.gitService.repositories);
 	}
 
