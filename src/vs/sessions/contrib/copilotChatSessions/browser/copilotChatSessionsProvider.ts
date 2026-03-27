@@ -28,7 +28,6 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/co
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
@@ -820,7 +819,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
 	/** Cache of adapted sessions, keyed by resource URI string. */
-	private readonly _sessionCache = new Map<string, AgentSessionAdapter>();
+	private readonly _sessionCache = new Map<string, IChatData>();
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
@@ -1069,35 +1068,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			modelRef.dispose();
 		}
 
-		const existingSessions = new ResourceSet([...this._sessionCache.values()].map(s => s.resource));
-
 		// Send request
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
-		// Wait for the agent session to appear
-		const createdSession = await this._waitForNewAgentSession(session.target, existingSessions);
-		this._currentNewSession?.dispose();
-		this._currentNewSession = undefined;
-		return createdSession;
-	}
+		// Add the new session to the sessions model immediately so it appears in the sessions list
+		const key = session.resource.toString();
+		this._sessionCache.set(key, session);
+		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
-	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<IChatData> {
-		const found = [...this._sessionCache.values()].find(s => s.sessionType === target && !existingSessions.has(s.resource));
-		if (found) {
-			return found;
-		}
-		return new Promise<IChatData>(resolve => {
-			const listener = this.onDidChangeSessions((e) => {
-				const s = e.added.find(s => s.sessionType === target && !existingSessions.has(s.resource));
-				if (s) {
-					listener.dispose();
-					resolve(s);
-				}
-			});
-		});
+		return session;
 	}
 
 	// -- Private --
@@ -1171,7 +1153,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		for (const session of this.agentSessionsService.model.sessions) {
 			if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
-				this._currentNewSession.update(new AgentSessionAdapter(session, this.id));
+				// The agent session for the new session has appeared — replace the
+				// temporary new session in the cache with a real AgentSessionAdapter.
+				const key = session.resource.toString();
+				const adapter = new AgentSessionAdapter(session, this.id);
+				currentKeys.add(key);
+				this._sessionCache.set(key, adapter);
+				changed.push(adapter);
+				this._currentNewSession.dispose();
+				this._currentNewSession = undefined;
 				continue;
 			}
 
@@ -1184,7 +1174,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			currentKeys.add(key);
 
 			const existing = this._sessionCache.get(key);
-			if (existing) {
+			if (existing instanceof AgentSessionAdapter) {
 				existing.update(session);
 				changed.push(existing);
 			} else {
@@ -1195,10 +1185,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		const removed: IChatData[] = [];
-		for (const [key, adapter] of this._sessionCache) {
-			if (!currentKeys.has(key)) {
+		for (const [key, session] of this._sessionCache) {
+			if (!currentKeys.has(key) && session !== this._currentNewSession) {
 				this._sessionCache.delete(key);
-				removed.push(adapter);
+				removed.push(session);
 			}
 		}
 
