@@ -12,6 +12,10 @@
 		padding: 0 6px;
 	}
 
+	.pane-body & .monaco-tree-sticky-container {
+		padding: 0 6px;
+	}
+
 	.monaco-list-row {
 		border-radius: 6px;
 	}
@@ -58,6 +62,21 @@
 	.monaco-list-row.focused:not(.selected) {
 		.session-title-toolbar {
 			display: block;
+		}
+
+		.session-title {
+			margin-right: 8px;
+		}
+	}
+
+	/* Pinned but not hovered/focused: show only the unpin action */
+	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
+		.session-title-toolbar {
+			display: block;
+
+			.action-item:not(:last-child) {
+				display: none;
+			}
 		}
 
 		.session-title {
@@ -164,7 +183,7 @@
 			font-variant-numeric: tabular-nums;
 			overflow: hidden;
 			display: flex;
-			gap: 4px;
+			gap: 2px;
 
 			.session-diff-added {
 				color: var(--vscode-chat-linesAddedForeground);

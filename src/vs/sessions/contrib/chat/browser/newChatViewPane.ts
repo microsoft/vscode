@@ -509,7 +509,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
 		const hasActiveSession = !!session;
 		const isLoading = session?.loading.get() ?? false;
 		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading;
@@ -554,11 +554,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._updateInputLoadingState();
 
 		try {
-			const session = this.sessionsManagementService.activeSession.get();
-			if (!session) {
+			const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+			if (!chat) {
 				return;
 			}
-			await this.sessionsManagementService.sendRequest(session, { query, attachedContext });
+			await this.sessionsManagementService.sendRequest(chat, { query, attachedContext });
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
@@ -646,10 +646,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Requests folder trust if needed and creates a new session.
 	 */
 	private async _onWorkspaceSelected(selection: IWorkspaceSelection): Promise<void> {
-		// Check if the provider's session type requires workspace trust
-		const sessionTypes = this.sessionsProvidersService.getSessionTypesForProvider(selection.providerId);
-		const requiresTrust = sessionTypes.some(t => t.requiresWorkspaceTrust);
-		if (requiresTrust) {
+		if (selection.workspace.requiresWorkspaceTrust) {
 			const workspaceUri = selection.workspace.repositories[0]?.uri;
 			if (workspaceUri && !await this._requestFolderTrust(workspaceUri)) {
 				return;
@@ -677,6 +674,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			model.setValue(text);
 			this._send();
 		}
+	}
+
+	selectWorkspace(workspace: IWorkspaceSelection): void {
+		this._workspacePicker.setSelectedWorkspace(workspace);
 	}
 }
 
@@ -735,6 +736,10 @@ export class NewChatViewPane extends ViewPane {
 
 	sendQuery(text: string): void {
 		this._widget?.sendQuery(text);
+	}
+
+	selectWorkspace(workspace: IWorkspaceSelection): void {
+		this._widget?.selectWorkspace(workspace);
 	}
 
 	override setVisible(visible: boolean): void {

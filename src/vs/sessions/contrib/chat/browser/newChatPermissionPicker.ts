@@ -65,11 +65,11 @@ export class NewChatPermissionPicker extends Disposable {
 
 		// Write permission level to the active session data when it changes
 		this._register(this.onDidChangeLevel(level => {
-			const session = this.sessionsManagementService.activeSession.get();
-			if (!(session instanceof CopilotCLISession)) {
+			const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+			if (!(chat instanceof CopilotCLISession)) {
 				throw new Error('NewChatPermissionPicker requires a CopilotCLISession');
 			}
-			session.setPermissionLevel(level);
+			chat.setPermissionLevel(level);
 		}));
 	}
 
@@ -163,11 +163,11 @@ export class NewChatPermissionPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
 			item: {
-				label: localize('permissions.learnMore', "Learn More about Permissions"),
+				label: localize('permissions.learnMore', "Learn more about permissions"),
 				icon: Codicon.blank,
 				checked: false,
 			},
-			label: localize('permissions.learnMore', "Learn More about Permissions"),
+			label: localize('permissions.learnMore', "Learn more about permissions"),
 			hideIcon: false,
 			disabled: false,
 		});
