@@ -1525,7 +1525,7 @@ export interface IChatService {
 	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>;
 	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
-	readonly onDidDisposeSession: Event<{ readonly sessionResource: readonly URI[]; readonly reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 

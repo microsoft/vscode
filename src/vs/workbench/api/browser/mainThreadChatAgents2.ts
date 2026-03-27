@@ -146,7 +146,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				this._proxy.$releaseSession(resource);
 			}
 		}));

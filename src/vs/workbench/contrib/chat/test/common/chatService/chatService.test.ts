@@ -426,7 +426,7 @@ suite('ChatService', () => {
 
 		let disposed = false;
 		testDisposables.add(testService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				if (resource.toString() === model.sessionResource.toString()) {
 					disposed = true;
 				}
