@@ -59,6 +59,7 @@ import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSy
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -572,6 +573,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -1573,8 +1575,35 @@ export class AICustomizationListWidget extends Disposable {
 				groupKey: item.groupKey,
 				badge: item.badge,
 				badgeTooltip: item.badgeTooltip,
+				storage: this.inferStorageFromUri(item.uri),
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Infers the storage source of a URI by checking workspace folders,
+	 * user data paths, and plugin locations.
+	 */
+	private inferStorageFromUri(uri: URI): PromptsStorage {
+		// Check if under a workspace folder
+		if (this.workspaceContextService.getWorkspaceFolder(uri)) {
+			return PromptsStorage.local;
+		}
+
+		// Check if under user data prompts home
+		const promptsHome = this.userDataProfileService.currentProfile.promptsHome;
+		if (isEqualOrParent(uri, promptsHome)) {
+			return PromptsStorage.user;
+		}
+
+		// Check if under a plugin location
+		if (this.findPluginUri(uri)) {
+			return PromptsStorage.plugin;
+		}
+
+		// Default to user for remaining files (e.g. user-scoped files
+		// outside the recognized prompts home)
+		return PromptsStorage.user;
 	}
 
 	/**
@@ -1628,84 +1657,81 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		// When items come from an external provider, group by groupKey if
-		// any items define one; otherwise fall back to a flat list.
+		// any items define one; otherwise fall through to standard
+		// storage-based grouping (storage is auto-inferred from URI).
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider) {
-			const hasGroups = matchedItems.some(item => item.groupKey !== undefined);
-			if (!hasGroups) {
-				matchedItems.sort((a, b) => a.name.localeCompare(b.name));
-				this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			const hasExplicitGroups = matchedItems.some(item => item.groupKey !== undefined);
+			if (hasExplicitGroups) {
+				// Auto-build group definitions from the items' groupKey values,
+				// preserving the order of first appearance. Items without a
+				// groupKey are placed into a fallback "Other" group.
+				const groupOrder: string[] = [];
+				const ungroupedKey = '__ungrouped__';
+				for (const item of matchedItems) {
+					const key = item.groupKey ?? ungroupedKey;
+					if (!groupOrder.includes(key)) {
+						groupOrder.push(key);
+					}
+				}
+
+				const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
+					groupOrder.map(key => ({
+						groupKey: key,
+						label: key === ungroupedKey ? localize('otherGroup', "Other") : key,
+						icon: sectionToIcon(this.currentSection),
+						description: '',
+						items: [],
+					}));
+
+				for (const item of matchedItems) {
+					const key = item.groupKey ?? ungroupedKey;
+					const group = groups.find(g => g.groupKey === key);
+					if (group) {
+						group.items.push(item);
+					}
+				}
+
+				// Sort items within each group
+				for (const group of groups) {
+					group.items.sort((a, b) => a.name.localeCompare(b.name));
+				}
+
+				// Build display entries with group headers
+				this.displayEntries = [];
+				let isFirstGroup = true;
+				for (const group of groups) {
+					if (group.items.length === 0) {
+						continue;
+					}
+
+					const collapsed = this.collapsedGroups.has(group.groupKey);
+
+					this.displayEntries.push({
+						type: 'group-header',
+						id: `group-${group.groupKey}`,
+						groupKey: group.groupKey,
+						label: group.label,
+						icon: group.icon,
+						count: group.items.length,
+						isFirst: isFirstGroup,
+						description: group.description,
+						collapsed,
+					});
+					isFirstGroup = false;
+
+					if (!collapsed) {
+						for (const item of group.items) {
+							this.displayEntries.push({ type: 'file-item', item });
+						}
+					}
+				}
+
 				this.list.splice(0, this.list.length, this.displayEntries);
 				this.updateEmptyState();
 				return matchedItems.length;
 			}
-
-			// Auto-build group definitions from the items' groupKey values,
-			// preserving the order of first appearance.
-			const groupOrder: string[] = [];
-			const ungroupedKey = '__ungrouped__';
-			for (const item of matchedItems) {
-				const key = item.groupKey ?? ungroupedKey;
-				if (!groupOrder.includes(key)) {
-					groupOrder.push(key);
-				}
-			}
-
-			const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
-				groupOrder.map(key => ({
-					groupKey: key,
-					label: key === ungroupedKey ? localize('otherGroup', "Other") : key,
-					icon: sectionToIcon(this.currentSection),
-					description: '',
-					items: [],
-				}));
-
-			for (const item of matchedItems) {
-				const key = item.groupKey ?? ungroupedKey;
-				const group = groups.find(g => g.groupKey === key);
-				if (group) {
-					group.items.push(item);
-				}
-			}
-
-			// Sort items within each group
-			for (const group of groups) {
-				group.items.sort((a, b) => a.name.localeCompare(b.name));
-			}
-
-			// Build display entries with group headers
-			this.displayEntries = [];
-			let isFirstGroup = true;
-			for (const group of groups) {
-				if (group.items.length === 0) {
-					continue;
-				}
-
-				const collapsed = this.collapsedGroups.has(group.groupKey);
-
-				this.displayEntries.push({
-					type: 'group-header',
-					id: `group-${group.groupKey}`,
-					groupKey: group.groupKey,
-					label: group.label,
-					icon: group.icon,
-					count: group.items.length,
-					isFirst: isFirstGroup,
-					description: group.description,
-					collapsed,
-				});
-				isFirstGroup = false;
-
-				if (!collapsed) {
-					for (const item of group.items) {
-						this.displayEntries.push({ type: 'file-item', item });
-					}
-				}
-			}
-
-			this.list.splice(0, this.list.length, this.displayEntries);
-			this.updateEmptyState();
-			return matchedItems.length;
+			// No explicit groupKey — fall through to standard storage-based grouping below.
 		}
 
 		// Group items by storage
