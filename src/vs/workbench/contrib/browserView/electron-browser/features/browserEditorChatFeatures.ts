@@ -14,17 +14,16 @@ import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IBrowserElementsService } from '../../../../services/browserElements/browser/browserElementsService.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
-import { IElementData, IBrowserTargetLocator, getDisplayNameFromOuterHTML, createElementContextValue } from '../../../../../platform/browserElements/common/browserElements.js';
+import { IElementData, getDisplayNameFromOuterHTML, createElementContextValue } from '../../../../../platform/browserElements/common/browserElements.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -56,7 +55,7 @@ const canShareBrowserWithAgentContext = ContextKeyExpr.and(
 
 /**
  * Contribution that manages element selection, element attachment to chat,
- * console session lifecycle, console log attachment to chat, and agent sharing.
+ * console log attachment to chat, and agent sharing.
  */
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	private _elementSelectionCts: CancellationTokenSource | undefined;
@@ -72,7 +71,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IBrowserElementsService private readonly browserElementsService: IBrowserElementsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
@@ -117,15 +115,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	}
 
 	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
-		// Start console session when a page URL is loaded
-		if (model.url) {
-			store.add(this._startConsoleSession(model.id));
-		} else {
-			store.add(Event.once(Event.filter(model.onDidNavigate, e => !!e.url))(() => {
-				store.add(this._startConsoleSession(model.id));
-			}));
-		}
-
 		// Manage sharing state
 		this._updateSharingState(true);
 		store.add(model.onDidChangeSharedWithAgent(() => {
@@ -200,24 +189,16 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
 
 		try {
-			const browserViewId = this.editor.model?.id;
-			if (!browserViewId) {
-				throw new Error('No browser view ID found');
+			const model = this.editor.model;
+			if (!model) {
+				throw new Error('No browser view model found');
 			}
 
 			// Make the browser the focused view
 			this.editor.ensureBrowserFocus();
 
-			const locator: IBrowserTargetLocator = { browserViewId };
-
-			// Start debug session for integrated browser
-			await this.browserElementsService.startDebugSession(cts.token, locator);
-
-			// Get the browser container bounds
-			const { width, height } = this.editor.browserContainer.getBoundingClientRect();
-
 			// Get element data from user selection
-			const elementData = await this.browserElementsService.getElementData({ x: 0, y: 0, width, height }, cts.token, locator);
+			const elementData = await model.getElementData(cts.token);
 			if (!elementData) {
 				throw new Error('Element data not found');
 			}
@@ -246,7 +227,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				this.logService.error('BrowserEditor.addElementToChat: Failed to select element', error);
 			}
 		} finally {
-			cts.dispose();
+			cts.dispose(true);
 			if (this._elementSelectionCts === cts) {
 				this._elementSelectionCts = undefined;
 				this._elementSelectionActiveContext.set(false);
@@ -263,20 +244,18 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		const cts = this._elementSelectionCts;
-		const browserViewId = this.editor.model?.id;
-		if (!browserViewId) {
+		const model = this.editor.model;
+		if (!model) {
 			return;
 		}
 
-		const locator: IBrowserTargetLocator = { browserViewId };
-		const { width, height } = this.editor.browserContainer.getBoundingClientRect();
-		const elementData = await this.browserElementsService.getFocusedElementData({ x: 0, y: 0, width, height }, cts.token, locator);
+		const elementData = await model.getFocusedElementData();
 		if (!elementData) {
 			return;
 		}
 
 		await this._attachElementDataToChat(elementData);
-		cts.dispose();
+		cts.dispose(true);
 		if (this._elementSelectionCts === cts) {
 			this._elementSelectionCts = undefined;
 			this._elementSelectionActiveContext.set(false);
@@ -313,7 +292,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (attachImages && model) {
 			const screenshotBuffer = await model.captureScreenshot({
 				quality: 90,
-				rect: bounds
+				pageRect: bounds
 			});
 
 			toAttach.push({
@@ -337,15 +316,13 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	 * Grab the current console logs from the active console session and attach them to chat.
 	 */
 	async addConsoleLogsToChat(): Promise<void> {
-		const browserViewId = this.editor.model?.id;
-		if (!browserViewId) {
+		const model = this.editor.model;
+		if (!model) {
 			return;
 		}
 
-		const locator: IBrowserTargetLocator = { browserViewId };
-
 		try {
-			const logs = await this.browserElementsService.getConsoleLogs(locator);
+			const logs = await model.getConsoleLogs();
 			if (!logs) {
 				return;
 			}
@@ -366,21 +343,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		} catch (error) {
 			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
 		}
-	}
-
-	private _startConsoleSession(browserViewId: string): IDisposable {
-		const cts = new CancellationTokenSource();
-		const locator: IBrowserTargetLocator = { browserViewId };
-
-		this.browserElementsService.startConsoleSession(cts.token, locator).catch(error => {
-			if (!cts.token.isCancellationRequested) {
-				this.logService.error('BrowserEditor: Failed to start console session', error);
-			}
-		});
-
-		return toDisposable(() => {
-			cts.dispose(true);
-		});
 	}
 }
 
