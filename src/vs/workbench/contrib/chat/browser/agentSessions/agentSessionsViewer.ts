@@ -900,7 +900,11 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 	getAriaLabel(element: AgentSessionListItem): string | null {
 		if (isAgentSessionSection(element)) {
-			return localize('agentSessionSectionAriaLabel', "{0} sessions section, {1} sessions", element.label, element.sessions.length);
+			const count = element.sessions.length;
+			if (count === 1) {
+				return localize('agentSessionSectionAriaLabel.singular', "{0} sessions section, {1} session", element.label, count);
+			}
+			return localize('agentSessionSectionAriaLabel.plural', "{0} sessions section, {1} sessions", element.label, count);
 		}
 
 		if (isAgentSessionShowMore(element)) {
