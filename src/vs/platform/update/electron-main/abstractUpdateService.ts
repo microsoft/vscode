@@ -16,7 +16,12 @@ import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/elect
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+
+const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
 
 export interface IUpdateURLOptions {
 	readonly background?: boolean;
@@ -94,6 +99,12 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this._state = state;
 		this._onStateChange.fire(state);
 
+		// Clear transient one-time properties from Idle state after delivering the event.
+		// This prevents new windows from seeing stale error/notAvailable messages.
+		if (state.type === StateType.Idle && (state.error || state.notAvailable)) {
+			this._state = State.Idle(state.updateType);
+		}
+
 		// Schedule 5-minute checks when in Ready state and overwrite is supported
 		if (this.supportsUpdateOverwrite) {
 			if (state.type === StateType.Ready) {
@@ -111,6 +122,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService,
+		@ITelemetryService protected readonly telemetryService: ITelemetryService,
+		@IApplicationStorageMainService protected readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IMeteredConnectionService protected readonly meteredConnectionService: IMeteredConnectionService,
 		protected readonly supportsUpdateOverwrite: boolean,
 	) {
@@ -128,6 +141,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.setState(State.Disabled(DisablementReason.NotBuilt));
 			return; // updates are never enabled when running out of sources
 		}
+
+		await this.trackVersionChange();
 
 		if (this.environmentMainService.disableUpdates) {
 			this.setState(State.Disabled(DisablementReason.DisabledByEnvironment));
@@ -183,6 +198,77 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 		}
+	}
+
+	private async trackVersionChange(): Promise<void> {
+		await this.applicationStorageMainService.whenReady;
+
+		interface ILastKnownVersion {
+			readonly version: string;
+			readonly commit: string | undefined;
+			readonly timestamp: number;
+		}
+
+		let from: ILastKnownVersion | undefined;
+		const raw = this.applicationStorageMainService.get(LAST_KNOWN_VERSION_STORAGE_KEY, StorageScope.APPLICATION);
+		if (typeof raw === 'string') {
+			try {
+				from = JSON.parse(raw);
+			} catch (error) {
+				// ignore
+			}
+		}
+
+		const to: ILastKnownVersion = {
+			version: this.productService.version,
+			commit: this.productService.commit,
+			timestamp: Date.now(),
+		};
+
+		if (from?.commit === to.commit) {
+			return;
+		}
+
+		this.applicationStorageMainService.store(LAST_KNOWN_VERSION_STORAGE_KEY, JSON.stringify(to), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		if (!from) {
+			return;
+		}
+
+		type VersionChangeEvent = {
+			fromVersion: string | undefined;
+			fromCommit: string | undefined;
+			fromVersionTime: number | undefined;
+			toVersion: string;
+			toCommit: string | undefined;
+			timeToUpdateMs: number | undefined;
+			updateMode: string | undefined;
+			titleBarMode: string | undefined;
+		};
+
+		type VersionChangeClassification = {
+			owner: 'dmitriv';
+			comment: 'Fired when VS Code detects a version change on startup.';
+			fromVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous version of VS Code.' };
+			fromCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the previous version.' };
+			fromVersionTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Timestamp when the previous version was first detected.' };
+			toVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current version of VS Code.' };
+			toCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the current version.' };
+			timeToUpdateMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds between the previous version install and this version install.' };
+			updateMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The update mode configured by the user.' };
+			titleBarMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title bar update indicator mode configured by the user.' };
+		};
+
+		this.telemetryService.publicLog2<VersionChangeEvent, VersionChangeClassification>('update:versionChanged', {
+			fromVersion: from.version,
+			fromCommit: from.commit,
+			fromVersionTime: from.timestamp,
+			toVersion: to.version,
+			toCommit: to.commit,
+			timeToUpdateMs: to.timestamp - from.timestamp,
+			updateMode: this.configurationService.getValue<string>('update.mode'),
+			titleBarMode: this.configurationService.getValue<string>('update.titleBar')
+		});
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
@@ -334,7 +420,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.trace('update#isLatestVersion() - checking update server', { url, headers });
 
 		try {
-			const context = await this.requestService.request({ url, headers }, token);
+			const context = await this.requestService.request({ url, headers, callSite: 'updateService.isLatestVersion' }, token);
 			const statusCode = context.res.statusCode;
 			this.logService.trace('update#isLatestVersion() - response', { statusCode });
 			// The update server replies with 204 (No Content) when no

@@ -35,6 +35,7 @@ export type { IMarketplaceReference } from './marketplaceReference.js';
 export const enum MarketplaceType {
 	Copilot = 'copilot',
 	Claude = 'claude',
+	OpenPlugin = 'openPlugin',
 }
 
 export const enum PluginSourceKind {
@@ -56,6 +57,7 @@ export interface IGitHubPluginSource {
 	readonly repo: string;
 	readonly ref?: string;
 	readonly sha?: string;
+	readonly path?: string;
 }
 
 export interface IGitUrlPluginSource {
@@ -112,6 +114,7 @@ interface IJsonPluginSource {
 	readonly package?: string;
 	readonly ref?: string;
 	readonly sha?: string;
+	readonly path?: string;
 	readonly version?: string;
 	readonly registry?: string;
 }
@@ -170,6 +173,12 @@ export interface IPluginMarketplaceService {
 	isMarketplaceTrusted(ref: IMarketplaceReference): boolean;
 	/** Records that the user trusts the given marketplace, persisted permanently. */
 	trustMarketplace(ref: IMarketplaceReference): void;
+	/**
+	 * Reads marketplace definition files from an already-cloned repository
+	 * directory and returns the declared plugins. Used by direct-install flows
+	 * that clone a repo first, then need to discover its plugins.
+	 */
+	readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]>;
 }
 
 /**
@@ -177,6 +186,8 @@ export interface IPluginMarketplaceService {
  * The first match determines the marketplace type.
  */
 const MARKETPLACE_DEFINITIONS: { type: MarketplaceType; path: string }[] = [
+	{ type: MarketplaceType.OpenPlugin, path: 'marketplace.json' },
+	{ type: MarketplaceType.OpenPlugin, path: '.plugin/marketplace.json' },
 	{ type: MarketplaceType.Copilot, path: '.github/plugin/marketplace.json' },
 	{ type: MarketplaceType.Claude, path: '.claude-plugin/marketplace.json' },
 ];
@@ -418,7 +429,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			}
 			const url = `https://raw.githubusercontent.com/${repo}/main/${def.path}`;
 			try {
-				const context = await this._requestService.request({ type: 'GET', url }, token);
+				const context = await this._requestService.request({ type: 'GET', url, callSite: 'pluginMarketplaceService.fetchPluginList' }, token);
 				const statusCode = context.res.statusCode;
 				if (statusCode !== 200) {
 					repoMayBePrivate &&= statusCode !== undefined && statusCode >= 400 && statusCode < 500;
@@ -687,8 +698,16 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			return [];
 		}
 
+		return this._readPluginsFromDirectory(repoDir, reference, token);
+	}
+
+	async readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference): Promise<IMarketplacePlugin[]> {
+		return this._readPluginsFromDirectory(repoDir, reference);
+	}
+
+	private async _readPluginsFromDirectory(repoDir: URI, reference: IMarketplaceReference, token?: CancellationToken): Promise<IMarketplacePlugin[]> {
 		for (const def of MARKETPLACE_DEFINITIONS) {
-			if (token.isCancellationRequested) {
+			if (token?.isCancellationRequested) {
 				return [];
 			}
 
@@ -759,10 +778,6 @@ function resolvePluginSource(pluginRoot: string | undefined, source: string): st
 	const repoRoot = URI.file('/');
 	const pluginRootUri = normalizedRoot ? normalizePath(joinPath(repoRoot, normalizedRoot)) : repoRoot;
 
-	if (!normalizedSource) {
-		return normalizedRoot || undefined;
-	}
-
 	if (normalizedRoot && (normalizedSource === normalizedRoot || normalizedSource.startsWith(`${normalizedRoot}/`))) {
 		return normalizedSource;
 	}
@@ -823,11 +838,16 @@ export function parsePluginSource(
 				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source 'sha' must be a full 40-character commit hash when provided`);
 				return undefined;
 			}
+			if (!isOptionalString(rawSource.path)) {
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source 'path' must be a string when provided`);
+				return undefined;
+			}
 			return {
 				kind: PluginSourceKind.GitHub,
 				repo: rawSource.repo,
 				ref: rawSource.ref,
 				sha: rawSource.sha,
+				path: rawSource.path,
 			};
 		}
 		case 'url': {
@@ -913,7 +933,7 @@ export function getPluginSourceLabel(descriptor: IPluginSourceDescriptor): strin
 		case PluginSourceKind.RelativePath:
 			return descriptor.path || '.';
 		case PluginSourceKind.GitHub:
-			return descriptor.repo;
+			return descriptor.path ? `${descriptor.repo}/${descriptor.path}` : descriptor.repo;
 		case PluginSourceKind.GitUrl:
 			return descriptor.url;
 		case PluginSourceKind.Npm:
@@ -935,7 +955,8 @@ export function hasSourceChanged(installed: IPluginSourceDescriptor, marketplace
 	switch (installed.kind) {
 		case PluginSourceKind.GitHub:
 			return installed.ref !== (marketplace as typeof installed).ref
-				|| installed.sha !== (marketplace as typeof installed).sha;
+				|| installed.sha !== (marketplace as typeof installed).sha
+				|| installed.path !== (marketplace as typeof installed).path;
 		case PluginSourceKind.GitUrl:
 			return installed.ref !== (marketplace as typeof installed).ref
 				|| installed.sha !== (marketplace as typeof installed).sha;

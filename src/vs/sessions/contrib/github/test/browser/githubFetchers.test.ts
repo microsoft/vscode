@@ -29,7 +29,7 @@ class MockApiClient {
 		this._nextResponse = undefined;
 	}
 
-	async request<T>(_method: string, _path: string, _body?: unknown): Promise<T> {
+	async request<T>(_method: string, _path: string, _callSite: string, _body?: unknown): Promise<T> {
 		this.requestCalls.push({ method: _method, path: _path, body: _body });
 		if (this._nextError) {
 			throw this._nextError;
@@ -37,7 +37,7 @@ class MockApiClient {
 		return this._nextResponse as T;
 	}
 
-	async graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>): Promise<T> {
 		this.graphqlCalls.push({ query, variables });
 		if (this._nextError) {
 			throw this._nextError;

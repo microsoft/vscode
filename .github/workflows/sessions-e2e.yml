@@ -1,13 +1,13 @@
 name: Sessions E2E Tests
 
-on:
-  pull_request:
-    branches:
-      - main
-      - 'release/*'
-    paths:
-      - 'src/vs/sessions/**'
-      - 'scripts/code-sessions-web.*'
+# on:
+#   pull_request:
+#     branches:
+#       - main
+#       - 'release/*'
+#     paths:
+#       - 'src/vs/sessions/**'
+#       - 'scripts/code-sessions-web.*'
 
 permissions:
   contents: read
@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload failure screenshots
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sessions-e2e-failures
           path: src/vs/sessions/test/e2e/out/failure-*.png

@@ -92,6 +92,7 @@ import { IExtHostSearch } from './extHostSearch.js';
 import { IExtHostSecretState } from './extHostSecretState.js';
 import { ExtHostShare } from './extHostShare.js';
 import { ExtHostSpeech } from './extHostSpeech.js';
+import { ExtHostBrowsers } from './extHostBrowsers.js';
 import { ExtHostStatusBar } from './extHostStatusBar.js';
 import { IExtHostStorage } from './extHostStorage.js';
 import { IExtensionStoragePaths } from './extHostStoragePaths.js';
@@ -247,6 +248,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
+	const extHostBrowsers = rpcProtocol.set(ExtHostContext.ExtHostBrowsers, new ExtHostBrowsers(rpcProtocol));
 
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
@@ -1058,6 +1060,34 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return _asExtensionEvent(extHostChatAgents2.onDidChangeActiveChatPanelSessionResource)(listeners, thisArgs, disposables);
 			},
+			get browserTabs() {
+				checkProposedApiEnabled(extension, 'browser');
+				return extHostBrowsers.browserTabs;
+			},
+			onDidOpenBrowserTab(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidOpenBrowserTab)(listener, thisArg, disposables);
+			},
+			onDidCloseBrowserTab(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidCloseBrowserTab)(listener, thisArg, disposables);
+			},
+			get activeBrowserTab() {
+				checkProposedApiEnabled(extension, 'browser');
+				return extHostBrowsers.activeBrowserTab;
+			},
+			onDidChangeActiveBrowserTab(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidChangeActiveBrowserTab)(listener, thisArg, disposables);
+			},
+			onDidChangeBrowserTabState(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidChangeBrowserTabState)(listener, thisArg, disposables);
+			},
+			openBrowserTab(url: string, options?: vscode.BrowserTabShowOptions) {
+				checkProposedApiEnabled(extension, 'browser');
+				return extHostBrowsers.openBrowserTab(url, options);
+			},
 		};
 
 		// namespace: workspace
@@ -1707,6 +1737,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeSkills(listener, thisArgs, disposables);
 			},
+			registerChatSessionCustomizationProvider(chatSessionType: string, metadata: vscode.ChatSessionCustomizationProviderMetadata, provider: vscode.ChatSessionCustomizationProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatSessionCustomizationProvider');
+				return extHostChatAgents2.registerChatSessionCustomizationProvider(extension, chatSessionType, metadata, provider);
+			},
 		};
 
 		// namespace: lm
@@ -1945,6 +1979,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,
+			TaskRunOn: extHostTypes.TaskRunOn,
 			TaskScope: extHostTypes.TaskScope,
 			TerminalLink: extHostTypes.TerminalLink,
 			TerminalQuickFixTerminalCommand: extHostTypes.TerminalQuickFixCommand,
@@ -2094,8 +2129,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatToolInvocationPart: extHostTypes.ChatToolInvocationPart,
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatSessionStatus: extHostTypes.ChatSessionStatus,
+			ChatSessionCustomizationType: extHostTypes.ChatSessionCustomizationType,
 			ChatDebugLogLevel: extHostTypes.ChatDebugLogLevel,
 			ChatDebugToolCallResult: extHostTypes.ChatDebugToolCallResult,
+			ChatDebugHookResult: extHostTypes.ChatDebugHookResult,
 			ChatDebugToolCallEvent: extHostTypes.ChatDebugToolCallEvent,
 			ChatDebugModelTurnEvent: extHostTypes.ChatDebugModelTurnEvent,
 			ChatDebugGenericEvent: extHostTypes.ChatDebugGenericEvent,
@@ -2108,6 +2145,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatDebugEventMessageContent: extHostTypes.ChatDebugEventMessageContent,
 			ChatDebugEventToolCallContent: extHostTypes.ChatDebugEventToolCallContent,
 			ChatDebugEventModelTurnContent: extHostTypes.ChatDebugEventModelTurnContent,
+			ChatDebugEventHookContent: extHostTypes.ChatDebugEventHookContent,
 			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,

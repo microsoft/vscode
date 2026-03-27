@@ -10,7 +10,7 @@ import { parse as parseJSONC } from '../../../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
@@ -29,9 +29,12 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, getCleanPromptName, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
-import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
+import {
+	IWorkspaceInstructionFile,
+	PromptFilesLocator
+} from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
@@ -48,6 +51,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/c
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
+import { ChatInternalCustomizations } from '../internalCustomizations/internalCustomizations.js';
 
 /**
  * Error thrown when a skill file is missing the required name attribute.
@@ -90,6 +94,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Prompt files locator utility.
 	 */
 	private readonly fileLocator: PromptFilesLocator;
+
+	/**
+	 * Built-in internal customizations (skills, instructions, etc.).
+	 */
+	private readonly internalCustomizations: ChatInternalCustomizations;
 
 	/**
 	 * Cached custom agents. Caching only happens if the `onDidChangeCustomAgents` event is used.
@@ -180,6 +189,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this.createPromptFilesLocator();
+
+		// Register the internal readonly customizations
+		this.internalCustomizations = this._register(new ChatInternalCustomizations(this.fileService));
+
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.cachedParsedPromptFromModels.delete(model.uri);
 		}));
@@ -201,6 +214,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent),
 				this._onDidContributedWhenChange.event,
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)),
+				this._onDidPluginPromptFilesChange.event,
 			)
 		));
 
@@ -246,14 +260,30 @@ export class PromptsService extends Disposable implements IPromptsService {
 			PromptsType.agent,
 			(plugin, reader) => plugin.agents.read(reader),
 		));
+		this._register(this.watchPluginPromptFilesForType(
+			PromptsType.instructions,
+			(plugin, reader) => plugin.instructions.read(reader),
+		));
 
 		this._register(autorun(reader => {
 			const plugins = this.agentPluginService.plugins.read(reader);
+			const hookFiles: IPluginPromptPath[] = [];
 			for (const plugin of plugins) {
 				if (isContributionEnabled(plugin.enablement.read(reader))) {
-					plugin.hooks.read(reader);
+					for (const hook of plugin.hooks.read(reader)) {
+						hookFiles.push({
+							uri: hook.uri,
+							storage: PromptsStorage.plugin,
+							type: PromptsType.hook,
+							name: getCanonicalPluginCommandId(plugin, hook.originalId),
+							pluginUri: plugin.uri,
+						});
+					}
 				}
 			}
+
+			this._pluginPromptFilesByType.set(PromptsType.hook, hookFiles);
+			this.cachedFileLocations[PromptsType.hook] = undefined;
 			this._onDidPluginHooksChange.fire();
 		}));
 	}
@@ -335,7 +365,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this._pluginPromptFilesByType.get(type) ?? [],
 		]);
 
-		return [...prompts.flat()];
+		return [...prompts.flat(), ...this.internalCustomizations.getPromptPaths(type)];
 	}
 
 	/**
@@ -473,6 +503,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
 			case PromptsStorage.plugin:
 				return this._pluginPromptFilesByType.get(type) ?? [];
+			case PromptsStorage.internal:
+				return this.internalCustomizations.getPromptPaths(type);
 			default:
 				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
 		}
@@ -583,7 +615,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
-		const slashCommandFiles = [...promptFiles, ...skills];
+		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
+		const slashCommandFiles = [
+			...promptFiles,
+			...skills.filter(s => !disabledSkills.has(s.uri)),
+		];
 		const details = await Promise.all(slashCommandFiles.map(async promptPath => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
@@ -622,12 +658,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private asChatPromptSlashCommand(parsedPromptFile: ParsedPromptFile, promptPath: IPromptPath): IChatPromptSlashCommand {
 		let name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
 		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
+		const internalSkill = this.internalCustomizations.getInternalSkillByUri(promptPath.uri);
 		return {
 			name: name,
 			description: parsedPromptFile?.header?.description ?? promptPath.description,
 			argumentHint: parsedPromptFile?.header?.argumentHint,
 			parsedPromptFile,
-			promptPath
+			promptPath,
+			when: internalSkill?.when,
 		};
 	}
 
@@ -654,6 +692,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.getFileLocatorEvent(PromptsType.instructions),
 			this._onDidContributedWhenChange.event,
 			this._onDidChangeInstructions.event,
+			this._onDidPluginPromptFilesChange.event,
 		);
 	}
 
@@ -868,6 +907,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return localize('extension.with.id', 'Extension: {0}', promptPath.extension.displayName ?? promptPath.extension.id);
 			}
 			case PromptsStorage.plugin: return localize('plugin.capitalized', 'Plugin');
+			case PromptsStorage.internal: return localize('internal.builtIn', 'Built-in');
 			default: assertNever(promptPath, 'Unknown prompt storage type');
 		}
 	}
@@ -884,49 +924,42 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return [];
 	}
 
-	public async listAgentMDs(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
+	public async listAgentInstructions(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
+		const resolvedAgentFiles: IResolvedAgentFile[] = [];
+		const promises: Promise<IResolvedAgentFile[]>[] = [];
+
+		const includeParents = this.configurationService.getValue(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
+		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents, logger);
+
+		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useAgentMD) {
 			logger?.logInfo('Agent MD files are disabled via configuration.');
-			return [];
+		} else {
+			rootFiles.push({ fileName: AGENT_MD_FILENAME, type: AgentFileType.agentsMd });
 		}
-		return await this.fileLocator.findFilesInWorkspaceRoots(AGENT_MD_FILENAME, undefined, AgentFileType.agentsMd, token);
-	}
-
-	public async listClaudeMDs(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
-		// see https://code.claude.com/docs/en/memory
 		const useClaudeMD = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_MD);
 		if (!useClaudeMD) {
 			logger?.logInfo('Claude MD files are disabled via configuration.');
-			return [];
-		}
-		const results: IResolvedAgentFile[] = [];
-		const userHome = await this.pathService.userHome();
-		const userClaudeFolder = joinPath(userHome, CLAUDE_CONFIG_FOLDER);
-		await Promise.all([
-			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_MD_FILENAME, undefined, AgentFileType.claudeMd, token, results), // in workspace roots
-			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_LOCAL_MD_FILENAME, undefined, AgentFileType.claudeMd, token, results), // CLAUDE.local in workspace roots
-			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_MD_FILENAME, CLAUDE_CONFIG_FOLDER, AgentFileType.claudeMd, token, results), // in workspace/.claude folders
-			this.fileLocator.findFilesInRoots([userClaudeFolder], CLAUDE_MD_FILENAME, AgentFileType.claudeMd, token, results) // in ~/.claude folder
-		]);
-		return results.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
-	}
+		} else {
+			const claudeMdFile = { fileName: CLAUDE_MD_FILENAME, type: AgentFileType.claudeMd };
+			rootFiles.push(claudeMdFile); // CLAUDE.md in workspace root
+			rootFiles.push({ fileName: CLAUDE_LOCAL_MD_FILENAME, type: AgentFileType.claudeMd }); // CLAUDE.local.md in workspace root
 
-	public async listCopilotInstructionsMDs(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
+			promises.push(this.fileLocator.findFilesInRoots(rootFolders, CLAUDE_CONFIG_FOLDER, [claudeMdFile], token, resolvedAgentFiles)); // CLAUDE.md in .claude folder under workspace root
+			promises.push(this.fileLocator.findFilesInRoots([await this.pathService.userHome()], CLAUDE_CONFIG_FOLDER, [claudeMdFile], token, resolvedAgentFiles)); // CLAUDE.md in in ~/.claude folder
+		}
 		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
 		if (!useCopilotInstructionsFiles) {
 			logger?.logInfo('Copilot instructions files are disabled via configuration.');
-			return [];
+		} else {
+			const githubConfigFiles = [{ fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentFileType.copilotInstructionsMd }];
+			promises.push(this.fileLocator.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, githubConfigFiles, token, resolvedAgentFiles));
 		}
-		return await this.fileLocator.findCopilotInstructionsMDsInWorkspace(token);
-	}
 
-	public async listAgentInstructions(token: CancellationToken, logger: Logger | undefined): Promise<IResolvedAgentFile[]> {
-		const [agentMDs, claudeMDs, copilotInstructionsMDs] = await Promise.all([
-			this.listAgentMDs(token, logger),
-			this.listClaudeMDs(token, logger),
-			this.listCopilotInstructionsMDs(token, logger)
-		]);
+		promises.push(this.fileLocator.findFilesInRoots(rootFolders, undefined, rootFiles, token, resolvedAgentFiles));
+
+		await Promise.all(promises);
 		if (token.isCancellationRequested) {
 			return [];
 		}
@@ -943,9 +976,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 			return true;
 		};
-		agentMDs.forEach(add);
-		claudeMDs.forEach(add);
-		copilotInstructionsMDs.forEach(add);
+		resolvedAgentFiles.forEach(add);
 		for (const symlink of symlinks) {
 			if (seenFileURI.has(symlink.realPath)) {
 				logger?.logInfo(`Skipping symlinked agent instructions file ${symlink.uri} as target already included: ${symlink.realPath}`);
@@ -954,7 +985,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				seenFileURI.add(symlink.realPath);
 			}
 		}
-		return result;
+		return result.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 	}
 
 	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
@@ -992,6 +1023,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		this.storageService.store(this.disabledPromptsStorageKeyPrefix + type, JSON.stringify(disabled), StorageScope.PROFILE, StorageTarget.USER);
 		if (type === PromptsType.agent) {
 			this.cachedCustomAgents.refresh();
+		} else if (type === PromptsType.skill) {
+			this.cachedSkills.refresh();
+			this.cachedSlashCommands.refresh();
 		}
 	}
 
@@ -1025,8 +1059,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const sanitizedName = this.truncateAgentSkillName(name, uri);
 
 		// Validate that the sanitized name matches the parent folder name (per agentskills.io specification)
-		const skillFolderUri = dirname(uri);
-		const folderName = basename(skillFolderUri);
+		const folderName = getSkillFolderName(uri);
 		if (sanitizedName !== folderName) {
 			this.logger.error(`[validateAndSanitizeSkillFile] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
 			throw new SkillNameMismatchError(uri, sanitizedName, folderName);
@@ -1040,10 +1073,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const MAX_NAME_LENGTH = 64;
 		const sanitized = this.sanitizeAgentSkillText(name);
 		if (sanitized !== name) {
-			this.logger.warn(`[findAgentSkills] Agent skill name contains XML tags, removed: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill name contains XML tags, removed: ${uri}`);
 		}
 		if (sanitized.length > MAX_NAME_LENGTH) {
-			this.logger.warn(`[findAgentSkills] Agent skill name exceeds ${MAX_NAME_LENGTH} characters, truncated: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill name exceeds ${MAX_NAME_LENGTH} characters, truncated: ${uri}`);
 			return sanitized.substring(0, MAX_NAME_LENGTH);
 		}
 		return sanitized;
@@ -1056,10 +1089,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const MAX_DESCRIPTION_LENGTH = 1024;
 		const sanitized = this.sanitizeAgentSkillText(description);
 		if (sanitized !== description) {
-			this.logger.warn(`[findAgentSkills] Agent skill description contains XML tags, removed: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill description contains XML tags, removed: ${uri}`);
 		}
 		if (sanitized.length > MAX_DESCRIPTION_LENGTH) {
-			this.logger.warn(`[findAgentSkills] Agent skill description exceeds ${MAX_DESCRIPTION_LENGTH} characters, truncated: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill description exceeds ${MAX_DESCRIPTION_LENGTH} characters, truncated: ${uri}`);
 			return sanitized.substring(0, MAX_DESCRIPTION_LENGTH);
 		}
 		return sanitized;
@@ -1103,13 +1136,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const file of files) {
 			if (file.status === 'loaded' && file.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.description, file.uri);
+				const internalSkill = this.internalCustomizations.getInternalSkillByUri(file.uri);
 				result.push({
 					uri: file.uri,
 					storage: file.storage,
 					name: file.name,
 					description: sanitizedDescription,
 					disableModelInvocation: file.disableModelInvocation ?? false,
-					userInvocable: file.userInvocable ?? true
+					userInvocable: file.userInvocable ?? true,
+					when: internalSkill?.when,
 				});
 			}
 		}
@@ -1266,6 +1301,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
 		for (const hookFile of hookFiles) {
+			// Plugins are handled separately down below because they do their own parsing+interpolation
+			if (hookFile.storage === PromptsStorage.plugin) {
+				continue;
+			}
+
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
 				const json = parseJSONC(content.value.toString());
@@ -1357,7 +1397,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const { files } = await this.computeSkillDiscoveryInfo(token);
-		return { type: PromptsType.skill, files };
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
+		return { type: PromptsType.skill, files, sourceFolders };
 	}
 
 	/**
@@ -1386,7 +1427,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 			fileUri: p.uri,
 			storage: p.storage,
 			source: PromptFileSource.Plugin,
-		})));
+		})), ...this.internalCustomizations.getSkills()
+			.map(s => ({
+				fileUri: s.uri,
+				storage: s.storage,
+				source: PromptFileSource.Internal,
+			})));
 
 		const getPriority = (skill: IResolvedPromptFile | IExtensionPromptPath): number => {
 			if (skill.storage === PromptsStorage.local) {
@@ -1423,34 +1469,27 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
-				const name = parsedFile.header?.name;
-				if (!name) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute: ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-name', extensionId, source });
-					continue;
-				}
+				const folderName = getSkillFolderName(uri);
 
-				const sanitizedName = this.truncateAgentSkillName(name, uri);
-				const skillFolderUri = dirname(uri);
-				const folderName = basename(skillFolderUri);
+				let name = parsedFile.header?.name;
+
+				if (!name) {
+					this.logger.debug(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
+					name = folderName;
+				}
+				let sanitizedName = this.truncateAgentSkillName(name, uri);
 				if (sanitizedName !== folderName) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}": ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'name-mismatch', name: sanitizedName, extensionId, source });
-					continue;
+					this.logger.debug(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+					sanitizedName = folderName;
 				}
 
 				if (seenNames.has(sanitizedName)) {
-					this.logger.warn(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${sanitizedName} at ${uri}`);
+					this.logger.debug(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${sanitizedName} at ${uri}`);
 					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: sanitizedName, duplicateOf: nameToUri.get(sanitizedName), extensionId, source });
 					continue;
 				}
 
 				const description = parsedFile.header?.description;
-				if (!description) {
-					this.logger.error(`[computeSkillDiscoveryInfo] Agent skill file missing description attribute: ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-description', name: sanitizedName, extensionId, source });
-					continue;
-				}
 
 				seenNames.add(sanitizedName);
 				nameToUri.set(sanitizedName, uri);
@@ -1770,6 +1809,10 @@ namespace IAgentSource {
 			return {
 				storage: PromptsStorage.plugin,
 				pluginUri: promptPath.pluginUri
+			};
+		} else if (promptPath.storage === PromptsStorage.internal) {
+			return {
+				storage: PromptsStorage.internal
 			};
 		} else {
 			return {

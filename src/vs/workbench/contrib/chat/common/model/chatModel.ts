@@ -29,6 +29,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
+import { ChatPerfMark, markChat } from '../chatPerf.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
@@ -437,13 +438,15 @@ class AbstractResponse implements IResponse {
 
 	/**
 	 * A stringified representation of response data which might be presented to a screenreader or used when copying a response.
+	 * Computed lazily on demand to avoid expensive string rebuilding during streaming.
 	 */
-	protected _responseRepr = '';
+	private _responseRepr: string | undefined;
 
 	/**
-	 * Just the markdown content of the response, used for determining the rendering rate of markdown
+	 * Just the markdown content of the response, used for determining the rendering rate of markdown.
+	 * Computed lazily on demand to avoid expensive string rebuilding during streaming.
 	 */
-	protected _markdownContent = '';
+	private _markdownContent: string | undefined;
 
 	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
@@ -451,10 +454,12 @@ class AbstractResponse implements IResponse {
 
 	constructor(value: IChatProgressResponseContent[]) {
 		this._responseParts = value;
-		this._updateRepr();
 	}
 
 	toString(): string {
+		if (this._responseRepr === undefined) {
+			this._responseRepr = this.computeRepr();
+		}
 		return this._responseRepr;
 	}
 
@@ -462,23 +467,36 @@ class AbstractResponse implements IResponse {
 	 * _Just_ the content of markdown parts in the response
 	 */
 	getMarkdown(): string {
+		if (this._markdownContent === undefined) {
+			this._markdownContent = this.computeMarkdownContent();
+		}
 		return this._markdownContent;
 	}
 
-	protected _updateRepr() {
-		this._responseRepr = this.partsToRepr(this._responseParts);
+	/**
+	 * Invalidate cached representations so they are recomputed on next access.
+	 */
+	protected _invalidateRepr() {
+		this._responseRepr = undefined;
+		this._markdownContent = undefined;
+	}
 
-		this._markdownContent = this._responseParts.map(part => {
+	private computeMarkdownContent(): string {
+		const segments: string[] = [];
+		for (const part of this._responseParts) {
 			if (part.kind === 'inlineReference') {
-				return this.inlineRefToRepr(part);
+				segments.push(this.inlineRefToRepr(part));
 			} else if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
-				return part.content.value;
-			} else {
-				return '';
+				if (part.content.value.length > 0) {
+					segments.push(part.content.value);
+				}
 			}
-		})
-			.filter(s => s.length > 0)
-			.join('');
+		}
+		return segments.join('');
+	}
+
+	protected computeRepr(): string {
+		return this.partsToRepr(this._responseParts);
 	}
 
 	private partsToRepr(parts: readonly IChatProgressResponseContent[]): string {
@@ -674,7 +692,7 @@ export class Response extends AbstractResponse implements IDisposable {
 
 	clear(): void {
 		this._responseParts = [];
-		this._updateRepr(true);
+		this._contentChanged(true);
 	}
 
 	clearToPreviousToolInvocation(message?: string): void {
@@ -695,7 +713,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		if (message) {
 			this._responseParts.push({ kind: 'warning', content: new MarkdownString(message) });
 		}
-		this._updateRepr(true);
+		this._contentChanged(true);
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
@@ -724,7 +742,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				const idx = this._responseParts.indexOf(lastResponsePart);
 				this._responseParts[idx] = { ...lastResponsePart, content: appendMarkdownString(lastResponsePart.content, progress.content) };
 			}
-			this._updateRepr(quiet);
+			this._contentChanged(quiet);
 		} else if (progress.kind === 'thinking') {
 
 			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
@@ -752,7 +770,7 @@ export class Response extends AbstractResponse implements IDisposable {
 					value: appendMarkdownString(new MarkdownString(lastText), new MarkdownString(currText)).value
 				};
 			}
-			this._updateRepr(quiet);
+			this._contentChanged(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
 			// merge edits for the same file no matter when they come in
 			const notebookUri = CellUri.parse(progress.uri)?.notebook;
@@ -770,14 +788,14 @@ export class Response extends AbstractResponse implements IDisposable {
 				// Notebook cell edits (ICellEditOperation)
 				this._mergeOrPushNotebookEditGroup(uri, progress.edits, progress.done, isExternalEdit);
 			}
-			this._updateRepr(quiet);
+			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressTask') {
 			// Add a new resolving part
 			const responsePosition = this._responseParts.push(progress) - 1;
-			this._updateRepr(quiet);
+			this._contentChanged(quiet);
 
 			const disp = progress.onDidAddProgress(() => {
-				this._updateRepr(false);
+				this._contentChanged(false);
 			});
 
 			progress.task?.().then((content) => {
@@ -788,32 +806,32 @@ export class Response extends AbstractResponse implements IDisposable {
 				if (typeof content === 'string') {
 					(this._responseParts[responsePosition] as IChatTask).content = new MarkdownString(content);
 				}
-				this._updateRepr(false);
+				this._contentChanged(false);
 			});
 
 		} else if (progress.kind === 'toolInvocation') {
 			autorunSelfDisposable(reader => {
 				progress.state.read(reader); // update repr when state changes
-				this._updateRepr(false);
+				this._contentChanged(false);
 
 				if (IChatToolInvocation.isComplete(progress, reader)) {
 					reader.dispose();
 				}
 			});
 			this._responseParts.push(progress);
-			this._updateRepr(quiet);
+			this._contentChanged(quiet);
 		} else if (progress.kind === 'externalToolInvocationUpdate') {
 			this._handleExternalToolInvocationUpdate(progress);
-			this._updateRepr(quiet);
+			this._contentChanged(quiet);
 		} else {
 			this._responseParts.push(progress);
-			this._updateRepr(quiet);
+			this._contentChanged(quiet);
 		}
 	}
 
 	public addCitation(citation: IChatCodeCitation) {
 		this._citations.push(citation);
-		this._updateRepr();
+		this._contentChanged();
 	}
 
 	private _mergeOrPushTextEditGroup(uri: URI, edits: TextEdit[], done: boolean | undefined, isExternalEdit: boolean | undefined): void {
@@ -845,6 +863,9 @@ export class Response extends AbstractResponse implements IDisposable {
 		);
 
 		if (existingInvocation) {
+			if (progress.toolSpecificData !== undefined) {
+				existingInvocation.toolSpecificData = progress.toolSpecificData;
+			}
 			if (progress.isComplete) {
 				existingInvocation.didExecuteTool({
 					content: [],
@@ -852,9 +873,6 @@ export class Response extends AbstractResponse implements IDisposable {
 					toolResultError: progress.errorMessage,
 					toolResultDetails: progress.resultDetails
 				});
-			}
-			if (progress.toolSpecificData !== undefined) {
-				existingInvocation.toolSpecificData = progress.toolSpecificData;
 			}
 			return;
 		}
@@ -883,28 +901,30 @@ export class Response extends AbstractResponse implements IDisposable {
 
 		if (progress.isComplete) {
 			// Already completed on first push
+			if (progress.toolSpecificData !== undefined) {
+				invocation.toolSpecificData = progress.toolSpecificData;
+			}
 			invocation.didExecuteTool({
 				content: [],
 				toolResultMessage: progress.pastTenseMessage,
 				toolResultError: progress.errorMessage,
 				toolResultDetails: progress.resultDetails
 			});
-			if (progress.toolSpecificData !== undefined) {
-				invocation.toolSpecificData = progress.toolSpecificData;
-			}
 		}
 
 		this._responseParts.push(invocation);
 	}
 
-	protected override _updateRepr(quiet?: boolean) {
-		super._updateRepr();
-		if (!this._onDidChangeValue) {
-			return; // called from parent constructor
+	protected override computeRepr(): string {
+		let repr = super.computeRepr();
+		if (this._citations.length) {
+			repr += '\n\n' + getCodeCitationsMessage(this._citations);
 		}
+		return repr;
+	}
 
-		this._responseRepr += this._citations.length ? '\n\n' + getCodeCitationsMessage(this._citations) : '';
-
+	private _contentChanged(quiet?: boolean) {
+		this._invalidateRepr();
 		if (!quiet) {
 			this._onDidChangeValue.fire();
 		}
@@ -1645,6 +1665,9 @@ export interface IChatModelInputState {
 	/** Current selection ranges */
 	selections: ISelection[];
 
+	/** Current permission level for tool auto-approval */
+	permissionLevel?: ChatPermissionLevel;
+
 	/** Contributed stored state */
 	contrib: Record<string, unknown>;
 }
@@ -1664,6 +1687,7 @@ export interface ISerializableChatModelInputState {
 	} | undefined;
 	inputText: string;
 	selections: ISelection[];
+	permissionLevel?: ChatPermissionLevel;
 	contrib: Record<string, unknown>;
 }
 
@@ -1886,7 +1910,8 @@ class InputModel implements IInputModel {
 				metadata: value.selectedModel.metadata
 			} : undefined,
 			inputText: value.inputText,
-			selections: value.selections
+			selections: value.selections,
+			permissionLevel: value.permissionLevel,
 		};
 	}
 }
@@ -2178,7 +2203,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			},
 			contrib: serializedInputState.contrib,
 			inputText: serializedInputState.inputText,
-			selections: serializedInputState.selections
+			selections: serializedInputState.selections,
+			permissionLevel: serializedInputState.permissionLevel,
 		});
 
 		this.dataSerializer = dataRef?.serializer;
@@ -2518,6 +2544,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 
 		this._requests.push(request);
+		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
 		this._onDidChange.fire({ kind: 'addRequest', request });
 		return request;
 	}
@@ -2790,7 +2817,7 @@ export namespace ChatResponseResource {
 		}
 
 		const parts = uri.path.split('/');
-		if (parts.length < 5) {
+		if (parts.length < 4) {
 			return undefined;
 		}
 
