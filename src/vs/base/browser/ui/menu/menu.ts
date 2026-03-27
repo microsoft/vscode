@@ -1231,20 +1231,16 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .menu-item-icon {
+	position: absolute;
 	width: 1em;
 	height: 100%;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-left: 4px;
-}
-
-.monaco-menu .monaco-action-bar.vertical .menu-item-icon + .action-label {
-	padding-left: 6px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-icon {
-	display: none;
+	visibility: hidden;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check {
