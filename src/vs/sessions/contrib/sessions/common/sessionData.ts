@@ -165,4 +165,6 @@ export interface ISessionData {
 	readonly chats: IObservable<readonly IChatData[]>;
 	/** The currently active chat within this session group. */
 	readonly activeChat: IObservable<IChatData>;
+	/** The main chat within this session group (the first chat of the session). */
+	readonly mainChat: IChatData;
 }

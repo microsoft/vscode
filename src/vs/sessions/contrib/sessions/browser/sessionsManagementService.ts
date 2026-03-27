@@ -188,8 +188,10 @@ export interface ISessionsManagementService {
 	unarchiveSession(session: ISessionData): Promise<void>;
 	/** Delete a session. */
 	deleteSession(session: ISessionData): Promise<void>;
-	/** Rename a session. */
-	renameSession(session: ISessionData, title: string): Promise<void>;
+	/** Delete a single chat from a session. */
+	deleteChat(chat: IChatData): Promise<void>;
+	/** Rename a chat. */
+	renameChat(chat: IChatData, title: string): Promise<void>;
 	/** Mark a session as read or unread. */
 	setRead(session: ISessionData, read: boolean): void;
 }
@@ -794,13 +796,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const updatedAtObs = chatsObs.map(chats => latestDateAcrossChats(chats, c => c.updatedAt.get())!);
 		const lastTurnEndObs = chatsObs.map(chats => latestDateAcrossChats(chats, c => c.lastTurnEnd.get()));
 
+		const mainChat = chatsObs.get()[0];
 		const sessionData: ISessionData = {
-			...chatsObs.get()[0], // Inherit properties from the primary chat
+			...mainChat, // Inherit properties from the primary chat
 			sessionId,
 			updatedAt: updatedAtObs,
 			lastTurnEnd: lastTurnEndObs,
 			chats: chatsObs,
 			activeChat: activeChatObs,
+			mainChat,
 		};
 		this._sessionDataCache.set(sessionId, sessionData);
 		return sessionData;
@@ -848,8 +852,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	async renameSession(session: ISessionData, title: string): Promise<void> {
-		await this.sessionsProvidersService.renameSession(session.chats.get()[0].chatId, title);
+	async deleteChat(chat: IChatData): Promise<void> {
+		const session = this.getSession(chat.resource);
+		if (!session) {
+			throw new Error(`Session for chat ${chat.chatId} not found`);
+		}
+		if (session.mainChat.chatId === chat.chatId) {
+			throw new Error('Cannot delete the main chat of a session. Use deleteSession to delete the entire session.');
+		}
+		await this.chatWidgetService.getWidgetBySessionResource(chat.resource)?.clear();
+		await this.sessionsProvidersService.deleteSession(chat.chatId);
+		if (this.activeSession.get()?.sessionId === session.sessionId) {
+			await this.openSession(session.mainChat.resource);
+		}
+	}
+
+	async renameChat(chat: IChatData, title: string): Promise<void> {
+		await this.sessionsProvidersService.renameSession(chat.chatId, title);
 	}
 
 	setRead(session: ISessionData, read: boolean): void {

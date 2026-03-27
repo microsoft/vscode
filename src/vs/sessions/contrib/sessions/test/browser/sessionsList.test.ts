@@ -46,6 +46,7 @@ function createSession(id: string, opts: {
 		pullRequest: observableValue(`pullRequest-${id}`, undefined),
 		chats: observableValue<readonly IChatData[]>(`chats-${id}`, []),
 		activeChat: observableValue<IChatData>(`activeChat-${id}`, undefined!),
+		mainChat: undefined!,
 	};
 }
 
