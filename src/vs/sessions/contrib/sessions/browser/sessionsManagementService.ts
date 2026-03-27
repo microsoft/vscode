@@ -115,7 +115,7 @@ export interface ISessionsManagementService {
 	 * Select an existing session as the active session.
 	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
 	 */
-	openSession(sessionResource: URI): Promise<void>;
+	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
 
 	/**
 	 * Select an existing session as the active session.
@@ -519,7 +519,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.chatWidgetService.openSession(chatResource, ChatViewPaneTarget);
 	}
 
-	async openSession(sessionResource: URI): Promise<void> {
+	async openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
 		const sessionData = this.getSession(sessionResource);
 		if (!sessionData) {
 			this.logService.warn(`[SessionsManagement] openSession: session not found: ${sessionResource.toString()}`);
@@ -530,7 +530,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.setActiveSession(sessionData);
 
 		const activeChatResource = sessionData.activeChat.get().resource;
-		await this.chatWidgetService.openSession(activeChatResource, ChatViewPaneTarget);
+		await this.chatWidgetService.openSession(activeChatResource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
 	}
 
 	createNewSession(providerId: string, workspace: ISessionWorkspace): ISessionData {
