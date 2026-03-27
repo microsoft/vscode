@@ -50,12 +50,72 @@ export interface ISessionWorkspace {
 	readonly icon: ThemeIcon;
 	/** Repositories in this workspace. */
 	readonly repositories: ISessionRepository[];
+	/** Whether the session requires workspace trust to operate. */
+	readonly requiresWorkspaceTrust: boolean;
 }
 
 /**
- * The common session interface exposed by sessions providers.
+ * Pull request information associated with a session.
+ */
+export interface ISessionPullRequest {
+	/** URI of the pull request. */
+	readonly uri: URI;
+	/** Icon reflecting the PR state. */
+	readonly icon?: ThemeIcon;
+}
+
+/**
+ * A single chat as exposed by sessions providers.
  * Self-contained facade — components should not reach back to underlying
  * services to resolve additional data.
+ */
+export interface IChatData {
+	/** Globally unique chat ID (`providerId:localId`). */
+	readonly chatId: string;
+	/** Resource URI identifying this chat. */
+	readonly resource: URI;
+	/** ID of the provider that owns this chat. */
+	readonly providerId: string;
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	readonly sessionType: string;
+	/** Icon for this chat. */
+	readonly icon: ThemeIcon;
+	/** When the chat was created. */
+	readonly createdAt: Date;
+	/** Workspace this chat operates on. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+
+	// Reactive properties
+
+	/** Chat display title (changes when auto-titled or renamed). */
+	readonly title: IObservable<string>;
+	/** When the chat was last updated. */
+	readonly updatedAt: IObservable<Date>;
+	/** Current chat status. */
+	readonly status: IObservable<SessionStatus>;
+	/** File changes produced by the chat. */
+	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	/** Currently selected model identifier. */
+	readonly modelId: IObservable<string | undefined>;
+	/** Currently selected mode identifier and kind. */
+	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/** Whether the chat is still initializing (e.g., resolving git repository). */
+	readonly loading: IObservable<boolean>;
+	/** Whether the chat is archived. */
+	readonly isArchived: IObservable<boolean>;
+	/** Whether the chat has been read. */
+	readonly isRead: IObservable<boolean>;
+	/** Status description shown while the chat is active (e.g., current agent action). */
+	readonly description: IObservable<string | undefined>;
+	/** Timestamp of when the last agent turn ended, if any. */
+	readonly lastTurnEnd: IObservable<Date | undefined>;
+	/** Pull request associated with this session, if any. */
+	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+}
+
+/**
+ * A session groups one or more chats together.
+ * All {@link IChatData} fields are propagated from the primary (first) chat.
  */
 export interface ISessionData {
 	/** Globally unique session ID (`providerId:localId`). */
@@ -97,6 +157,10 @@ export interface ISessionData {
 	readonly description: IObservable<string | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** URI of the pull request associated with this session, if any. */
-	readonly pullRequestUri: IObservable<URI | undefined>;
+	/** Pull request associated with this session, if any. */
+	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** The chats belonging to this session group. */
+	readonly chats: IObservable<readonly IChatData[]>;
+	/** The currently active chat within this session group. */
+	readonly activeChat: IObservable<IChatData>;
 }

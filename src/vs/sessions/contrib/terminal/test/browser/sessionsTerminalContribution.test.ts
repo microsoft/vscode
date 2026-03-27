@@ -15,9 +15,8 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { ISessionData } from '../../../sessions/common/sessionData.js';
-import { ISessionsChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IChatData, ISessionData } from '../../../sessions/common/sessionData.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -54,14 +53,14 @@ function makeAgentSession(opts: {
 		detail: undefined,
 		baseBranchProtected: undefined,
 	} : undefined;
-	return {
-		sessionId: 'test:session',
+	const chat: IChatData = {
+		chatId: 'test:session',
 		resource: URI.parse('file:///session'),
 		providerId: 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
@@ -73,8 +72,10 @@ function makeAgentSession(opts: {
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequestUri: observableValue('test.pullRequestUri', undefined),
+		pullRequest: observableValue('test.pullRequest', undefined),
 	};
+	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat) };
+	return session;
 }
 
 function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISessionData {
@@ -84,14 +85,14 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		detail: undefined,
 		baseBranchProtected: undefined,
 	} : undefined;
-	return {
-		sessionId: 'test:non-agent',
+	const chat: IChatData = {
+		chatId: 'test:non-agent',
 		resource: URI.parse('file:///session'),
 		providerId: 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
@@ -103,8 +104,10 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequestUri: observableValue('test.pullRequestUri', undefined),
+		pullRequest: observableValue('test.pullRequest', undefined),
 	};
+	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat) };
+	return session;
 }
 
 function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {

@@ -1,7 +1,10 @@
 ---
-description: Create a draft pull request for the current session
+name: create-draft-pr
+description: Create a draft pull request for the current session. Use when the user wants to open a draft PR with the session's changes.
 ---
-<!-- Customize this prompt and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
+<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
+
+# Create Draft Pull Request
 
 Use the GitHub MCP server to create a draft pull request — do NOT use the `gh` CLI.
 

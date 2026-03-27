@@ -221,7 +221,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
 		}).catch(err => {
-			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}`, err);
+			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}. Verify address and connectionToken`, err);
 			this._rejectPendingConnectionWait(address, err);
 			guardedRemove();
 		});
