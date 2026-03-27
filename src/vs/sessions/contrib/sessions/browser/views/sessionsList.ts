@@ -623,6 +623,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _excludeRead: boolean;
 	private workspaceGroupCapped: boolean;
 	private readonly expandedWorkspaceGroups = new Set<string>();
+	private findOpen = false;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -745,6 +746,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		this._register(this.tree.onDidChangeFindOpenState(open => {
+			this.findOpen = open;
+			this.update();
+		}));
+
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
 			if (this.visible) {
 				this.refresh();
@@ -816,6 +822,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id !== 'archived';
 			const isCapped = isWorkspaceGroup && this.workspaceGroupCapped
+				&& !this.findOpen
 				&& !this.expandedWorkspaceGroups.has(section.label)
 				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
 
