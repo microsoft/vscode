@@ -1015,7 +1015,7 @@ export class AICustomizationListWidget extends Disposable {
 					extensionCreateActions.push({
 						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
 						enabled: menuItem.enabled,
-						run: () => { this.commandService.executeCommand(menuItem.item.id); },
+						run: () => { menuItem.run(); },
 					});
 				}
 			}

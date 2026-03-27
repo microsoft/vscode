@@ -699,17 +699,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return undefined;
 		}
 
-		const items = await providerData.provider.provideChatSessionCustomizations(token);
-		if (!items) {
+		try {
+			const items = await providerData.provider.provideChatSessionCustomizations(token);
+			if (!items) {
+				return undefined;
+			}
+
+			return items.map(item => ({
+				uri: item.uri,
+				type: typeConvert.ChatSessionCustomizationType.from(item.type),
+				name: item.name,
+				description: item.description,
+			}));
+		} catch (err) {
 			return undefined;
 		}
-
-		return items.map(item => ({
-			uri: item.uri,
-			type: typeConvert.ChatSessionCustomizationType.from(item.type),
-			name: item.name,
-			description: item.description,
-		}));
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {

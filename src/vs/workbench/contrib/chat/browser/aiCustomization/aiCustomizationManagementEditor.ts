@@ -755,10 +755,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 				promptType: item.promptType,
 				storage: item.storage ?? 'external',
 			});
-			const storage = item.storage ?? PromptsStorage.local;
+			const storage = item.storage;
 			const isWorkspaceFile = storage === PromptsStorage.local;
-			const isReadOnly = storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
-			this.showEmbeddedEditor(item.uri, item.name, item.promptType, storage, isWorkspaceFile, isReadOnly);
+			const isReadOnly = !storage || storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
+			this.showEmbeddedEditor(item.uri, item.name, item.promptType, storage ?? BUILTIN_STORAGE, isWorkspaceFile, isReadOnly);
 		}));
 
 		// Handle create actions - AI-guided creation
