@@ -20,6 +20,7 @@ suite('mapSessionEvents', () => {
 
 	const disposables = new DisposableStore();
 	let testDir: string;
+	let db: SessionDatabase | undefined;
 	const session = AgentSession.uri('copilot', 'test-session');
 
 	setup(() => {
@@ -27,8 +28,9 @@ suite('mapSessionEvents', () => {
 		mkdirSync(testDir, { recursive: true });
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.clear();
+		await db?.close();
 		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,7 +111,7 @@ suite('mapSessionEvents', () => {
 	suite('file edit restoration', () => {
 
 		test('restores file edits from database for edit tools', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
@@ -154,7 +156,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('handles multiple file edits for one tool call', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
@@ -215,7 +217,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('non-edit tools do not get file edits even if db has data', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			const events: ISessionEvent[] = [
 				{
