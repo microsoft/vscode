@@ -5,8 +5,11 @@
 
 import { getActiveElement } from '../../../../base/browser/dom.js';
 import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
+import { AsyncDataTree } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { DataTree } from '../../../../base/browser/ui/tree/dataTree.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IListService } from '../../../../platform/list/browser/listService.js';
+import { IListService, WorkbenchListWidget } from '../../../../platform/list/browser/listService.js';
 import { IEditorCommandsContext, isEditorCommandsContext, IEditorIdentifier, isEditorIdentifier } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -61,7 +64,7 @@ function getCommandsContext(commandArgs: unknown[], editorService: IEditorServic
 
 	// Figure out if command is executed from a list
 	const list = listService.lastFocusedList;
-	let isListAction = list instanceof List && list.getHTMLElement() === getActiveElement();
+	let isListAction = list !== undefined && list.getHTMLElement() === getActiveElement();
 
 	// Get editor context for which the command was triggered
 	let editorContext = getEditorContextFromCommandArgs(commandArgs, isListAction, editorService, editorGroupsService, listService);
@@ -102,6 +105,37 @@ function moveCurrentEditorContextToFront(editorContext: IEditorCommandsContext, 
 	return multiEditorContext;
 }
 
+
+/**
+ * Get focused elements from a list or tree widget. Handles both
+ * `List` (which provides `getFocusedElements()`) and tree widgets
+ * (which provide `getFocus()`).
+ */
+function getWidgetFocusedElements(widget: WorkbenchListWidget): unknown[] {
+	if (widget instanceof List) {
+		return widget.getFocusedElements();
+	}
+	if (widget instanceof ObjectTree || widget instanceof AsyncDataTree || widget instanceof DataTree) {
+		return widget.getFocus();
+	}
+	return [];
+}
+
+/**
+ * Get selected elements from a list or tree widget. Handles both
+ * `List` (which provides `getSelectedElements()`) and tree widgets
+ * (which provide `getSelection()`).
+ */
+function getWidgetSelectedElements(widget: WorkbenchListWidget): unknown[] {
+	if (widget instanceof List) {
+		return widget.getSelectedElements();
+	}
+	if (widget instanceof ObjectTree || widget instanceof AsyncDataTree || widget instanceof DataTree) {
+		return widget.getSelection();
+	}
+	return [];
+}
+
 function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAction: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext | undefined {
 
 	// We only know how to extraxt the command context from URI and IEditorCommandsContext arguments
@@ -127,10 +161,12 @@ function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAction: b
 	// If there is no context in the arguments, try to find the context from the focused list
 	// if the action was executed from a list
 	if (isListAction) {
-		const list = listService.lastFocusedList as List<unknown>;
-		for (const focusedElement of list.getFocusedElements()) {
-			if (isGroupOrEditor(focusedElement)) {
-				return groupOrEditorToEditorContext(focusedElement, undefined, editorGroupsService);
+		const list = listService.lastFocusedList;
+		if (list) {
+			for (const focusedElement of getWidgetFocusedElements(list)) {
+				if (isGroupOrEditor(focusedElement)) {
+					return groupOrEditorToEditorContext(focusedElement, undefined, editorGroupsService);
+				}
 			}
 		}
 	}
@@ -142,20 +178,22 @@ function getMultiSelectContext(editorContext: IEditorCommandsContext, isListActi
 
 	// If the action was executed from a list, return all selected editors
 	if (isListAction) {
-		const list = listService.lastFocusedList as List<unknown>;
-		const selection = list.getSelectedElements().filter(isGroupOrEditor);
+		const list = listService.lastFocusedList;
+		if (list) {
+			const selection = getWidgetSelectedElements(list).filter(isGroupOrEditor);
 
-		if (selection.length > 1) {
-			return selection.map(e => groupOrEditorToEditorContext(e, editorContext.preserveFocus, editorGroupsService));
-		}
+			if (selection.length > 1) {
+				return selection.map(e => groupOrEditorToEditorContext(e, editorContext.preserveFocus, editorGroupsService));
+			}
 
-		if (selection.length === 0) {
-			// TODO@benibenj workaround for https://github.com/microsoft/vscode/issues/224050
-			// Explainer: the `isListAction` flag can be a false positive in certain cases because
-			// it will be `true` if the active element is a `List` even if it is part of the editor
-			// area. The workaround here is to fallback to `isListAction: false` if the list is not
-			// having any editor or group selected.
-			return getMultiSelectContext(editorContext, false, editorService, editorGroupsService, listService);
+			if (selection.length === 0) {
+				// Workaround: the `isListAction` flag can be a false positive in certain
+				// cases because it will be `true` if the active element is a list or tree
+				// widget even if it is part of the editor area (e.g. notebooks). The
+				// workaround here is to fallback to `isListAction: false` if the widget
+				// does not have any editor or group selected.
+				return getMultiSelectContext(editorContext, false, editorService, editorGroupsService, listService);
+			}
 		}
 	}
 	// Check editors selected in the group (tabs)
