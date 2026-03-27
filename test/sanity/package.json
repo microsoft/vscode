@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "minimist": "^1.2.8",
-    "mocha": "^11.7.5",
+    "mocha": "^11.3.0",
     "mocha-junit-reporter": "^2.2.1",
     "node-fetch": "^3.3.2",
     "playwright": "^1.57.0"
