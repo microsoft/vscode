@@ -70,6 +70,10 @@ export function setup(context: TestContext) {
 	});
 
 	async function testCliApp(entryPoint: string) {
+		if (context.options.downloadOnly) {
+			return;
+		}
+
 		const cliDataDir = context.createTempDir();
 		context.log('Logging out of Dev Tunnel to ensure fresh authentication');
 		context.run(entryPoint, '--cli-data-dir', cliDataDir, 'tunnel', 'user', 'logout');
@@ -117,35 +121,42 @@ export function setup(context: TestContext) {
 		const url = context.getTunnelUrl(tunnelUrl, test.workspaceDir);
 		context.log(`CLI started successfully with tunnel URL: ${url}`);
 
-		const maxAttempts = 3;
-		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-			try {
-				context.log(`Navigating to ${url} (attempt ${attempt}/${maxAttempts})`);
-				await page.goto(url);
+		context.log(`Navigating to ${url}`);
+		await page.goto(url);
 
-				context.log('Waiting for the workbench to load');
-				await page.waitForSelector('.monaco-workbench');
+		context.log('Waiting for the workbench to load');
+		await page.waitForSelector('.monaco-workbench');
 
-				context.log('Selecting GitHub Account');
-				await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();
+		context.log('Selecting GitHub Account');
+		await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();
 
-				context.log('Clicking Allow on confirmation dialog');
-				const popup = page.waitForEvent('popup');
-				await page.getByRole('button', { name: 'Allow' }).click();
+		context.log('Clicking Allow on confirmation dialog');
+		const popup = page.waitForEvent('popup');
+		await page.getByRole('button', { name: 'Allow' }).click();
 
-				await auth.runAuthorizeFlow(await popup);
+		await auth.runAuthorizeFlow(await popup);
 
-				context.log('Waiting for connection to be established');
-				await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
+		context.log('Waiting for connection to be established');
+		const remoteButton = page.getByRole('button', { name: `remote ${tunnelId}` });
+		const reloadButton = page.getByRole('button', { name: 'Reload' });
+		const maxReloads = 5;
+		for (let attempt = 1; ; attempt++) {
+			const result = await Promise.race([
+				remoteButton.waitFor({ timeout: 5 * 60 * 1000 }).then(() => 'connected' as const),
+				reloadButton.waitFor().then(() => 'error' as const),
+			]);
+
+			if (result === 'connected') {
 				return;
-			} catch (error) {
-				await context.captureScreenshot(page);
-				if (attempt === maxAttempts) {
-					throw error;
-				} else {
-					context.log(`Auth flow attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}, retrying...`);
-				}
 			}
+
+			await context.captureScreenshot(page);
+			if (attempt >= maxReloads) {
+				throw new Error(`Workbench failed to connect after ${maxReloads} reload attempts`);
+			}
+
+			context.log(`Error dialog detected (attempt ${attempt}/${maxReloads}), clicking Reload`);
+			await reloadButton.click();
 		}
 	}
 }
