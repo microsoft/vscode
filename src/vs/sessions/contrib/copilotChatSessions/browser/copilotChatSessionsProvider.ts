@@ -967,15 +967,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	async deleteSession(chatId: string): Promise<void> {
 		const agentSession = this._findAgentSession(chatId);
 		if (agentSession) {
-			await this.chatService.removeHistoryEntry(agentSession.resource);
-			this._refreshSessionCache();
+			if (agentSession.providerType === CopilotCLISessionType.id) {
+				this.commandService.executeCommand('github.copilot.cli.sessions.delete', { resource: agentSession.resource });
+			} else {
+				await this.chatService.removeHistoryEntry(agentSession.resource);
+				this._refreshSessionCache();
+			}
 		}
 	}
 
 	async renameSession(chatId: string, title: string): Promise<void> {
 		const agentSession = this._findAgentSession(chatId);
 		if (agentSession) {
-			this.chatService.setChatSessionTitle(agentSession.resource, title);
+			if (agentSession.providerType === CopilotCLISessionType.id) {
+				this.commandService.executeCommand('github.copilot.cli.sessions.setTitle', { resource: agentSession.resource }, title);
+			} else {
+				this.chatService.setChatSessionTitle(agentSession.resource, title);
+			}
 		}
 	}
 
