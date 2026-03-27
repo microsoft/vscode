@@ -353,11 +353,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Send -------
 
-	test('sendRequest always throws (handled by session handler)', async () => {
+	test('sendRequest throws for unknown session', async () => {
 		const provider = createProvider(disposables, connection);
 		await assert.rejects(
-			() => provider.sendRequest('any-id', { query: 'test' }),
-			/do not support sending requests/,
+			() => provider.sendRequest('nonexistent', { query: 'test' }),
+			/not found or not a new session/,
 		);
 	});
 
