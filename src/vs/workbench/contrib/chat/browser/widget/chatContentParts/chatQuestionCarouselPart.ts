@@ -955,7 +955,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
-		const options = question.options || [];
+		const originalOptions = question.options || [];
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-label', question.title);
@@ -970,6 +970,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Get default option id (for singleSelect, defaultValue is a single string)
 		const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
+
+		// Re-sort options so the default option appears first
+		const options = defaultOptionId !== undefined
+			? [...originalOptions].sort((a, b) => (a.id === defaultOptionId ? -1 : b.id === defaultOptionId ? 1 : 0))
+			: originalOptions;
 
 		// Determine initially selected index
 		let selectedIndex = -1;
@@ -1178,7 +1183,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderMultiSelect(container: HTMLElement, question: IChatQuestion): void {
-		const options = question.options || [];
+		const originalOptions = question.options || [];
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-multiselectable', 'true');
@@ -1196,6 +1201,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const defaultOptionIds: string[] = Array.isArray(question.defaultValue)
 			? question.defaultValue
 			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
+
+		// Re-sort options so default options appear first
+		const options = defaultOptionIds.length > 0
+			? [...originalOptions].sort((a, b) => {
+				const aIsDefault = defaultOptionIds.includes(a.id);
+				const bIsDefault = defaultOptionIds.includes(b.id);
+				return aIsDefault === bIsDefault ? 0 : aIsDefault ? -1 : 1;
+			})
+			: originalOptions;
 
 		const checkboxes: Checkbox[] = [];
 		const listItems: HTMLElement[] = [];
