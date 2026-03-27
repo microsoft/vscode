@@ -932,6 +932,7 @@
 		"--session-bar-background",
 		"--session-tab-active-foreground",
 		"--session-tab-inactive-foreground",
+		"--sessions-scrollbar-size",
 		"--status-border-top-color",
 		"--tab-border-bottom-color",
 		"--tab-border-top-color",
