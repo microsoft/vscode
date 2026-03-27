@@ -137,6 +137,12 @@ export interface IExternalCustomizationItem {
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
+	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
+	readonly groupKey?: string;
+	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
+	readonly badge?: string;
+	/** Tooltip shown when hovering the badge. */
+	readonly badgeTooltip?: string;
 }
 
 /**
