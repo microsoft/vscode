@@ -279,6 +279,14 @@ export class CopilotCLISession extends Disposable implements IChatData {
 		this._permissionLevel.set(level, undefined);
 	}
 
+	setTitle(title: string): void {
+		this._title.set(title, undefined);
+	}
+
+	setStatus(status: SessionStatus): void {
+		this._status.set(status, undefined);
+	}
+
 	setMode(mode: IChatMode | undefined): void {
 		if (this._mode?.id !== mode?.id) {
 			this._mode = mode;
@@ -435,6 +443,14 @@ export class RemoteNewSession extends Disposable implements IChatData {
 
 	setModelId(modelId: string | undefined): void {
 		this._modelId = modelId;
+	}
+
+	setTitle(title: string): void {
+		this._title.set(title, undefined);
+	}
+
+	setStatus(status: SessionStatus): void {
+		this._status.set(status, undefined);
 	}
 
 	setMode(_mode: IChatMode | undefined): void {
@@ -1075,6 +1091,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		// Add the new session to the sessions model immediately so it appears in the sessions list
+		session.setTitle(query);
+		session.setStatus(SessionStatus.InProgress);
 		const key = session.resource.toString();
 		this._sessionCache.set(key, session);
 		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
