@@ -147,7 +147,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 			// Signed out
 			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				const signedOutWarning = localize('notSignedIn', "Signed out");
+				const signedOutWarning = localize('notSignedIn', "Sign In");
 
 				text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOutWarning}`;
 				ariaLabel = signedOutWarning;
