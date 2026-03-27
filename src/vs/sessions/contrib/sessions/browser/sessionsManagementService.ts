@@ -597,21 +597,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${chat.providerId}' not found`);
 		}
 
-		// Add the temp chat to the group model so it appears in the sessions list immediately
-		this._groupModel.addChat(chat.chatId, chat.chatId);
-
-		// Delegate to the provider — may return a different (committed) chat
+		// Delegate to the provider
 		const newChat = await provider.sendRequest(chat.chatId, options);
 
 		// Set the new agent session as active
 		if (newChat) {
-			if (newChat.chatId !== chat.chatId) {
-				// The provider returned a committed chat that differs from the
-				// temp. Replace it in the group model so the sessions list
-				// transitions seamlessly without a remove+add flicker.
-				this._groupModel.removeChat(chat.chatId);
-				this._sessionDataCache.delete(chat.chatId);
-			}
+			// Add the new chat to the session's group
 			this._groupModel.addChat(newChat.chatId, newChat.chatId);
 			this.setActiveSession(this._chatToSession(newChat));
 		}
