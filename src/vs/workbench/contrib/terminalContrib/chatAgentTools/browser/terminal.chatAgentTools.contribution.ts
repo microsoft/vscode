@@ -24,7 +24,6 @@ import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentTool
 import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalTool.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
-import { MoveTerminalToBackgroundTool, MoveTerminalToBackgroundToolData } from './tools/moveTerminalToBackgroundTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
@@ -107,10 +106,6 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		const killTerminalTool = _instantiationService.createInstance(KillTerminalTool);
 		this._register(_toolsService.registerTool(KillTerminalToolData, killTerminalTool));
 		this._register(_toolsService.executeToolSet.addTool(KillTerminalToolData));
-
-		const moveTerminalToBackgroundTool = _instantiationService.createInstance(MoveTerminalToBackgroundTool);
-		this._register(_toolsService.registerTool(MoveTerminalToBackgroundToolData, moveTerminalToBackgroundTool));
-		this._register(_toolsService.executeToolSet.addTool(MoveTerminalToBackgroundToolData));
 
 		this._registerRunInTerminalTool();
 
