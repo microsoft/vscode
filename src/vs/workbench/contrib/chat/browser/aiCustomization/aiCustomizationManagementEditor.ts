@@ -1202,6 +1202,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection);
 
+		input.setSaveHandler(() => this.handleBuiltinSave());
+
 		this.telemetryService.publicLog2<CustomizationEditorOpenedEvent, CustomizationEditorOpenedClassification>('chatCustomizationEditor.opened', {
 			section: this.selectedSection,
 		});
@@ -1214,6 +1216,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+		const input = this.input;
+		if (input instanceof AICustomizationManagementEditorInput) {
+			input.setSaveHandler(undefined);
+			input.setDirty(false);
+		}
+
 		this.inEditorContextKey.set(false);
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
@@ -1661,6 +1669,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateEditorActionButton(): void {
+		this.updateInputDirtyState();
+
 		if (!this.editorActionButton || !this.editorActionButtonIcon) {
 			return;
 		}
@@ -1680,6 +1690,49 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return this._editorContentChanged
 			&& this.currentEditingStorage === BUILTIN_STORAGE
 			&& (this.currentEditingPromptType === PromptsType.prompt || this.currentEditingPromptType === PromptsType.skill);
+	}
+
+	private updateInputDirtyState(): void {
+		const input = this.input;
+		if (input instanceof AICustomizationManagementEditorInput) {
+			input.setDirty(this.shouldShowBuiltinSaveAction());
+		}
+	}
+
+	private async handleBuiltinSave(): Promise<boolean> {
+		if (!this.shouldShowBuiltinSaveAction()) {
+			return false;
+		}
+
+		const target = await this.pickBuiltinPromptSaveTarget();
+		if (!target || target.target === 'cancel') {
+			return false;
+		}
+
+		const saveRequest = this.createBuiltinPromptSaveRequest(target);
+		if (!saveRequest) {
+			return false;
+		}
+
+		try {
+			await this.saveBuiltinPromptCopy(saveRequest);
+			this.telemetryService.publicLog2<CustomizationEditorSaveItemEvent, CustomizationEditorSaveItemClassification>('chatCustomizationEditor.saveItem', {
+				promptType: this.currentEditingPromptType ?? '',
+				storage: String(this.currentEditingStorage ?? ''),
+				saveTarget: target.target,
+			});
+
+			this._editorContentChanged = false;
+			this.updateEditorActionButton();
+
+			return true;
+		} catch (error) {
+			console.error('Failed to save built-in override:', error);
+			this.notificationService.warn(target.target === 'workspace'
+				? localize('saveBuiltinCopyFailedWorkspace', "Could not save the override to the workspace.")
+				: localize('saveBuiltinCopyFailedUser', "Could not save the override to your user folder."));
+			return false;
+		}
 	}
 
 	private resetEditorSaveIndicator(): void {
