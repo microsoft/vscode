@@ -25,6 +25,7 @@ import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
@@ -38,7 +39,11 @@ function getSessionCwd(session: ISession | undefined): URI | undefined {
 		return undefined;
 	}
 	const repo = session.workspace.get()?.repositories[0];
-	return repo?.workingDirectory ?? repo?.uri;
+	const cwd = repo?.workingDirectory ?? repo?.uri;
+	if (cwd?.scheme === AGENT_HOST_SCHEME) {
+		return undefined;
+	}
+	return cwd;
 }
 
 /**
