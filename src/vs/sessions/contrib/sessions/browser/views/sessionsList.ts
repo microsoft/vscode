@@ -300,7 +300,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					}
 					const diffEl = DOM.append(template.detailsRow, $('span.session-diff'));
 					DOM.append(diffEl, $('span.session-diff-added')).textContent = `+${insertions}`;
-					DOM.append(diffEl, $('span')).textContent = ' ';
 					DOM.append(diffEl, $('span.session-diff-removed')).textContent = `-${deletions}`;
 					parts.push(diffEl);
 				}
