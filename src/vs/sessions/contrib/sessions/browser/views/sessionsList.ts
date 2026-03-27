@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { IReader, autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -32,7 +32,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
 import { ISessionsManagementService } from '../sessionsManagementService.js';
-import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Separator } from '../../../../../base/common/actions.js';
@@ -103,7 +103,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 		let height = SessionsTreeDelegate.ITEM_HEIGHT;
 		if (this._approvalModel) {
-			const approval = this._approvalModel.getApproval(element.resource).get();
+			const approval = getFirstApprovalAcrossChats(this._approvalModel, element as ISessionData, undefined);
 			if (approval) {
 				height += SessionItemRenderer.getApprovalRowHeight(approval.label);
 			}
@@ -369,7 +369,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}
 
 		const approvalModel = this.approvalModel;
-		const initialInfo = approvalModel.getApproval(element.resource).get();
+		const initialInfo = getFirstApprovalAcrossChats(approvalModel, element, undefined);
 		let wasVisible = !!initialInfo;
 		template.approvalRow.classList.toggle('visible', wasVisible);
 
@@ -378,7 +378,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			buttonStore.clear();
 
-			const info = approvalModel.getApproval(element.resource).read(reader);
+			const info = getFirstApprovalAcrossChats(approvalModel, element, reader);
 			const visible = !!info;
 
 			template.approvalRow.classList.toggle('visible', visible);
@@ -1171,6 +1171,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private groupByDate(sessions: ISessionData[]): ISessionSection[] {
 		return groupByDate(sessions, this.options.sorting());
 	}
+}
+
+//#endregion
+
+//#region Approval Helpers
+
+function getFirstApprovalAcrossChats(approvalModel: AgentSessionApprovalModel, session: ISessionData, reader: IReader | undefined,): IAgentSessionApprovalInfo | undefined {
+	let oldest: IAgentSessionApprovalInfo | undefined;
+	for (const chat of session.chats.read(reader)) {
+		const approval = approvalModel.getApproval(chat.resource).read(reader);
+		if (approval && (!oldest || approval.since.getTime() < oldest.since.getTime())) {
+			oldest = approval;
+		}
+	}
+	return oldest;
 }
 
 //#endregion
