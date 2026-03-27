@@ -5,7 +5,7 @@
 
 import './media/changesTitleBarWidget.css';
 
-import { $, append, EventLike } from '../../../../base/browser/dom.js';
+import { $, append } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -79,18 +79,15 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 		this._container = container;
 		container.classList.add('changes-titlebar-indicator');
 		container.setAttribute('role', 'button');
-		container.setAttribute('aria-label', localize('showChanges', "Show Changes"));
 
 		this._rebuildIndicators();
 		this._updateActiveState();
 	}
 
-	override onClick(event: EventLike, preserveFocus?: boolean): void {
-		super.onClick(event, preserveFocus);
-	}
-
 	private _updateActiveState(): void {
-		this._container?.classList.toggle('active', this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const isVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		this._container?.classList.toggle('toggled', isVisible);
+		this._container?.setAttribute('aria-pressed', String(isVisible));
 	}
 
 	private _rebuildIndicators(): void {
