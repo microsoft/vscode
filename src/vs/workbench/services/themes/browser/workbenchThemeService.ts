@@ -314,15 +314,15 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	 * their appearance. Runs after settings sync completes to avoid conflicts.
 	 */
 	private async migrateColorThemeDefaults(): Promise<void> {
-		if (this.storageService.isNew(StorageScope.APPLICATION)
-			|| this.storageService.getBoolean(WorkbenchThemeService.THEME_MIGRATION_KEY, StorageScope.APPLICATION)) {
+		if (this.storageService.isNew(StorageScope.PROFILE)
+			|| this.storageService.getBoolean(WorkbenchThemeService.THEME_MIGRATION_KEY, StorageScope.PROFILE)) {
 			return; // new install or already migrated
 		}
 
 		// Wait for settings sync so we don't overwrite values arriving from another device.
 		await this.userDataInitializationService.whenInitializationFinished();
 
-		this.storageService.store(WorkbenchThemeService.THEME_MIGRATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(WorkbenchThemeService.THEME_MIGRATION_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 
 		const colorThemeInspection = this.configurationService.inspect<string>(ThemeSettings.COLOR_THEME);
 		if (!colorThemeInspection.userValue && !colorThemeInspection.userRemoteValue && !colorThemeInspection.workspaceValue) {
