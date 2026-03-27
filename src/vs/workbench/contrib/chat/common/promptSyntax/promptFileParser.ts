@@ -81,7 +81,6 @@ export namespace PromptHeaderAttributes {
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
 	export const agents = 'agents';
-	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
@@ -250,7 +249,7 @@ export class PromptHeader {
 							model = prop.value.value;
 						}
 					}
-					if (agent && label && prompt !== undefined) {
+					if (agent && label?.trim() && prompt !== undefined) {
 						const handoff: IHandOff = {
 							agent,
 							label,
@@ -310,8 +309,7 @@ export class PromptHeader {
 	}
 
 	public get userInvocable(): boolean | undefined {
-		// TODO: user-invokable is deprecated, remove later and only keep user-invocable
-		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable) ?? this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable);
 	}
 
 	public get disableModelInvocation(): boolean | undefined {

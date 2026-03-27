@@ -14,6 +14,17 @@ import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
 /**
+ * Extended storage type for AI Customization that includes built-in prompts
+ * shipped with the application, alongside the core `PromptsStorage` values.
+ */
+export type AICustomizationPromptsStorage = PromptsStorage | 'builtin';
+
+/**
+ * Storage type discriminator for built-in customizations shipped with the application.
+ */
+export const BUILTIN_STORAGE: AICustomizationPromptsStorage = 'builtin';
+
+/**
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
@@ -139,4 +150,13 @@ export interface IAICustomizationWorkspaceService {
 	 * customizations visible in the AI Customization views.
 	 */
 	getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
+
+	/**
+	 * Returns a map of built-in skill names that have direct UI integrations
+	 * (toolbar buttons, menu items, etc.) to a tooltip describing the
+	 * integration. Used to display a 'UI Integration' badge in the
+	 * customizations editor, especially important when users override a
+	 * built-in skill that drives a UI surface.
+	 */
+	getSkillUIIntegrations(): ReadonlyMap<string, string>;
 }

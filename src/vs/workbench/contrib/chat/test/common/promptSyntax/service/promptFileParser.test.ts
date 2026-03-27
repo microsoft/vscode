@@ -165,6 +165,27 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
 	});
 
+	test('handoff with whitespace-only label is skipped', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "   "',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Do something"',
+			/* 07 */'  - label: "Valid"',
+			/* 08 */'    agent: Default',
+			/* 09 */'    prompt: "Also do something"',
+			/* 10 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepStrictEqual(result.header.handOffs, [
+			{ agent: 'Default', label: 'Valid', prompt: 'Also do something' }
+		]);
+	});
+
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [
@@ -584,10 +605,10 @@ suite('PromptFileParser', () => {
 
 	});
 
-	test('userInvocable getter falls back to deprecated user-invokable', async () => {
+	test('userInvocable getter reads user-invocable attribute', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
 
-		// user-invocable (new spelling) takes precedence
+		// user-invocable works
 		const content1 = [
 			'---',
 			'description: "Test"',
@@ -597,26 +618,15 @@ suite('PromptFileParser', () => {
 		const result1 = new PromptFileParser().parse(uri, content1);
 		assert.strictEqual(result1.header?.userInvocable, true);
 
-		// deprecated user-invokable still works as fallback
+		// user-invocable false
 		const content2 = [
 			'---',
 			'description: "Test"',
-			'user-invokable: false',
+			'user-invocable: false',
 			'---',
 		].join('\n');
 		const result2 = new PromptFileParser().parse(uri, content2);
 		assert.strictEqual(result2.header?.userInvocable, false);
-
-		// user-invocable takes precedence over deprecated user-invokable
-		const content3 = [
-			'---',
-			'description: "Test"',
-			'user-invocable: true',
-			'user-invokable: false',
-			'---',
-		].join('\n');
-		const result3 = new PromptFileParser().parse(uri, content3);
-		assert.strictEqual(result3.header?.userInvocable, true);
 
 		// neither set returns undefined
 		const content4 = [

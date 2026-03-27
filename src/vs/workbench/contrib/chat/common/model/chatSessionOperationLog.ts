@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from '../../../../../base/common/assert.js';
+import { softAssertNever } from '../../../../../base/common/assert.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
@@ -90,7 +90,9 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 					// If it's a 'static' type that is not expected to change, add it to the 'return true'
 					// block above. However it's a type that is going to change, add it to the 'objectsEqual'
 					// block or make something more tailored.
-					assertNever(a);
+					softAssertNever(a);
+
+					return objectsEqual(a, b);
 				}
 			}
 		}
@@ -142,12 +144,12 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	followups: Adapt.v(m => m.response?.followups, objectsEqual),
 	modelState: Adapt.v(m => m.response?.stateT, objectsEqual),
 	vote: Adapt.v(m => m.response?.vote),
-	voteDownReason: Adapt.v(m => m.response?.voteDownReason),
 	slashCommand: Adapt.t(m => m.response?.slashCommand, Adapt.value((a, b) => a?.name === b?.name)),
 	usedContext: Adapt.v(m => m.response?.usedContext, objectsEqual),
 	contentReferences: Adapt.v(m => m.response?.contentReferences, objectsEqual),
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
+	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 }, {
 	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
 });
@@ -158,6 +160,7 @@ const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISeriali
 	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier),
 	inputText: Adapt.v(i => i.inputText),
 	selections: Adapt.v(i => i.selections, objectsEqual),
+	permissionLevel: Adapt.v(i => i.permissionLevel),
 	contrib: Adapt.v(i => i.contrib, objectsEqual),
 });
 

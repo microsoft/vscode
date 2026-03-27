@@ -45,7 +45,7 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
-export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web', 'agent-host'] as const;
 
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'chat': {
@@ -65,6 +65,15 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'serve-web': {
 		type: 'subcommand',
 		description: 'Run a server that displays the editor UI in browsers.',
+		options: {
+			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
+			'disable-telemetry': { type: 'boolean' },
+			'telemetry-level': { type: 'string' },
+		}
+	},
+	'agent-host': {
+		type: 'subcommand',
+		description: 'Run a server that hosts agents.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },
@@ -111,6 +120,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
+	'agent-plugins-dir': { type: 'string' },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
 	'category': { type: 'string', allowEmptyValue: true, cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
 	'install-extension': { type: 'string[]', cat: 'e', args: 'ext-id | path', description: localize('installExtension', "Installs or updates an extension. The argument is either an extension id or a path to a VSIX. The identifier of an extension is '${publisher}.${name}'. Use '--force' argument to update to latest version. To install a specific version provide '@${version}'. For example: 'vscode.csharp@1.2.3'.") },
@@ -158,14 +168,18 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-ptyhost': { type: 'string', allowEmptyValue: true },
+	'inspect-agenthost': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-agenthost': { type: 'string', allowEmptyValue: true },
 	'inspect-search': { type: 'string', deprecates: ['debugSearch'], allowEmptyValue: true },
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
 	'export-policy-data': { type: 'string', allowEmptyValue: true },
+	'export-default-keybindings': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },
 	'enable-smoke-test-driver': { type: 'boolean' },
+	'skip-sessions-welcome': { type: 'boolean' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
 	'skip-welcome': { type: 'boolean' },

@@ -47,6 +47,8 @@ import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/e
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -1176,6 +1178,15 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 
 	private registerConfigurationSchemas(): void {
+		// Ensure deprecationMessage is plain text for properties where it was derived from
+		// markdownDeprecationMessage, since the JSON editor diagnostics don't support markdown.
+		for (const key of Object.keys(allSettings.properties)) {
+			const prop = allSettings.properties[key];
+			if (prop.markdownDeprecationMessage && prop.deprecationMessage === prop.markdownDeprecationMessage) {
+				prop.deprecationMessage = renderAsPlaintext({ value: fixSettingLinks(prop.markdownDeprecationMessage) });
+			}
+		}
+
 		const allSettingsSchema: IJSONSchema = {
 			properties: allSettings.properties,
 			patternProperties: allSettings.patternProperties,

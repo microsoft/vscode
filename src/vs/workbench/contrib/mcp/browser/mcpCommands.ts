@@ -61,10 +61,11 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
+import { isContributionDisabled } from '../../chat/common/enablement.js';
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
@@ -104,6 +105,7 @@ export class ListMcpServerCommand extends Action2 {
 		const mcpService = accessor.get(IMcpService);
 		const commandService = accessor.get(ICommandService);
 		const quickInput = accessor.get(IQuickInputService);
+		const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 
 		type ItemType = { id: string } & IQuickPickItem;
 
@@ -122,11 +124,16 @@ export class ListMcpServerCommand extends Action2 {
 				{ id: '$add', label: localize('mcp.addServer', 'Add Server'), description: localize('mcp.addServer.description', 'Add a new server configuration'), alwaysShow: true, iconClass: ThemeIcon.asClassName(Codicon.add) },
 				...Object.values(servers).filter(s => s!.length).flatMap((servers): (ItemType | IQuickPickSeparator)[] => [
 					{ type: 'separator', label: servers![0].collection.label, id: servers![0].collection.id },
-					...servers!.map(server => ({
-						id: server.definition.id,
-						label: server.definition.label,
-						description: McpConnectionState.toString(server.connectionState.read(reader)),
-					})),
+					...servers!.map(server => {
+						const disabled = isContributionDisabled(server.enablement.read(reader));
+						return {
+							id: server.definition.id,
+							label: server.definition.label,
+							description: disabled
+								? localize('mcp.disabled', 'Disabled')
+								: McpConnectionState.toString(server.connectionState.read(reader)),
+						};
+					}),
 				]),
 			];
 
@@ -153,7 +160,15 @@ export class ListMcpServerCommand extends Action2 {
 		} else if (picked.id === '$add') {
 			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else {
-			commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
+			const server = mcpService.servers.get().find(s => s.definition.id === picked.id);
+			if (server && isContributionDisabled(server.enablement.get())) {
+				const workbenchServer = mcpWorkbenchService.local.find(s => s.id === picked.id);
+				if (workbenchServer) {
+					mcpWorkbenchService.open(workbenchServer);
+				}
+			} else {
+				commandService.executeCommand(McpCommandIds.ServerOptions, picked.id);
+			}
 		}
 	}
 }

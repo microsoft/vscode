@@ -62,7 +62,7 @@
 	background-image: none !important;
 }
 
-.monaco-workbench .terminal-editor .terminal-wrapper {
+.monaco-workbench .terminal-editor .terminal-wrapper.use-editor-background {
 	background-color: var(--vscode-editor-background);
 }
 .monaco-workbench .terminal-editor .terminal-wrapper,

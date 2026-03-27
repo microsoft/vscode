@@ -8,6 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
@@ -74,6 +75,7 @@ export enum PromptsStorage {
 	user = 'user',
 	extension = 'extension',
 	plugin = 'plugin',
+	internal = 'internal',
 }
 
 /**
@@ -88,7 +90,7 @@ export enum ExtensionAgentSourceType {
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath | IInternalPromptPath;
 
 
 export interface IPromptPathBase {
@@ -112,6 +114,11 @@ export interface IPromptPathBase {
 	 */
 	readonly extension?: IExtensionDescription;
 
+	/**
+	 * Identifier of the contributing plugin (only when storage === PromptsStorage.plugin).
+	 */
+	readonly pluginUri?: URI;
+
 	readonly name?: string;
 
 	readonly description?: string;
@@ -125,6 +132,11 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly description?: string;
 	readonly when?: string;
 }
+
+export function isExtensionPromptPath(obj: IPromptPath): obj is IExtensionPromptPath {
+	return obj.storage === PromptsStorage.extension;
+}
+
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
 }
@@ -137,6 +149,10 @@ export interface IPluginPromptPath extends IPromptPathBase {
 	readonly pluginUri: URI;
 }
 
+export interface IInternalPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.internal;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
@@ -146,6 +162,8 @@ export type IAgentSource = {
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
+} | {
+	readonly storage: PromptsStorage.internal;
 };
 
 /**
@@ -248,7 +266,12 @@ export interface IChatPromptSlashCommand {
 	readonly argumentHint: string | undefined;
 	readonly promptPath: IPromptPath;
 	readonly parsedPromptFile: ParsedPromptFile;
+	readonly when: ContextKeyExpression | undefined;
 }
+
+/**
+ * Supply-chain metadata describing where a skill originated.
+ */
 
 export interface IAgentSkill {
 	readonly uri: URI;
@@ -265,6 +288,19 @@ export interface IAgentSkill {
 	 * Use for background knowledge users shouldn't invoke directly.
 	 */
 	readonly userInvocable: boolean;
+	/**
+	 * Optional context key expression. When set, the skill is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
+	/**
+	 * Optional plugin URI describing where this skill originated.
+	 */
+	readonly pluginUri?: URI;
+	/**
+	 * Optional extension metadata describing where this skill originated.
+	 */
+	readonly extension?: IExtensionDescription;
 }
 
 /**
@@ -321,7 +357,9 @@ export interface IPromptFileDiscoveryResult {
 	/** For duplicates, the URI of the file that took precedence */
 	readonly duplicateOf?: URI;
 	/** Extension ID if from extension */
-	readonly extensionId?: string;
+	readonly extension?: IExtensionDescription;
+	/** Uri of the plugin, if from a plugin */
+	readonly pluginUri?: URI;
 	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
 	readonly userInvocable?: boolean;
 	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
@@ -334,12 +372,6 @@ export interface IPromptFileDiscoveryResult {
 export interface IPromptSourceFolderResult {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
-	/** Whether the folder exists on disk */
-	readonly exists: boolean;
-	/** Number of matching files found in this folder */
-	readonly fileCount: number;
-	/** Error message if resolution failed */
-	readonly errorMessage?: string;
 }
 
 /**
@@ -348,7 +380,7 @@ export interface IPromptSourceFolderResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
-	/** Source folders that were searched, with their existence and file count */
+	/** Source folders that were searched */
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 
@@ -498,14 +530,6 @@ export interface IPromptsService extends IDisposable {
 	 * Event that is triggered when the list of skills changes.
 	 */
 	readonly onDidChangeSkills: Event<void>;
-
-	/**
-	 * Gets detailed discovery information for a prompt type.
-	 * This includes all files found and their load/skip status with reasons.
-	 * Used for diagnostics and config-info displays.
-	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
-	 */
-	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionResource?: URI): Promise<IPromptDiscoveryInfo>;
 
 	/**
 	 * Gets all hooks collected from hooks.json files.

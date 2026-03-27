@@ -12,6 +12,7 @@ import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -22,11 +23,14 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
-import { ParsedPromptFile } from './promptFileParser.js';
-import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { ParsedPromptFile, PromptHeader } from './promptFileParser.js';
+import { AgentFileType, IAgentSkill, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -68,11 +72,13 @@ export class ComputeAutomaticInstructions {
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 	}
 
@@ -109,9 +115,9 @@ export class ComputeAutomaticInstructions {
 		// get copilot instructions
 		await this._addAgentInstructions(variables, telemetryEvent, token);
 
-		const instructionsListVariable = await this._getInstructionsWithPatternsList(instructionFiles, variables, telemetryEvent, token);
-		if (instructionsListVariable) {
-			variables.add(instructionsListVariable);
+		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
+		if (customizationsIndexVariable) {
+			variables.add(customizationsIndexVariable);
 			telemetryEvent.listedInstructionsCount++;
 		}
 
@@ -122,6 +128,55 @@ export class ComputeAutomaticInstructions {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
+	}
+
+	private async _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): Promise<void> {
+		type SkillLoadedIntoContextEvent = {
+			skillNameHash: string;
+			skillStorage: string;
+			extensionIdHash: string;
+			extensionVersion: string;
+			pluginNameHash: string;
+			pluginVersion: string;
+		};
+
+		type SkillLoadedIntoContextClassification = {
+			skillNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the skill name loaded into the agent context.' };
+			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
+			extensionIdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the contributing extension identifier, empty if none.' };
+			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the contributing extension, empty if none.' };
+			pluginNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the plugin display name, empty if not from a plugin.' };
+			pluginVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the plugin, empty if unavailable.' };
+			owner: 'manishj, dbreshears';
+			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
+		};
+
+		try {
+			// Build map of plugin URI to plugin metadata for provenance
+			const pluginByUri = new ResourceMap<IAgentPlugin>();
+			const allPlugins = this._agentPluginService.plugins.get();
+			for (const plugin of allPlugins) {
+				pluginByUri.set(plugin.uri, plugin);
+			}
+
+			const hashOrEmpty = (value: string | undefined) => {
+				return value !== undefined ? String(hash(value)) : '';
+			};
+
+			for (const skill of skills) {
+				const skillPlugin = skill.pluginUri ? pluginByUri.get(skill.pluginUri) : undefined;
+				this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+					skillNameHash: hashOrEmpty(skill.name),
+					skillStorage: skill.storage,
+					extensionIdHash: hashOrEmpty(skill.extension?.identifier.value),
+					extensionVersion: skill.extension?.version ?? '',
+					pluginNameHash: hashOrEmpty(skillPlugin?.label),
+					pluginVersion: skillPlugin?.fromMarketplace?.version ?? '',
+				});
+			}
+		} catch (err) {
+			this._logService.error('[InstructionsContextComputer] Failed to log skill telemetry', err);
+		}
 	}
 
 	/** public for testing */
@@ -230,21 +285,6 @@ export class ComputeAutomaticInstructions {
 		}
 	}
 
-	/**
-	 * Combines the `applyTo` and `paths` attributes into a single comma-separated
-	 * pattern string that can be matched by {@link _matches}.
-	 * Used for the instructions list XML output where both should be shown.
-	 */
-	private _getApplyToPattern(applyTo: string | undefined, paths: readonly string[] | undefined): string | undefined {
-		if (applyTo) {
-			return applyTo;
-		}
-		if (paths && paths.length > 0) {
-			return paths.join(', ');
-		}
-		return undefined;
-	}
-
 	private _matches(files: ResourceSet, applyToPattern: string): { pattern: string; file?: URI } | undefined {
 		const patterns = splitGlobAware(applyToPattern, ',');
 		const patterMatches = (pattern: string): { pattern: string; file?: URI } | undefined => {
@@ -293,7 +333,7 @@ export class ComputeAutomaticInstructions {
 		return undefined;
 	}
 
-	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
+	private async _getCustomizationsIndex(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 
@@ -319,12 +359,12 @@ export class ComputeAutomaticInstructions {
 				if (parsedFile) {
 					entries.push('<instruction>');
 					if (parsedFile.header) {
-						const { description, applyTo, paths } = parsedFile.header;
+						const { description } = parsedFile.header;
 						if (description) {
 							entries.push(`<description>${description}</description>`);
 						}
 						entries.push(`<file>${filePath(uri)}</file>`);
-						const applyToPattern = this._getApplyToPattern(applyTo, paths);
+						const applyToPattern = evaluateApplyToPattern(parsedFile.header, isInClaudeRulesFolder(uri));
 						if (applyToPattern) {
 							entries.push(`<applyTo>${applyToPattern}</applyTo>`);
 						}
@@ -356,8 +396,26 @@ export class ComputeAutomaticInstructions {
 
 			const agentSkills = await this._promptsService.findAgentSkills(token, this._sessionResource);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
-			const modelInvocableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation);
+			// Also filter by `when` clause using the scoped context key service
+			// Also filter out the troubleshoot skill when the feature flags are disabled
+			const isDebugLogEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
+			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
+			const modelInvocableSkills = agentSkills?.filter(skill => {
+				if (skill.disableModelInvocation) {
+					return false;
+				}
+				if (skill.when && !this._contextKeyService.contextMatchesRules(skill.when)) {
+					return false;
+				}
+				if ((!isDebugLogEnabled || !isFileLoggingEnabled) && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
+					return false;
+				}
+				return true;
+			});
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
+				// Log per-skill telemetry for each skill loaded into context
+				this._logSkillLoadedTelemetry(modelInvocableSkills);
+
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
@@ -514,4 +572,15 @@ export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined): st
 		return fsPath;
 	}
 	return uri.toString();
+}
+
+/**
+ * Returns `applyTo` or `paths` attributes based on whether the instruction file is a Claude rules file or a regular instruction file
+ */
+export function evaluateApplyToPattern(header: PromptHeader | undefined, isClaudeRules: boolean): string | undefined {
+	if (isClaudeRules) {
+		// For Claude rules files, `paths` is the primary attribute (defaulting to '**' when omitted)
+		return header?.paths?.join(', ') ?? '**';
+	}
+	return header?.applyTo ?? undefined; // For regular instruction files, only show `applyTo` patterns, and skip if it's omitted
 }

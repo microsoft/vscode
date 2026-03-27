@@ -9,7 +9,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
-import { IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
+import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
@@ -29,7 +29,7 @@ suite('ChatQuestionCarouselPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let widget: ChatQuestionCarouselPart;
-	let submittedAnswers: Map<string, unknown> | undefined | null = null;
+	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
 
 	function createWidget(carousel: IChatQuestionCarousel): ChatQuestionCarouselPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -149,6 +149,82 @@ suite('ChatQuestionCarouselPart', () => {
 			const directChildCloseContainer = widget.domNode.querySelector(':scope > .chat-question-close-container');
 			assert.strictEqual(directChildCloseContainer, null, 'close button container should not be positioned as a direct child of the carousel container');
 		});
+
+		test('renders collapse button in title row even when skip is disabled', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], false);
+			createWidget(carousel);
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'title row should exist');
+
+			const collapseButton = titleRow?.querySelector('.chat-question-collapse-toggle');
+			assert.ok(collapseButton, 'collapse button should be rendered even when skip is disabled');
+		});
+
+		test('renders collapse button to the right of close button', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const actionsContainer = widget.domNode.querySelector('.chat-question-header-actions');
+			assert.ok(actionsContainer, 'actions container should exist');
+			if (!actionsContainer) {
+				return;
+			}
+
+			const actionButtons = Array.from(actionsContainer.querySelectorAll('.monaco-button'));
+			const closeIndex = actionButtons.findIndex(button => button.classList.contains('chat-question-close'));
+			const collapseIndex = actionButtons.findIndex(button => button.classList.contains('chat-question-collapse-toggle'));
+
+			assert.ok(closeIndex >= 0, 'close button should exist');
+			assert.ok(collapseIndex >= 0, 'collapse button should exist');
+			assert.ok(collapseIndex > closeIndex, 'collapse button should be positioned to the right of close button');
+		});
+
+		test('toggles collapsed state and updates aria-expanded', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			createWidget(carousel);
+
+			const collapseButton = widget.domNode.querySelector('.chat-question-collapse-toggle') as HTMLElement;
+			assert.ok(collapseButton, 'collapse button should exist');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'true');
+
+			collapseButton.click();
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should enter collapsed state');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'false');
+			const collapsedSummary = widget.domNode.querySelector('.chat-question-collapsed-summary');
+			assert.strictEqual(collapsedSummary, null, 'collapsed mode should not render an additional summary section');
+
+			const titleRow = widget.domNode.querySelector('.chat-question-title-row');
+			assert.ok(titleRow, 'header should remain visible when collapsed');
+
+			const inputScrollable = widget.domNode.querySelector('.chat-question-input-scrollable');
+			assert.ok(inputScrollable, 'input section exists in DOM but is hidden while collapsed');
+
+			collapseButton.click();
+			assert.ok(!widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should exit collapsed state');
+			assert.strictEqual(collapseButton.getAttribute('aria-expanded'), 'true');
+		});
+
+		test('restores draft collapsed state from carousel data', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+			carousel.draftCollapsed = true;
+			createWidget(carousel);
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-collapsed'), 'widget should restore collapsed draft state');
+			const collapseButton = widget.domNode.querySelector('.chat-question-collapse-toggle');
+			assert.strictEqual(collapseButton?.getAttribute('aria-expanded'), 'false');
+		});
 	});
 
 	suite('Question Types', () => {
@@ -203,7 +279,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
 		});
 
-		test('freeform textarea is always rendered for singleSelect', () => {
+		test('freeform textarea is rendered for singleSelect by default', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -217,10 +293,10 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
-			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for singleSelect');
+			assert.ok(freeformTextarea, 'Freeform textarea should be rendered by default for singleSelect');
 		});
 
-		test('freeform textarea is always rendered for multiSelect', () => {
+		test('freeform textarea is rendered for multiSelect by default', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -234,7 +310,45 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
-			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for multiSelect');
+			assert.ok(freeformTextarea, 'Freeform textarea should be rendered by default for multiSelect');
+		});
+
+		test('freeform textarea is hidden when allowFreeformInput is false for singleSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					allowFreeformInput: false,
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.strictEqual(freeformTextarea, null, 'Freeform textarea should not be rendered when allowFreeformInput is false');
+		});
+
+		test('freeform textarea is hidden when allowFreeformInput is false for multiSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					allowFreeformInput: false,
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.strictEqual(freeformTextarea, null, 'Freeform textarea should not be rendered when allowFreeformInput is false');
 		});
 
 		test('default options are pre-selected for singleSelect', () => {
@@ -725,6 +839,165 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container');
 			const skippedMessage = summary?.querySelector('.chat-question-summary-skipped');
 			assert.ok(skippedMessage, 'Should show skipped message when no data');
+		});
+	});
+
+	suite('Description and Message', () => {
+		test('renders question description when provided', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Email', description: 'Enter your email address' }
+			]);
+			createWidget(carousel);
+
+			const desc = widget.domNode.querySelector('.chat-question-description');
+			assert.ok(desc, 'Description element should be rendered');
+			assert.strictEqual(desc?.textContent, 'Enter your email address');
+		});
+
+		test('does not render description element when not provided', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name' }
+			]);
+			createWidget(carousel);
+
+			const desc = widget.domNode.querySelector('.chat-question-description');
+			assert.strictEqual(desc, null, 'Description element should not exist when not provided');
+		});
+
+		test('renders carousel-level message on first question', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name' },
+				{ id: 'q2', type: 'text', title: 'Email' }
+			]);
+			carousel.message = 'Please fill in the following:';
+			createWidget(carousel);
+
+			const message = widget.domNode.querySelector('.chat-question-carousel-message');
+			assert.ok(message, 'Carousel message should be rendered');
+			assert.ok(message?.textContent?.includes('Please fill in the following:'));
+		});
+
+		test('renders carousel-level message as markdown', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name' }
+			]);
+			carousel.message = new MarkdownString('**Important:** Fill this form');
+			createWidget(carousel);
+
+			const message = widget.domNode.querySelector('.chat-question-carousel-message');
+			assert.ok(message, 'Carousel message should be rendered');
+			assert.ok(message?.querySelector('.rendered-markdown'), 'Message should be rendered as markdown');
+		});
+
+		test('shows required indicator on required questions', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true }
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent?.includes('*'), 'Required indicator (*) should be shown');
+		});
+
+		test('does not show required indicator on optional questions', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Nickname' }
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent);
+			assert.ok(!title?.textContent?.includes('*'), 'Required indicator should not be shown');
+		});
+	});
+
+	suite('Validation', () => {
+		test('renders validation message element', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Email',
+					validation: { format: 'email' }
+				}
+			]);
+			createWidget(carousel);
+
+			const validationMsg = widget.domNode.querySelector('.chat-question-validation-message') as HTMLElement | null;
+			assert.ok(validationMsg, 'Validation message element should exist');
+			assert.strictEqual(validationMsg?.style.display, 'none', 'Validation message should be hidden initially');
+		});
+
+		test('blocks submit on required empty text field', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true }
+			]);
+			createWidget(carousel);
+
+			// Try to submit without entering a value
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			assert.ok(submitButton, 'Submit button should exist');
+			submitButton.click();
+
+			// Should show validation error and not submit
+			const validationMsg = widget.domNode.querySelector('.chat-question-validation-message');
+			assert.ok(validationMsg?.textContent, 'Validation error should be shown');
+			assert.strictEqual(submittedAnswers, null, 'Should not have submitted');
+		});
+
+		test('next button is disabled when required text field is empty', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true },
+				{ id: 'q2', type: 'text', title: 'Age' }
+			]);
+			createWidget(carousel);
+
+			// Next button should be disabled since required field has no answer
+			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLButtonElement;
+			assert.ok(nextButton, 'Next button should exist');
+			assert.ok(nextButton.classList.contains('disabled'), 'Next button should be disabled when required field is empty');
+		});
+
+		test('allows submit on required field with value', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Name', required: true }
+			]);
+			createWidget(carousel);
+
+			// Enter a value in the text input
+			const inputBox = widget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement;
+			assert.ok(inputBox, 'Input should exist');
+			inputBox.value = 'John';
+			inputBox.dispatchEvent(new Event('input', { bubbles: true }));
+
+			// Submit
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			submitButton.click();
+
+			assert.ok(submittedAnswers !== null, 'Should have submitted');
+		});
+
+		test('validates required field across questions on submit', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Optional' },
+				{ id: 'q2', type: 'text', title: 'Required', required: true }
+			]);
+			createWidget(carousel);
+
+			// Navigate to q2 without filling q1 (optional, so allowed)
+			widget.navigateToNextQuestion();
+
+			// Go back to q1 and try to submit (q2 required but empty)
+			widget.navigateToPreviousQuestion();
+
+			// Cmd+Enter should check all required fields
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			if (submitButton) {
+				submitButton.click();
+			}
+
+			// Should not submit because q2 is required but empty
+			assert.strictEqual(submittedAnswers, null, 'Should not submit when required field is empty');
 		});
 	});
 });
