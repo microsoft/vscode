@@ -45,12 +45,16 @@ export function parseSessionDbUri(raw: string): ISessionDbUriFields | undefined 
 	if (!toolCallId || !filePath || (part !== 'before' && part !== 'after')) {
 		return undefined;
 	}
-	return {
-		sessionUri: decodeHex(parsed.authority).toString(),
-		toolCallId: decodeURIComponent(toolCallId),
-		filePath: decodeHex(filePath).toString(),
-		part
-	};
+	try {
+		return {
+			sessionUri: decodeHex(parsed.authority).toString(),
+			toolCallId: decodeURIComponent(toolCallId),
+			filePath: decodeHex(filePath).toString(),
+			part
+		};
+	} catch {
+		return undefined;
+	}
 }
 
 /**

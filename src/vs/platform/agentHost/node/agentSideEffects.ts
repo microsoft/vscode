@@ -341,7 +341,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		const agent = this._options.getAgent(session);
 		agent?.disposeSession(URI.parse(session)).catch(() => { });
 		this._stateManager.deleteSession(session);
-		this._options.sessionDataService.deleteSessionData(URI.parse(session));
 	}
 
 	async handleListSessions(): Promise<ISessionSummary[]> {

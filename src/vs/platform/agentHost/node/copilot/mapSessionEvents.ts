@@ -115,7 +115,7 @@ export async function mapSessionEvents(
 					list.push(r);
 				}
 			}
-		} catch {
+		} catch (_e) {
 			// Database may not exist yet for new sessions — that's fine
 		}
 	}
