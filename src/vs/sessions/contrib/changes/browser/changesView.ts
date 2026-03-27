@@ -62,6 +62,7 @@ import { IExtensionService } from '../../../../workbench/services/extensions/com
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { CIStatusWidget } from './ciStatusWidget.js';
@@ -122,6 +123,7 @@ interface IChangesFileItem {
 	readonly linesAdded: number;
 	readonly linesRemoved: number;
 	readonly reviewCommentCount: number;
+	readonly agentFeedbackCount: number;
 }
 
 interface IChangesFolderItem {
@@ -366,6 +368,7 @@ export class ChangesViewPane extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
+		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -578,9 +581,29 @@ export class ChangesViewPane extends ViewPane {
 			return result;
 		});
 
+		const agentFeedbackCountByFileObs = derived(reader => {
+			const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return new Map<string, number>();
+			}
+
+			observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback).read(reader);
+
+			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
+			const result = new Map<string, number>();
+			for (const item of feedbackItems) {
+				if (!item.sourcePRReviewCommentId) {
+					const uriKey = item.resourceUri.fsPath;
+					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
+				}
+			}
+			return result;
+		});
+
 		// Convert session file changes to list items (cloud/background sessions)
 		const sessionFilesObs = derived(reader => {
 			const reviewCommentCountByFile = reviewCommentCountByFileObs.read(reader);
+			const agentFeedbackCountByFile = agentFeedbackCountByFileObs.read(reader);
 			const changes = [...this.viewModel.activeSessionChangesObs.read(reader)];
 
 			return changes.map((entry): IChangesFileItem => {
@@ -599,6 +622,7 @@ export class ChangesViewPane extends ViewPane {
 					linesAdded: entry.insertions,
 					linesRemoved: entry.deletions,
 					reviewCommentCount: reviewCommentCountByFile.get(uri.fsPath) ?? 0,
+					agentFeedbackCount: agentFeedbackCountByFile.get(uri.fsPath) ?? 0,
 				};
 			});
 		});
@@ -707,6 +731,7 @@ export class ChangesViewPane extends ViewPane {
 						linesAdded: change.insertions,
 						linesRemoved: change.deletions,
 						reviewCommentCount: 0,
+						agentFeedbackCount: 0,
 					} satisfies IChangesFileItem;
 				});
 			} else {
@@ -1239,6 +1264,7 @@ interface IChangesTreeTemplate {
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 	readonly contextKeyService: IContextKeyService | undefined;
 	readonly reviewCommentsBadge: HTMLElement;
+	readonly agentFeedbackBadge: HTMLElement;
 	readonly decorationBadge: HTMLElement;
 	readonly addedSpan: HTMLElement;
 	readonly removedSpan: HTMLElement;
@@ -1265,6 +1291,9 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		const reviewCommentsBadge = dom.$('.changes-review-comments-badge');
 		label.element.appendChild(reviewCommentsBadge);
 
+		const agentFeedbackBadge = dom.$('.changes-agent-feedback-badge');
+		label.element.appendChild(agentFeedbackBadge);
+
 		const lineCountsContainer = $('.working-set-line-counts');
 		const addedSpan = dom.$('.working-set-lines-added');
 		const removedSpan = dom.$('.working-set-lines-removed');
@@ -1285,7 +1314,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		const decorationBadge = dom.$('.changes-decoration-badge');
 		label.element.appendChild(decorationBadge);
 
-		return { templateDisposables, label, toolbar, contextKeyService, reviewCommentsBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer };
+		return { templateDisposables, label, toolbar, contextKeyService, reviewCommentsBadge, agentFeedbackBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer };
 	}
 
 	renderElement(node: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
@@ -1318,6 +1347,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 
 			// Hide file-specific decorations for folders
 			templateData.reviewCommentsBadge.style.display = 'none';
+			templateData.agentFeedbackBadge.style.display = 'none';
 			templateData.decorationBadge.style.display = 'none';
 			templateData.lineCountsContainer.style.display = 'none';
 
@@ -1352,6 +1382,18 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		} else {
 			templateData.reviewCommentsBadge.style.display = 'none';
 			templateData.reviewCommentsBadge.replaceChildren();
+		}
+
+		if (data.agentFeedbackCount > 0) {
+			templateData.agentFeedbackBadge.style.display = '';
+			templateData.agentFeedbackBadge.className = 'changes-agent-feedback-badge';
+			templateData.agentFeedbackBadge.replaceChildren(
+				dom.$('.codicon.codicon-comment'),
+				dom.$('span', undefined, `${data.agentFeedbackCount}`)
+			);
+		} else {
+			templateData.agentFeedbackBadge.style.display = 'none';
+			templateData.agentFeedbackBadge.replaceChildren();
 		}
 
 		// Update decoration badge (A/M/D)
@@ -1394,6 +1436,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 
 		// Hide file-specific decorations for folders
 		templateData.reviewCommentsBadge.style.display = 'none';
+		templateData.agentFeedbackBadge.style.display = 'none';
 		templateData.decorationBadge.style.display = 'none';
 		templateData.lineCountsContainer.style.display = 'none';
 
