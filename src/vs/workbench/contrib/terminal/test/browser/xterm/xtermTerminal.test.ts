@@ -109,6 +109,38 @@ suite('XtermTerminal', () => {
 		strictEqual(xterm.raw.rows, 30);
 	});
 
+	test('should compute selection gapPhysical <= 0 for selected text', async () => {
+		const paneBody = document.createElement('div');
+		paneBody.className = 'pane-body integrated-terminal';
+		const splitView = document.createElement('div');
+		splitView.className = 'split-view-view';
+		const terminalHost = document.createElement('div');
+		const rightSibling = document.createElement('div');
+		paneBody.appendChild(splitView);
+		paneBody.appendChild(rightSibling);
+		splitView.appendChild(terminalHost);
+		document.body.appendChild(paneBody);
+
+		try {
+			xterm.attachToElement(terminalHost);
+			await write('selected text\r\n');
+			xterm.raw.select(0, 0, 8);
+
+			const xtermWithInternals = xterm as unknown as Record<string, unknown>;
+			const computeSelectionGapPhysical = xtermWithInternals['_computeSelectionGapPhysical'] as (this: XtermTerminal, reason: string) => number | undefined;
+			const gapPhysical = computeSelectionGapPhysical.call(xterm, 'testSelectionGapAssertion');
+
+			strictEqual(gapPhysical !== undefined, true, 'Expected selection gapPhysical to be computed');
+			if (gapPhysical === undefined) {
+				return;
+			}
+			strictEqual(Number.isFinite(gapPhysical), true, 'Expected parsed gapPhysical to be a finite number');
+			strictEqual(gapPhysical <= 0, true, `Expected gapPhysical <= 0, got ${gapPhysical}`);
+		} finally {
+			paneBody.remove();
+		}
+	});
+
 	suite('getContentsAsText', () => {
 		test('should return all buffer contents when no markers provided', async () => {
 			await write('line 1\r\nline 2\r\nline 3\r\nline 4\r\nline 5');

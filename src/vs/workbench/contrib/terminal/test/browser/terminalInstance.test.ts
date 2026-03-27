@@ -103,6 +103,7 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 			onPtyHostRestart: Event.None,
 			onDidMoveWindowInstance: Event.None,
 			onDidRequestDetach: Event.None,
+			getShellEnvironment: async () => ({}),
 			createProcess: async (
 				shellLaunchConfig: IShellLaunchConfig,
 				cwd: string,
@@ -113,6 +114,36 @@ class TestTerminalInstanceService extends Disposable implements Partial<ITermina
 				options: ITerminalProcessOptions,
 				shouldPersist: boolean
 			) => this._register(new TestTerminalChildProcess(shouldPersist)),
+			getLatency: () => Promise.resolve([])
+		} as unknown as ITerminalBackend;
+	}
+}
+
+class RecordingTerminalInstanceService extends Disposable implements Partial<ITerminalInstanceService> {
+	public createProcessArgs: { cols: number; rows: number } | undefined;
+
+	async getBackend() {
+		return {
+			onPtyHostExit: Event.None,
+			onPtyHostUnresponsive: Event.None,
+			onPtyHostResponsive: Event.None,
+			onPtyHostRestart: Event.None,
+			onDidMoveWindowInstance: Event.None,
+			onDidRequestDetach: Event.None,
+			getShellEnvironment: async () => ({}),
+			createProcess: async (
+				shellLaunchConfig: IShellLaunchConfig,
+				cwd: string,
+				cols: number,
+				rows: number,
+				unicodeVersion: '6' | '11',
+				env: IProcessEnvironment,
+				options: ITerminalProcessOptions,
+				shouldPersist: boolean
+			) => {
+				this.createProcessArgs = { cols, rows };
+				return this._register(new TestTerminalChildProcess(shouldPersist));
+			},
 			getLatency: () => Promise.resolve([])
 		} as unknown as ITerminalBackend;
 	}
@@ -192,6 +223,96 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('should render one extra xterm column while keeping PTY columns unchanged', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							commandsToSkipShell: [],
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
+			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
+
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {})) as unknown as {
+				_xtermReadyPromise: Promise<unknown>;
+				_cols: number;
+				_rows: number;
+				_isVisible: boolean;
+				_layoutSettingsChanged: boolean;
+				_processManager: { setDimensions: (...args: unknown[]) => Promise<void> };
+				xterm?: { raw: { cols: number } };
+			};
+
+			await instance._xtermReadyPromise;
+			instance._cols = 80;
+			instance._rows = 24;
+			instance._isVisible = true;
+			instance._layoutSettingsChanged = false;
+
+			let ptyDimensions: unknown[] | undefined;
+			instance._processManager.setDimensions = async (...args: unknown[]) => {
+				ptyDimensions = args;
+			};
+
+			const resize = (instance as unknown as Record<string, unknown>)['_resize'] as (this: typeof instance, immediate?: boolean) => Promise<void>;
+			await resize.call(instance, true);
+
+			strictEqual(instance.xterm?.raw.cols, 81, 'xterm should render one extra offset column');
+			strictEqual(ptyDimensions?.[0], 80, 'PTY should keep base columns');
+			strictEqual(ptyDimensions?.[1], 24, 'PTY should keep base rows');
+		});
+
+		test('should create process with base columns (without offset column)', async () => {
+			const instantiationService = workbenchInstantiationService({
+				configurationService: () => new TestConfigurationService({
+					files: {},
+					terminal: {
+						integrated: {
+							fontFamily: 'monospace',
+							scrollback: 1000,
+							fastScrollSensitivity: 2,
+							mouseWheelScrollSensitivity: 1,
+							unicodeVersion: '6',
+							shellIntegration: {
+								enabled: true
+							}
+						}
+					},
+				})
+			}, store);
+			instantiationService.set(ITerminalProfileResolverService, new MockTerminalProfileResolverService());
+			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
+			const recordingInstanceService = store.add(new RecordingTerminalInstanceService());
+			instantiationService.stub(ITerminalInstanceService, recordingInstanceService);
+			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
+
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {})) as unknown as {
+				_xtermReadyPromise: Promise<unknown>;
+			};
+			await instance._xtermReadyPromise;
+			const createProcess = (instance as unknown as Record<string, unknown>)['_createProcess'] as (this: typeof instance) => Promise<void>;
+			await createProcess.call(instance);
+
+			strictEqual(recordingInstanceService.createProcessArgs?.cols, 80, 'process should be created with base cols');
+			strictEqual(recordingInstanceService.createProcessArgs?.rows, 30, 'process should be created with default rows');
 		});
 	});
 	suite('parseExitResult', () => {
