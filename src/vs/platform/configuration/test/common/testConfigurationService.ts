@@ -6,7 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../../base/common/uri.js';
-import { getConfigurationValue, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from '../../common/configuration.js';
+import { ConfigurationTarget, getConfigurationValue, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, isConfigurationOverrides } from '../../common/configuration.js';
 import { Extensions, IConfigurationRegistry } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 
@@ -42,7 +42,7 @@ export class TestConfigurationService implements IConfigurationService {
 		return configuration as T;
 	}
 
-	public updateValue(key: string, value: unknown): Promise<void> {
+	public updateValue(key: string, value: unknown, arg1?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides, target?: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 
