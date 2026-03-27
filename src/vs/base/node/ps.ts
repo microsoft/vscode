@@ -188,7 +188,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 									if (processInfo) {
 										const before = processBefore.get(pid) ?? 0;
 										const after = readProcessCpuTime(pid);
-										processInfo.load = Math.round((100 * (after - before)) / totalDelta);
+										const delta = Math.max(0, after - before);
+										processInfo.load = Math.round((100 * delta) / totalDelta);
 									}
 								}
 							}
@@ -241,7 +242,7 @@ function parsePsOutput(stdout: string, addToTree: (pid: number, ppid: number, cm
 
 async function readProcessesFromProc(addToTree: (pid: number, ppid: number, cmd: string, load: number, mem: number) => void): Promise<void> {
 	const totalMemKB = readTotalMemoryKB();
-	const entries = (await fs.readdir('/proc')).filter(e => /^\d+$/.test(e));
+	const entries = (await fs.readdir('/proc')).filter(e => /^\d+$/.test(e)).sort((a, b) => parseInt(a) - parseInt(b));
 
 	for (let i = 0; i < entries.length; i += BATCH_SIZE) {
 		if (i > 0) {
