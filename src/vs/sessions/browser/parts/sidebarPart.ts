@@ -211,7 +211,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		// Update badge on session changes
+		let wired = false;
 		const wireBadge = () => {
+			if (wired) {
+				return true;
+			}
 			try {
 				const agentSessionsService = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 				const updateBadge = () => {
@@ -225,6 +229,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 				updateBadge();
 				widgetDisposables.add(agentSessionsService.model.onDidChangeSessions(() => updateBadge()));
+				wired = true;
 				return true;
 			} catch {
 				badge.style.display = 'none';
