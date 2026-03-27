@@ -110,6 +110,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Start-Job for background PowerShell jobs',
 		`- If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later`,
 		'- If unsure whether a command will be long-running, prefer isBackground=true — you can always check the output later',
+		`- If a background command is taking too long and you have a faster alternative approach, use ${TerminalToolId.KillTerminal} to stop it and try the alternative`,
 	];
 
 	if (isSandboxEnabled) {
@@ -187,7 +188,8 @@ Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
 - Returns a terminal ID for checking status and runtime later
 - If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later
-- If unsure whether a command will be long-running, prefer isBackground=true — you can always check the output later`];
+- If unsure whether a command will be long-running, prefer isBackground=true — you can always check the output later
+- If a background command is taking too long and you have a faster alternative approach, use ${TerminalToolId.KillTerminal} to stop it and try the alternative`];
 
 	if (isSandboxEnabled) {
 		parts.push(createSandboxLines(networkDomains).join('\n'));

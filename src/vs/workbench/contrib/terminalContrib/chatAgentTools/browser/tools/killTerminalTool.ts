@@ -15,7 +15,7 @@ export const KillTerminalToolData: IToolData = {
 	id: TerminalToolId.KillTerminal,
 	toolReferenceName: 'killTerminal',
 	displayName: localize('killTerminalTool.displayName', 'Kill Terminal'),
-	modelDescription: `Kill a terminal by its ID. Use this to clean up terminals that are no longer needed (e.g., after stopping a server or when a long-running task completes). The terminal ID is returned by ${TerminalToolId.RunInTerminal} when isBackground=true.`,
+	modelDescription: `Kill a terminal by its ID. Use this to clean up terminals that are no longer needed (e.g., after stopping a server or when a long-running task completes), or to stop a command that is taking too long when you have a faster alternative approach. The terminal ID is returned by ${TerminalToolId.RunInTerminal} when isBackground=true.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
