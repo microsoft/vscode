@@ -943,7 +943,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
 		if (this.toolInvocationCount === 1 && this.hookCount === 0 && this.currentThinkingValue.trim() === '') {
 			// If singleItemInfo wasn't set (item was lazy/deferred), materialize it now
-			let materializedFromLazy: ILazyToolItem | undefined;
 			if (!this.singleItemInfo) {
 				const lazyItem = this.lazyItems.find(item => item.kind === 'tool' && item.originalParent);
 				if (lazyItem && lazyItem.kind === 'tool') {
@@ -955,7 +954,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 						originalNextSibling: this.domNode,
 						toolInvocation
 					};
-					materializedFromLazy = lazyItem;
 					if (result.disposable) {
 						const toolCallId = toolInvocation?.toolCallId;
 						if (toolCallId) {
@@ -970,12 +968,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const toolIsComplete = !this.singleItemInfo?.toolInvocation || IChatToolInvocation.isComplete(this.singleItemInfo.toolInvocation);
 			if (toolIsComplete && this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
 				return;
-			}
-			// If we materialized a lazy item but could not restore it (e.g. markdownContent
-			// with multiple edit pills), append it to the thinking wrapper so it's visible.
-			if (materializedFromLazy && materializedFromLazy.lazy.hasValue) {
-				const result = materializedFromLazy.lazy.value;
-				this.appendItemToDOM(result.domNode, materializedFromLazy.toolInvocationId, materializedFromLazy.toolInvocationOrMarkdown, materializedFromLazy.originalParent);
 			}
 		}
 
@@ -1815,7 +1807,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Handle tool items
 		if (item.lazy.hasValue) {
-			return; // Already materialized
+			// Already evaluated — but may not have been placed in the DOM yet
+			// (e.g. finalizeTitleIfDefault materialized it before the wrapper existed).
+			const result = item.lazy.value;
+			if (!result.domNode.parentElement) {
+				this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
+			}
+			return;
 		}
 
 		const result = item.lazy.value;
