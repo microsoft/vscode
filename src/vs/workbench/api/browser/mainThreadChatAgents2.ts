@@ -46,6 +46,7 @@ import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -129,9 +130,20 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
+
+		// When the provider API kill-switch is toggled off, dispose all registered providers
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.customizations.providerApi.enabled')) {
+				if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
+					this._customizationProviders.clearAndDisposeAll();
+					this._customizationProviderEmitters.clearAndDisposeAll();
+				}
+			}
+		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResource) {
@@ -593,6 +605,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
+		if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
+			this._logService.trace(`[MainThreadChatAgents2] Customization provider API is disabled, ignoring registration from ${extensionId.value}`);
+			return;
+		}
+
 		const extension = await this._extensionService.getExtension(extensionId.value);
 		if (!extension) {
 			this._logService.error(`[MainThreadChatAgents2] Could not find extension for customization provider: ${extensionId.value}`);
