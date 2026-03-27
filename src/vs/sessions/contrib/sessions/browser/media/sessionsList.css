@@ -181,7 +181,7 @@
 			font-variant-numeric: tabular-nums;
 			overflow: hidden;
 			display: flex;
-			gap: 4px;
+			gap: 2px;
 
 			.session-diff-added {
 				color: var(--vscode-chat-linesAddedForeground);

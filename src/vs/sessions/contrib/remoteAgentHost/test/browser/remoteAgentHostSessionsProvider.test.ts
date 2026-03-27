@@ -289,7 +289,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = {
 			label: 'my-project',
 			icon: { id: 'remote' },
-			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: false,
 		};
 
@@ -443,7 +443,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = {
 			label: 'project',
 			icon: { id: 'remote' },
-			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: false,
 		};
 		const session = provider.createNewSession(workspace);
