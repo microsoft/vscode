@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type ICompletedToolCall, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -46,12 +45,20 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content, { supportHtml: true }) });
 					}
 					break;
-				case ResponsePartKind.ToolCall:
-					parts.push(completedToolCallToSerialized(rp.toolCall as ICompletedToolCall));
+				case ResponsePartKind.ToolCall: {
+					const tc = rp.toolCall as ICompletedToolCall;
+					const fileEditParts = completedToolCallToEditParts(tc);
+					const serialized = completedToolCallToSerialized(tc);
+					if (fileEditParts.length > 0) {
+						serialized.presentation = ToolInvocationPresentation.Hidden;
+					}
+					parts.push(serialized);
+					parts.push(...fileEditParts);
 					break;
+				}
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
 						parts.push({ kind: 'thinking', value: rp.content });
@@ -72,6 +79,47 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 		history.push({ type: 'response', parts, participant: participantId });
 	}
 	return history;
+}
+
+/**
+ * Converts an active (in-progress) turn's accumulated state into progress
+ * items suitable for replaying into the chat UI when reconnecting to a
+ * session that is mid-turn.
+ *
+ * Returns serialized progress items for content already received (text,
+ * reasoning, completed tool calls) and live {@link ChatToolInvocation}
+ * objects for running tool calls and pending confirmations.
+ */
+export function activeTurnToProgress(activeTurn: IActiveTurn): IChatProgress[] {
+	const parts: IChatProgress[] = [];
+
+	for (const rp of activeTurn.responseParts) {
+		switch (rp.kind) {
+			case ResponsePartKind.Markdown:
+				if (rp.content) {
+					parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+				}
+				break;
+			case ResponsePartKind.Reasoning:
+				if (rp.content) {
+					parts.push({ kind: 'thinking', value: rp.content });
+				}
+				break;
+			case ResponsePartKind.ToolCall: {
+				const tc = rp.toolCall;
+				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall));
+				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
+					parts.push(toolCallStateToInvocation(tc));
+				}
+				break;
+			}
+			case ResponsePartKind.ContentRef:
+				break;
+		}
+	}
+
+	return parts;
 }
 
 /**
@@ -120,6 +168,35 @@ function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocat
 		presentation: undefined,
 		toolSpecificData,
 	};
+}
+
+/**
+ * Builds edit-structure progress parts for a completed tool call that
+ * produced file edits. Returns an empty array if the tool call has no edits.
+ * These parts replay the undo stops and code-block UI when restoring history.
+ */
+function completedToolCallToEditParts(tc: ICompletedToolCall): IChatProgress[] {
+	if (tc.status !== ToolCallStatus.Completed) {
+		return [];
+	}
+	const fileEdits = getToolFileEdits(tc);
+	if (fileEdits.length === 0) {
+		return [];
+	}
+	const filePath = getFilePathFromToolInput(tc);
+	if (!filePath) {
+		return [];
+	}
+	const fileUri = URI.file(filePath);
+	const parts: IChatProgress[] = [];
+	for (const _edit of fileEdits) {
+		parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+		parts.push({ kind: 'codeblockUri', uri: fileUri, isEdit: true, undoStopId: tc.toolCallId });
+		parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: false, isExternalEdit: true });
+		parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: true, isExternalEdit: true });
+		parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+	}
+	return parts;
 }
 
 /**
@@ -278,7 +355,7 @@ function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
 				resource: URI.file(filePath),
 				beforeContentUri: URI.parse(edit.beforeURI),
 				afterContentUri: URI.parse(edit.afterURI),
-				undoStopId: generateUuid(),
+				undoStopId: tc.toolCallId,
 			});
 		}
 	}

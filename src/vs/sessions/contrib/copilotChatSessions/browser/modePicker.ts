@@ -18,6 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CopilotCLISession } from './copilotChatSessionsProvider.js';
 
 interface IModePickerItem {
@@ -57,6 +58,7 @@ export class ModePicker extends Disposable {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -213,8 +215,9 @@ export class ModePicker extends Disposable {
 		this._onDidChange.fire(mode);
 
 		const session = this.sessionsManagementService.activeSession.get();
-		if (session instanceof CopilotCLISession) {
-			session.setMode(mode);
+		const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
+		if (providerSession instanceof CopilotCLISession) {
+			providerSession.setMode(mode);
 		}
 	}
 
