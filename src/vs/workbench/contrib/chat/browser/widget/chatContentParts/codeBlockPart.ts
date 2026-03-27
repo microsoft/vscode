@@ -16,7 +16,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { IDiffEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
@@ -129,7 +129,7 @@ export class CodeBlockPart extends Disposable {
 	private readonly vulnsButton: Button;
 	private readonly vulnsListElement: HTMLElement;
 
-	private readonly _ownedTextModel = this._register(new MutableDisposable<ITextModel>());
+	private readonly _textModel!: ITextModel;
 
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
@@ -273,6 +273,12 @@ export class CodeBlockPart extends Disposable {
 				this.clearWidgets();
 			}));
 		}
+
+		this._textModel = this._register(this.modelService.createModel('', null,
+			URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() }),
+			this.isSimpleWidget
+		));
+		this.editor.setModel(this._textModel);
 	}
 
 	override dispose() {
@@ -426,9 +432,7 @@ export class CodeBlockPart extends Disposable {
 
 	reset() {
 		this.clearWidgets();
-		this.editor.setModel(null);
 		this.currentCodeBlockData = undefined;
-		this._ownedTextModel.clear();
 	}
 
 	onDidRemount(): void {
@@ -450,27 +454,11 @@ export class CodeBlockPart extends Disposable {
 			return false;
 		}
 
-		// Create or reuse the internal model based on a stable URI
-		const uri = this.getCodeBlockUri(data);
-		if (!this._ownedTextModel.value || !isEqual(this._ownedTextModel.value.uri, uri)) {
-			this._ownedTextModel.value = this.modelService.createModel('', null, uri, true);
-		}
-		this.editor.setModel(this._ownedTextModel.value);
 		this.setText(data.text);
 		this.setLanguage(data.languageId);
-
 		this.updateContexts(data);
 
 		return true;
-	}
-
-	private getCodeBlockUri(data: ICodeBlockData): URI {
-		const encodedSessionId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(data.chatSessionResource.toString())), false, true);
-		return URI.from({
-			scheme: Schemas.vscodeChatCodeBlock,
-			authority: encodedSessionId,
-			path: `/${data.element.id}/${data.codeBlockIndex}`,
-		});
 	}
 
 	private getVulnerabilitiesLabel(): string {
@@ -503,36 +491,28 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private setText(newText: string): void {
-		if (!this._ownedTextModel.value) {
-			return;
-		}
-
-		const currentText = this._ownedTextModel.value.getValue(EndOfLinePreference.LF);
+		const currentText = this._textModel.getValue(EndOfLinePreference.LF);
 		if (newText === currentText) {
 			return;
 		}
 
 		if (newText.startsWith(currentText)) {
 			const text = newText.slice(currentText.length);
-			const lastLine = this._ownedTextModel.value.getLineCount();
-			const lastCol = this._ownedTextModel.value.getLineMaxColumn(lastLine);
-			this._ownedTextModel.value.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
+			const lastLine = this._textModel.getLineCount();
+			const lastCol = this._textModel.getLineMaxColumn(lastLine);
+			this._textModel.applyEdits([{ range: new Range(lastLine, lastCol, lastLine, lastCol), text }]);
 		} else {
 			this.logService.trace('[CodeBlockPart] setText could not optimize, falling back to setValue');
-			this._ownedTextModel.value.setValue(newText);
+			this._textModel.setValue(newText);
 		}
 	}
 
 	private setLanguage(languageId: string): void {
-		if (!this._ownedTextModel.value) {
-			return;
-		}
-
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
-		if (vscodeLanguageId && vscodeLanguageId !== this._ownedTextModel.value.getLanguageId()) {
-			this._ownedTextModel.value.setLanguage(vscodeLanguageId);
-		} else if (!vscodeLanguageId && this._ownedTextModel.value.getLanguageId() !== PLAINTEXT_LANGUAGE_ID) {
-			this._ownedTextModel.value.setLanguage(PLAINTEXT_LANGUAGE_ID);
+		if (vscodeLanguageId && vscodeLanguageId !== this._textModel.getLanguageId()) {
+			this._textModel.setLanguage(vscodeLanguageId);
+		} else if (!vscodeLanguageId && this._textModel.getLanguageId() !== PLAINTEXT_LANGUAGE_ID) {
+			this._textModel.setLanguage(PLAINTEXT_LANGUAGE_ID);
 		}
 	}
 }
