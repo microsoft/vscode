@@ -213,6 +213,11 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			} else {
 				this.#throttleTimer = setTimeout(() => this.#updatePreview(forceUpdate), this.#delay);
 			}
+		} else if (forceUpdate) {
+			// A forced update (e.g. security settings change) must not be
+			// silently dropped by a pending throttled update.
+			clearTimeout(this.#throttleTimer);
+			this.#throttleTimer = setTimeout(() => this.#updatePreview(true), this.#delay);
 		}
 
 		this.#firstUpdate = false;
