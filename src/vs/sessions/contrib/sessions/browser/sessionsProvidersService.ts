@@ -49,6 +49,9 @@ export interface ISessionsProvidersService {
 	 * Fires when a temporary (untitled) session is atomically replaced by a
 	 * committed session. Forwarded from providers that implement
 	 * {@link ISessionsProvider.onDidReplaceSession}.
+	 *
+	 * @internal This is an implementation detail of the Copilot Chat sessions
+	 * provider. Do not consume this event outside of {@link ISessionsManagementService}.
 	 */
 	readonly onDidReplaceSession: Event<IChatReplaceSessionEvent>;
 
