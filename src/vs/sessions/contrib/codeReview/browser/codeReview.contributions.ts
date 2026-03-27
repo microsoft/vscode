@@ -41,7 +41,9 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				tooltip,
 				category: CHAT_CATEGORY,
 				icon,
-				precondition: canRunSessionCodeReviewContextKey,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.hasAgentSessionChanges,
+					canRunSessionCodeReviewContextKey),
 				menu: [
 					{
 						id: MenuId.ChatEditingSessionChangesToolbar,
@@ -49,7 +51,6 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 						order: 7,
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
-							ChatContextKeys.hasAgentSessionChanges,
 							ChatContextKeys.agentSessionType.notEqualsTo(AgentSessionProviders.Cloud),
 						),
 					},
@@ -69,7 +70,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				return;
 			}
 
-			// Get changes from ISessionData
+			// Get changes from ISession
 			const sessionData = sessionManagementService.getSession(resource);
 			const changes = sessionData?.changes.get();
 			if (!changes || changes.length === 0) {

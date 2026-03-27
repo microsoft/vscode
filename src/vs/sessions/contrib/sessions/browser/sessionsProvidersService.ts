@@ -7,8 +7,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IChatData, ISessionWorkspace } from '../common/sessionData.js';
-import { IChatChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
+import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
+import { ISessionChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
@@ -35,16 +35,16 @@ export interface ISessionsProvidersService {
 	/** Get available session types for a provider. */
 	getSessionTypesForProvider(providerId: string): ISessionType[];
 	/** Get available session types for a session from its provider. */
-	getSessionTypes(session: IChatData): ISessionType[];
+	getSessionTypes(session: ISessionData): ISessionType[];
 
 	// -- Aggregated Sessions --
 
 	/** Get all chats from all providers. */
-	getSessions(): IChatData[];
+	getSessions(): ISessionData[];
 	/** Get a chat by its globally unique ID. */
-	getSession(chatId: string): IChatData | undefined;
+	getSession(chatId: string): ISessionData | undefined;
 	/** Fires when sessions change across any provider. */
-	readonly onDidChangeSessions: Event<IChatChangeEvent>;
+	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
 
 	// -- Session Actions (routed to the correct provider via sessionId) --
 
@@ -60,6 +60,8 @@ export interface ISessionsProvidersService {
 	setRead(sessionId: string, read: boolean): void;
 	/** Resolve a repository URI to a session workspace using the given provider. */
 	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined;
+	/** Returns the current untitled session for the given provider, if any. */
+	getUntitledSession(providerId: string): ISessionData | undefined; // TODO: Shoulds ideally be removed when new chat and picker is cleaned up
 }
 
 /**
@@ -75,8 +77,8 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
-	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
 	// -- Provider Registry --
 
@@ -119,7 +121,7 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return [...entry.provider.sessionTypes];
 	}
 
-	getSessionTypes(session: IChatData): ISessionType[] {
+	getSessionTypes(session: ISessionData): ISessionType[] {
 		const entry = this._providers.get(session.providerId);
 		if (!entry) {
 			return [];
@@ -129,20 +131,20 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 
 	// -- Aggregated Sessions --
 
-	getSessions(): IChatData[] {
-		const sessions: IChatData[] = [];
+	getSessions(): ISessionData[] {
+		const sessions: ISessionData[] = [];
 		for (const { provider } of this._providers.values()) {
 			sessions.push(...provider.getSessions());
 		}
 		return sessions;
 	}
 
-	getSession(chatId: string): IChatData | undefined {
+	getSession(chatId: string): ISessionData | undefined {
 		const { provider } = this._resolveProvider(chatId);
 		if (!provider) {
 			return undefined;
 		}
-		return provider.getSessions().find(s => s.chatId === chatId);
+		return provider.getSessions().find(s => s.id === chatId);
 	}
 
 	// -- Session Actions --
@@ -185,6 +187,11 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined {
 		const entry = this._providers.get(providerId);
 		return entry?.provider.resolveWorkspace(repositoryUri);
+	}
+
+	getUntitledSession(providerId: string): ISessionData | undefined {
+		const entry = this._providers.get(providerId);
+		return entry?.provider.getUntitledSession();
 	}
 
 	// -- Private Helpers --

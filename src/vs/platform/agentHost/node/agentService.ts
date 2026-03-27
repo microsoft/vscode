@@ -171,15 +171,18 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
 		}
-		this._stateManager.removeSession(session.toString());
-		this._sessionDataService.deleteSessionData(session);
+		this._stateManager.deleteSession(session.toString());
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
 
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
-		const snapshot = this._stateManager.getSnapshot(resource.toString());
+		let snapshot = this._stateManager.getSnapshot(resource.toString());
+		if (!snapshot) {
+			await this.restoreSession(resource);
+			snapshot = this._stateManager.getSnapshot(resource.toString());
+		}
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
 		}

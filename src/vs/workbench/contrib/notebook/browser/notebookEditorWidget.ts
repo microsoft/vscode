@@ -3058,20 +3058,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
 			const viewIndex = this._list.getViewIndex(cell);
 
 			if (viewIndex === undefined) {
 				return;
 			}
 
-			if (cell.outputsViewModels.indexOf(key) < 0) {
+			const outputIndex = cell.outputsViewModels.indexOf(key);
+			if (outputIndex < 0) {
 				// output is already gone
 				removedItems.push(key);
+				return;
 			}
 
 			const cellTop = this._list.getCellViewScrollTop(cell);
-			const outputIndex = cell.outputsViewModels.indexOf(key);
 			const outputOffset = cell.getOutputOffset(outputIndex);
 			updateItems.push({
 				cell,

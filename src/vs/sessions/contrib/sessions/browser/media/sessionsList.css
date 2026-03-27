@@ -9,7 +9,7 @@
 	min-height: 0;
 
 	.pane-body & .monaco-scrollable-element {
-		padding: 0 6px;
+		padding: 0 10px;
 	}
 
 	.pane-body & .monaco-tree-sticky-container {
