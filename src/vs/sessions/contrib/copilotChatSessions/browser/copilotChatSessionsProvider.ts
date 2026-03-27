@@ -1101,18 +1101,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// real). The agent host fires onDidCommitSession after the first turn.
 		const committedResource = await this._waitForCommittedSession(session.resource);
 
-		// Build a real adapter from the committed agent session
-		const agentSession = this.agentSessionsService.getSession(committedResource);
-		if (!agentSession) {
-			throw new Error(`[DefaultCopilotProvider] Committed agent session not found for ${committedResource}`);
-		}
-		const committedSession = new AgentSessionAdapter(agentSession, this.id);
+		// Wait for the committed session to appear in the cache (populated by _refreshSessionCache)
+		const committedSession = await this._waitForSessionInCache(committedResource);
 
-		// Replace the temporary session with the committed adapter in the cache
+		// Replace the temporary session with the committed adapter in the cache.
+		// No event is fired here — the management service handles the transition
+		// via the return value of sendRequest.
 		this._sessionCache.delete(key);
-		this._sessionCache.set(committedSession.resource.toString(), committedSession);
 		this._currentNewSession = undefined;
-		this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [committedSession] });
 
 		return committedSession;
 	}
@@ -1127,6 +1123,27 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				if (e.original.toString() === untitledResource.toString()) {
 					listener.dispose();
 					resolve(e.committed);
+				}
+			});
+		});
+	}
+
+	/**
+	 * Waits for an {@link AgentSessionAdapter} with the given resource to appear
+	 * in the session cache (populated by {@link _refreshSessionCache}).
+	 */
+	private _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
+		const key = resource.toString();
+		const existing = this._sessionCache.get(key);
+		if (existing instanceof AgentSessionAdapter) {
+			return Promise.resolve(existing);
+		}
+		return new Promise<AgentSessionAdapter>(resolve => {
+			const listener = this.onDidChangeSessions(e => {
+				const found = e.added.find(s => s.resource.toString() === key);
+				if (found instanceof AgentSessionAdapter) {
+					listener.dispose();
+					resolve(found);
 				}
 			});
 		});
