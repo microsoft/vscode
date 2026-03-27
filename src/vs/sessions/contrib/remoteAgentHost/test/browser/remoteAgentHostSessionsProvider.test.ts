@@ -20,7 +20,7 @@ import { IChatService, type ChatSendResult } from '../../../../../workbench/cont
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionStatus } from '../../../sessions/common/sessionData.js';
-import { ISessionsChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { IChatChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../../sessions/browser/sessionTypes.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 
@@ -194,8 +194,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('onDidChangeSessions fires when session added notification arrives', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'notif-1', { title: 'Notif Session' });
 
@@ -206,8 +206,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('accepts session notifications from any agent provider', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'other-sess', { provider: 'other-agent', title: 'Other Session' });
 
@@ -219,8 +219,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection);
 		fireSessionAdded(connection, 'to-remove', { title: 'Removed' });
 
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'to-remove');
 
@@ -230,8 +230,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('duplicate session added notification is ignored', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
@@ -241,8 +241,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('removing non-existent session is no-op', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'does-not-exist');
 
@@ -254,8 +254,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		fireSessionAdded(connection, 'cross-prov', { provider: 'other-agent', title: 'Cross Provider' });
 		assert.strictEqual(provider.getSessions().length, 1);
 
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'cross-prov', 'other-agent');
 
@@ -271,8 +271,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		connection.addSession(createSession('list-2', { summary: 'Second' }));
 
 		const provider = createProvider(disposables, connection);
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		provider.getSessions();
 		await new Promise(resolve => setTimeout(resolve, 50));
@@ -303,29 +303,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
 	});
 
-	test('createNewSession resets draft state from prior session', () => {
-		const provider = createProvider(disposables, connection);
-		const workspace = {
-			label: 'my-project',
-			icon: { id: 'remote' },
-			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: false,
-		};
-
-		const session1 = provider.createNewSession(workspace);
-		provider.setModel(session1.sessionId, 'my-model');
-
-		// Creating a new session should invalidate the first
-		const session2 = provider.createNewSession(workspace);
-		assert.notStrictEqual(session1.sessionId, session2.sessionId);
-
-		// The first session should no longer be sendable
-		assert.rejects(
-			() => provider.sendRequest(session1.sessionId, { query: 'hello' }),
-			/not found or not a new session/,
-		);
-	});
-
 	test('createNewSession throws when no repository URI', () => {
 		const provider = createProvider(disposables, connection);
 		const workspace = { label: 'empty', icon: { id: 'remote' }, repositories: [], requiresWorkspaceTrust: false };
@@ -348,7 +325,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'To Delete');
 		assert.ok(target, 'Session should exist');
 
-		await provider.deleteSession(target!.sessionId);
+		await provider.deleteSession(target!.chatId);
 
 		assert.strictEqual(connection.disposedSessions.length, 1);
 		// The disposed URI must be a backend agent session URI (copilot://del-sess),
@@ -370,54 +347,17 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(target, 'Session should exist');
 
 		assert.strictEqual(target!.isRead.get(), true);
-		provider.setRead(target!.sessionId, false);
+		provider.setRead(target!.chatId, false);
 		assert.strictEqual(target!.isRead.get(), false);
 	});
 
 	// ---- Send -------
 
-	test('sendRequest throws for unknown session', async () => {
+	test('sendRequest always throws (handled by session handler)', async () => {
 		const provider = createProvider(disposables, connection);
 		await assert.rejects(
-			() => provider.sendRequest('nonexistent', { query: 'test' }),
-			/not found or not a new session/,
-		);
-	});
-
-	test('sendRequest throws when send is rejected', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IFileDialogService, {});
-		instantiationService.stub(IChatSessionsService, {
-			getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
-			getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
-		});
-		instantiationService.stub(IChatService, {
-			acquireOrLoadSession: async () => undefined,
-			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'rejected' as const, reason: 'test rejection' }),
-		});
-		instantiationService.stub(IChatWidgetService, {
-			openSession: async () => ({ input: {} }),
-		} as unknown as Partial<IChatWidgetService>);
-		instantiationService.stub(ILanguageModelsService, {
-			lookupLanguageModel: () => undefined,
-		});
-
-		const provider = disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, {
-			connectionInfo: { address: 'localhost:4321', name: 'Test', clientId: 'test-client' },
-			connection,
-		}));
-
-		const workspace = {
-			label: 'project',
-			icon: { id: 'remote' },
-			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: false,
-		};
-
-		const session = provider.createNewSession(workspace);
-		await assert.rejects(
-			() => provider.sendRequest(session.sessionId, { query: 'hello' }),
-			/sendRequest rejected: test rejection/,
+			() => provider.sendRequest('any-id', { query: 'test' }),
+			/do not support sending requests/,
 		);
 	});
 
@@ -477,8 +417,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Update on connection side
 		connection.addSession(createSession('turn-sess', { summary: 'After', modifiedTime: 5000 }));
 
-		const changes: ISessionsChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: ISessionsChangeEvent) => changes.push(e)));
+		const changes: IChatChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
 			action: {
@@ -526,54 +466,5 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(session, 'Session should exist');
 		// sessionType should be the logical type (agent-host-copilot), not the resource scheme
 		assert.strictEqual(session!.sessionType, provider.sessionTypes[0].id);
-	});
-
-	// ---- sendRequest success path -------
-
-	test('sendRequest returns newly created session via delta tracking', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IFileDialogService, {});
-		instantiationService.stub(IChatSessionsService, {
-			getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
-			getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
-		});
-		instantiationService.stub(IChatService, {
-			acquireOrLoadSession: async () => undefined,
-			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
-		});
-		instantiationService.stub(IChatWidgetService, {
-			openSession: async () => ({ input: {} }),
-		} as unknown as Partial<IChatWidgetService>);
-		instantiationService.stub(ILanguageModelsService, {
-			lookupLanguageModel: () => undefined,
-		});
-
-		const provider = disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, {
-			connectionInfo: { address: 'localhost:4321', name: 'Test', clientId: 'test-client' },
-			connection,
-		}));
-
-		const workspace = {
-			label: 'project',
-			icon: { id: 'remote' },
-			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: false,
-		};
-
-		const newSession = provider.createNewSession(workspace);
-
-		// Pre-populate a session so the delta detection has something to compare against
-		connection.addSession(createSession('existing-sess', { summary: 'Old Session' }));
-		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
-
-		// Now add the "newly created" session on the connection side
-		connection.addSession(createSession('brand-new-sess', { summary: 'Brand New' }));
-
-		// sendRequest should find the new session via delta tracking
-		const result = await provider.sendRequest(newSession.sessionId, { query: 'hello' });
-
-		assert.strictEqual(result.title.get(), 'Brand New');
-		assert.notStrictEqual(result.sessionId, newSession.sessionId, 'Returned session should be different from the untitled session');
 	});
 });

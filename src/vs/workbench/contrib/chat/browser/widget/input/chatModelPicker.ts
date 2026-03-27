@@ -447,9 +447,15 @@ export function buildModelPickerItems(
 export function getModelPickerAccessibilityProvider() {
 	return {
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+			if (element.isSectionToggle) {
+				return undefined;
+			}
 			return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
+			if (element.isSectionToggle) {
+				return 'menuitem';
+			}
 			switch (element.kind) {
 				case ActionListItemKind.Action: return 'menuitemradio';
 				case ActionListItemKind.Separator: return 'separator';

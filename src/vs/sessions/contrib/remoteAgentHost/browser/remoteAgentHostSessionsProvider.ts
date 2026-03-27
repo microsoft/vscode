@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -17,17 +17,11 @@ import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFil
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ISessionSummary } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatChangeEvent, ISendRequestOptions, ISessionsBrowseAction, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
-import { ISessionData, ISessionPullRequest, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
-
+import { IChatData, ISessionPullRequest, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
 import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 export interface IRemoteAgentHostSessionsProviderConfig {
@@ -36,13 +30,11 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 }
 
 /**
- * Adapts agent host session metadata into the {@link ISessionData} facade.
- * Implements `ISessionData` directly so it can be used in the cache and
- * returned from provider methods without indirection.
+ * Adapts agent host session metadata into the {@link IChatData} facade.
  */
-class RemoteSessionAdapter implements ISessionData {
+class RemoteSessionAdapter implements IChatData {
 
-	readonly sessionId: string;
+	readonly chatId: string;
 	readonly resource: URI;
 	readonly providerId: string;
 	readonly sessionType: string;
@@ -76,7 +68,7 @@ class RemoteSessionAdapter implements ISessionData {
 		const rawId = AgentSession.id(metadata.session);
 		this.agentProvider = AgentSession.provider(metadata.session) ?? 'copilot';
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
-		this.sessionId = `${providerId}:${this.resource.toString()}`;
+		this.chatId = `${providerId}:${this.resource.toString()}`;
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
 		this.createdAt = new Date(metadata.startTime);
@@ -121,16 +113,13 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly sessionTypes: readonly ISessionType[];
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
+	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	private readonly _sessionCache = new Map<string, RemoteSessionAdapter>();
-
-	/** Selected model for the current new session. */
-	private _selectedModelId: string | undefined;
 
 	private readonly _connectionInfo: IRemoteAgentHostConnectionInfo;
 	private readonly _connection: IAgentConnection;
@@ -139,10 +128,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	constructor(
 		config: IRemoteAgentHostSessionsProviderConfig,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IChatService private readonly _chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -215,32 +200,25 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// -- Sessions --
 
-	getSessionTypes(_session: ISessionData): ISessionType[] {
+	getSessionTypes(_chat: IChatData): ISessionType[] {
 		return [...this.sessionTypes];
 	}
 
-	getSessions(): ISessionData[] {
+	getSessions(): IChatData[] {
 		this._ensureSessionCache();
 		return Array.from(this._sessionCache.values());
 	}
 
 	// -- Session Lifecycle --
 
-	private _currentNewSession: ISessionData | undefined;
-
-	createNewSession(workspace: ISessionWorkspace): ISessionData {
+	createNewSession(workspace: ISessionWorkspace): IChatData {
 		const workspaceUri = workspace.repositories[0]?.uri;
 		if (!workspaceUri) {
 			throw new Error('Workspace has no repository URI');
 		}
-
-		// Reset draft state from any prior unsent session
-		this._currentNewSession = undefined;
-		this._selectedModelId = undefined;
-
 		const resource = URI.from({ scheme: this._sessionTypeForProvider('copilot'), path: `/untitled-${generateUuid()}` });
-		const session: ISessionData = {
-			sessionId: `${this.id}:${resource.toString()}`,
+		const session: IChatData = {
+			chatId: `${this.id}:${resource.toString()}`,
 			resource,
 			providerId: this.id,
 			sessionType: this.sessionTypes[0].id,
@@ -259,34 +237,34 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
 			pullRequest: observableValue(this, undefined),
-
 		};
-		this._currentNewSession = session;
 		return session;
 	}
 
-	setSessionType(_sessionId: string, _type: ISessionType): ISessionData {
+	createNewSessionFrom(_chatId: string): IChatData {
+		throw new Error('Remote agent host sessions do not support forking');
+	}
+
+	setSessionType(_chatId: string, _type: ISessionType): IChatData {
 		throw new Error('Remote agent host sessions do not support changing session type');
 	}
 
-	setModel(sessionId: string, modelId: string): void {
-		if (this._currentNewSession?.sessionId === sessionId) {
-			this._selectedModelId = modelId;
-		}
+	setModel(_chatId: string, _modelId: string): void {
+		// Model selection is handled by the AgentHostSessionHandler at send time
 	}
 
 	// -- Session Actions --
 
 	async archiveSession(_sessionId: string): Promise<void> {
-		// Agent host protocol does not support archiving
+		// Agent host sessions don't support archiving
 	}
 
 	async unarchiveSession(_sessionId: string): Promise<void> {
-		// Agent host protocol does not support unarchiving
+		// Agent host sessions don't support unarchiving
 	}
 
-	async deleteSession(sessionId: string): Promise<void> {
-		const rawId = this._rawIdFromSessionId(sessionId);
+	async deleteSession(chatId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(chatId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
 			await this._connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
@@ -296,80 +274,20 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	}
 
 	async renameSession(_sessionId: string, _title: string): Promise<void> {
-		// Agent host protocol does not support renaming
+		// Agent host sessions don't support renaming
 	}
 
-	setRead(sessionId: string, read: boolean): void {
-		const rawId = this._rawIdFromSessionId(sessionId);
+	setRead(chatId: string, read: boolean): void {
+		const rawId = this._rawIdFromChatId(chatId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached) {
 			cached.isRead.set(read, undefined);
 		}
 	}
 
-	// -- Send --
-
-	async sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData> {
-		const session = this._currentNewSession;
-		if (!session || session.sessionId !== sessionId) {
-			throw new Error(`Session '${sessionId}' not found or not a new session`);
-		}
-
-		const { query, attachedContext } = options;
-
-		const contribution = this._chatSessionsService.getChatSessionContribution(this._sessionTypeForProvider('copilot'));
-
-		const sendOptions: IChatSendRequestOptions = {
-			location: ChatAgentLocation.Chat,
-			userSelectedModelId: this._selectedModelId,
-			modeInfo: {
-				kind: ChatModeKind.Agent,
-				isBuiltin: true,
-				modeInstructions: undefined,
-				modeId: 'agent',
-				applyCodeBlockSuggestionId: undefined,
-				permissionLevel: undefined,
-			},
-			agentIdSilent: contribution?.type,
-			attachedContext,
-		};
-
-		// Open chat widget
-		await this._chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
-		const chatWidget = await this._chatWidgetService.openSession(session.resource, ChatViewPaneTarget);
-		if (!chatWidget) {
-			throw new Error('[RemoteAgentHost] Failed to open chat widget');
-		}
-
-		// Load session model and apply selected model
-		const modelRef = await this._chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		if (modelRef) {
-			if (this._selectedModelId) {
-				const languageModel = this._languageModelsService.lookupLanguageModel(this._selectedModelId);
-				if (languageModel) {
-					modelRef.object.inputModel.setState({ selectedModel: { identifier: this._selectedModelId, metadata: languageModel } });
-				}
-			}
-			modelRef.dispose();
-		}
-
-		// Track existing sessions before sending so we can detect the new one
-		const existingKeys = new Set(this._sessionCache.keys());
-
-		// Send request through the chat service, which delegates to the
-		// AgentHostSessionHandler content provider for turn handling
-		const result = await this._chatService.sendRequest(session.resource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			throw new Error(`[RemoteAgentHost] sendRequest rejected: ${result.reason}`);
-		}
-
-		// After sending, the session handler creates the backend session.
-		this._currentNewSession = undefined;
-		this._selectedModelId = undefined;
-
-		// Wait for the new session to appear via notification or refresh
-		const newSession = await this._waitForNewSession(existingKeys);
-		return newSession ?? session;
+	async sendRequest(_chatId: string, _options: ISendRequestOptions): Promise<IChatData> {
+		// Agent host session send is handled separately by the AgentHostSessionHandler
+		throw new Error('Remote agent host sessions do not support sending requests through the sessions provider');
 	}
 
 	// -- Private: Session Cache --
@@ -385,12 +303,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		this._refreshSessions(cts.token).finally(() => cts.dispose());
 	}
 
-	private async _refreshSessions(_token: CancellationToken): Promise<void> {
+	private async _refreshSessions(_token: unknown): Promise<void> {
 		try {
 			const sessions = await this._connection.listSessions();
 			const currentKeys = new Set<string>();
-			const added: ISessionData[] = [];
-			const changed: ISessionData[] = [];
+			const added: IChatData[] = [];
+			const changed: IChatData[] = [];
 
 			for (const meta of sessions) {
 				const rawId = AgentSession.id(meta.session);
@@ -408,7 +326,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 				}
 			}
 
-			const removed: ISessionData[] = [];
+			const removed: IChatData[] = [];
 			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
 					this._sessionCache.delete(key);
@@ -424,35 +342,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
-	/**
-	 * Wait for a new session to appear in the cache that wasn't present before.
-	 * Tries an immediate refresh, then listens for the session-added notification.
-	 */
-	private async _waitForNewSession(existingKeys: Set<string>): Promise<ISessionData | undefined> {
-		// First, try an immediate refresh
-		await this._refreshSessions(CancellationToken.None);
-		for (const [key, cached] of this._sessionCache) {
-			if (!existingKeys.has(key)) {
-				return cached;
-			}
-		}
-
-		// If not found yet, wait for the next onDidChangeSessions event
-		return new Promise<ISessionData | undefined>(resolve => {
-			const listener = this._onDidChangeSessions.event(e => {
-				const newSession = e.added.find(s => {
-					const rawId = s.resource.path.substring(1);
-					return !existingKeys.has(rawId);
-				});
-				if (newSession) {
-					listener.dispose();
-					resolve(newSession);
-				}
-			});
-		});
-	}
-
-	private _handleSessionAdded(summary: ISessionSummary): void {
+	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string }): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -482,13 +372,9 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
-	/**
-	 * Extracts the raw session ID from a provider-scoped sessionId.
-	 * sessionId format: `{providerId}:{scheme}:///{rawId}`
-	 */
-	private _rawIdFromSessionId(sessionId: string): string | undefined {
+	private _rawIdFromChatId(chatId: string): string | undefined {
 		const prefix = `${this.id}:`;
-		const resourceStr = sessionId.startsWith(prefix) ? sessionId.substring(prefix.length) : sessionId;
+		const resourceStr = chatId.startsWith(prefix) ? chatId.substring(prefix.length) : chatId;
 		try {
 			return URI.parse(resourceStr).path.substring(1) || undefined;
 		} catch {
@@ -496,10 +382,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
-	/**
-	 * Builds the chat session type string for a given agent provider on this connection.
-	 * E.g. `remote-localhost_4321-copilot` for provider `copilot` on `localhost:4321`.
-	 */
 	private _sessionTypeForProvider(provider: string): string {
 		return `remote-${this._connectionAuthority}-${provider}`;
 	}

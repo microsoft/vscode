@@ -1293,11 +1293,14 @@ export class AICustomizationListWidget extends Disposable {
 					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
+			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
 			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
 				const filename = basename(skill.uri);
 				const skillName = skill.name || basename(dirname(skill.uri)) || filename;
 				seenUris.add(skill.uri);
+				const skillFolderName = basename(dirname(skill.uri));
+				const uiTooltip = uiIntegrations.get(skillFolderName);
 				items.push({
 					id: skill.uri.toString(),
 					uri: skill.uri,
@@ -1308,6 +1311,8 @@ export class AICustomizationListWidget extends Disposable {
 					promptType,
 					pluginUri: skill.storage === PromptsStorage.plugin ? this.findPluginUri(skill.uri) : undefined,
 					disabled: false,
+					badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
+					badgeTooltip: uiTooltip,
 				});
 			}
 			// Also include disabled skills from the raw file list
@@ -1315,15 +1320,20 @@ export class AICustomizationListWidget extends Disposable {
 				for (const file of allSkillFiles) {
 					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
 						const filename = basename(file.uri);
+						const disabledName = file.name || basename(dirname(file.uri)) || filename;
+						const disabledFolderName = basename(dirname(file.uri));
+						const uiTooltip = uiIntegrations.get(disabledFolderName);
 						items.push({
 							id: file.uri.toString(),
 							uri: file.uri,
-							name: file.name || basename(dirname(file.uri)) || filename,
+							name: disabledName,
 							filename,
 							description: file.description,
 							storage: file.storage,
 							promptType,
 							disabled: true,
+							badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
+							badgeTooltip: uiTooltip,
 						});
 					}
 				}
