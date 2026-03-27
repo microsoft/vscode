@@ -11,7 +11,6 @@ export const enum TerminalToolId {
 	TerminalSelection = 'terminal_selection',
 	TerminalLastCommand = 'terminal_last_command',
 	ConfirmTerminalCommand = 'vscode_get_terminal_confirmation',
-	MoveTerminalToBackground = 'move_terminal_to_background',
 	CreateAndRunTask = 'create_and_run_task',
 	GetTaskOutput = 'get_task_output',
 	RunTask = 'run_task',

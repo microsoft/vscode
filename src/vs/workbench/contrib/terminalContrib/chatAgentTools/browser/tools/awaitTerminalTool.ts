@@ -17,7 +17,7 @@ export const AwaitTerminalToolData: IToolData = {
 	id: TerminalToolId.AwaitTerminal,
 	toolReferenceName: 'awaitTerminal',
 	displayName: localize('awaitTerminalTool.displayName', 'Await Terminal'),
-	modelDescription: `Wait for a background terminal command to complete. Returns the output, exit code, or timeout status. If the command times out and is taking too long, consider using ${TerminalToolId.KillTerminal} to stop it and try a faster alternative approach.`,
+	modelDescription: 'Wait for a background terminal command to complete. Returns the output, exit code, or timeout status.',
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {

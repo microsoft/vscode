@@ -108,9 +108,6 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- For long-running tasks (e.g., servers), set isBackground=true',
 		'- Returns a terminal ID for checking status and runtime later',
 		'- Use Start-Job for background PowerShell jobs',
-		`- If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later`,
-		'- If unsure whether a command will be long-running, prefer isBackground=true — you can always check the output later',
-		`- If a background command is taking too long and you have a faster alternative approach, use ${TerminalToolId.KillTerminal} to stop it and try the alternative`,
 	];
 
 	if (isSandboxEnabled) {
@@ -186,10 +183,7 @@ Program Execution:
 
 Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
-- Returns a terminal ID for checking status and runtime later
-- If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later
-- If unsure whether a command will be long-running, prefer isBackground=true — you can always check the output later
-- If a background command is taking too long and you have a faster alternative approach, use ${TerminalToolId.KillTerminal} to stop it and try the alternative`];
+- Returns a terminal ID for checking status and runtime later`];
 
 	if (isSandboxEnabled) {
 		parts.push(createSandboxLines(networkDomains).join('\n'));
@@ -306,8 +300,7 @@ export async function createRunInTerminalToolData(
 				},
 				timeout: {
 					type: 'number',
-					minimum: 1,
-					description: `A timeout in milliseconds, required for foreground commands (isBackground=false). After this duration, the terminal is automatically moved to the background and the output collected so far is returned. The command continues running and its output can be checked later using ${TerminalToolId.GetTerminalOutput} or awaited with ${TerminalToolId.AwaitTerminal}. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. If it's not clear how long the command will take, use a generous value to avoid prematurely moving it to the background. This property is ignored for background commands.`,
+					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far with a timeout indicator. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
 				},
 				...isSandboxEnabled ? {
 					requestUnsandboxedExecution: {
@@ -325,13 +318,7 @@ export async function createRunInTerminalToolData(
 				'explanation',
 				'goal',
 				'isBackground',
-			],
-			if: {
-				properties: { isBackground: { const: false } }
-			},
-			then: {
-				required: ['timeout']
-			}
+			]
 		}
 	};
 }
@@ -375,12 +362,6 @@ export interface IActiveTerminalExecution {
 	 * The terminal instance associated with this execution.
 	 */
 	readonly instance: ITerminalInstance;
-
-	/**
-	 * The terminal tool session ID used to identify this execution for
-	 * continue-in-background events.
-	 */
-	readonly terminalToolSessionId: string | undefined;
 
 	/**
 	 * Gets the current output from the terminal.
