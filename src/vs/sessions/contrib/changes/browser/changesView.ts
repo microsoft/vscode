@@ -63,7 +63,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { GitDiffChange, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { CIStatusWidget } from './ciStatusWidget.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
@@ -220,6 +220,36 @@ function buildTreeChildren(items: IChangesFileItem[]): IObjectTreeElement<Change
 	}
 
 	return convert(root);
+}
+
+function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChangesFileItem[] {
+	return changes.map(change => {
+		const isDeletion = change.modifiedUri === undefined;
+		const isAddition = change.originalUri === undefined;
+		const uri = change.modifiedUri ?? change.uri;
+		const fileUri = isDeletion
+			? uri
+			: modifiedRef
+				? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref: modifiedRef }) })
+				: uri;
+		const originalUri = isAddition
+			? change.originalUri
+			: originalRef
+				? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: originalRef }) })
+				: change.originalUri;
+		return {
+			type: 'file',
+			uri: fileUri,
+			originalUri,
+			state: ModifiedFileEntryState.Accepted,
+			isDeletion,
+			changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
+			linesAdded: change.insertions,
+			linesRemoved: change.deletions,
+			reviewCommentCount: 0,
+			agentFeedbackCount: 0,
+		} satisfies IChangesFileItem;
+	});
 }
 
 // --- View Model
@@ -743,41 +773,15 @@ export class ChangesViewPane extends ViewPane {
 
 				const diffChanges = lastTurnDiffChanges ?? [];
 
-				const ref = lastCheckpointRef
+				const modifiedRef = lastCheckpointRef
 					? lastCheckpointRef
 					: headCommit;
 
-				const parentRef = lastCheckpointRef
+				const originalRef = lastCheckpointRef
 					? `${lastCheckpointRef}^`
 					: headCommit ? `${headCommit}^` : undefined;
 
-				sourceEntries = diffChanges.map(change => {
-					const isDeletion = change.modifiedUri === undefined;
-					const isAddition = change.originalUri === undefined;
-					const uri = change.modifiedUri ?? change.uri;
-					const fileUri = isDeletion
-						? uri
-						: ref
-							? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref }) })
-							: uri;
-					const originalUri = isAddition
-						? change.originalUri
-						: parentRef
-							? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
-							: change.originalUri;
-					return {
-						type: 'file',
-						uri: fileUri,
-						originalUri,
-						state: ModifiedFileEntryState.Accepted,
-						isDeletion,
-						changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
-						linesAdded: change.insertions,
-						linesRemoved: change.deletions,
-						reviewCommentCount: 0,
-						agentFeedbackCount: 0,
-					} satisfies IChangesFileItem;
-				});
+				sourceEntries = toChangesFileItem(diffChanges, modifiedRef, originalRef);
 			} else {
 				sourceEntries = [...sessionFiles];
 			}
@@ -1315,6 +1319,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IChangesTreeTemplate {
@@ -1342,6 +1347,11 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
 			label.element.appendChild(actionBarContainer);
+
+			templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				return activeSession?.sessionType ?? '';
+			}));
 		}
 
 		const decorationBadge = dom.$('.changes-decoration-badge');
