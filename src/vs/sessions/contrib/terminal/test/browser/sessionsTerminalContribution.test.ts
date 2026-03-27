@@ -75,7 +75,7 @@ function makeAgentSession(opts: {
 		description: observableValue('test.description', undefined),
 		pullRequest: observableValue('test.pullRequest', undefined),
 	};
-	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat) };
+	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat), mainChat: chat };
 	return session;
 }
 
@@ -108,7 +108,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		description: observableValue('test.description', undefined),
 		pullRequest: observableValue('test.pullRequest', undefined),
 	};
-	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat) };
+	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat), mainChat: chat };
 	return session;
 }
 

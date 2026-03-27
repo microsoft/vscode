@@ -14,7 +14,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { IReader, autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -32,7 +32,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionData, ISessionWorkspace, SessionStatus } from '../../common/sessionData.js';
 import { ISessionsManagementService } from '../sessionsManagementService.js';
-import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Separator } from '../../../../../base/common/actions.js';
@@ -103,7 +103,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 		let height = SessionsTreeDelegate.ITEM_HEIGHT;
 		if (this._approvalModel) {
-			const approval = this._approvalModel.getApproval(element.resource).get();
+			const approval = getFirstApprovalAcrossChats(this._approvalModel, element as ISessionData, undefined);
 			if (approval) {
 				height += SessionItemRenderer.getApprovalRowHeight(approval.label);
 			}
@@ -134,7 +134,6 @@ interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly iconContainer: HTMLElement;
 	readonly title: HTMLElement;
-	readonly pinnedIndicator: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
@@ -179,7 +178,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const mainCol = DOM.append(container, $('.session-main'));
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const title = DOM.append(titleRow, $('.session-title'));
-		const pinnedIndicator = DOM.append(titleRow, $('.session-pinned-indicator'));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
 
@@ -194,7 +192,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, iconContainer, title, pinnedIndicator, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
+		return { container, iconContainer, title, titleToolbar, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, contextKeyService, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -211,19 +209,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Toolbar context
 		template.titleToolbar.context = element;
 
-		// Context key: isPinned
+		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
-
-		// Pinned indicator — inline pin icon, hidden on hover when toolbar shows
-		template.pinnedIndicator.className = 'session-pinned-indicator ' + ThemeIcon.asClassName(Codicon.pinned);
-		template.pinnedIndicator.classList.toggle('visible', isPinned);
 		IsSessionReadContext.bindTo(template.contextKeyService).set(element.isRead.get());
 
-		// Archived styling — reactive
+		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
-			template.container.classList.toggle('archived', element.isArchived.read(reader));
+			const isArchived = element.isArchived.read(reader);
+			template.container.classList.toggle('archived', isArchived);
+			// Only apply pinned styling when not archived to avoid persistent toolbars on archived sessions
+			template.container.classList.toggle('pinned', isPinned && !isArchived);
 		}));
 
 
@@ -369,7 +366,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}
 
 		const approvalModel = this.approvalModel;
-		const initialInfo = approvalModel.getApproval(element.resource).get();
+		const initialInfo = getFirstApprovalAcrossChats(approvalModel, element, undefined);
 		let wasVisible = !!initialInfo;
 		template.approvalRow.classList.toggle('visible', wasVisible);
 
@@ -378,7 +375,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			buttonStore.clear();
 
-			const info = approvalModel.getApproval(element.resource).read(reader);
+			const info = getFirstApprovalAcrossChats(approvalModel, element, reader);
 			const visible = !!info;
 
 			template.approvalRow.classList.toggle('visible', visible);
@@ -574,7 +571,7 @@ export interface ISessionsListControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
-	onSessionOpen(resource: URI): void;
+	onSessionOpen(resource: URI, preserveFocus: boolean): void;
 }
 
 /**
@@ -737,7 +734,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element)) {
-				this.options.onSessionOpen(element.resource);
+				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false);
 			}
 		}));
 
@@ -1171,6 +1168,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private groupByDate(sessions: ISessionData[]): ISessionSection[] {
 		return groupByDate(sessions, this.options.sorting());
 	}
+}
+
+//#endregion
+
+//#region Approval Helpers
+
+function getFirstApprovalAcrossChats(approvalModel: AgentSessionApprovalModel, session: ISessionData, reader: IReader | undefined,): IAgentSessionApprovalInfo | undefined {
+	let oldest: IAgentSessionApprovalInfo | undefined;
+	for (const chat of session.chats.read(reader)) {
+		const approval = approvalModel.getApproval(chat.resource).read(reader);
+		if (approval && (!oldest || approval.since.getTime() < oldest.since.getTime())) {
+			oldest = approval;
+		}
+	}
+	return oldest;
 }
 
 //#endregion
