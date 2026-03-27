@@ -311,16 +311,6 @@ export interface ISessionActiveClient {
 	tools: IToolDefinition[];
 	/** Customizations this client contributes to the session */
 	customizations?: ICustomizationRef[];
-	/**
-	 * Glob patterns controlling automatic approval of file-edit tool calls.
-	 *
-	 * Keys are glob patterns matched against the file path (relative to
-	 * `workingDirectory`). Values are `true` (auto-approve) or `false`
-	 * (require explicit confirmation). The last matching pattern wins.
-	 *
-	 * When absent, the server SHOULD use reasonable built-in defaults.
-	 */
-	editAutoApprovePatterns?: Record<string, boolean>;
 }
 
 /**
