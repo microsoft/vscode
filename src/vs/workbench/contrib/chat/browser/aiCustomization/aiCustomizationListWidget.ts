@@ -55,7 +55,7 @@ import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
-import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { isInClaudeRulesFolder, getCleanPromptName, AGENT_MD_FILENAME, CLAUDE_MD_FILENAME, CLAUDE_LOCAL_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -278,6 +278,21 @@ function storageToIcon(storage: PromptsStorage): ThemeIcon {
  */
 export function formatDisplayName(name: string): string {
 	return name.replace(/\.md$/i, '');
+}
+
+/**
+ * Well-known agent instruction filenames that are always loaded and
+ * grouped under "Agent Instructions" rather than classified by `applyTo`.
+ */
+const AGENT_INSTRUCTION_FILENAMES = new Set([
+	AGENT_MD_FILENAME.toLowerCase(),
+	CLAUDE_MD_FILENAME.toLowerCase(),
+	CLAUDE_LOCAL_MD_FILENAME.toLowerCase(),
+	COPILOT_CUSTOM_INSTRUCTIONS_FILENAME.toLowerCase(),
+]);
+
+function isAgentInstructionFile(uri: URI): boolean {
+	return AGENT_INSTRUCTION_FILENAMES.has(basename(uri).toLowerCase());
 }
 
 /**
@@ -1582,11 +1597,31 @@ export class AICustomizationListWidget extends Disposable {
 		disabled: boolean,
 		pluginUri?: URI,
 	): IAICustomizationListItem {
-		const applyTo = evaluateApplyToPattern(header, isInClaudeRulesFolder(uri));
 		const name = header?.name;
 		const description = header?.description ?? rawDescription;
 		const friendlyName = this.getFriendlyName(name || rawName || getCleanPromptName(uri));
+		const filename = basename(uri);
 
+		// Agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md)
+		// are always-loaded and get their own group without applyTo badges.
+		if (isAgentInstructionFile(uri)) {
+			return {
+				id: uri.toString(),
+				uri,
+				name: friendlyName,
+				filename: this.labelService.getUriLabel(uri, { relative: true }),
+				displayName: friendlyName,
+				description,
+				storage,
+				promptType: PromptsType.instructions,
+				typeIcon: storageToIcon(storage),
+				groupKey: 'agent-instructions',
+				pluginUri,
+				disabled,
+			};
+		}
+
+		const applyTo = evaluateApplyToPattern(header, isInClaudeRulesFolder(uri));
 		if (applyTo !== undefined) {
 			const badge = applyTo === '**'
 				? localize('alwaysAdded', "always added")
@@ -1616,7 +1651,7 @@ export class AICustomizationListWidget extends Disposable {
 			id: uri.toString(),
 			uri,
 			name: friendlyName,
-			filename: basename(uri),
+			filename,
 			displayName: friendlyName,
 			description,
 			storage,
