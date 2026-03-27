@@ -256,11 +256,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const changes = element.changes.read(reader);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
-			const timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
+			let timeDate: Date | undefined;
 
 			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
 
+			if (!hideDetails) {
+				timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
+			}
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
