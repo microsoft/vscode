@@ -346,7 +346,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		// Pin preferred light/dark settings only when auto-detect is enabled,
 		// to avoid writing unnecessary settings for users who never used it.
 		const detectInspection = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
-		if (detectInspection.userValue || detectInspection.userRemoteValue) {
+		if (detectInspection.value === true) {
 			const preferredSettings = [
 				{ key: ThemeSettings.PREFERRED_DARK_THEME, oldDefault: ThemeSettingDefaults.COLOR_THEME_DARK_OLD },
 				{ key: ThemeSettings.PREFERRED_LIGHT_THEME, oldDefault: ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD },
