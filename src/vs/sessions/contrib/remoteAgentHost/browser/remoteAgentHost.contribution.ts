@@ -25,31 +25,12 @@ import { resolveTokenForResource } from '../../../../workbench/contrib/chat/brow
 import { AgentHostLanguageModelProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { LoggingAgentConnection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
-import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-
-/**
- * Given a sanitized URI authority, resolves the corresponding agent host
- * session target string by looking up the matching connection.
- *
- * Returns `undefined` if no connection matches the authority.
- */
-export function getRemoteAgentHostSessionTarget(
-	connections: readonly IRemoteAgentHostConnectionInfo[],
-	authority: string,
-): AgentSessionTarget | undefined {
-	for (const conn of connections) {
-		if (agentHostAuthority(conn.address) === authority) {
-			return `remote-${agentHostAuthority(conn.address)}-copilot`;
-		}
-	}
-	return undefined;
-}
 
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
@@ -74,12 +55,11 @@ class ConnectionState extends Disposable {
 /**
  * Discovers available agents from each connected remote agent host and
  * dynamically registers each one as a chat session type with its own
- * session handler, list controller, and language model provider.
+ * session handler and language model provider.
  *
- * Uses the same unified {@link AgentHostSessionHandler} and
- * {@link AgentHostSessionListController} as the local agent host,
- * obtaining per-connection {@link IAgentConnection} instances from
- * {@link IRemoteAgentHostService.getConnection}.
+ * Uses the same unified {@link AgentHostSessionHandler} as the local
+ * agent host, obtaining per-connection {@link IAgentConnection}
+ * instances from {@link IRemoteAgentHostService.getConnection}.
  */
 export class RemoteAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
@@ -146,20 +126,21 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				if (existing.name !== connectionInfo.name) {
 					this._logService.info(`[RemoteAgentHost] Name changed for ${connectionInfo.address}: ${existing.name} -> ${connectionInfo.name}`);
 					this._connections.deleteAndDispose(connectionInfo.address);
-					this._setupConnection(connectionInfo.address, connectionInfo.name, connectionInfo.defaultDirectory);
+					this._setupConnection(connectionInfo);
 				}
 			} else {
-				this._setupConnection(connectionInfo.address, connectionInfo.name, connectionInfo.defaultDirectory);
+				this._setupConnection(connectionInfo);
 			}
 		}
 	}
 
-	private _setupConnection(address: string, name: string | undefined, defaultDirectory: string | undefined): void {
-		const connection = this._remoteAgentHostService.getConnection(address);
+	private _setupConnection(connectionInfo: IRemoteAgentHostConnectionInfo): void {
+		const connection = this._remoteAgentHostService.getConnection(connectionInfo.address);
 		if (!connection) {
 			return;
 		}
 
+		const { address, name } = connectionInfo;
 		const sanitized = agentHostAuthority(address);
 		const channelId = `agentHostIpc.remote.${sanitized}`;
 		const channelLabel = `Agent Host (${name || address})`;
@@ -206,7 +187,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Register a single sessions provider for the entire connection.
 		// It handles all agents discovered on this connection.
 		const sessionsProvider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { address, connectionName: name, defaultDirectory, connection: loggedConnection });
+			RemoteAgentHostSessionsProvider, { connectionInfo, connection: loggedConnection });
 		store.add(sessionsProvider);
 		store.add(this._sessionsProvidersService.registerProvider(sessionsProvider));
 	}

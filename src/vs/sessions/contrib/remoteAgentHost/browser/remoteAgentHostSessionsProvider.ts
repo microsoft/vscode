@@ -7,7 +7,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -25,136 +25,98 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISendRequestOptions, ISessionsBrowseAction, ISessionsChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
-import { ISessionData, ISessionPullRequest, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ISessionData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+
+import { IRemoteAgentHostConnectionInfo } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 export interface IRemoteAgentHostSessionsProviderConfig {
-	readonly address: string;
-	readonly connectionName: string | undefined;
-	readonly defaultDirectory: string | undefined;
+	readonly connectionInfo: IRemoteAgentHostConnectionInfo;
 	readonly connection: IAgentConnection;
 }
 
 /**
- * Adapts an {@link IAgentSessionMetadata} from the agent host connection
- * into the {@link ISessionData} facade.
+ * A cached session entry: the {@link ISessionData} facade plus mutable
+ * fields needed by the provider for incremental updates.
+ *
+ * **URI/ID scheme:**
+ * - **rawId** - unique session identifier (e.g. `abc123`), used as the cache key.
+ * - **resource** - `{sessionType}:///{rawId}` (e.g. `remote-host__4321-copilot:///abc123`).
+ *   The scheme routes the chat service to the correct {@link AgentHostSessionHandler}.
+ * - **sessionId** - `{providerId}:{resource}` - the provider-scoped ID used by
+ *   {@link ISessionsProvider} methods. The rawId can be extracted from the resource path.
+ * - Protocol operations (e.g. `disposeSession`) use the canonical agent session URI
+ *   (`copilot:///abc123`), reconstructed via {@link AgentSession.uri}.
  */
-class RemoteSessionAdapter implements ISessionData {
+interface ICachedSession {
+	readonly data: ISessionData;
+	/** The agent provider (e.g. 'copilot') for constructing backend URIs. */
+	readonly agentProvider: string;
+	/** Settable title -- updated when the session summary changes. */
+	readonly title: ISettableObservable<string>;
+	/** Settable updatedAt -- updated on turn completion. */
+	readonly updatedAt: ISettableObservable<Date>;
+}
 
-	readonly sessionId: string;
-	readonly resource: URI;
-	readonly providerId: string;
-	readonly sessionType: string;
-	readonly icon: ThemeIcon;
-	readonly createdAt: Date;
-
-	private readonly _workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
-	readonly workspace: IObservable<ISessionWorkspace | undefined>;
-
-	private readonly _title: ReturnType<typeof observableValue<string>>;
-	readonly title: IObservable<string>;
-
-	private readonly _updatedAt: ReturnType<typeof observableValue<Date>>;
-	readonly updatedAt: IObservable<Date>;
-
-	private readonly _status: ReturnType<typeof observableValue<SessionStatus>>;
-	readonly status: IObservable<SessionStatus>;
-
-	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
-
-	readonly modelId: IObservable<string | undefined>;
-	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
-	readonly loading: IObservable<boolean>;
-
-	private readonly _isArchived: ReturnType<typeof observableValue<boolean>>;
-	readonly isArchived: IObservable<boolean>;
-
-	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
-	readonly isRead: IObservable<boolean>;
-
-	readonly description: IObservable<string | undefined>;
-	readonly lastTurnEnd: IObservable<Date | undefined>;
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
-
-	/** Backend agent session URI for protocol operations (e.g. disposeSession). */
-	readonly backendSessionUri: URI;
-
-	constructor(
-		metadata: IAgentSessionMetadata,
-		providerId: string,
-		resourceScheme: string,
-		logicalSessionType: string,
-		providerLabel: string,
-		connectionAuthority: string,
-	) {
-		const rawId = AgentSession.id(metadata.session);
-		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
-		this.backendSessionUri = AgentSession.uri(AgentSession.provider(metadata.session) ?? 'copilot', rawId);
-		this.sessionId = `${providerId}:${this.resource.toString()}`;
-		this.providerId = providerId;
-		this.sessionType = logicalSessionType;
-		this.icon = Codicon.remote;
-		this.createdAt = new Date(metadata.startTime);
-
-		// Build workspace from working directory if available
-		const workspaceData = metadata.workingDirectory
-			? this._buildWorkspace(metadata.workingDirectory, providerLabel, connectionAuthority)
-			: undefined;
-
-		this._workspace = observableValue(this, workspaceData);
-		this.workspace = this._workspace;
-
-		this._title = observableValue(this, metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
-		this.title = this._title;
-
-		this._updatedAt = observableValue(this, new Date(metadata.modifiedTime));
-		this.updatedAt = this._updatedAt;
-
-		this._status = observableValue(this, SessionStatus.Completed);
-		this.status = this._status;
-
-		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
-		this.changes = this._changes;
-
-		this.modelId = observableValue(this, undefined);
-		this.mode = observableValue(this, undefined);
-		this.loading = observableValue(this, false);
-
-		this._isArchived = observableValue(this, false);
-		this.isArchived = this._isArchived;
-		this._isRead = observableValue(this, true);
-		this.isRead = this._isRead;
-
-		this.description = observableValue(this, providerLabel);
-		this.lastTurnEnd = observableValue(this, metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
-		this.pullRequest = observableValue(this, undefined);
-	}
-
-	/**
-	 * Update reactive properties from refreshed metadata.
-	 */
-	update(metadata: IAgentSessionMetadata): void {
-		transaction(tx => {
-			this._title.set(metadata.summary ?? this._title.get(), tx);
-			this._updatedAt.set(new Date(metadata.modifiedTime), tx);
-		});
-	}
-
-	private _buildWorkspace(workingDirectory: string, providerLabel: string, connectionAuthority: string): ISessionWorkspace {
-		const label = workingDirectory.split('/').pop() || workingDirectory;
-		const uri = toAgentHostUri(URI.file(workingDirectory), connectionAuthority);
-		return {
-			label,
-			icon: Codicon.remote,
-			repositories: [{ uri, workingDirectory: undefined, detail: providerLabel, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: false
-		};
-	}
+function buildWorkspace(workingDirectory: string, providerLabel: string, connectionAuthority: string): ISessionWorkspace {
+	const directoryUri = URI.file(workingDirectory);
+	const label = directoryUri.path.split('/').pop() || workingDirectory;
+	const uri = toAgentHostUri(directoryUri, connectionAuthority);
+	return {
+		label,
+		icon: Codicon.remote,
+		repositories: [{ uri, workingDirectory: undefined, detail: providerLabel, baseBranchProtected: undefined }],
+		requiresWorkspaceTrust: false,
+	};
 }
 
 /**
- * A sessions provider for a single agent on a remote agent host connection.
- * One instance is created per agent discovered on a connection.
+ * Creates a cached session entry from agent host metadata.
+ */
+function createCachedSession(
+	metadata: IAgentSessionMetadata,
+	providerId: string,
+	resourceScheme: string,
+	logicalSessionType: string,
+	providerLabel: string,
+	connectionAuthority: string,
+): ICachedSession {
+	const rawId = AgentSession.id(metadata.session);
+	const agentProvider = AgentSession.provider(metadata.session) ?? 'copilot';
+	const resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
+	const title = observableValue<string>('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
+	const updatedAt = observableValue<Date>('updatedAt', new Date(metadata.modifiedTime));
+	const workspace = metadata.workingDirectory
+		? buildWorkspace(metadata.workingDirectory, providerLabel, connectionAuthority)
+		: undefined;
+
+	const data: ISessionData = {
+		sessionId: `${providerId}:${resource.toString()}`,
+		resource,
+		providerId,
+		sessionType: logicalSessionType,
+		icon: Codicon.remote,
+		createdAt: new Date(metadata.startTime),
+		workspace: observableValue('workspace', workspace),
+		title,
+		updatedAt,
+		status: observableValue('status', SessionStatus.Completed),
+		changes: observableValue<readonly IChatSessionFileChange[]>('changes', []),
+		modelId: observableValue('modelId', undefined),
+		mode: observableValue('mode', undefined),
+		loading: observableValue('loading', false),
+		isArchived: observableValue('isArchived', false),
+		isRead: observableValue('isRead', true),
+		description: observableValue('description', providerLabel),
+		lastTurnEnd: observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined),
+		pullRequest: observableValue('pullRequest', undefined),
+	};
+
+	return { data, agentProvider, title, updatedAt };
+}
+
+/**
+ * Sessions provider for a remote agent host connection.
+ * One instance is created per connection and handles all agents on it.
  *
  * Fully implements {@link ISessionsProvider}:
  * - Session listing via {@link IAgentConnection.listSessions} with incremental updates
@@ -174,13 +136,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
 	/** Cache of adapted sessions, keyed by raw session ID. */
-	private readonly _sessionCache = new Map<string, RemoteSessionAdapter>();
+	private readonly _sessionCache = new Map<string, ICachedSession>();
 
 	/** Selected model for the current new session. */
 	private _selectedModelId: string | undefined;
 
-	private readonly _address: string;
-	private readonly _defaultDirectory: string | undefined;
+	private readonly _connectionInfo: IRemoteAgentHostConnectionInfo;
 	private readonly _connection: IAgentConnection;
 	private readonly _connectionAuthority: string;
 
@@ -194,11 +155,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	) {
 		super();
 
-		this._address = config.address;
-		this._defaultDirectory = config.defaultDirectory;
+		this._connectionInfo = config.connectionInfo;
 		this._connection = config.connection;
-		this._connectionAuthority = agentHostAuthority(config.address);
-		const displayName = config.connectionName || config.address;
+		this._connectionAuthority = agentHostAuthority(config.connectionInfo.address);
+		const displayName = config.connectionInfo.name || config.connectionInfo.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
@@ -250,7 +210,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	getSessions(): ISessionData[] {
 		this._ensureSessionCache();
-		return Array.from(this._sessionCache.values());
+		return Array.from(this._sessionCache.values()).map(c => c.data);
 	}
 
 	// -- Session Lifecycle --
@@ -320,13 +280,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
-		const adapter = this._findAdapter(sessionId);
-		if (adapter) {
-			// Use the backend agent session URI, not the UI resource
-			await this._connection.disposeSession(adapter.backendSessionUri);
-			const rawId = adapter.resource.path.substring(1);
+		const rawId = this._rawIdFromSessionId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			await this._connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
 			this._sessionCache.delete(rawId);
-			this._onDidChangeSessions.fire({ added: [], removed: [adapter], changed: [] });
+			this._onDidChangeSessions.fire({ added: [], removed: [cached.data], changed: [] });
 		}
 	}
 
@@ -335,10 +294,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	}
 
 	setRead(sessionId: string, read: boolean): void {
-		const adapter = this._findAdapter(sessionId);
-		if (adapter) {
-			// Track read state locally since the protocol doesn't support it
-			(adapter.isRead as ReturnType<typeof observableValue<boolean>>).set(read, undefined);
+		const rawId = this._rawIdFromSessionId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached) {
+			(cached.data.isRead as ISettableObservable<boolean>).set(read, undefined);
 		}
 	}
 
@@ -434,20 +393,21 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 				const existing = this._sessionCache.get(rawId);
 				if (existing) {
-					existing.update(meta);
-					changed.push(existing);
+					existing.title.set(meta.summary ?? existing.title.get(), undefined);
+					existing.updatedAt.set(new Date(meta.modifiedTime), undefined);
+					changed.push(existing.data);
 				} else {
-					const adapter = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
-					this._sessionCache.set(rawId, adapter);
-					added.push(adapter);
+					const cached = createCachedSession(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+					this._sessionCache.set(rawId, cached);
+					added.push(cached.data);
 				}
 			}
 
 			const removed: ISessionData[] = [];
-			for (const [key, adapter] of this._sessionCache) {
+			for (const [key, cached] of this._sessionCache) {
 				if (!currentKeys.has(key)) {
 					this._sessionCache.delete(key);
-					removed.push(adapter);
+					removed.push(cached.data);
 				}
 			}
 
@@ -466,9 +426,9 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	private async _waitForNewSession(existingKeys: Set<string>): Promise<ISessionData | undefined> {
 		// First, try an immediate refresh
 		await this._refreshSessions(CancellationToken.None);
-		for (const [key, adapter] of this._sessionCache) {
+		for (const [key, cached] of this._sessionCache) {
 			if (!existingKeys.has(key)) {
-				return adapter;
+				return cached.data;
 			}
 		}
 
@@ -503,29 +463,32 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			summary: summary.title,
 			workingDirectory: workingDir,
 		};
-		const adapter = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
-		this._sessionCache.set(rawId, adapter);
-		this._onDidChangeSessions.fire({ added: [adapter], removed: [], changed: [] });
+		const cached = createCachedSession(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+		this._sessionCache.set(rawId, cached);
+		this._onDidChangeSessions.fire({ added: [cached.data], removed: [], changed: [] });
 	}
 
 	private _handleSessionRemoved(session: URI | string): void {
 		const rawId = AgentSession.id(session);
-		const adapter = this._sessionCache.get(rawId);
-		if (adapter) {
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
 			this._sessionCache.delete(rawId);
-			this._onDidChangeSessions.fire({ added: [], removed: [adapter], changed: [] });
+			this._onDidChangeSessions.fire({ added: [], removed: [cached.data], changed: [] });
 		}
 	}
 
-	private _findAdapter(sessionId: string): RemoteSessionAdapter | undefined {
+	/**
+	 * Extracts the raw session ID from a provider-scoped sessionId.
+	 * sessionId format: `{providerId}:{scheme}:///{rawId}`
+	 */
+	private _rawIdFromSessionId(sessionId: string): string | undefined {
 		const prefix = `${this.id}:`;
-		const localId = sessionId.startsWith(prefix) ? sessionId.substring(prefix.length) : sessionId;
-		for (const adapter of this._sessionCache.values()) {
-			if (adapter.sessionId === sessionId || adapter.resource.toString() === localId) {
-				return adapter;
-			}
+		const resourceStr = sessionId.startsWith(prefix) ? sessionId.substring(prefix.length) : sessionId;
+		try {
+			return URI.parse(resourceStr).path.substring(1) || undefined;
+		} catch {
+			return undefined;
 		}
-		return undefined;
 	}
 
 	/**
@@ -539,8 +502,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	// -- Private: Browse --
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
-		const authority = agentHostAuthority(this._address);
-		const defaultUri = agentHostUri(authority, this._defaultDirectory ?? '/');
+		const authority = agentHostAuthority(this._connectionInfo.address);
+		const defaultUri = agentHostUri(authority, this._connectionInfo.defaultDirectory ?? '/');
 
 		try {
 			const selected = await this._fileDialogService.showOpenDialog({

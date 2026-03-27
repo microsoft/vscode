@@ -21,6 +21,7 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionStatus } from '../../../sessions/common/sessionData.js';
 import { ISessionsChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { CopilotCLISessionType } from '../../../sessions/browser/sessionTypes.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 
 // ---- Mock connection --------------------------------------------------------
@@ -78,7 +79,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: Partial<IRemoteAgentHostSessionsProviderConfig> & { connectionName?: string | undefined }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; connectionName?: string | undefined }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
@@ -98,9 +99,12 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	});
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
-		address: overrides?.address ?? 'localhost:4321',
-		connectionName: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName : 'Test Host',
-		connection: overrides?.connection ?? connection,
+		connectionInfo: {
+			address: overrides?.address ?? 'localhost:4321',
+			name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
+			clientId: 'test-client',
+		},
+		connection,
 	};
 
 	return disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, config));
@@ -155,7 +159,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(provider.id.includes('10.0.0.1'));
 		assert.strictEqual(provider.label, 'My Host');
 		assert.strictEqual(provider.sessionTypes.length, 1);
-		assert.strictEqual(provider.sessionTypes[0].id, 'agent-host-copilot');
+		assert.strictEqual(provider.sessionTypes[0].id, CopilotCLISessionType.id);
 	});
 
 	test('falls back to address-based label when no name given', () => {
@@ -182,7 +186,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection);
 
 		assert.strictEqual(provider.browseActions.length, 1);
-		assert.ok(provider.browseActions[0].label.includes('Browse'));
+		assert.ok(provider.browseActions[0].label.includes('Folders'));
 		assert.strictEqual(provider.browseActions[0].providerId, provider.id);
 	});
 
@@ -286,6 +290,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			label: 'my-project',
 			icon: { id: 'remote' },
 			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: false,
 		};
 
 		const session = provider.createNewSession(workspace);
@@ -304,6 +309,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			label: 'my-project',
 			icon: { id: 'remote' },
 			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: false,
 		};
 
 		const session1 = provider.createNewSession(workspace);
@@ -322,7 +328,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('createNewSession throws when no repository URI', () => {
 		const provider = createProvider(disposables, connection);
-		const workspace = { label: 'empty', icon: { id: 'remote' }, repositories: [] };
+		const workspace = { label: 'empty', icon: { id: 'remote' }, repositories: [], requiresWorkspaceTrust: false };
 
 		assert.throws(() => provider.createNewSession(workspace), /Workspace has no repository URI/);
 	});
@@ -397,8 +403,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 
 		const provider = disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, {
-			address: 'localhost:4321',
-			connectionName: 'Test',
+			connectionInfo: { address: 'localhost:4321', name: 'Test', clientId: 'test-client' },
 			connection,
 		}));
 
@@ -406,6 +411,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			label: 'project',
 			icon: { id: 'remote' },
 			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: false,
 		};
 
 		const session = provider.createNewSession(workspace);
@@ -498,12 +504,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			label: 'project',
 			icon: { id: 'remote' },
 			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: false,
 		};
 		const session = provider.createNewSession(workspace);
 		const types = provider.getSessionTypes(session);
 
 		assert.strictEqual(types.length, 1);
-		assert.strictEqual(types[0].requiresWorkspaceTrust, true);
 	});
 
 	// ---- sessionType on adapters -------
@@ -543,8 +549,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 
 		const provider = disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, {
-			address: 'localhost:4321',
-			connectionName: 'Test',
+			connectionInfo: { address: 'localhost:4321', name: 'Test', clientId: 'test-client' },
 			connection,
 		}));
 
@@ -552,6 +557,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			label: 'project',
 			icon: { id: 'remote' },
 			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			requiresWorkspaceTrust: false,
 		};
 
 		const newSession = provider.createNewSession(workspace);
