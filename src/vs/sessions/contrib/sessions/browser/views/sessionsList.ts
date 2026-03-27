@@ -337,14 +337,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// Timestamp — visible when not hiding details
-			if (!hideDetails) {
+			if (!hideDetails && timeDate) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
+				const definiteTimeDate = timeDate;
 				const formatTime = () => {
-					const seconds = Math.round((Date.now() - timeDate.getTime()) / 1000);
-					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(timeDate, true);
+					const seconds = Math.round((Date.now() - definiteTimeDate.getTime()) / 1000);
+					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(definiteTimeDate, true);
 				};
 				timeEl.textContent = formatTime();
 				const targetWindow = DOM.getWindow(timeEl);
