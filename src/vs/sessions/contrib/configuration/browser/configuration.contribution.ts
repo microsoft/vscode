@@ -16,7 +16,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 			'.claude/settings.json': false,
 			'~/.claude/settings.json': false,
 		},
-		'chat.agent.maxRequests': 1000,
 		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.viewSessions.enabled': false,
 		'chat.implicitContext.suggestedContext': false,
