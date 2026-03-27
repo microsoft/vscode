@@ -1673,6 +1673,23 @@ export interface IInstructionDto {
 export interface ISkillDto {
 	uri: UriComponents;
 }
+
+export interface IChatSessionCustomizationProviderMetadataDto {
+	readonly label: string;
+	readonly iconId?: string;
+	readonly unsupportedTypes?: readonly string[];
+	readonly workspaceSubpaths?: readonly string[];
+}
+
+export interface IChatSessionCustomizationItemDto {
+	readonly uri: UriComponents;
+	readonly type: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly groupKey?: string;
+	readonly badge?: string;
+	readonly badgeTooltip?: string;
+}
 export interface IChatParticipantMetadata {
 	participant: string;
 	command?: string;

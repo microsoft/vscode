@@ -584,6 +584,83 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			emitter.fire();
 		}
 	}
+
+	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
+		if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
+			this._logService.trace(`[MainThreadChatAgents2] Customization provider API is disabled, ignoring registration from ${extensionId.value}`);
+			return;
+		}
+
+		const extension = await this._extensionService.getExtension(extensionId.value);
+		if (!extension) {
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for customization provider: ${extensionId.value}`);
+			return;
+		}
+
+		const emitter = new Emitter<void>();
+		this._customizationProviderEmitters.set(handle, emitter);
+
+		// Build the item provider that calls back to the ExtHost
+		const itemProvider: IExternalCustomizationItemProvider = {
+			onDidChange: emitter.event,
+			provideChatSessionCustomizations: async (token) => {
+				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
+				if (!items) {
+					return undefined;
+				}
+				return items.map((item: IChatSessionCustomizationItemDto): IExternalCustomizationItem => ({
+					uri: URI.revive(item.uri),
+					type: item.type,
+					name: item.name,
+					description: item.description,
+					groupKey: item.groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
+				}));
+			},
+		};
+
+		// Convert metadata to a harness descriptor
+		const hiddenSections = metadata.unsupportedTypes?.map(type => {
+			switch (type) {
+				case 'agent': return AICustomizationManagementSection.Agents;
+				case 'skill': return AICustomizationManagementSection.Skills;
+				case 'instructions': return AICustomizationManagementSection.Instructions;
+				case 'prompt': return AICustomizationManagementSection.Prompts;
+				case 'hook': return AICustomizationManagementSection.Hooks;
+				default: return type;
+			}
+		});
+
+		const descriptor: IHarnessDescriptor = {
+			id: chatSessionType,
+			label: metadata.label,
+			icon: metadata.iconId ? ThemeIcon.fromId(metadata.iconId) : ThemeIcon.fromId(Codicon.extensions.id),
+			hiddenSections,
+			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
+			getStorageSourceFilter: () => ({
+				// Extension-provided harnesses manage their own items via the provider,
+				// so we show all sources for storage-filter-based flows.
+				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension],
+			}),
+			itemProvider,
+		};
+
+		const registration = this._customizationHarnessService.registerExternalHarness(descriptor);
+		this._customizationProviders.set(handle, registration);
+	}
+
+	$unregisterChatSessionCustomizationProvider(handle: number): void {
+		this._customizationProviders.deleteAndDispose(handle);
+		this._customizationProviderEmitters.deleteAndDispose(handle);
+	}
+
+	$onDidChangeCustomizations(handle: number): void {
+		const emitter = this._customizationProviderEmitters.get(handle);
+		if (emitter) {
+			emitter.fire();
+		}
+	}
 }
 
 

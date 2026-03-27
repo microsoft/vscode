@@ -118,6 +118,43 @@ export interface IHarnessDescriptor {
 	 * items of the given type when this harness is active.
 	 */
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
+	/**
+	 * When set, this harness is backed by an extension-contributed provider
+	 * that can supply customization items directly (bypassing promptsService
+	 * discovery and filtering).
+	 */
+	readonly itemProvider?: IExternalCustomizationItemProvider;
+}
+
+/**
+ * Represents a customization item provided by an external extension.
+ */
+export interface IExternalCustomizationItem {
+	readonly uri: URI;
+	readonly type: string;
+	readonly name: string;
+	readonly description?: string;
+	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
+	readonly groupKey?: string;
+	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
+	readonly badge?: string;
+	/** Tooltip shown when hovering the badge. */
+	readonly badgeTooltip?: string;
+}
+
+/**
+ * Provider interface for extension-contributed harnesses that supply
+ * customization items directly from their SDK.
+ */
+export interface IExternalCustomizationItemProvider {
+	/**
+	 * Event that fires when the provider's customizations change.
+	 */
+	readonly onDidChange: Event<void>;
+	/**
+	 * Provide the customization items this harness supports.
+	 */
+	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
 }
 
 /**
