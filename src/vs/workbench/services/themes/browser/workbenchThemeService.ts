@@ -337,8 +337,9 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				}
 			} else {
 				// No stored theme data but existing user — pin the old default
-				// based on color scheme so they keep their current appearance.
-				const oldDefault = isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
+				// based on the current color scheme so they keep their appearance.
+				const prefersDark = this.hostColorSchemeService.dark;
+				const oldDefault = prefersDark ? ThemeSettingDefaults.COLOR_THEME_DARK_OLD : ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD;
 				await this.configurationService.updateValue(ThemeSettings.COLOR_THEME, oldDefault, ConfigurationTarget.USER);
 			}
 		}
