@@ -52,7 +52,7 @@
 	overflow: hidden;
 }
 
-.account-widget-update:has(.hidden) {
+.account-widget-update:has(.account-widget-update-button.hidden) {
 	display: none;
 }
 
