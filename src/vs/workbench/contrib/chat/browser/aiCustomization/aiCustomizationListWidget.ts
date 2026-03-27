@@ -56,6 +56,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -1428,53 +1429,15 @@ export class AICustomizationListWidget extends Disposable {
 			}));
 
 			for (const { item, parsed } of parseResults) {
-				const applyTo = evaluateApplyToPattern(parsed?.header, isInClaudeRulesFolder(item.uri));
-				const name = parsed?.header?.name;
-				let description = parsed?.header?.description;
-				const friendlyName = this.getFriendlyName(name || item.name || getCleanPromptName(item.uri));
-				description = description || item.description;
-
-				if (applyTo !== undefined) {
-					// Context instruction
-					const badge = applyTo === '**'
-						? localize('alwaysAdded', "always added")
-						: applyTo;
-					const badgeTooltip = applyTo === '**'
-						? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
-						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
-					items.push({
-						id: item.uri.toString(),
-						uri: item.uri,
-						name: friendlyName,
-						filename: this.labelService.getUriLabel(item.uri, { relative: true }),
-						displayName: friendlyName,
-						badge,
-						badgeTooltip,
-						description: description,
-						storage: item.storage,
-						promptType,
-						typeIcon: storageToIcon(item.storage),
-						groupKey: 'context-instructions',
-						pluginUri: item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
-						disabled: disabledUris.has(item.uri),
-					});
-				} else {
-					// On-demand instruction
-					items.push({
-						id: item.uri.toString(),
-						uri: item.uri,
-						name: friendlyName,
-						filename: basename(item.uri),
-						displayName: friendlyName,
-						description: description,
-						storage: item.storage,
-						promptType,
-						typeIcon: storageToIcon(item.storage),
-						groupKey: 'on-demand-instructions',
-						pluginUri: item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
-						disabled: disabledUris.has(item.uri),
-					});
-				}
+				items.push(this.buildInstructionListItem(
+					item.uri,
+					item.name || getCleanPromptName(item.uri),
+					item.description,
+					item.storage,
+					parsed?.header,
+					disabledUris.has(item.uri),
+					item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
+				));
 			}
 		}
 
@@ -1553,23 +1516,42 @@ export class AICustomizationListWidget extends Disposable {
 		const projectRoot = this.workspaceService.getActiveProjectRoot();
 		const userHomeUri = await this.pathService.userHome();
 
-		// For instructions, parse files to extract applyTo patterns for grouping and badges
+		const items: IAICustomizationListItem[] = [];
+
 		if (promptType === PromptsType.instructions) {
-			return this.enrichInstructionItemsFromProvider(filtered, projectRoot, userHomeUri);
+			// Parse instruction files to extract applyTo for grouping and badges
+			const parseResults = await Promise.all(filtered.map(async item => {
+				try {
+					const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
+					return { item, parsed };
+				} catch {
+					return { item, parsed: undefined };
+				}
+			}));
+			for (const { item, parsed } of parseResults) {
+				const storage = this.inferStorageFromUri(item.uri, projectRoot, userHomeUri);
+				items.push(this.buildInstructionListItem(
+					item.uri, item.name, item.description, storage,
+					parsed?.header, false,
+				));
+			}
+		} else {
+			for (const item of filtered) {
+				items.push({
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: item.name,
+					filename: basename(item.uri),
+					description: item.description,
+					storage: this.inferStorageFromUri(item.uri, projectRoot, userHomeUri),
+					promptType,
+					disabled: false,
+				});
+			}
 		}
 
-		return filtered
-			.map((item: IExternalCustomizationItem) => ({
-				id: item.uri.toString(),
-				uri: item.uri,
-				name: item.name,
-				filename: basename(item.uri),
-				description: item.description,
-				storage: this.inferStorageFromUri(item.uri, projectRoot, userHomeUri),
-				promptType,
-				disabled: false,
-			}))
-			.sort((a, b) => a.name.localeCompare(b.name));
+		items.sort((a, b) => a.name.localeCompare(b.name));
+		return items;
 	}
 
 	/**
@@ -1588,76 +1570,62 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Enriches instruction items from an external provider by parsing each
-	 * file to extract frontmatter (`applyTo`, `name`, `description`).
-	 * This replicates the built-in instruction classification logic so that
-	 * provider items get proper grouping and applyTo badges.
+	 * Builds an instruction list item with proper groupKey and badge based on
+	 * parsed frontmatter. Shared between the built-in and provider item paths.
 	 */
-	private async enrichInstructionItemsFromProvider(
-		externalItems: IExternalCustomizationItem[],
-		projectRoot: URI | undefined,
-		userHome: URI,
-	): Promise<IAICustomizationListItem[]> {
-		const promptType = PromptsType.instructions;
+	private buildInstructionListItem(
+		uri: URI,
+		rawName: string,
+		rawDescription: string | undefined,
+		storage: PromptsStorage,
+		header: PromptHeader | undefined,
+		disabled: boolean,
+		pluginUri?: URI,
+	): IAICustomizationListItem {
+		const applyTo = evaluateApplyToPattern(header, isInClaudeRulesFolder(uri));
+		const name = header?.name;
+		const description = header?.description ?? rawDescription;
+		const friendlyName = this.getFriendlyName(name || rawName || getCleanPromptName(uri));
 
-		const parseResults = await Promise.all(externalItems.map(async item => {
-			try {
-				const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
-				return { item, parsed };
-			} catch {
-				return { item, parsed: undefined };
-			}
-		}));
-
-		const items: IAICustomizationListItem[] = [];
-		for (const { item, parsed } of parseResults) {
-			const storage = this.inferStorageFromUri(item.uri, projectRoot, userHome);
-			const applyTo = evaluateApplyToPattern(parsed?.header, isInClaudeRulesFolder(item.uri));
-			const name = parsed?.header?.name;
-			const description = parsed?.header?.description ?? item.description;
-			const friendlyName = this.getFriendlyName(name || item.name || getCleanPromptName(item.uri));
-
-			if (applyTo !== undefined) {
-				const badge = applyTo === '**'
-					? localize('alwaysAdded', "always added")
-					: applyTo;
-				const badgeTooltip = applyTo === '**'
-					? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
-					: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
-				items.push({
-					id: item.uri.toString(),
-					uri: item.uri,
-					name: friendlyName,
-					filename: this.labelService.getUriLabel(item.uri, { relative: storage === PromptsStorage.local }),
-					displayName: friendlyName,
-					badge,
-					badgeTooltip,
-					description,
-					storage,
-					promptType,
-					typeIcon: storageToIcon(storage),
-					groupKey: 'context-instructions',
-					disabled: false,
-				});
-			} else {
-				items.push({
-					id: item.uri.toString(),
-					uri: item.uri,
-					name: friendlyName,
-					filename: basename(item.uri),
-					displayName: friendlyName,
-					description,
-					storage,
-					promptType,
-					typeIcon: storageToIcon(storage),
-					groupKey: 'on-demand-instructions',
-					disabled: false,
-				});
-			}
+		if (applyTo !== undefined) {
+			const badge = applyTo === '**'
+				? localize('alwaysAdded', "always added")
+				: applyTo;
+			const badgeTooltip = applyTo === '**'
+				? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
+				: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
+			return {
+				id: uri.toString(),
+				uri,
+				name: friendlyName,
+				filename: this.labelService.getUriLabel(uri, { relative: true }),
+				displayName: friendlyName,
+				badge,
+				badgeTooltip,
+				description,
+				storage,
+				promptType: PromptsType.instructions,
+				typeIcon: storageToIcon(storage),
+				groupKey: 'context-instructions',
+				pluginUri,
+				disabled,
+			};
 		}
 
-		items.sort((a, b) => a.name.localeCompare(b.name));
-		return items;
+		return {
+			id: uri.toString(),
+			uri,
+			name: friendlyName,
+			filename: basename(uri),
+			displayName: friendlyName,
+			description,
+			storage,
+			promptType: PromptsType.instructions,
+			typeIcon: storageToIcon(storage),
+			groupKey: 'on-demand-instructions',
+			pluginUri,
+			disabled,
+		};
 	}
 
 	/**
