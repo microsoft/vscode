@@ -251,7 +251,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			// Keyboard handler — container handles session picker;
 			// countWidget is a <button> so Enter/Space fire its CLICK handler natively.
 			this._dynamicDisposables.add(addDisposableListener(this._container, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				if (countWidget.contains(e.target as Node)) {
+				const target = e.target;
+				if (target instanceof Node && countWidget.contains(target)) {
 					return; // Let the count button handle its own keys via native click
 				}
 				if (e.key === 'Enter' || e.key === ' ') {
