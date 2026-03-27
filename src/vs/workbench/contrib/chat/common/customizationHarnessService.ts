@@ -433,7 +433,12 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	}
 
 	private _getAllHarnesses(): readonly IHarnessDescriptor[] {
-		return [...this._staticHarnesses, ...this._externalHarnesses];
+		// External harnesses override static ones with the same id
+		const externalIds = new Set(this._externalHarnesses.map(h => h.id));
+		return [
+			...this._staticHarnesses.filter(h => !externalIds.has(h.id)),
+			...this._externalHarnesses,
+		];
 	}
 
 	private _refreshAvailableHarnesses(): void {
