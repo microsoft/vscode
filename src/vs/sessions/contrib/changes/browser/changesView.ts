@@ -289,12 +289,18 @@ class ChangesViewModel extends Disposable {
 			}
 
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			const worktree = activeSession?.workspace.read(reader)?.repositories[0]?.workingDirectory;
-			if (!worktree) {
+			const activeSessionIsolationMode = this.activeSessionIsolationModeObs.read(reader);
+			const activeSessionRepository = activeSession?.workspace.read(reader)?.repositories[0];
+
+			const repositoryRootUri = activeSessionIsolationMode === IsolationMode.Worktree
+				? activeSessionRepository?.workingDirectory
+				: activeSessionRepository?.uri;
+
+			if (!repositoryRootUri) {
 				return constObservable(undefined);
 			}
 
-			return new ObservablePromise(this.gitService.openRepository(worktree)).resolvedValue;
+			return new ObservablePromise(this.gitService.openRepository(repositoryRootUri)).resolvedValue;
 		});
 
 		this.activeSessionRepositoryObs = derived<IGitRepository | undefined>(reader => {
@@ -1511,14 +1517,14 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 				const allChangesDescription = baseBranchName && branchName
 					? `${branchName} → ${baseBranchName}`
-					: branchName ?? localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session');
+					: branchName;
 
 				return [
 					{
 						...action,
 						id: 'chatEditing.versionsAllChanges',
 						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
-						description: allChangesDescription,
+						description: allChangesDescription ?? localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
