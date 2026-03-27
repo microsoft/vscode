@@ -516,7 +516,7 @@
 		display: none;
 		position: absolute;
 		right: 0;
-		top: 20px;
+		bottom: 0;
 
 		a {
 			color: var(--vscode-textLink-foreground);
@@ -529,12 +529,11 @@
 		position: relative;
 
 		.message-wrapper {
-			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
-			mask-image:
-				linear-gradient(to right, rgba(0, 0, 0, 1) calc(100% - 95px), rgba(0, 0, 0, 0) calc(100% - 72px)), linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 20px, rgba(0, 0, 0, 1) 2px, rgba(0, 0, 0, 1) 100%);
-			mask-repeat: no-repeat, no-repeat;
+			/* Fade out the bottom edge so the "see more" link can overlay cleanly. */
+			mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) calc(100% - 24px), rgba(0, 0, 0, 0) 100%);
 			pointer-events: none;
-			max-height: 40px;
+			max-height: 96px;
+			overflow: hidden;
 		}
 
 		.see-more {
