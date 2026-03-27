@@ -8,33 +8,22 @@ import { Event } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { ChatArtifactsWidget } from '../../../contrib/chat/browser/widget/chatArtifactsWidget.js';
-import { IChatImageCarouselService } from '../../../contrib/chat/browser/chatImageCarouselService.js';
-import { IChatArtifact, IChatArtifacts, IChatArtifactsService } from '../../../contrib/chat/common/tools/chatArtifactsService.js';
+import { IChatArtifact, IChatArtifactsService } from '../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
 import '../../../contrib/chat/browser/widget/media/chat.css';
 
-function createMockArtifacts(artifacts: IChatArtifact[]): IChatArtifacts {
-	const obs = observableValue<readonly IChatArtifact[]>('artifacts', artifacts);
-	const mutable = observableValue<boolean>('mutable', true);
-	return new class extends mock<IChatArtifacts>() {
-		override readonly artifacts = obs;
-		override readonly mutable = mutable;
-		override set(a: IChatArtifact[]) { obs.set(a, undefined); }
-		override clear() { obs.set([], undefined); }
-		override migrate() { }
-	}();
-}
-
 function createMockArtifactsService(artifacts: IChatArtifact[]): IChatArtifactsService {
-	const instance = createMockArtifacts(artifacts);
+	const obs = observableValue<readonly IChatArtifact[]>('artifacts', artifacts);
 	return new class extends mock<IChatArtifactsService>() {
-		override getArtifacts() { return instance; }
+		override readonly onDidUpdateArtifacts = Event.None;
+		override getArtifacts() { return artifacts; }
+		override setArtifacts() { }
+		override migrateArtifacts() { }
+		override artifacts() { return obs; }
 	}();
 }
 
@@ -45,11 +34,8 @@ function renderArtifactsWidget(context: ComponentFixtureContext, artifacts: ICha
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			reg.define(IListService, ListService);
-			reg.defineInstance(IContextViewService, new class extends mock<IContextViewService>() { }());
 			reg.defineInstance(IChatArtifactsService, createMockArtifactsService(artifacts));
-			reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; }());
-			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 		},
 	});
 
@@ -68,11 +54,8 @@ function renderInChatInputPart(context: ComponentFixtureContext, artifacts: ICha
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			reg.define(IListService, ListService);
-			reg.defineInstance(IContextViewService, new class extends mock<IContextViewService>() { }());
 			reg.defineInstance(IChatArtifactsService, createMockArtifactsService(artifacts));
-			reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; }());
-			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 		},
 	});
 
@@ -97,14 +80,6 @@ function renderInChatInputPart(context: ComponentFixtureContext, artifacts: ICha
 	const widget = disposableStore.add(instantiationService.createInstance(ChatArtifactsWidget));
 	widget.render(URI.parse('chat-session:test-session'));
 	inputPart.artifactsContainer.appendChild(widget.domNode);
-}
-
-function renderArtifactsWidgetExpanded(context: ComponentFixtureContext, artifacts: IChatArtifact[]): void {
-	renderArtifactsWidget(context, artifacts);
-
-	// Click the header button to expand the widget
-	const expandButton = context.container.querySelector<HTMLElement>('.chat-artifacts-expand .monaco-button');
-	expandButton?.click();
 }
 
 // ============================================================================
@@ -152,13 +127,5 @@ export default defineThemedFixtureGroup({ path: 'chat/artifacts/' }, {
 
 	InChatInputMultiple: defineComponentFixture({
 		render: context => renderInChatInputPart(context, multipleArtifacts),
-	}),
-
-	MultipleArtifactsExpanded: defineComponentFixture({
-		render: context => renderArtifactsWidgetExpanded(context, multipleArtifacts),
-	}),
-
-	ManyArtifactsExpanded: defineComponentFixture({
-		render: context => renderArtifactsWidgetExpanded(context, manyArtifacts),
 	}),
 });

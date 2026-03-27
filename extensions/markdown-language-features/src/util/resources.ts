@@ -21,7 +21,7 @@ export function areUrisEqual(uri1: vscode.Uri, uri2: vscode.Uri): boolean {
 	}
 
 	if (uri1.scheme === 'file') {
-		if (process.platform === 'win32' || process.platform === 'darwin') {
+		if (process.platform === 'win32') {
 			return uri1.fsPath.toLowerCase() === uri2.fsPath.toLowerCase();
 		}
 

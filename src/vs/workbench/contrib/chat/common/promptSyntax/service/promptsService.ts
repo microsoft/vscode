@@ -114,11 +114,6 @@ export interface IPromptPathBase {
 	 */
 	readonly extension?: IExtensionDescription;
 
-	/**
-	 * Identifier of the contributing plugin (only when storage === PromptsStorage.plugin).
-	 */
-	readonly pluginUri?: URI;
-
 	readonly name?: string;
 
 	readonly description?: string;
@@ -132,11 +127,6 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly description?: string;
 	readonly when?: string;
 }
-
-export function isExtensionPromptPath(obj: IPromptPath): obj is IExtensionPromptPath {
-	return obj.storage === PromptsStorage.extension;
-}
-
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
 }
@@ -269,10 +259,6 @@ export interface IChatPromptSlashCommand {
 	readonly when: ContextKeyExpression | undefined;
 }
 
-/**
- * Supply-chain metadata describing where a skill originated.
- */
-
 export interface IAgentSkill {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
@@ -293,14 +279,6 @@ export interface IAgentSkill {
 	 * when this expression evaluates to true against a scoped context.
 	 */
 	readonly when?: ContextKeyExpression;
-	/**
-	 * Optional plugin URI describing where this skill originated.
-	 */
-	readonly pluginUri?: URI;
-	/**
-	 * Optional extension metadata describing where this skill originated.
-	 */
-	readonly extension?: IExtensionDescription;
 }
 
 /**
@@ -357,9 +335,7 @@ export interface IPromptFileDiscoveryResult {
 	/** For duplicates, the URI of the file that took precedence */
 	readonly duplicateOf?: URI;
 	/** Extension ID if from extension */
-	readonly extension?: IExtensionDescription;
-	/** Uri of the plugin, if from a plugin */
-	readonly pluginUri?: URI;
+	readonly extensionId?: string;
 	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
 	readonly userInvocable?: boolean;
 	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */

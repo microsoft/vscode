@@ -32,7 +32,6 @@ const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settin
 
 const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
 	ChatContextKeys.Entitlement.planFree,
-	ChatContextKeys.Entitlement.planEdu,
 	ChatContextKeys.Entitlement.planPro,
 	ChatContextKeys.Entitlement.planProPlus,
 	ChatContextKeys.Entitlement.planBusiness,

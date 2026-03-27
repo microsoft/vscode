@@ -47,7 +47,6 @@ import { ACTION_START as INLINE_CHAT_START } from '../../../inlineChat/common/in
 import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { ChatGlobalPerfMark, markChatGlobal } from '../../common/chatPerf.js';
 import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
@@ -340,8 +339,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let languageModelReady = false;
 		let toolsModelReady = false;
 
-		markChatGlobal(ChatGlobalPerfMark.WillWaitForActivation);
-
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
 		if (!whenAgentReady) {
@@ -537,7 +534,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			}
 		}
 
-		markChatGlobal(ChatGlobalPerfMark.DidWaitForActivation);
 		await chatService.resendRequest(requestModel, {
 			...widget?.getModeRequestOptions(),
 			modeInfo,

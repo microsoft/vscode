@@ -125,6 +125,10 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 			isEdit: true,
 			undoStopId
 		},
+		{
+			kind: 'markdownContent',
+			content: new MarkdownString('\n````\n')
+		},
 		isNotebook
 			? {
 				kind: 'notebookEdit',
@@ -786,7 +790,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 					try {
 						const data = await this._fileService.readFile(contentSource);
 						afterSnapshot = data.value.toString();
-					} catch (_e) {
+					} catch {
 						afterSnapshot = '';
 					}
 				} else {
@@ -846,10 +850,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 		}
 
-		progress.push({
-			kind: 'markdownContent',
-			content: new MarkdownString('\n````\n'),
-		});
 
 		return progress;
 	}

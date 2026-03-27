@@ -26,7 +26,6 @@ suite('AgentService (node dispatcher)', () => {
 			_serviceBrand: undefined,
 			getSessionDataDir: () => URI.parse('inmemory:/session-data'),
 			getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
-			openDatabase: () => { throw new Error('not implemented'); },
 			deleteSessionData: async () => { },
 			cleanupOrphanedData: async () => { },
 		};
@@ -68,7 +67,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
-			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
 		});
 	});
 

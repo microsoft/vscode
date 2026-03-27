@@ -941,17 +941,12 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new FileEventLogger(onRepositoryWorkingTreeFileChange, onRepositoryDotGitFileChange, logger));
 
-		// Parent source control. Repositories opened in the Sessions app
-		// don't use the parent/child relationship and it is expected for
-		// a worktree repository to be opened while the main repository
-		// is closed.
-		const parentRoot = workspace.isAgentSessionsWorkspace
-			? undefined
-			: repository.kind === 'submodule'
-				? repository.dotGit.superProjectPath
-				: repository.kind === 'worktree' && repository.dotGit.commonPath
-					? path.dirname(repository.dotGit.commonPath)
-					: undefined;
+		// Parent source control
+		const parentRoot = repository.kind === 'submodule'
+			? repository.dotGit.superProjectPath
+			: repository.kind === 'worktree' && repository.dotGit.commonPath
+				? path.dirname(repository.dotGit.commonPath)
+				: undefined;
 		const parent = parentRoot
 			? this.repositoryResolver.getRepository(parentRoot)?.sourceControl
 			: undefined;
@@ -1362,23 +1357,6 @@ export class Repository implements Disposable {
 					[...this.untrackedGroup.resourceStates, ...untrackedResources] : undefined;
 
 				return { indexGroup, workingTreeGroup, untrackedGroup };
-			});
-	}
-
-	async restore(resources: Uri[], options?: { staged?: boolean; ref?: string }): Promise<void> {
-		await this.run(
-			Operation.Restore(!this.optimisticUpdateEnabled()),
-			async () => {
-				const resourcePaths = resources.map(r => r.fsPath);
-				await this.repository.restore(resourcePaths, options);
-
-				if (options?.staged) {
-					// Index was modified;
-					this.closeDiffEditors([], resourcePaths);
-				} else {
-					// Working tree was modified;
-					this.closeDiffEditors(resourcePaths, []);
-				}
 			});
 	}
 

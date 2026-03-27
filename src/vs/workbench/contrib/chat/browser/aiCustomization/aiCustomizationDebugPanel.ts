@@ -9,7 +9,6 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { IExternalCustomizationItemProvider } from '../../common/customizationHarnessService.js';
 
 /**
  * Maps section ID to prompt type. Duplicated from aiCustomizationListWidget
@@ -35,7 +34,7 @@ function sectionToPromptType(section: AICustomizationManagementSection): Prompts
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly storage?: PromptsStorage }[];
+	readonly allItems: readonly { readonly storage: PromptsStorage }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -48,7 +47,6 @@ export async function generateCustomizationDebugReport(
 	promptsService: IPromptsService,
 	workspaceService: IAICustomizationWorkspaceService,
 	widgetState: IDebugWidgetState,
-	externalProvider?: IExternalCustomizationItemProvider,
 ): Promise<string> {
 	const promptType = sectionToPromptType(section);
 	const filter = workspaceService.getStorageSourceFilter(promptType);
@@ -69,53 +67,12 @@ export async function generateCustomizationDebugReport(
 	}
 	lines.push('');
 
-	if (externalProvider) {
-		await appendExternalProviderData(lines, externalProvider, promptType);
-	} else {
-		await appendRawServiceData(lines, promptsService, promptType);
-		await appendFilteredData(lines, promptsService, promptType, filter);
-	}
+	await appendRawServiceData(lines, promptsService, promptType);
+	await appendFilteredData(lines, promptsService, promptType, filter);
 	appendWidgetState(lines, widgetState);
-	if (!externalProvider) {
-		await appendSourceFolders(lines, promptsService, promptType);
-	}
+	await appendSourceFolders(lines, promptsService, promptType);
 
 	return lines.join('\n');
-}
-
-async function appendExternalProviderData(lines: string[], provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<void> {
-	lines.push('--- External Provider Data ---');
-
-	const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
-	if (!allItems) {
-		lines.push('  Provider returned undefined');
-		lines.push('');
-		return;
-	}
-
-	lines.push(`  Total items from provider: ${allItems.length}`);
-
-	// Group by type for summary
-	const byType = new Map<string, typeof allItems>();
-	for (const item of allItems) {
-		const existing = byType.get(item.type) ?? [];
-		existing.push(item);
-		byType.set(item.type, existing);
-	}
-	for (const [type, items] of byType) {
-		lines.push(`  ${type}: ${items.length} items`);
-		for (const item of items) {
-			lines.push(`    ${item.name} — ${item.uri.fsPath ?? item.uri.toString()}`);
-			if (item.description) {
-				lines.push(`      desc: ${item.description}`);
-			}
-		}
-	}
-
-	// Show items matching the current section
-	const sectionItems = allItems.filter(i => i.type === promptType);
-	lines.push(`  Items matching current section (${promptType}): ${sectionItems.length}`);
-	lines.push('');
 }
 
 async function appendRawServiceData(lines: string[], promptsService: IPromptsService, promptType: PromptsType): Promise<void> {

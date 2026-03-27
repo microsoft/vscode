@@ -11,7 +11,7 @@
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding-left: 16px;
+	padding: 0 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -61,7 +61,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-weight: 500;
 }
 
 /* Repository/folder label */
@@ -76,22 +75,6 @@
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
 	opacity: 0.5;
 	flex-shrink: 0;
-}
-
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
-}
-
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
 }
 
 /* Session count widget (tasklist icon + unread count, left of pill) */
@@ -124,4 +107,3 @@
 	font-variant-numeric: tabular-nums;
 	line-height: 16px;
 }
-

@@ -876,5 +876,4 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		item.archived = archived;
 		controllerData.onDidChangeChatSessionItemStateEmitter.fire(item);
 	}
-
 }

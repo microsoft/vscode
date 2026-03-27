@@ -14,9 +14,9 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction, IToolCallConfirmedAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { IActionEnvelope, INotification, IPermissionResolvedAction, ISessionAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, createSessionState, ROOT_STATE_URI, PolicyState, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -468,16 +468,17 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/responsePart', session, turnId, part: { kind: 'markdown', id: 'md-1', content: 'hello ' } } as ISessionAction);
-			fire({ type: 'session/delta', session, turnId, partId: 'md-1', content: 'world' } as ISessionAction);
+			fire({ type: 'session/delta', session, turnId, content: 'hello ' } as ISessionAction);
+			fire({ type: 'session/delta', session, turnId, content: 'world' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
 
-			// Events may be coalesced by the throttler, so check total content
-			const markdownParts = collected.flat().filter((p): p is IChatMarkdownContent => p.kind === 'markdownContent');
-			const totalContent = markdownParts.map(p => p.content.value).join('');
-			assert.strictEqual(totalContent, 'hello world');
+			assert.strictEqual(collected.length, 2);
+			assert.strictEqual(collected[0][0].kind, 'markdownContent');
+			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'hello ');
+			assert.strictEqual(collected[1][0].kind, 'markdownContent');
+			assert.strictEqual((collected[1][0] as IChatMarkdownContent).content.value, 'world');
 		});
 
 		test('tool_start events become toolInvocation progress', async () => {
@@ -578,11 +579,11 @@ suite('AgentHostChatContribution', () => {
 
 			// Delta from a different session — will be ignored (session not subscribed)
 			agentHostService.fireAction({
-				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session').toString(), turnId, partId: 'md-other', content: 'wrong' } as ISessionAction,
+				action: { type: 'session/delta', session: AgentSession.uri('copilot', 'other-session').toString(), turnId, content: 'wrong' } as ISessionAction,
 				serverSeq: 100,
 				origin: undefined,
 			});
-			fire({ type: 'session/responsePart', session, turnId, part: { kind: 'markdown', id: 'md-1', content: 'right' } } as ISessionAction);
+			fire({ type: 'session/delta', session, turnId, content: 'right' } as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
 			await turnPromise;
@@ -628,12 +629,10 @@ suite('AgentHostChatContribution', () => {
 			cts.cancel();
 			await turnPromise;
 
-			// The tool invocation may or may not have been emitted before cancellation
-			// (the throttler can coalesce events). If it was emitted, it should be complete.
-			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
-			for (const inv of toolInvocations) {
-				assert.strictEqual(IChatToolInvocation.isComplete(inv as IChatToolInvocation), true);
-			}
+			assert.strictEqual(collected.length, 1);
+			const invocation = collected[0][0] as IChatToolInvocation;
+			assert.strictEqual(invocation.kind, 'toolInvocation');
+			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
 		});
 
 		test('cancellation calls abortSession on the agent host service', async () => {
@@ -692,37 +691,27 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			// Simulate a tool call requiring confirmation via toolCallStart + toolCallReady
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-1', toolName: 'shell', displayName: 'Shell' } as ISessionAction);
+			// Simulate a permission request
 			fire({
-				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-perm-1',
-				invocationMessage: 'echo hello', toolInput: 'echo hello',
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-1', permissionKind: 'shell', fullCommandText: 'echo hello', rawRequest: '{}' },
 			} as ISessionAction);
 
 			await timeout(10);
 
-			// The tool call should have produced a ChatToolInvocation in WaitingForConfirmation state
-			// After toolCallStart (Streaming) and toolCallReady without confirmed (PendingConfirmation),
-			// the handler emits two progress events — we want the last one (with confirmation).
-			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
-			assert.ok(toolInvocations.length >= 1, 'Should have received tool confirmation progress');
-			const permInvocation = toolInvocations[toolInvocations.length - 1] as IChatToolInvocation;
+			// The permission request should have produced a ChatToolInvocation in WaitingForConfirmation state
+			assert.ok(collected.length >= 1, 'Should have received permission confirmation progress');
+			const permInvocation = collected[0][0] as IChatToolInvocation;
 			assert.strictEqual(permInvocation.kind, 'toolInvocation');
 
-			// Confirm the tool
+			// Confirm the permission
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 
 			await timeout(10);
 
-			// The handler should have dispatched session/toolCallConfirmed
+			// The handler should have dispatched session/permissionResolved
 			assert.ok(agentHostService.dispatchedActions.some(
-				a => {
-					if (a.action.type !== 'session/toolCallConfirmed') {
-						return false;
-					}
-					const action = a.action as IToolCallConfirmedAction;
-					return action.toolCallId === 'tc-perm-1' && action.approved === true;
-				}
+				a => a.action.type === 'session/permissionResolved' && (a.action as IPermissionResolvedAction).requestId === 'perm-1' && (a.action as IPermissionResolvedAction).approved === true
 			));
 
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -734,29 +723,21 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-2', toolName: 'write', displayName: 'Write File' } as ISessionAction);
 			fire({
-				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-perm-2',
-				invocationMessage: 'Write to /tmp/test.txt',
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-2', permissionKind: 'write', path: '/tmp/test.txt', rawRequest: '{}' },
 			} as ISessionAction);
 
 			await timeout(10);
 
-			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
-			const permInvocation = toolInvocations[toolInvocations.length - 1] as IChatToolInvocation;
+			const permInvocation = collected[0][0] as IChatToolInvocation;
 			// Deny the permission
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.Denied });
 
 			await timeout(10);
 
 			assert.ok(agentHostService.dispatchedActions.some(
-				a => {
-					if (a.action.type !== 'session/toolCallConfirmed') {
-						return false;
-					}
-					const action = a.action as IToolCallConfirmedAction;
-					return action.toolCallId === 'tc-perm-2' && action.approved === false;
-				}
+				a => a.action.type === 'session/permissionResolved' && (a.action as IPermissionResolvedAction).requestId === 'perm-2' && (a.action as IPermissionResolvedAction).approved === false
 			));
 
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -768,15 +749,13 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-shell', toolName: 'shell', displayName: 'Shell', _meta: { toolKind: 'terminal' } } as ISessionAction);
 			fire({
-				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-perm-shell',
-				invocationMessage: 'echo hello', toolInput: 'echo hello',
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-shell', permissionKind: 'shell', fullCommandText: 'echo hello', intention: 'Print greeting', rawRequest: '{}' },
 			} as ISessionAction);
 
 			await timeout(10);
-			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
-			const permInvocation = toolInvocations[toolInvocations.length - 1] as IChatToolInvocation;
+			const permInvocation = collected[0][0] as IChatToolInvocation;
 			assert.strictEqual(permInvocation.toolSpecificData?.kind, 'terminal');
 			const termData = permInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			assert.strictEqual(termData.commandLine.original, 'echo hello');
@@ -792,14 +771,14 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-read', toolName: 'read_file', displayName: 'Read File' } as ISessionAction);
 			fire({
-				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-perm-read',
-				invocationMessage: 'Read file contents', toolInput: '/workspace/file.ts',
+				type: 'session/permissionRequest', session, turnId,
+				request: { requestId: 'perm-read', permissionKind: 'read', path: '/workspace/file.ts', intention: 'Read file contents', rawRequest: '{"kind":"read","path":"/workspace/file.ts"}' },
 			} as ISessionAction);
 
 			await timeout(10);
 			const permInvocation = collected[0][0] as IChatToolInvocation;
+			assert.strictEqual(permInvocation.toolSpecificData?.kind, 'input');
 
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 			await timeout(10);
@@ -822,7 +801,9 @@ suite('AgentHostChatContribution', () => {
 				turns: [{
 					id: 'turn-1',
 					userMessage: { text: 'What is 2+2?' },
-					responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: '4' }],
+					responseText: '4',
+					responseParts: [],
+					toolCalls: [],
 					usage: undefined,
 					state: TurnState.Complete,
 				}],
@@ -1024,14 +1005,14 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-1',
 					userMessage: { text: 'run ls' },
 					state: TurnState.Complete,
-					responseParts: [{
-						kind: 'toolCall' as const, toolCall: {
-							status: 'completed' as const, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
-							invocationMessage: 'Running `ls`', toolInput: 'ls', _meta: { toolKind: 'terminal', language: 'shellscript' },
-							confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', content: [{ type: 'text' as const, text: 'file1\nfile2' }],
-						}
-					}],
+					responseParts: [],
 					usage: undefined,
+					toolCalls: [{
+						status: 'completed' as const, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
+						invocationMessage: 'Running `ls`', toolInput: 'ls', _meta: { toolKind: 'terminal', language: 'shellscript' },
+						confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', content: [{ type: 'text' as const, text: 'file1\nfile2' }],
+					}],
+					responseText: '',
 				}],
 			} as ISessionState);
 
@@ -1069,10 +1050,10 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-1',
 					userMessage: { text: 'do something' },
 					state: TurnState.Complete,
-					responseParts: [{
-						kind: 'toolCall' as const, toolCall: { status: 'completed' as const, toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', confirmed: 'not-needed' as const, success: false, pastTenseMessage: 'Reading file' },
-					}],
+					responseParts: [],
+					responseText: '',
 					usage: undefined,
+					toolCalls: [{ status: 'completed' as const, toolCallId: 'tc-orphan', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file', confirmed: 'not-needed' as const, success: false, pastTenseMessage: 'Reading file' }],
 				}],
 			} as ISessionState);
 
@@ -1100,10 +1081,10 @@ suite('AgentHostChatContribution', () => {
 					id: 'turn-1',
 					userMessage: { text: 'search' },
 					state: TurnState.Complete,
-					responseParts: [{
-						kind: 'toolCall' as const, toolCall: { status: 'completed' as const, toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Searched for pattern' },
-					}],
+					responseParts: [],
 					usage: undefined,
+					responseText: '',
+					toolCalls: [{ status: 'completed' as const, toolCallId: 'tc-g', toolName: 'grep', displayName: 'Grep', invocationMessage: 'Searching...', confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Searched for pattern' }],
 				}],
 			} as ISessionState);
 
@@ -1513,419 +1494,6 @@ suite('AgentHostChatContribution', () => {
 			// Turn dispatched via connection.dispatchAction
 			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
-		});
-	});
-
-	// ---- Reconnection to active turn ----------------------------------------
-
-	suite('reconnection to active turn', () => {
-
-		function makeSessionStateWithActiveTurn(sessionUri: string, overrides?: Partial<{ streamingText: string; reasoning: string }>): ISessionState {
-			const summary: ISessionSummary = {
-				resource: sessionUri,
-				provider: 'copilot',
-				title: 'Active Session',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-			};
-			const activeTurnParts = [];
-			const reasoningText = overrides?.reasoning ?? '';
-			if (reasoningText) {
-				activeTurnParts.push({ kind: ResponsePartKind.Reasoning as const, id: 'reasoning-1', content: reasoningText });
-			}
-			activeTurnParts.push({ kind: ResponsePartKind.Markdown as const, id: 'md-active', content: overrides?.streamingText ?? 'Partial response so far' });
-			return {
-				...createSessionState(summary),
-				lifecycle: SessionLifecycle.Ready,
-				turns: [{
-					id: 'turn-completed',
-					userMessage: { text: 'First message' },
-					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'md-1', content: 'First response' }],
-					usage: undefined,
-					state: TurnState.Complete,
-				}],
-				activeTurn: {
-					...createActiveTurn('turn-active', { text: 'Second message' }),
-					responseParts: activeTurnParts,
-				},
-			};
-		}
-
-		test('loads completed turns as history and active turn request/response', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-1');
-			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-1' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			// Should have: completed turn (request + response) + active turn (request + empty response) = 4
-			assert.strictEqual(session.history.length, 4);
-			assert.strictEqual(session.history[0].type, 'request');
-			if (session.history[0].type === 'request') {
-				assert.strictEqual(session.history[0].prompt, 'First message');
-			}
-			assert.strictEqual(session.history[2].type, 'request');
-			if (session.history[2].type === 'request') {
-				assert.strictEqual(session.history[2].prompt, 'Second message');
-			}
-			// Active turn response should be an empty placeholder
-			assert.strictEqual(session.history[3].type, 'response');
-			if (session.history[3].type === 'response') {
-				assert.strictEqual(session.history[3].parts.length, 0);
-			}
-		});
-
-		test('sets isCompleteObs to false and populates progressObs for active turn', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-2');
-			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-2' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			assert.strictEqual(session.isCompleteObs?.get(), false, 'Should not be complete when active turn exists');
-			const progress = session.progressObs?.get() ?? [];
-			assert.ok(progress.length > 0, 'Should have initial progress from active turn');
-			// Should contain the streaming text as markdown
-			const markdownPart = progress.find(p => p.kind === 'markdownContent') as IChatMarkdownContent | undefined;
-			assert.ok(markdownPart, 'Should have markdown content from streaming text');
-			assert.strictEqual(markdownPart!.content.value, 'Partial response so far');
-		});
-
-		test('provides interruptActiveResponseCallback when reconnecting', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-3');
-			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-3' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			assert.ok(session.interruptActiveResponseCallback, 'Should provide interrupt callback');
-		});
-
-		test('interrupt callback dispatches turnCancelled action', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-cancel');
-			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-cancel' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			assert.ok(session.interruptActiveResponseCallback);
-			const result = await session.interruptActiveResponseCallback!();
-			assert.strictEqual(result, true);
-
-			// Should have dispatched a turnCancelled action
-			const cancelAction = agentHostService.dispatchedActions.find(d => d.action.type === 'session/turnCancelled');
-			assert.ok(cancelAction, 'Should dispatch session/turnCancelled');
-		});
-
-		test('streams new text deltas into progressObs after reconnection', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-stream');
-			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString(), { streamingText: 'Before' });
-			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-stream' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			const initialLen = (session.progressObs?.get() ?? []).length;
-
-			// Fire a delta action to simulate the server streaming more text
-			agentHostService.fireAction({
-				action: { type: 'session/delta', session: sessionUri.toString(), turnId: 'turn-active', partId: 'md-active', content: ' and more' } as ISessionAction,
-				serverSeq: 1,
-				origin: undefined,
-			});
-
-			await timeout(10);
-
-			const progress = session.progressObs?.get() ?? [];
-			assert.ok(progress.length > initialLen, 'Should have appended new progress items');
-			// The last markdown part should be the delta
-			const lastMarkdown = [...progress].reverse().find(p => p.kind === 'markdownContent') as IChatMarkdownContent;
-			assert.ok(lastMarkdown, 'Should have a new markdown delta');
-			assert.strictEqual(lastMarkdown.content.value, ' and more');
-		});
-
-		test('marks session complete when turn finishes', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-complete');
-			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-complete' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			assert.strictEqual(session.isCompleteObs?.get(), false);
-
-			// Fire turnComplete to finish the active turn
-			agentHostService.fireAction({
-				action: { type: 'session/turnComplete', session: sessionUri.toString(), turnId: 'turn-active' } as ISessionAction,
-				serverSeq: 1,
-				origin: undefined,
-			});
-
-			await timeout(10);
-
-			assert.strictEqual(session.isCompleteObs?.get(), true, 'Should be complete after turnComplete');
-		});
-
-		test('handles active turn with running tool call', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-tool');
-			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
-			sessionState.activeTurn!.responseParts.push({
-				kind: ResponsePartKind.ToolCall,
-				toolCall: {
-					toolCallId: 'tc-running',
-					toolName: 'bash',
-					displayName: 'Bash',
-					invocationMessage: 'Running command',
-					status: ToolCallStatus.Running,
-					confirmed: ToolCallConfirmationReason.NotNeeded,
-				},
-			});
-			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-tool' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			const progress = session.progressObs?.get() ?? [];
-			const toolInvocation = progress.find(p => p.kind === 'toolInvocation') as IChatToolInvocation | undefined;
-			assert.ok(toolInvocation, 'Should have a live tool invocation in progress');
-			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
-		});
-
-		test('handles active turn with pending tool confirmation', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-perm');
-			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
-			sessionState.activeTurn!.responseParts.push({
-				kind: ResponsePartKind.ToolCall,
-				toolCall: {
-					toolCallId: 'tc-pending',
-					toolName: 'bash',
-					displayName: 'Bash',
-					invocationMessage: 'Run command',
-					confirmationTitle: 'Clean up',
-					toolInput: 'rm -rf /tmp/test',
-					status: ToolCallStatus.PendingConfirmation,
-				},
-			});
-			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-perm' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			const progress = session.progressObs?.get() ?? [];
-			const permInvocation = progress.find(p => p.kind === 'toolInvocation') as IChatToolInvocation | undefined;
-			assert.ok(permInvocation, 'Should have a live permission request in progress');
-
-			// Complete the turn so the awaitConfirmation promise and its internal
-			// DisposableStore are cleaned up before test teardown.
-			agentHostService.fireAction({
-				action: { type: 'session/turnComplete', session: sessionUri.toString(), turnId: 'turn-active' } as ISessionAction,
-				serverSeq: 1,
-				origin: undefined,
-			});
-			await timeout(10);
-		});
-
-		test('no active turn loads completed history only with isComplete true', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'no-active-turn');
-			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Done', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
-				lifecycle: SessionLifecycle.Ready,
-				turns: [{
-					id: 'turn-done',
-					userMessage: { text: 'Hello' },
-					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'md-1', content: 'Hi' }],
-					usage: undefined,
-					state: TurnState.Complete,
-				}],
-			});
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/no-active-turn' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			assert.strictEqual(session.history.length, 2);
-			assert.strictEqual(session.isCompleteObs?.get(), true);
-			assert.deepStrictEqual(session.progressObs?.get(), []);
-		});
-
-		test('includes reasoning in initial progress', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionUri = AgentSession.uri('copilot', 'reconnect-reasoning');
-			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString(), {
-				streamingText: 'text',
-				reasoning: 'Let me think...',
-			}));
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-reasoning' });
-			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-
-			const progress = session.progressObs?.get() ?? [];
-			const thinking = progress.find(p => p.kind === 'thinking');
-			assert.ok(thinking, 'Should have thinking progress from reasoning');
-			const markdown = progress.find(p => p.kind === 'markdownContent') as IChatMarkdownContent;
-			assert.ok(markdown);
-			assert.strictEqual(markdown.content.value, 'text');
-		});
-	});
-
-	// ---- Server-initiated turns -------------------------------------------
-
-	suite('server-initiated turns', () => {
-
-		test('detects server-initiated turn and fires onDidStartServerRequest', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			// Create and subscribe a session
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-turn' });
-			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => chatSession.dispose()));
-
-			// First, do a normal turn so the backend session is created
-			const turn1Promise = chatSession.requestHandler!(
-				makeRequest({ message: 'Hello', sessionResource }),
-				() => { }, [], CancellationToken.None,
-			);
-			await timeout(10);
-			const dispatch1 = agentHostService.dispatchedActions[0];
-			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
-			// Echo + complete the first turn
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
-			await turn1Promise;
-
-			// Now simulate a server-initiated turn (e.g. from a consumed queued message)
-			const serverTurnId = 'server-turn-1';
-			const serverRequestEvents: { prompt: string }[] = [];
-			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
-
-			agentHostService.fireAction({
-				action: {
-					type: 'session/turnStarted',
-					session,
-					turnId: serverTurnId,
-					userMessage: { text: 'queued message text' },
-				} as ISessionAction,
-				serverSeq: 3,
-				origin: undefined, // Server-originated — no client origin
-			});
-
-			await timeout(10);
-
-			// onDidStartServerRequest should have fired
-			assert.strictEqual(serverRequestEvents.length, 1);
-			assert.strictEqual(serverRequestEvents[0].prompt, 'queued message text');
-
-			// isCompleteObs should be false (turn in progress)
-			assert.strictEqual(chatSession.isCompleteObs!.get(), false);
-		});
-
-		test('server-initiated turn streams progress through progressObs', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-progress' });
-			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => chatSession.dispose()));
-
-			// Normal turn to create backend session
-			const turn1Promise = chatSession.requestHandler!(
-				makeRequest({ message: 'Init', sessionResource }),
-				() => { }, [], CancellationToken.None,
-			);
-			await timeout(10);
-			const dispatch1 = agentHostService.dispatchedActions[0];
-			const action1 = dispatch1.action as ITurnStartedAction;
-			const session = action1.session;
-			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
-			await turn1Promise;
-
-			// Server-initiated turn
-			const serverTurnId = 'server-turn-progress';
-			agentHostService.fireAction({
-				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'auto queued' } } as ISessionAction,
-				serverSeq: 3, origin: undefined,
-			});
-			await timeout(10);
-
-			// Stream a response part + delta
-			agentHostService.fireAction({
-				action: { type: 'session/responsePart', session, turnId: serverTurnId, part: { kind: 'markdown', id: 'md-srv', content: 'Hello ' } } as ISessionAction,
-				serverSeq: 4, origin: undefined,
-			});
-			agentHostService.fireAction({
-				action: { type: 'session/delta', session, turnId: serverTurnId, partId: 'md-srv', content: 'world' } as ISessionAction,
-				serverSeq: 5, origin: undefined,
-			});
-			await timeout(50);
-
-			// Progress should be in progressObs
-			const progress = chatSession.progressObs!.get();
-			const markdownParts = progress.filter((p): p is IChatMarkdownContent => p.kind === 'markdownContent');
-			const totalContent = markdownParts.map(p => p.content.value).join('');
-			assert.strictEqual(totalContent, 'Hello world');
-
-			// Complete the turn
-			agentHostService.fireAction({
-				action: { type: 'session/turnComplete', session, turnId: serverTurnId } as ISessionAction,
-				serverSeq: 6, origin: undefined,
-			});
-			await timeout(10);
-
-			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
-		});
-
-		test('client-dispatched turns are not treated as server-initiated', async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
-
-			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-no-dupe' });
-			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			disposables.add(toDisposable(() => chatSession.dispose()));
-
-			const serverRequestEvents: { prompt: string }[] = [];
-			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
-
-			// Normal client turn — should NOT fire onDidStartServerRequest
-			const turnPromise = chatSession.requestHandler!(
-				makeRequest({ message: 'Client turn', sessionResource }),
-				() => { }, [], CancellationToken.None,
-			);
-			await timeout(10);
-			const dispatch = agentHostService.dispatchedActions[0];
-			const action = dispatch.action as ITurnStartedAction;
-			agentHostService.fireAction({ action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
-			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action.session, turnId: action.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
-			await turnPromise;
-
-			assert.strictEqual(serverRequestEvents.length, 0, 'Client-dispatched turns should not trigger onDidStartServerRequest');
 		});
 	});
 });

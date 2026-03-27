@@ -69,9 +69,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			return;
 		}
 
-		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const folderUri = activeSession.sessionType === AgentSessionProviders.Background ? repo?.workingDirectory ?? repo?.uri : undefined;
+		const folderUri = activeSession.providerType === AgentSessionProviders.Background ? activeSession?.worktree ?? activeSession?.repository : undefined;
 
 		if (!folderUri) {
 			return;

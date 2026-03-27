@@ -11,7 +11,7 @@ on:
 jobs:
   linux-cli-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-22.04
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     env:
       RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
     steps:

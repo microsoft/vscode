@@ -7,7 +7,6 @@ import * as os from 'os';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import { generateUuid } from '../../../base/common/uuid.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
@@ -15,7 +14,6 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
-	PendingMessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallConfirmationReason,
@@ -28,8 +26,7 @@ import {
 	type ITurn,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { AgentEventMapper } from './agentEventMapper.js';
-import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
+import { mapProgressEventToActions } from './agentEventMapper.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -57,10 +54,8 @@ export interface IAgentSideEffectsOptions {
  */
 export class AgentSideEffects extends Disposable implements IProtocolSideEffectHandler {
 
-	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
-	private readonly _toolCallAgents = new Map<string, string>();
-	/** Per-agent event mapper instances (stateful for partId tracking). */
-	private readonly _eventMappers = new Map<string, AgentEventMapper>();
+	/** Maps pending permission request IDs to the provider that issued them. */
+	private readonly _pendingPermissions = new Map<string, string>();
 
 	constructor(
 		private readonly _stateManager: SessionStateManager,
@@ -109,22 +104,15 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	 */
 	registerProgressListener(agent: IAgent): IDisposable {
 		const disposables = new DisposableStore();
-		let mapper = this._eventMappers.get(agent.id);
-		if (!mapper) {
-			mapper = new AgentEventMapper();
-			this._eventMappers.set(agent.id, mapper);
-		}
-		const agentMapper = mapper;
 		disposables.add(agent.onDidSessionProgress(e => {
-			// Track tool calls so handleAction can route confirmations
-			if (e.type === 'tool_start') {
-				this._toolCallAgents.set(`${e.session.toString()}:${e.toolCallId}`, agent.id);
+			// Track permission requests so handleAction can route responses
+			if (e.type === 'permission_request') {
+				this._pendingPermissions.set(e.requestId, agent.id);
 			}
 
-			const sessionKey = e.session.toString();
-			const turnId = this._stateManager.getActiveTurnId(sessionKey);
+			const turnId = this._stateManager.getActiveTurnId(e.session.toString());
 			if (turnId) {
-				const actions = agentMapper.mapProgressEventToActions(e, sessionKey, turnId);
+				const actions = mapProgressEventToActions(e, e.session.toString(), turnId);
 				if (actions) {
 					if (Array.isArray(actions)) {
 						for (const action of actions) {
@@ -135,11 +123,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 					}
 				}
 			}
-
-			// After a turn completes (idle event), try to consume the next queued message
-			if (e.type === 'idle') {
-				this._tryConsumeNextQueuedMessage(sessionKey);
-			}
 		}));
 		return disposables;
 	}
@@ -149,10 +132,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	handleAction(action: ISessionAction): void {
 		switch (action.type) {
 			case ActionType.SessionTurnStarted: {
-				// Reset the event mapper's part tracking for the new turn
-				for (const mapper of this._eventMappers.values()) {
-					mapper.reset(action.session);
-				}
 				const agent = this._options.getAgent(action.session);
 				if (!agent) {
 					this._stateManager.dispatchServerAction({
@@ -179,15 +158,14 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				});
 				break;
 			}
-			case ActionType.SessionToolCallConfirmed: {
-				const toolCallKey = `${action.session}:${action.toolCallId}`;
-				const agentId = this._toolCallAgents.get(toolCallKey);
-				if (agentId) {
-					this._toolCallAgents.delete(toolCallKey);
-					const agent = this._options.agents.get().find(a => a.id === agentId);
-					agent?.respondToPermissionRequest(action.toolCallId, action.approved);
+			case ActionType.SessionPermissionResolved: {
+				const providerId = this._pendingPermissions.get(action.requestId);
+				if (providerId) {
+					this._pendingPermissions.delete(action.requestId);
+					const agent = this._options.agents.get().find(a => a.id === providerId);
+					agent?.respondToPermissionRequest(action.requestId, action.approved);
 				} else {
-					this._logService.warn(`[AgentSideEffects] No agent for tool call confirmation: ${action.toolCallId}`);
+					this._logService.warn(`[AgentSideEffects] No pending permission request for: ${action.requestId}`);
 				}
 				break;
 			}
@@ -205,106 +183,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				});
 				break;
 			}
-			case ActionType.SessionPendingMessageSet:
-			case ActionType.SessionPendingMessageRemoved:
-			case ActionType.SessionQueuedMessagesReordered: {
-				this._syncPendingMessages(action.session);
-				break;
-			}
 		}
-	}
-
-	/**
-	 * Pushes the current pending message state from the session to the agent.
-	 * The server controls queued message consumption; only steering messages
-	 * are forwarded to the agent for mid-turn injection.
-	 */
-	private _syncPendingMessages(session: ProtocolURI): void {
-		const state = this._stateManager.getSessionState(session);
-		if (!state) {
-			return;
-		}
-		const agent = this._options.getAgent(session);
-		agent?.setPendingMessages?.(
-			URI.parse(session),
-			state.steeringMessage,
-			[],
-		);
-
-		// Steering messages are consumed immediately by the agent;
-		// remove from protocol state so clients see the consumption.
-		if (state.steeringMessage) {
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionPendingMessageRemoved,
-				session,
-				kind: PendingMessageKind.Steering,
-				id: state.steeringMessage.id,
-			});
-		}
-
-		// If the session is idle, try to consume the next queued message
-		this._tryConsumeNextQueuedMessage(session);
-	}
-
-	/**
-	 * Consumes the next queued message by dispatching a server-initiated
-	 * `SessionTurnStarted` action with `queuedMessageId` set. The reducer
-	 * atomically creates the active turn and removes the message from the
-	 * queue. Only consumes one message at a time; subsequent messages are
-	 * consumed when the next `idle` event fires.
-	 */
-	private _tryConsumeNextQueuedMessage(session: ProtocolURI): void {
-		// Bail if there's already an active turn
-		if (this._stateManager.getActiveTurnId(session)) {
-			return;
-		}
-		const state = this._stateManager.getSessionState(session);
-		if (!state?.queuedMessages?.length) {
-			return;
-		}
-
-		const msg = state.queuedMessages[0];
-		const turnId = generateUuid();
-
-		// Reset event mappers for the new turn (same as handleAction does for SessionTurnStarted)
-		for (const mapper of this._eventMappers.values()) {
-			mapper.reset(session);
-		}
-
-		// Dispatch server-initiated turn start; the reducer removes the queued message atomically
-		this._stateManager.dispatchServerAction({
-			type: ActionType.SessionTurnStarted,
-			session,
-			turnId,
-			userMessage: msg.userMessage,
-			queuedMessageId: msg.id,
-		});
-
-		// Send the message to the agent backend
-		const agent = this._options.getAgent(session);
-		if (!agent) {
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionError,
-				session,
-				turnId,
-				error: { errorType: 'noAgent', message: 'No agent found for session' },
-			});
-			return;
-		}
-		const attachments = msg.userMessage.attachments?.map((a): IAgentAttachment => ({
-			type: a.type,
-			path: a.path,
-			displayName: a.displayName,
-		}));
-		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments).catch(err => {
-			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionError,
-				session,
-				turnId,
-				error: { errorType: 'sendFailed', message: String(err) },
-			});
-		});
 	}
 
 	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
@@ -340,7 +219,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	handleDisposeSession(session: ProtocolURI): void {
 		const agent = this._options.getAgent(session);
 		agent?.disposeSession(URI.parse(session)).catch(() => { });
-		this._stateManager.deleteSession(session);
+		this._stateManager.removeSession(session);
+		this._options.sessionDataService.deleteSessionData(URI.parse(session));
 	}
 
 	async handleListSessions(): Promise<ISessionSummary[]> {
@@ -438,52 +318,73 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		let currentTurn: {
 			id: string;
 			userMessage: { text: string };
+			responseText: string;
 			responseParts: IResponsePart[];
+			toolCalls: IToolCallCompletedState[];
 			pendingTools: Map<string, IAgentToolStartEvent>;
 		} | undefined;
 
 		let turnCounter = 0;
-
-		const finalizeTurn = (turn: NonNullable<typeof currentTurn>, state: TurnState): void => {
-			turns.push({
-				id: turn.id,
-				userMessage: turn.userMessage,
-				responseParts: turn.responseParts,
-				usage: undefined,
-				state,
-			});
-		};
-
-		const startTurn = (text: string): NonNullable<typeof currentTurn> => ({
-			id: `restored-${turnCounter++}`,
-			userMessage: { text },
-			responseParts: [],
-			pendingTools: new Map(),
-		});
 
 		for (const msg of messages) {
 			if (msg.type === 'message' && msg.role === 'user') {
 				// Flush any in-progress turn (e.g. interrupted/cancelled
 				// turn that never got a closing assistant message).
 				if (currentTurn) {
-					finalizeTurn(currentTurn, TurnState.Cancelled);
+					turns.push({
+						id: currentTurn.id,
+						userMessage: currentTurn.userMessage,
+						responseText: currentTurn.responseText,
+						responseParts: currentTurn.responseParts,
+						toolCalls: currentTurn.toolCalls,
+						usage: undefined,
+						state: TurnState.Cancelled,
+					});
 				}
-				currentTurn = startTurn(msg.content);
+				// Start a new turn
+				currentTurn = {
+					id: `restored-${turnCounter++}`,
+					userMessage: { text: msg.content },
+					responseText: '',
+					responseParts: [],
+					toolCalls: [],
+					pendingTools: new Map(),
+				};
 			} else if (msg.type === 'message' && msg.role === 'assistant') {
 				if (!currentTurn) {
-					currentTurn = startTurn('');
+					// Orphan assistant message - start an implicit turn
+					currentTurn = {
+						id: `restored-${turnCounter++}`,
+						userMessage: { text: '' },
+						responseText: '',
+						responseParts: [],
+						toolCalls: [],
+						pendingTools: new Map(),
+					};
 				}
 
 				if (msg.content) {
+					// Flush any accumulated text as a response part for
+					// interleaving with tool calls
 					currentTurn.responseParts.push({
 						kind: ResponsePartKind.Markdown,
-						id: generateUuid(),
 						content: msg.content,
 					});
+					currentTurn.responseText += msg.content;
 				}
 
+				// If this assistant message has no tool requests, the turn
+				// is complete. If it has tool requests, more events follow.
 				if (!msg.toolRequests || msg.toolRequests.length === 0) {
-					finalizeTurn(currentTurn, TurnState.Complete);
+					turns.push({
+						id: currentTurn.id,
+						userMessage: currentTurn.userMessage,
+						responseText: currentTurn.responseText,
+						responseParts: currentTurn.responseParts,
+						toolCalls: currentTurn.toolCalls,
+						usage: undefined,
+						state: TurnState.Complete,
+					});
 					currentTurn = undefined;
 				}
 			} else if (msg.type === 'tool_start') {
@@ -510,16 +411,26 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 							language: start.language,
 						} : undefined,
 					};
-					currentTurn.responseParts.push({
-						kind: ResponsePartKind.ToolCall,
-						toolCall: tc,
-					});
+					currentTurn.toolCalls.push(tc);
+
+					// If all tools are complete and there are no more pending,
+					// the turn may be finalized by the next assistant message.
 				}
 			}
 		}
 
+		// If there's a dangling turn (no final assistant message closed it),
+		// finalize it as cancelled so we don't lose history.
 		if (currentTurn) {
-			finalizeTurn(currentTurn, TurnState.Cancelled);
+			turns.push({
+				id: currentTurn.id,
+				userMessage: currentTurn.userMessage,
+				responseText: currentTurn.responseText,
+				responseParts: currentTurn.responseParts,
+				toolCalls: currentTurn.toolCalls,
+				usage: undefined,
+				state: TurnState.Cancelled,
+			});
 		}
 
 		return turns;
@@ -567,13 +478,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	}
 
 	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
-		// Handle session-db: URIs that reference file-edit content stored
-		// in a per-session SQLite database.
-		const dbFields = parseSessionDbUri(uri);
-		if (dbFields) {
-			return this._fetchSessionDbContent(dbFields);
-		}
-
 		try {
 			const content = await this._fileService.readFile(URI.parse(uri));
 			return {
@@ -586,27 +490,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		}
 	}
 
-	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<IFetchContentResult> {
-		const sessionUri = URI.parse(fields.sessionUri);
-		const ref = this._options.sessionDataService.openDatabase(sessionUri);
-		try {
-			const content = await ref.object.readFileEditContent(fields.toolCallId, fields.filePath);
-			if (!content) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `File edit not found: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
-			}
-			const bytes = fields.part === 'before' ? content.beforeContent : content.afterContent;
-			return {
-				data: new TextDecoder().decode(bytes),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'text/plain',
-			};
-		} finally {
-			ref.dispose();
-		}
-	}
-
 	override dispose(): void {
-		this._toolCallAgents.clear();
+		this._pendingPermissions.clear();
 		super.dispose();
 	}
 }

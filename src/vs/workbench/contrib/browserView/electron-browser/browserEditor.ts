@@ -348,6 +348,7 @@ export class BrowserEditor extends EditorPane {
 
 	private _overlayVisible = false;
 	private _editorVisible = false;
+	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainerWrapper!: HTMLElement;
@@ -987,14 +988,29 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
+	forwardCurrentEvent(): boolean {
+		if (this._currentKeyDownEvent && this._model) {
+			void this._model.dispatchKeyEvent(this._currentKeyDownEvent);
+			return true;
+		}
+		return false;
+	}
+
 	private async handleKeyEventFromBrowserView(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
+		this._currentKeyDownEvent = keyEvent;
+
 		try {
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 
-			this.keybindingService.dispatchEvent(standardEvent, this._browserContainer);
+			const handled = this.keybindingService.dispatchEvent(standardEvent, this._browserContainer);
+			if (!handled) {
+				this.forwardCurrentEvent();
+			}
 		} catch (error) {
 			this.logService.error('BrowserEditor.handleKeyEventFromBrowserView: Error dispatching key event', error);
+		} finally {
+			this._currentKeyDownEvent = undefined;
 		}
 	}
 

@@ -235,29 +235,30 @@
 				"command": ".\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions",
-				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
-				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
+				"--sessions"
 			],
 			"problemMatcher": []
 		},
 		{
-			"label": "Transpile Client",
-			"type": "npm",
-			"script": "transpile-client",
-			"problemMatcher": []
-		},
-		{
 			"label": "Run and Compile Sessions - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev Sessions"],
-			"dependsOrder": "sequence",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
 			"inSessions": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "Run and Compile Code - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev"],
-			"dependsOrder": "sequence",
+			"type": "shell",
+			"command": "npm run transpile-client && ./scripts/code.sh",
+			"windows": {
+				"command": "npm run transpile-client && .\\scripts\\code.bat"
+			},
 			"inSessions": true,
 			"problemMatcher": []
 		},
@@ -397,7 +398,6 @@
 			"type": "shell",
 			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
-			"inSessions": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
 				"fileLocation": "absolute",

@@ -16,7 +16,6 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
-import { isMacintosh } from '../../../../../../base/common/platform.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -130,8 +129,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 			// occurs.
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			const forceBracketedPasteMode = isMacintosh;
-			this._instance.sendText(commandLine, true, forceBracketedPasteMode);
+			this._instance.sendText(commandLine, true, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested

@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
 import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import { AttachmentType, PermissionKind, type IToolCallResult, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -226,19 +226,27 @@ export interface IAgentUsageEvent extends IAgentProgressEventBase {
 	readonly cacheReadTokens?: number;
 }
 
-/**
- * A running tool requires re-confirmation (e.g. a mid-execution permission check).
- * Maps to `SessionToolCallReady` without `confirmed` to transition Running → PendingConfirmation.
- */
-export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
-	readonly type: 'tool_ready';
-	readonly toolCallId: string;
-	/** Message describing what confirmation is needed. */
-	readonly invocationMessage: StringOrMarkdown;
-	/** Raw tool input to display. */
-	readonly toolInput?: string;
-	/** Short title for the confirmation prompt. */
-	readonly confirmationTitle?: StringOrMarkdown;
+/** A tool permission request from the SDK requiring a renderer-side decision. */
+export interface IAgentPermissionRequestEvent extends IAgentProgressEventBase {
+	readonly type: 'permission_request';
+	/** Unique ID for correlating the response. */
+	readonly requestId: string;
+	/** The kind of permission being requested. */
+	readonly permissionKind: PermissionKind;
+	/** The tool call ID that triggered this permission request. */
+	readonly toolCallId?: string;
+	/** File path involved (for read/write). */
+	readonly path?: string;
+	/** For shell: the full command text. */
+	readonly fullCommandText?: string;
+	/** For shell: the intention description. */
+	readonly intention?: string;
+	/** For MCP: the server name. */
+	readonly serverName?: string;
+	/** For MCP: the tool name. */
+	readonly toolName?: string;
+	/** Serialized JSON of the full permission request for fallback display. */
+	readonly rawRequest: string;
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
@@ -252,11 +260,11 @@ export type IAgentProgressEvent =
 	| IAgentMessageEvent
 	| IAgentIdleEvent
 	| IAgentToolStartEvent
-	| IAgentToolReadyEvent
 	| IAgentToolCompleteEvent
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
 	| IAgentUsageEvent
+	| IAgentPermissionRequestEvent
 	| IAgentReasoningEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
@@ -309,16 +317,6 @@ export interface IAgent {
 
 	/** Send a user message into an existing session. */
 	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
-
-	/**
-	 * Called when the session's pending (steering) message changes.
-	 * The agent harness decides how to react — e.g. inject steering
-	 * mid-turn via `mode: 'immediate'`.
-	 *
-	 * Queued messages are consumed on the server side and are not
-	 * forwarded to the agent; `queuedMessages` will always be empty.
-	 */
-	setPendingMessages?(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void;
 
 	/** Retrieve all session events/messages for reconstruction. */
 	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;

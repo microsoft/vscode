@@ -127,6 +127,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		targetWebContents.on('console-message', onConsoleMessage);
 		targetWebContents.on('destroyed', onTargetDestroyed);
 		windowWebContents.on('ipc-message', onIpcMessage);
+		token.onCancellationRequested(cleanupListeners);
 	}
 
 	/**

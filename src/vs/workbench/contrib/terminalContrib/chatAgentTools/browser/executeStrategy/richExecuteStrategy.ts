@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { isCI, isMacintosh } from '../../../../../../base/common/platform.js';
+import { isCI } from '../../../../../../base/common/platform.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -85,8 +85,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
-			const forceBracketedPasteMode = isMacintosh;
-			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode);
+			this._instance.runCommand(commandLine, true, commandId, true);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');

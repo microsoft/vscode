@@ -41,7 +41,7 @@
 /* Editor */
 /* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
 .sessions-chat-editor {
-	padding: 0 8px 6px 10px;
+	padding: 0 6px 6px 6px;
 	flex-shrink: 1;
 }
 
@@ -72,52 +72,29 @@
 }
 
 /* Model picker - uses workbench ModelPickerActionItem */
-/* Session config toolbar (mode, model pickers via MenuWorkbenchToolBar) */
-.sessions-chat-config-toolbar {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-	overflow: hidden;
-}
-
-.sessions-chat-config-toolbar .monaco-toolbar {
-	height: auto;
-}
-
-.sessions-chat-config-toolbar .monaco-action-bar .action-item {
+.sessions-chat-model-picker {
 	display: flex;
 	align-items: center;
 }
 
-.sessions-chat-config-toolbar .action-label {
+.sessions-chat-model-picker .action-label {
 	display: flex;
 	align-items: center;
+	gap: 4px;
 	height: 16px;
-	padding: 3px 3px 3px 6px;
-	background-color: transparent;
-	border: none;
+	padding: 3px 6px;
 	border-radius: 4px;
-	font-size: 13px;
+	font-size: 12px;
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
-	white-space: nowrap;
-	min-width: 0;
-	overflow: hidden;
 }
 
-.sessions-chat-config-toolbar .action-label:hover {
+.sessions-chat-model-picker .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
 }
 
-.sessions-chat-config-toolbar .action-label .codicon {
-	font-size: 14px;
-	flex-shrink: 0;
-}
-
-.sessions-chat-config-toolbar .action-label .codicon-chevron-down {
+.sessions-chat-model-picker .action-label .codicon {
 	font-size: 12px;
-	margin-left: 6px;
 }
 
 /* Send button - wraps a Button widget */
@@ -172,9 +149,7 @@
 }
 
 @keyframes sessions-chat-spin {
-	to {
-		transform: rotate(360deg);
-	}
+	to { transform: rotate(360deg); }
 }
 
 /* Attach row (pills only, above editor, inside input area) */

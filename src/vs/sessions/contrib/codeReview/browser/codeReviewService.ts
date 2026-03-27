@@ -15,6 +15,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { hash } from '../../../../base/common/hash.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
@@ -316,6 +317,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		@IStorageService private readonly _storageService: IStorageService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 		this._loadFromStorage();
@@ -328,16 +330,17 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			}
 		}));
 
-		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
-			const archived = e.changed.filter(s => s.isArchived.get());
-			const nonArchived = e.changed.filter(s => !s.isArchived.get());
-			// Initialize PR review for new/changed sessions
-			for (const session of [...e.added, ...nonArchived]) {
-				this._ensurePRReviewInitialized(session.resource);
+		this._register(this._agentSessionsService.model.onDidChangeSessions(() => {
+			for (const session of this._agentSessionsService.model.sessions) {
+				if (!session.isArchived()) {
+					this._ensurePRReviewInitialized(session.resource);
+				}
 			}
-			// Dispose PR review for removed and archived sessions
-			for (const session of [...e.removed, ...archived]) {
-				this._disposePRReview(session.resource);
+		}));
+
+		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(e => {
+			if (e.isArchived()) {
+				this._disposePRReview(e.resource);
 			}
 		}));
 	}
@@ -539,10 +542,9 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	private _registerSessionListeners(): void {
-		// Clean up when sessions change (archived/removed sessions, stale review versions)
-		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
-			// Clean up reviews for removed/archived sessions
-			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
+		// Clean up when a session is archived
+		this._register(this._agentSessionsService.onDidChangeSessionArchivedState(session => {
+			if (session.isArchived()) {
 				const key = session.resource.toString();
 				const data = this._reviewsBySession.get(key);
 				if (data) {
@@ -550,8 +552,10 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					this._saveToStorage();
 				}
 			}
+		}));
 
-			// Check for stale review versions when sessions change
+		// Clean up when session changes make a review version outdated
+		this._register(this._agentSessionsService.model.onDidChangeSessions(() => {
 			let changed = false;
 			for (const [key, data] of this._reviewsBySession) {
 				const state = data.state.get();
@@ -559,7 +563,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					continue;
 				}
 
-				const session = this._sessionsManagementService.getSession(URI.parse(key));
+				const session = this._agentSessionsService.getSession(URI.parse(key));
 				if (!session) {
 					// Session no longer exists - clean up
 					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
@@ -567,15 +571,14 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					continue;
 				}
 
-				const changes = session.changes.get();
-				if (changes.length === 0) {
+				if (!(session.changes instanceof Array) || session.changes.length === 0) {
 					// Session has no file-level changes - clean up
 					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
 					changed = true;
 					continue;
 				}
 
-				const files = getCodeReviewFilesFromSessionChanges(changes);
+				const files = getCodeReviewFilesFromSessionChanges(session.changes);
 				const currentVersion = getCodeReviewVersion(files);
 				if (state.version !== currentVersion) {
 					// Version mismatch - review is stale

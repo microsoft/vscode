@@ -80,12 +80,8 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 		if (path === '/' || path === '') {
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
-		const decoded = fromAgentHostUri(resource);
-		if (decoded.scheme === 'session-db') {
-			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
-		}
-
-		if (decoded.path === '/' || decoded.path === '') {
+		const decodedPath = fromAgentHostUri(resource).path;
+		if (decodedPath === '/' || decodedPath === '') {
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 

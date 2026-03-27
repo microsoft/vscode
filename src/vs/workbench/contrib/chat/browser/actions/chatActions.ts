@@ -1096,7 +1096,6 @@ export function registerChatActions() {
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
 						ChatContextKeys.Entitlement.planFree,
-						ChatContextKeys.Entitlement.planEdu,
 						ChatContextKeys.Entitlement.planPro,
 						ChatContextKeys.Entitlement.planProPlus
 					),

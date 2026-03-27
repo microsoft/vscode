@@ -6,6 +6,7 @@
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../../../../platform/dataChannel/browser/forwardingTelemetryService.js';
 import { IAiEditTelemetryService, IEditTelemetryCodeAcceptedData, IEditTelemetryCodeSuggestedData } from './aiEditTelemetryService.js';
 import { IRandomService } from '../../randomService.js';
@@ -42,7 +43,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: number | undefined;
 
 			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
-			modelId: string | undefined;
+			modelId: TelemetryTrustedValue<string | undefined>;
 			applyCodeBlockSuggestionId: string | undefined;
 		}, {
 			owner: 'hediet';
@@ -84,7 +85,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 
 			modeId: data.modeId,
-			modelId: data.modelId?.replace(/[\/\\]/g, '_'),
+			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 
 			...forwardToChannelIf(isCopilotLikeExtension(data.source?.extensionId)),
@@ -113,7 +114,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: number | undefined;
 
 			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
-			modelId: string | undefined;
+			modelId: TelemetryTrustedValue<string | undefined>;
 			applyCodeBlockSuggestionId: string | undefined;
 
 			acceptanceMethod:
@@ -165,7 +166,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 
 			modeId: data.modeId,
-			modelId: data.modelId?.replace(/[\/\\]/g, '_'),
+			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 			acceptanceMethod: data.acceptanceMethod,
 

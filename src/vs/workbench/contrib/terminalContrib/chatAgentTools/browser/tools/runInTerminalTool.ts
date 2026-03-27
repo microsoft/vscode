@@ -28,7 +28,7 @@ import { ITerminalLogService, ITerminalProfile } from '../../../../../../platfor
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -72,12 +72,10 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalSandboxService, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
-import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 
 // #region Tool data
 
-const TERMINAL_SANDBOX_DOCUMENTATION_URL = 'https://aka.ms/vscode-sandboxing';
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
@@ -512,7 +510,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResources) {
+			for (const resource of e.sessionResource) {
 				this._cleanupSessionTerminals(resource);
 			}
 		}));
@@ -545,7 +543,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				instance = toolTerminal.instance;
 			}
 		}
-		const [os, shell, cwd, isTerminalSandboxEnabled] = await Promise.all([
+		const [os, shell, cwd, sandboxPrereqs] = await Promise.all([
 			this._osBackend,
 			this._profileFetcher.getCopilotShell(),
 			(async () => {
@@ -557,10 +555,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				return cwd;
 			})(),
-			this._terminalSandboxService.isEnabled()
+			this._terminalSandboxService.checkForSandboxingPrereqs()
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+		const isTerminalSandboxEnabled = sandboxPrereqs.enabled;
 		const requiresUnsandboxConfirmation = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
+
+		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
+			? sandboxPrereqs.missingDependencies
+			: undefined;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -602,7 +605,27 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isBackground: args.isBackground,
 			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			requestUnsandboxedExecutionReason: args.requestUnsandboxedExecutionReason,
+			missingSandboxDependencies: missingDependencies,
 		};
+
+		let sandboxConfirmationMessageForMissingDeps: IToolConfirmationMessages | undefined = undefined;
+		// If sandbox dependencies are missing, show a confirmation asking the user to install them.
+		// This is handled before the tool is invoked so the model never sees the dependency error.
+		if (missingDependencies) {
+			const depsList = missingDependencies.join(', ');
+			sandboxConfirmationMessageForMissingDeps = {
+				title: localize('runInTerminal.missingDeps.title', "Missing Sandbox Dependencies"),
+				message: new MarkdownString(localize(
+					'runInTerminal.missingDeps.message',
+					"The following dependencies required for sandboxed execution are not installed: {0}. Would you like to install them?",
+					depsList
+				)),
+				customButtons: [
+					localize('runInTerminal.missingDeps.install', "Install"),
+					localize('runInTerminal.missingDeps.cancel', "Cancel"),
+				],
+			};
+		}
 
 		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
 		// it's the current mechanism for re-routing terminal tool calls to something else.
@@ -749,25 +772,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					language: presenterResult.language ?? undefined,
 				};
 				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
-					if (presenterResult.languageDisplayName) {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
-							: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
-					} else {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.inDirectory.withoutLanguage', "Run command in `{0}` in background within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel)
-							: localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
-					}
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
+						: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
 				} else {
-					if (presenterResult.languageDisplayName) {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
-							: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
-					} else {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.withoutLanguage', "Run command in `{0}` in background?", shellType)
-							: localize('runInTerminal.presentationOverride.withoutLanguage', "Run command in `{0}`?", shellType);
-					}
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
+						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
 				}
 				if (!presenterResult.processOtherPresenters) {
 					break;
@@ -778,8 +789,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (requiresUnsandboxConfirmation) {
 			confirmationTitle = args.isBackground
-				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the [sandbox]({1}) in background?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
-				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
+				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
+				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
@@ -817,7 +828,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return {
 			invocationMessage,
 			icon: toolSpecificData.commandLine.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal,
-			confirmationMessages,
+			confirmationMessages: sandboxConfirmationMessageForMissingDeps ?? confirmationMessages,
 			toolSpecificData,
 		};
 	}
@@ -863,6 +874,69 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					value: toolSpecificData.alternativeRecommendation
 				}]
 			};
+		}
+
+		// Handle missing sandbox dependencies install flow.
+		// The user was shown a confirmation window in prepareToolInvocation.
+		if (toolSpecificData.missingSandboxDependencies?.length) {
+			const installButton = localize('runInTerminal.missingDeps.install', "Install");
+			if (invocation.selectedCustomButton === installButton) {
+				// Install dependencies, focus terminal for sudo password, wait for completion
+				const sessionResource = invocation.context.sessionResource;
+				const { exitCode } = await this._terminalSandboxService.installMissingSandboxDependencies(toolSpecificData.missingSandboxDependencies, sessionResource, token, {
+					createTerminal: async () => {
+						const remoteEnv = !toolSpecificData.cwd && this._remoteAgentService.getConnection()
+							? await this._remoteAgentService.getEnvironment()
+							: null;
+						const cwd: URI | undefined = toolSpecificData.cwd
+							? URI.revive(toolSpecificData.cwd)
+							: remoteEnv?.userHome ? URI.revive(remoteEnv.userHome) : undefined;
+						return this._terminalService.createTerminal(cwd ? { cwd } : {});
+					},
+					focusTerminal: async (terminal) => {
+						this._terminalService.setActiveInstance(terminal as ITerminalInstance);
+						await this._terminalService.revealTerminal(terminal as ITerminalInstance, true);
+						terminal.focus();
+					},
+				});
+				if (exitCode !== undefined && exitCode !== 0) {
+					return {
+						content: [{
+							kind: 'text',
+							value: localize(
+								'runInTerminal.missingDeps.failed',
+								"Sandbox dependency installation failed (exit code {0}). The command was not executed.",
+								exitCode
+							),
+						}],
+					};
+				}
+				if (exitCode === undefined) {
+					return {
+						content: [{
+							kind: 'text',
+							value: localize(
+								'runInTerminal.missingDeps.unknown',
+								"Could not determine whether sandbox dependency installation succeeded. The command was not executed."
+							),
+						}],
+					};
+				}
+				// Installation succeeded — fall through to execute the original command
+				this._logService.info('RunInTerminalTool: Sandbox dependency installation succeeded, proceeding with command execution');
+			} else {
+				// User chose to cancel — do not run the command
+				this._logService.info('RunInTerminalTool: User cancelled sandbox dependency installation');
+				return {
+					content: [{
+						kind: 'text',
+						value: localize(
+							'runInTerminal.missingDeps.cancelled',
+							"Sandbox dependency installation was cancelled by the user."
+						),
+					}],
+				};
+			}
 		}
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
@@ -1208,7 +1282,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				didUserEditCommand,
 				didToolEditCommand,
 				isBackground: args.isBackground,
-				isSandboxWrapped: toolSpecificData.commandLine.isSandboxWrapped === true,
 				shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 				error,
 				isNewSession,
@@ -1347,7 +1420,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						mimeType,
 						data: fileContent.value,
 					},
-					audience: [LanguageModelPartAudience.User],
 				});
 			} catch {
 				// Ignore files that can't be read

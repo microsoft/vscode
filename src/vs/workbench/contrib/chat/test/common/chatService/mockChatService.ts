@@ -21,19 +21,17 @@ export class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
-
-	private readonly _onDidCreateModel = new Emitter<IChatModel>();
-	readonly onDidCreateModel = this._onDidCreateModel.event;
+	readonly onDidCreateModel = Event.None;
 
 	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	fireDidDisposeSession(sessionResources: URI[]): void {
-		this._onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
+	fireDidDisposeSession(sessionResource: URI[]): void {
+		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
 	setSaveModelsEnabled(enabled: boolean): void {
@@ -56,7 +54,6 @@ export class MockChatService implements IChatService {
 		this.sessions.set(session.sessionResource, session);
 		// Update the chatModels observable
 		this._chatModels.set([...this.sessions.values()], undefined);
-		this._onDidCreateModel.fire(session);
 	}
 
 	removeSession(sessionResource: URI): void {
@@ -195,10 +192,21 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
+
+	private onChange?: (sessionResource: URI) => void;
+
 	registerChatModelChangeListeners(chatSessionType: string, onChange: (sessionResource: URI) => void): IDisposable {
+		// Store the emitter so tests can trigger it
+		this.onChange = onChange;
 		return {
-			dispose: () => { }
+			dispose: () => {
+				this.onChange = undefined;
+			}
 		};
 	}
 
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(sessionResource: URI): void {
+		this.onChange?.(sessionResource);
+	}
 }

@@ -23,8 +23,7 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
-import { ISessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISession } from '../../common/sessionData.js';
+import { IActiveSessionItem, ISessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { Menus } from '../../../../browser/menus.js';
 
 // Ensure color registrations are loaded
@@ -201,7 +200,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidChangeLanguageModels = Event.None;
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-				override readonly activeSession = observableValue<ISession | undefined>('activeSession', undefined);
+				override readonly activeSession = observableValue<IActiveSessionItem | undefined>('activeSession', undefined);
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;

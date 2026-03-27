@@ -35,6 +35,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -178,7 +179,7 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 			message: sessionsToArchive.length === 1
 				? localize('archiveAllSessions.confirmSingle', "Are you sure you want to archive 1 agent session?")
 				: localize('archiveAllSessions.confirm', "Are you sure you want to archive {0} agent sessions?", sessionsToArchive.length),
-			detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
+			detail: localize('archiveAllSessions.detail', "You can unarchive sessions later if needed from the Chat view."),
 			primaryButton: localize('archiveAllSessions.archive', "Archive")
 		});
 
@@ -311,24 +312,24 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
 
-		if (context.sessions.length > 1) {
-			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
-			if (!skipConfirmation) {
-				const confirmed = await dialogService.confirm({
-					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
-					primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
-					checkbox: {
-						label: localize('doNotAskAgain', "Do not ask me again")
-					}
-				});
-
-				if (!confirmed.confirmed) {
-					return;
+		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
+		if (!skipConfirmation) {
+			const confirmed = await dialogService.confirm({
+				message: context.sessions.length === 1
+					? localize('unarchiveSectionSessions.confirmSingle', "Are you sure you want to unarchive 1 agent session?")
+					: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
+				primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
 				}
+			});
 
-				if (confirmed.checkboxChecked) {
-					storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-				}
+			if (!confirmed.confirmed) {
+				return;
+			}
+
+			if (confirmed.checkboxChecked) {
+				storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 
@@ -499,16 +500,19 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		// Archive all sessions
 		for (const session of sessions) {
-			const chatModel = chatService.getSession(session.resource);
-			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
-				isArchiveAction: true,
-				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
-				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
-			})) {
-				return;
+			if (!environmentService.isSessionsWindow) {
+				const chatModel = chatService.getSession(session.resource);
+				if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+					isArchiveAction: true,
+					titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+					messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+				})) {
+					return;
+				}
 			}
 
 			session.setArchived(true);

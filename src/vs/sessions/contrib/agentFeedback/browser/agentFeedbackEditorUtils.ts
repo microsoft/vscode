@@ -11,27 +11,26 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 /**
- * Find the session that contains the given resource by checking editing sessions,
- * sessions providers, and agent sessions.
+ * Find the session that contains the given resource by checking editing sessions and agent sessions.
  */
 export function getSessionForResource(
 	resourceUri: URI,
 	chatEditingService: IChatEditingService,
-	sessionsManagementService: ISessionsManagementService,
+	agentSessionsService: IAgentSessionsService,
 ): URI | undefined {
 	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
 		if (editingEntriesContainResource(editingSession.entries.get(), resourceUri)) {
 			return editingSession.chatSessionResource;
 		}
 	}
-	for (const session of sessionsManagementService.getSessions()) {
-		const changes = session.changes.get();
-		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
+
+	for (const session of agentSessionsService.model.sessions) {
+		if (agentSessionContainsResource(session, resourceUri)) {
 			return session.resource;
 		}
 	}
@@ -60,19 +59,18 @@ export function changeMatchesResource(change: AgentFeedbackSessionChange, resour
 export function getSessionChangeForResource(
 	sessionResource: URI | undefined,
 	resourceUri: URI,
-	sessionsManagementService: ISessionsManagementService,
+	agentSessionsService: IAgentSessionsService,
 ): AgentFeedbackSessionChange | undefined {
 	if (!sessionResource) {
 		return undefined;
 	}
 
-	const sessionData = sessionsManagementService.getSession(sessionResource);
-	if (sessionData) {
-		const changes = sessionData.changes.get();
-		return changes.find(change => changeMatchesResource(change, resourceUri));
+	const changes = agentSessionsService.getSession(sessionResource)?.changes;
+	if (!(changes instanceof Array)) {
+		return undefined;
 	}
 
-	return undefined;
+	return changes.find(change => changeMatchesResource(change, resourceUri));
 }
 
 export function createAgentFeedbackContext(

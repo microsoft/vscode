@@ -9,7 +9,6 @@ import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
-import { FileAccess } from '../../../base/common/network.js';
 
 // Same as webviews, minus clipboard-read
 const allowedPermissions = new Set([
@@ -196,7 +195,7 @@ export class BrowserSession {
 		readonly storageScope: BrowserViewStorageScope,
 	) {
 		this._trust = new BrowserSessionTrust(this);
-		this.configure();
+		this.configurePermissions();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);
 		BrowserSession._byId.set(id, new WeakRef(this));
@@ -219,18 +218,14 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Apply the permission policy and preload scripts to the session.
+	 * Apply the standard permission policy to the session.
 	 */
-	private configure(): void {
+	private configurePermissions(): void {
 		this.electronSession.setPermissionRequestHandler((_webContents, permission, callback) => {
 			return callback(allowedPermissions.has(permission));
 		});
 		this.electronSession.setPermissionCheckHandler((_webContents, permission, _origin) => {
 			return allowedPermissions.has(permission);
-		});
-		this.electronSession.registerPreloadScript({
-			type: 'frame',
-			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
 		});
 	}
 

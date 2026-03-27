@@ -100,7 +100,6 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 			const additionalActions: IAction[] = [];
 			if (
 				chatEntitlementService.entitlement === ChatEntitlement.Free ||
-				chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
 				chatEntitlementService.entitlement === ChatEntitlement.Business ||

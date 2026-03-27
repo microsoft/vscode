@@ -89,9 +89,6 @@
 			image.classList.remove('pixelated');
 			// @ts-ignore Non-standard CSS property
 			image.style.zoom = 'normal';
-			// Clear explicit dimensions so the image can scale-to-fit naturally
-			image.style.minWidth = '';
-			image.style.minHeight = '';
 			vscode.setState(undefined);
 		} else {
 			scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
@@ -105,17 +102,6 @@
 			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
 
 			image.classList.remove('scale-to-fit');
-
-			// For images without intrinsic dimensions (e.g. SVGs with only
-			// a viewBox), set explicit pixel dimensions so that CSS zoom has
-			// something concrete to scale.
-			if (!image.naturalWidth || !image.naturalHeight) {
-				const baseWidth = image.clientWidth || container.clientWidth;
-				const baseHeight = image.clientHeight || container.clientHeight;
-				image.style.minWidth = baseWidth + 'px';
-				image.style.minHeight = baseHeight + 'px';
-			}
-
 			// @ts-ignore Non-standard CSS property
 			image.style.zoom = scale;
 
@@ -156,14 +142,7 @@
 			return;
 		}
 
-		if (image.naturalWidth) {
-			scale = image.clientWidth / image.naturalWidth;
-		} else {
-			// For images without intrinsic dimensions (e.g. SVGs with
-			// only a viewBox), start at 1x since there is no meaningful
-			// natural size to compute a ratio from.
-			scale = 1;
-		}
+		scale = image.clientWidth / image.naturalWidth;
 		updateScale(scale);
 	}
 

@@ -28,7 +28,6 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
-import { IChatRequestVariableEntry, isImplicitVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isStringVariableEntry, isWorkspaceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
@@ -357,6 +356,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 					id: MenuId.ChatEditingSessionChangesToolbar,
 					group: 'navigation',
 					order: 10,
+					when: ChatContextKeys.hasAgentSessionChanges
 				}
 			],
 		});
@@ -414,20 +414,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 }
 registerAction2(ViewAllSessionChangesAction);
 
-function filterToUserAttachedContext(attachedContext: readonly IChatRequestVariableEntry[] | undefined): IChatRequestVariableEntry[] {
-	if (!attachedContext?.length) {
-		return [];
-	}
-	return attachedContext.filter(a =>
-		!isImplicitVariableEntry(a) &&
-		!isWorkspaceVariableEntry(a) &&
-		!isStringVariableEntry(a) &&
-		!(isPromptFileVariableEntry(a) && a.automaticallyAdded) &&
-		!(isPromptTextVariableEntry(a) && a.automaticallyAdded)
-	);
-}
-
-async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<boolean> {
+async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
@@ -435,18 +422,18 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 	const chatService = accessor.get(IChatService);
 	const chatModel = chatService.getSession(sessionResource);
 	if (!chatModel) {
-		return false;
+		return;
 	}
 
 	const session = chatModel.editingSession;
 	if (!session) {
-		return false;
+		return;
 	}
 
 	const chatRequests = chatModel.getRequests();
 	const itemIndex = chatRequests.findIndex(request => request.id === requestId);
 	if (itemIndex === -1) {
-		return false;
+		return;
 	}
 
 	const editsToUndo = chatRequests.length - itemIndex;
@@ -485,7 +472,7 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 
 	if (!confirmation.confirmed) {
 		widget?.viewModel?.model.setCheckpoint(undefined);
-		return false;
+		return;
 	}
 
 	if (confirmation.checkboxChecked) {
@@ -495,18 +482,17 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 	// Restore the snapshot to what it was before the request(s) that we deleted
 	const snapshotRequestId = chatRequests[itemIndex].id;
 	await session.restoreSnapshot(snapshotRequestId, undefined);
-	return true;
 }
 
-async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<boolean> {
+async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
 	const requestId = isRequestVM(item) ? item.id :
 		isResponseVM(item) ? item.requestId : undefined;
 
 	if (!requestId) {
-		return false;
+		return;
 	}
 
-	return restoreSnapshotWithConfirmationByRequestId(accessor, item.sessionResource, requestId);
+	await restoreSnapshotWithConfirmationByRequestId(accessor, item.sessionResource, requestId);
 }
 
 registerAction2(class RemoveAction extends Action2 {
@@ -549,15 +535,11 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
+		await restoreSnapshotWithConfirmation(accessor, item);
 
-		if (confirmed && isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
+		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
 			widget?.focusInput();
 			widget?.input.setValue(item.messageText, false);
-			const userAttachments = filterToUserAttachedContext(item.attachedContext);
-			if (userAttachments.length) {
-				await widget?.input.restoreAttachments(userAttachments);
-			}
 		}
 	}
 });
@@ -601,19 +583,13 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
-		const userAttachments = isRequestVM(item) ? filterToUserAttachedContext(item.attachedContext) : [];
-
 		if (isRequestVM(item)) {
 			widget?.focusInput();
 			widget?.input.setValue(item.messageText, false);
 		}
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
-		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
-
-		if (confirmed && userAttachments.length) {
-			await widget?.input.restoreAttachments(userAttachments);
-		}
+		await restoreSnapshotWithConfirmation(accessor, item);
 	}
 });
 

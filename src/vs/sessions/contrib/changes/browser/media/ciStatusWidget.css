@@ -3,25 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* CI Status Widget - beneath the files list */
+/* CI Status Widget - beneath the changes tree */
 .ci-status-widget {
-	display: flex;
-	flex-direction: column;
-	flex-shrink: 0;
-	box-sizing: border-box;
+	margin-top: 8px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	background-color: var(--vscode-editor-background);
 	overflow: hidden;
 	font-size: 12px;
 }
 
-/* Header */
+/* Header - always visible, clickable */
 .ci-status-widget-header {
-	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 2px 0;
+	padding: 4px 8px 4px 4px;
+	cursor: pointer;
+	-webkit-user-select: none;
+	user-select: none;
 	min-height: 22px;
-	font-weight: 500;
+}
+
+.ci-status-widget-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 /* Title - single line, overflow ellipsis */
@@ -29,70 +34,32 @@
 	flex: 1;
 	display: flex;
 	align-items: center;
-	gap: 6px;
 	overflow: hidden;
 	color: var(--vscode-foreground);
 }
 
-.ci-status-widget-title-label {
+.ci-status-widget-title .monaco-icon-label {
+	width: 100%;
+	height: 18px;
+}
+
+.ci-status-widget-title .monaco-icon-label-container,
+.ci-status-widget-title .monaco-icon-name-container {
+	display: block;
+	overflow: hidden;
+}
+
+.ci-status-widget-title .label-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-/* Status count badges in the header */
-.ci-status-widget-counts {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-shrink: 0;
-	margin-left: auto;
-	padding-right: 8px;
-}
-
-.ci-status-widget.has-fix-actions:hover .ci-status-widget-counts,
-.ci-status-widget.has-fix-actions:focus-within .ci-status-widget-counts {
-	visibility: hidden;
-}
-
-.ci-status-widget-count-badge {
-	display: inline-flex;
-	align-items: center;
-	gap: 2px;
-	font-size: 11px;
-	line-height: 1;
-}
-
-.ci-status-widget-count-badge .codicon {
-	font-size: 14px;
-}
-
-.ci-status-widget-count-badge.ci-status-success .codicon {
-	color: var(--vscode-testing-iconPassed, #73c991);
-}
-
-.ci-status-widget-count-badge.ci-status-failure .codicon {
-	color: var(--vscode-testing-iconFailed, #f14c4c);
-}
-
-.ci-status-widget-count-badge.ci-status-running .codicon {
-	color: var(--vscode-testing-iconQueued, var(--vscode-editorWarning-foreground));
-}
-
-.ci-status-widget-count-badge.ci-status-pending .codicon {
-	color: var(--vscode-descriptionForeground);
-}
-
 .ci-status-widget-header-actions {
-	position: absolute;
-	right: 0;
+	flex: 0 0 auto;
 	display: none;
 	align-items: center;
-}
-
-.ci-status-widget:hover .ci-status-widget-header-actions.has-actions,
-.ci-status-widget:focus-within .ci-status-widget-header-actions.has-actions {
-	display: flex;
+	margin-left: auto;
 }
 
 .ci-status-widget-header-actions .monaco-action-bar {
@@ -105,11 +72,18 @@
 	height: 16px;
 }
 
-/* Body - check list */
+/* Twistie icon on the right */
+.ci-status-widget-twistie {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+}
+
+/* Body - collapsible list */
 .ci-status-widget-body {
-	flex: 1;
-	min-height: 0;
-	overflow: hidden;
+	border-top: 1px solid var(--vscode-input-border, transparent);
 }
 
 .ci-status-widget-list {
@@ -122,19 +96,21 @@
 }
 
 /* Individual check row */
-.ci-status-widget .ci-status-widget-list .monaco-list-row {
-	border-radius: 4px;
-}
-
 .ci-status-widget-check {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 4px 0;
+	padding: 4px 8px 4px 4px;
 	height: 100%;
 	width: 100%;
 	box-sizing: border-box;
 	min-width: 0;
+}
+
+.ci-status-widget-list .monaco-list-row:hover .ci-status-widget-check,
+.ci-status-widget-list .monaco-list-row.focused .ci-status-widget-check,
+.ci-status-widget-list .monaco-list-row.selected .ci-status-widget-check {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 .ci-status-widget-check-label {
@@ -143,6 +119,7 @@
 	min-width: 0;
 	overflow: hidden;
 }
+
 
 .ci-status-widget-check-label .monaco-icon-label {
 	display: flex;
@@ -166,15 +143,19 @@
 	color: var(--vscode-foreground);
 }
 
+.ci-status-widget-title.ci-status-success .monaco-icon-label::before,
 .ci-status-widget-check.ci-status-success .monaco-icon-label::before {
 	color: var(--vscode-testing-iconPassed, #73c991);
 }
 
+.ci-status-widget-title.ci-status-failure .monaco-icon-label::before,
 .ci-status-widget-check.ci-status-failure .monaco-icon-label::before {
 	color: var(--vscode-testing-iconFailed, #f14c4c);
 }
 
-.ci-status-widget-check.ci-status-running .monaco-icon-label::before {
+.ci-status-widget-title.ci-status-running .monaco-icon-label::before,
+.ci-status-widget-check.ci-status-running .monaco-icon-label::before,
+.ci-status-widget-title.ci-status-pending .monaco-icon-label::before {
 	color: var(--vscode-testing-iconQueued, var(--vscode-editorWarning-foreground));
 }
 
@@ -182,6 +163,7 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.ci-status-widget-title.ci-status-neutral .monaco-icon-label::before,
 .ci-status-widget-check.ci-status-neutral .monaco-icon-label::before {
 	color: var(--vscode-descriptionForeground);
 }

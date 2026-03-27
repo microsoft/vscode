@@ -9,7 +9,8 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap } from '../../common/chatSessionsService.js';
+import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap } from '../../common/chatSessionsService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
@@ -201,6 +202,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return true;
 	}
 
+	hasAnySessionOptions(resource: URI): boolean {
+		return this.sessionOptions.has(resource) && this.sessionOptions.get(resource)!.size > 0;
+	}
+
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
 		return this.contributions.find(c => c.type === chatSessionType)?.capabilities;
 	}
@@ -229,6 +234,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.contentProviders.keys());
 	}
 
+	getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
+		return undefined;
+	}
+
 	async createNewChatSessionItem(_chatSessionType: string, _request: IChatNewSessionRequest, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		return undefined;
 	}
@@ -248,20 +257,4 @@ export class MockChatSessionsService implements IChatSessionsService {
 			}
 		};
 	}
-
-	private readonly _onDidChangeCustomizations = new Emitter<{ readonly chatSessionType: string }>();
-	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
-
-	registerCustomizationsProvider(_chatSessionType: string, _provider: IChatSessionCustomizationsProvider): IDisposable {
-		return { dispose: () => { } };
-	}
-
-	hasCustomizationsProvider(_chatSessionType: string): boolean {
-		return false;
-	}
-
-	async getCustomizations(_chatSessionType: string, _token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined> {
-		return undefined;
-	}
-
 }

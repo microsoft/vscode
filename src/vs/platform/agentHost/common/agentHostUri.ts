@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
 
@@ -35,7 +34,7 @@ export const AGENT_HOST_SCHEME = 'vscode-agent-host';
  *   the URI authority (from {@link agentHostAuthority}).
  */
 export function toAgentHostUri(originalUri: URI, connectionAuthority: string): URI {
-	if (connectionAuthority === 'local' && originalUri.scheme === Schemas.file) {
+	if (connectionAuthority === 'local') {
 		return originalUri;
 	}
 

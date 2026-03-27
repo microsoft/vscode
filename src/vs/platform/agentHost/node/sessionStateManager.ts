@@ -143,9 +143,7 @@ export class SessionStateManager extends Disposable {
 	}
 
 	/**
-	 * Removes a session from in-memory state without emitting a notification.
-	 * Use {@link deleteSession} when the session is being permanently deleted
-	 * and clients need to be notified.
+	 * Removes a session from state and emits a sessionRemoved notification.
 	 */
 	removeSession(session: URI): void {
 		const state = this._sessionStates.get(session);
@@ -160,15 +158,7 @@ export class SessionStateManager extends Disposable {
 
 		this._sessionStates.delete(session);
 		this._logService.trace(`[SessionStateManager] Removed session: ${session}`);
-	}
 
-	/**
-	 * Permanently deletes a session from state and emits a
-	 * {@link NotificationType.SessionRemoved} notification so that clients
-	 * know the session is no longer accessible.
-	 */
-	deleteSession(session: URI): void {
-		this.removeSession(session);
 		this._onDidEmitNotification.fire({
 			type: NotificationType.SessionRemoved,
 			session,

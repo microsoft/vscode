@@ -3512,12 +3512,6 @@ export namespace ChatLocation {
 	}
 }
 
-export namespace ChatSessionCustomizationType {
-	export function from(type: types.ChatSessionCustomizationType): string {
-		return type.id;
-	}
-}
-
 export namespace ChatPromptReference {
 	export function to(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], logService: ILogService): vscode.ChatPromptReference | undefined {
 		let value: vscode.ChatPromptReference['value'] = variable.value;
