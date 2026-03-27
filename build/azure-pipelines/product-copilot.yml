@@ -76,19 +76,6 @@ jobs:
         condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
         displayName: Create copilot build cache archive
 
-      # Build
-      - script: |
-          set -e
-          git clone https://github.com/microsoft/vscode-capi.git --depth 1 $(Agent.BuildDirectory)/vscode-capi
-          cd $(Agent.BuildDirectory)/vscode-capi
-          npm ci && BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
-          rm -rf $(Agent.BuildDirectory)/vscode-capi
-        displayName: Mixin vscode-capi
-
-      - script: npm run build
-        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-        displayName: Build copilot extension
-
       # Test
       - task: AzureCLI@2
         inputs:
@@ -138,3 +125,16 @@ jobs:
       - script: xvfb-run -a npm run test:sanity
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Run sanity tests
+
+      # Build
+      - script: |
+          set -e
+          git clone https://github.com/microsoft/vscode-capi.git --depth 1 $(Agent.BuildDirectory)/vscode-capi
+          cd $(Agent.BuildDirectory)/vscode-capi
+          npm ci && BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+          rm -rf $(Agent.BuildDirectory)/vscode-capi
+        displayName: Mixin vscode-capi
+
+      - script: npm run build
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Build copilot extension
