@@ -41,8 +41,9 @@ suite('FileEditTracker', () => {
 		tracker = new FileEditTracker('copilot:/test-session', db, fileService, new NullLogService());
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.clear();
+		await db.close();
 		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
