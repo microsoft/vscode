@@ -139,6 +139,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// When a workspace is selected, create a new session
 		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
+			this._renderOptionGroupPickers();
 			await this._onWorkspaceSelected(workspace);
 			this._focusEditor();
 		}));
@@ -440,7 +441,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const pickersLabel = dom.append(pickersRow, dom.$('.chat-full-welcome-pickers-label'));
 		pickersLabel.textContent = this._workspacePicker.selectedProject
 			? localize('newSessionIn', "New session in")
-			: localize('newSessionChooseWorkspace', "To start, choose");
+			: localize('newSessionChooseWorkspace', "Start by picking");
 
 		// Project picker (unified folder + repo picker)
 		this._workspacePicker.render(pickersRow);
