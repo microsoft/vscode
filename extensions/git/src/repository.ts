@@ -1369,7 +1369,16 @@ export class Repository implements Disposable {
 		await this.run(
 			Operation.Restore(!this.optimisticUpdateEnabled()),
 			async () => {
-				await this.repository.restore(resources.map(r => r.fsPath), options);
+				const resourcePaths = resources.map(r => r.fsPath);
+				await this.repository.restore(resourcePaths, options);
+
+				if (options?.staged) {
+					// Index was modified;
+					this.closeDiffEditors([], resourcePaths);
+				} else {
+					// Working tree was modified;
+					this.closeDiffEditors(resourcePaths, []);
+				}
 			});
 	}
 
