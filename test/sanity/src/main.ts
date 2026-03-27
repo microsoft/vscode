@@ -11,6 +11,7 @@ import { setup as setupDesktopTests } from './desktop.test.js';
 import { setup as setupServerTests } from './server.test.js';
 import { setup as setupServerWebTests } from './serverWeb.test.js';
 import { setup as setupWSLTests } from './wsl.test.js';
+import { setup as setupDevTunnelTests } from './devTunnel.test.js';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality', 'screenshots-dir'],
@@ -52,3 +53,4 @@ setupDesktopTests(context);
 setupServerTests(context);
 setupServerWebTests(context);
 setupWSLTests(context);
+setupDevTunnelTests(context);
