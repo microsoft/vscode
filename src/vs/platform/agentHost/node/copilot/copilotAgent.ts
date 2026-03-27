@@ -86,7 +86,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			resource: 'https://api.github.com',
 			resource_name: 'GitHub Copilot',
 			authorization_servers: ['https://github.com/login/oauth'],
-			scopes_supported: ['read:user', 'user:email'],
+			scopes_supported: ['user:email'],
 		}];
 	}
 

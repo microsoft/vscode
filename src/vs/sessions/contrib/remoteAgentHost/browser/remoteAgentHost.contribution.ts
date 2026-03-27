@@ -6,8 +6,7 @@
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
-import { AgentHostFileSystemProvider } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -15,9 +14,7 @@ import { SessionClientState } from '../../../../platform/agentHost/common/state/
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -28,6 +25,7 @@ import { LoggingAgentConnection } from '../../../../workbench/contrib/chat/brows
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { IAgentHostFileSystemService } from '../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -68,9 +66,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/** Per-connection state: client state + per-agent registrations. */
 	private readonly _connections = this._register(new DisposableMap<string, ConnectionState>());
 
-	/** Maps sanitized authority strings back to original addresses. */
-	private readonly _fsProvider: AgentHostFileSystemProvider;
-
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
@@ -80,19 +75,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@IFileService private readonly _fileService: IFileService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@ILabelService private readonly _labelService: ILabelService,
+		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
 	) {
 		super();
-
-		// Register a single read-only filesystem provider for all remote agent
-		// hosts. Individual connections are identified by the URI authority.
-		this._fsProvider = this._register(new AgentHostFileSystemProvider());
-		this._register(this._fileService.registerProvider(AGENT_HOST_SCHEME, this._fsProvider));
-
-		// Display agent-host URIs with the original file path
-		this._register(this._labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
 
 		// Reconcile when connections change (added/removed/reconnected)
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
@@ -151,7 +137,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		// Track authority -> connection mapping for FS provider routing
 		const authority = agentHostAuthority(address);
-		store.add(this._fsProvider.registerAuthority(authority, connection));
+		store.add(this._agentHostFileSystemService.registerAuthority(authority, connection));
 
 		// Forward non-session actions to client state
 		store.add(loggedConnection.onDidAction(envelope => {
