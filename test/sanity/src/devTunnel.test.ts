@@ -109,27 +109,34 @@ export function setup(context: TestContext) {
 						throw new Error('Browser instance is not available');
 					}
 
-					try {
-						context.log(`Navigating to ${url}`);
-						await page.goto(url);
+					const maxAttempts = 3;
+					for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+						try {
+							context.log(`Navigating to ${url} (attempt ${attempt}/${maxAttempts})`);
+							await page.goto(url);
 
-						context.log('Waiting for the workbench to load');
-						await page.waitForSelector('.monaco-workbench');
+							context.log('Waiting for the workbench to load');
+							await page.waitForSelector('.monaco-workbench');
 
-						context.log('Selecting GitHub Account');
-						await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();
+							context.log('Selecting GitHub Account');
+							await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();
 
-						context.log('Clicking Allow on confirmation dialog');
-						const popup = page.waitForEvent('popup');
-						await page.getByRole('button', { name: 'Allow' }).click();
+							context.log('Clicking Allow on confirmation dialog');
+							const popup = page.waitForEvent('popup');
+							await page.getByRole('button', { name: 'Allow' }).click();
 
-						await auth.runAuthorizeFlow(await popup);
+							await auth.runAuthorizeFlow(await popup);
 
-						context.log('Waiting for connection to be established');
-						await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
-					} catch (error) {
-						await context.captureScreenshot(page);
-						throw error;
+							context.log('Waiting for connection to be established');
+							await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
+							break;
+						} catch (error) {
+							await context.captureScreenshot(page);
+							if (attempt === maxAttempts) {
+								throw error;
+							}
+							context.log(`Auth flow attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}, retrying...`);
+						}
 					}
 
 					await test.run(page);
