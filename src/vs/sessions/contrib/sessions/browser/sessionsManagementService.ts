@@ -341,25 +341,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private onDidChangeSessionsFromSessionsProviders(e: IChatChangeEvent): void {
-		// Handle replaced chats first — swap chatIds in the group model before
-		// processing added/removed/changed so that downstream logic sees the
-		// correct group membership.
-		if (e.replaced?.length) {
-			for (const { oldChatId, newChat } of e.replaced) {
-				const sessionId = this._groupModel.getSessionIdForChat(oldChatId);
-				this._groupModel.replaceChat(oldChatId, newChat.chatId);
-				if (sessionId) {
-					this._sessionDataCache.delete(sessionId);
-				}
-			}
-		}
-
 		const sessionEvent: ISessionsChangeEvent = {
 			added: this._chatsToSessions(e.added),
 			removed: this._chatsToSessions(e.removed),
-			changed: this._chatsToSessions(e.replaced?.length
-				? [...e.changed, ...e.replaced.map(r => r.newChat)]
-				: e.changed),
+			changed: this._chatsToSessions(e.changed),
 		};
 		this._onDidChangeSessions.fire(sessionEvent);
 		const currentActive = this._activeSession.get();
@@ -383,15 +368,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				if (this._groupModel.getChatIds(currentActive.sessionId).length === 0) {
 					this.openNewSessionView();
 				}
-				return;
-			}
-		}
-
-		// Handle replaced chats — update active session if the replaced chat was active
-		if (e.replaced?.length) {
-			const replacedActive = e.replaced.find(r => currentActive.chats.get().find(c => c.chatId === r.oldChatId));
-			if (replacedActive) {
-				this.setActiveSession(this._chatToSession(replacedActive.newChat));
 				return;
 			}
 		}

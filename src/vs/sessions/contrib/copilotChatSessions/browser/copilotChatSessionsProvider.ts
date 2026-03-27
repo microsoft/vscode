@@ -838,10 +838,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _sessionCache = new Map<string, IChatData>();
 
 	/**
-	 * Tracks the chatId of a recently created session whose URI may be swapped
-	 * by the agent host after the first turn completes.
+	 * Maps from old (untitled) resource URI string → real resource URI for sessions
+	 * whose URI was swapped by the agent host after the first turn.
+	 * Used by {@link _findAgentSession} to look up the current agent session.
 	 */
-	private _pendingSwapChatId: string | undefined;
+	private readonly _resourceSwapMap = new Map<string, URI>();
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
@@ -1174,6 +1175,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const currentKeys = new Set<string>();
 		const added: IChatData[] = [];
 		const changed: IChatData[] = [];
+		// Collect newly appeared agent sessions that are not yet in the cache.
+		// These are candidates for URI-swap matching in the removal pass below.
+		const newAgentSessions = new Map<string, IAgentSession>();
 
 		for (const session of this.agentSessionsService.model.sessions) {
 			if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
@@ -1184,8 +1188,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				currentKeys.add(key);
 				this._sessionCache.set(key, adapter);
 				changed.push(adapter);
-				// Track the chatId for URI swap detection after the first turn
-				this._pendingSwapChatId = adapter.chatId;
 				this._currentNewSession.dispose();
 				this._currentNewSession = undefined;
 				continue;
@@ -1203,38 +1205,47 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (existing instanceof AgentSessionAdapter) {
 				existing.update(session);
 				changed.push(existing);
-			} else {
-				const adapter = new AgentSessionAdapter(session, this.id);
-				this._sessionCache.set(key, adapter);
-				added.push(adapter);
+			} else if (!existing) {
+				newAgentSessions.set(key, session);
 			}
 		}
 
 		const removed: IChatData[] = [];
-		const replaced: { oldChatId: string; newChat: IChatData }[] = [];
-		for (const [key, session] of this._sessionCache) {
-			if (!currentKeys.has(key) && session !== this._currentNewSession) {
-				this._sessionCache.delete(key);
-
-				// Detect URI swap: the pending-swap session disappeared and a new
-				// session of the same type was added in the same refresh cycle.
-				if (this._pendingSwapChatId && session.chatId === this._pendingSwapChatId) {
-					const swapTarget = added.find(a => a.sessionType === session.sessionType);
-					if (swapTarget) {
-						// Treat as a replacement instead of remove + add
-						added.splice(added.indexOf(swapTarget), 1);
-						replaced.push({ oldChatId: session.chatId, newChat: swapTarget });
-						this._pendingSwapChatId = undefined;
+		for (const [key, cachedSession] of this._sessionCache) {
+			if (!currentKeys.has(key) && cachedSession !== this._currentNewSession) {
+				// Detect URI swap: the cached session (with the untitled URI) disappeared
+				// and a new agent session of the same type appeared in the same cycle.
+				// Keep the original adapter (stable chatId) and update it in-place.
+				if (cachedSession instanceof AgentSessionAdapter) {
+					const swapEntry = [...newAgentSessions.entries()].find(
+						([, s]) => s.providerType === cachedSession.sessionType
+					);
+					if (swapEntry) {
+						const [newKey, newSession] = swapEntry;
+						newAgentSessions.delete(newKey);
+						currentKeys.add(key); // Keep the old key alive
+						cachedSession.update(newSession);
+						this._resourceSwapMap.set(key, newSession.resource);
+						changed.push(cachedSession);
 						continue;
 					}
 				}
 
-				removed.push(session);
+				this._sessionCache.delete(key);
+				this._resourceSwapMap.delete(key);
+				removed.push(cachedSession);
 			}
 		}
 
-		if (added.length > 0 || removed.length > 0 || changed.length > 0 || replaced.length > 0) {
-			this._onDidChangeSessions.fire({ added, removed, changed, replaced });
+		// Add remaining new agent sessions that were not matched by a swap
+		for (const [key, session] of newAgentSessions) {
+			const adapter = new AgentSessionAdapter(session, this.id);
+			this._sessionCache.set(key, adapter);
+			added.push(adapter);
+		}
+
+		if (added.length > 0 || removed.length > 0 || changed.length > 0) {
+			this._onDidChangeSessions.fire({ added, removed, changed });
 		}
 	}
 
@@ -1247,7 +1258,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (!adapter) {
 			return undefined;
 		}
-		return this.agentSessionsService.getSession(adapter.resource);
+		// If the session's URI was swapped, use the real resource for the lookup
+		const key = adapter.resource.toString();
+		const resolvedResource = this._resourceSwapMap.get(key) ?? adapter.resource;
+		return this.agentSessionsService.getSession(resolvedResource);
 	}
 
 	private _localIdFromchatId(chatId: string): string {
