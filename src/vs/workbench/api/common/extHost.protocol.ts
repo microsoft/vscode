@@ -1690,6 +1690,9 @@ export interface IChatSessionCustomizationItemDto {
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly groupKey?: string;
+	readonly badge?: string;
+	readonly badgeTooltip?: string;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
