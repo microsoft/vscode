@@ -438,7 +438,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
 		const pickersLabel = dom.append(pickersRow, dom.$('.chat-full-welcome-pickers-label'));
-		pickersLabel.textContent = localize('newSessionIn', "New session in");
+		pickersLabel.textContent = this._workspacePicker.selectedProject
+			? localize('newSessionIn', "New session in")
+			: localize('newSessionChooseWorkspace', "To start, choose");
 
 		// Project picker (unified folder + repo picker)
 		this._workspacePicker.render(pickersRow);
