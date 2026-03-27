@@ -34,7 +34,7 @@ import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 import { EditorPool } from '../chatContentCodePools.js';
 
-const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 45;
+const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 100;
 
 export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	private markdownParts: ChatMarkdownContentPart[] = [];
