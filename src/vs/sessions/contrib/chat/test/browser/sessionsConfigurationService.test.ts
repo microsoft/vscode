@@ -20,10 +20,10 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
-import { IChatData, ISessionData, SessionStatus } from '../../../sessions/common/sessionData.js';
+import { IChat, ISession, SessionStatus } from '../../../sessions/common/sessionData.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
-function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionData {
+function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession {
 	const workspace = opts.repository ? {
 		label: 'test',
 		icon: Codicon.folder,
@@ -36,7 +36,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 		}],
 		requiresWorkspaceTrust: false,
 	} : undefined;
-	const chat: IChatData = {
+	const chat: IChat = {
 		chatId: 'test:session',
 		resource: URI.parse('file:///session'),
 		providerId: 'test',
@@ -57,7 +57,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 		description: observableValue('description', undefined),
 		pullRequest: observableValue('pullRequest', undefined),
 	};
-	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('chats', [chat]), activeChat: observableValue('activeChat', chat), mainChat: chat };
+	const session: ISession = { ...chat, sessionId: chat.chatId, chats: observableValue('chats', [chat]), activeChat: observableValue('activeChat', chat), mainChat: chat };
 	return session;
 }
 
@@ -84,10 +84,10 @@ suite('SessionsConfigurationService', () => {
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
 	let ranTasks: { label: string }[];
-	let committedFiles: { session: ISessionData; fileUris: URI[] }[];
+	let committedFiles: { session: ISession; fileUris: URI[] }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
-	let activeSessionObs: ReturnType<typeof observableValue<ISessionData | undefined>>;
+	let activeSessionObs: ReturnType<typeof observableValue<ISession | undefined>>;
 	let tasksByLabel: Map<string, Task>;
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
 
@@ -151,7 +151,6 @@ suite('SessionsConfigurationService', () => {
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
-			override async commitWorktreeFiles(session: ISessionData, fileUris: URI[]) { committedFiles.push({ session, fileUris }); }
 		});
 
 		storageService = store.add(new InMemoryStorageService());
