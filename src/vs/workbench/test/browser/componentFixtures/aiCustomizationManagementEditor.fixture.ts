@@ -176,7 +176,7 @@ function createMockHarnessService(activeHarness: CustomizationHarness, descripto
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 		}
 		override setActiveHarness(id: string) { active.set(id, undefined); }
-		override registerContributedHarness() { return { dispose() { } }; }
+		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
 
@@ -653,7 +653,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
-				override registerContributedHarness() { return { dispose() { } }; }
+				override registerExternalHarness() { return { dispose() { } }; }
 			}());
 		},
 	});

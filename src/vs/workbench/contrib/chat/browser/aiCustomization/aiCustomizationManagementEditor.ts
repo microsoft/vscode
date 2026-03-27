@@ -46,6 +46,7 @@ import {
 	BUILTIN_STORAGE,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION,
+	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS,
 	SIDEBAR_DEFAULT_WIDTH,
 	SIDEBAR_MIN_WIDTH,
 	SIDEBAR_MAX_WIDTH,
@@ -311,9 +312,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private harnessDropdownButton: HTMLElement | undefined;
 	private harnessDropdownIcon: HTMLElement | undefined;
 	private harnessDropdownLabel: HTMLElement | undefined;
+	private sidebarContent: HTMLElement | undefined;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
 	private readonly sectionContextKey: IContextKey<string>;
+	private readonly harnessContextKey: IContextKey<string>;
 
 	constructor(
 		group: IEditorGroup,
@@ -342,6 +345,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
+		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
@@ -513,7 +517,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private createSidebar(): void {
-		const sidebarContent = DOM.append(this.sidebarContainer, $('.sidebar-content'));
+		const sidebarContent = this.sidebarContent = DOM.append(this.sidebarContainer, $('.sidebar-content'));
 
 		// Harness dropdown (shown when multiple harnesses available)
 		this.createHarnessDropdown(sidebarContent);
@@ -565,7 +569,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return; // setActiveHarness will trigger another autorun cycle
 			}
 
+			this.harnessContextKey.set(activeId);
 			this.rebuildVisibleSections();
+			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
 			this.refreshAllPromptsSectionCounts();
 		}));
@@ -611,6 +617,27 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(this.harnessDropdownButton, 'click', () => {
 			this.showHarnessMenu();
 		}));
+	}
+
+	/**
+	 * Lazily creates the harness dropdown if it doesn't exist but
+	 * multiple harnesses are now available, or hides it if only one
+	 * harness remains (e.g. after an extension-contributed harness is
+	 * unregistered).
+	 */
+	private ensureHarnessDropdown(): void {
+		const harnesses = this.harnessService.availableHarnesses.get();
+		const shouldShow = this.isHarnessSelectorEnabled && harnesses.length > 1;
+
+		if (shouldShow && !this.harnessDropdownContainer && this.sidebarContent) {
+			this.createHarnessDropdown(this.sidebarContent);
+		} else if (!shouldShow && this.harnessDropdownContainer) {
+			this.harnessDropdownContainer.remove();
+			this.harnessDropdownContainer = undefined;
+			this.harnessDropdownButton = undefined;
+			this.harnessDropdownIcon = undefined;
+			this.harnessDropdownLabel = undefined;
+		}
 	}
 
 	private updateHarnessDropdown(): void {
@@ -726,11 +753,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.telemetryService.publicLog2<CustomizationEditorItemSelectedEvent, CustomizationEditorItemSelectedClassification>('chatCustomizationEditor.itemSelected', {
 				section: this.selectedSection,
 				promptType: item.promptType,
-				storage: item.storage,
+				storage: item.storage ?? 'external',
 			});
-			const isWorkspaceFile = item.storage === PromptsStorage.local;
-			const isReadOnly = item.storage === PromptsStorage.extension || item.storage === PromptsStorage.plugin || item.storage === BUILTIN_STORAGE;
-			this.showEmbeddedEditor(item.uri, item.name, item.promptType, item.storage, isWorkspaceFile, isReadOnly);
+			const storage = item.storage;
+			const isWorkspaceFile = storage === PromptsStorage.local;
+			const isReadOnly = !storage || storage === PromptsStorage.extension || storage === PromptsStorage.plugin || storage === BUILTIN_STORAGE;
+			this.showEmbeddedEditor(item.uri, item.name, item.promptType, storage ?? BUILTIN_STORAGE, isWorkspaceFile, isReadOnly);
 		}));
 
 		// Handle create actions - AI-guided creation
