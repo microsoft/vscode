@@ -66,7 +66,7 @@
 	}
 
 	/* Show toolbar persistently for pinned sessions, but only the pinned action */
-	.monaco-list-row:not(:hover):not(.focused):has(.pinned) .session-title-toolbar {
+	.monaco-list-row:not(:hover):not(.focused) .session-item.pinned .session-title-toolbar {
 		display: block;
 
 		.action-item:not(:has(.codicon-pinned)) {

@@ -209,18 +209,24 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Toolbar context
 		template.titleToolbar.context = element;
 
-		// Context key: isPinned
-		const isPinned = this.options.isPinned(element);
-		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
-		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
-		IsSessionReadContext.bindTo(template.contextKeyService).set(element.isRead.get());
+		// Context keys and styling — reactive
+		const pinnedContextKey = IsSessionPinnedContext.bindTo(template.contextKeyService);
+		const archivedContextKey = IsSessionArchivedContext.bindTo(template.contextKeyService);
+		const readContextKey = IsSessionReadContext.bindTo(template.contextKeyService);
 
-		// Show toolbar persistently when pinned so the unpin action is visible
-		template.container.classList.toggle('pinned', isPinned);
-
-		// Archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
-			template.container.classList.toggle('archived', element.isArchived.read(reader));
+			const isArchived = element.isArchived.read(reader);
+			const isRead = element.isRead.read(reader);
+			const isPinned = this.options.isPinned(element);
+
+			pinnedContextKey.set(isPinned);
+			archivedContextKey.set(isArchived);
+			readContextKey.set(isRead);
+
+			// Show toolbar persistently when pinned so the unpin action is visible,
+			// but avoid pinned styling for archived sessions where pin/unpin is hidden.
+			template.container.classList.toggle('pinned', isPinned && !isArchived);
+			template.container.classList.toggle('archived', isArchived);
 		}));
 
 
