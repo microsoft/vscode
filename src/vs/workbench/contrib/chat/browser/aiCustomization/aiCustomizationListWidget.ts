@@ -59,6 +59,7 @@ import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSy
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -556,6 +557,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -1546,16 +1548,54 @@ export class AICustomizationListWidget extends Disposable {
 
 		return allItems
 			.filter(item => item.type === promptType)
-			.map((item: IExternalCustomizationItem) => ({
-				id: item.uri.toString(),
-				uri: item.uri,
-				name: item.name,
-				filename: basename(item.uri),
-				description: item.description,
-				promptType,
-				disabled: false,
-			}))
+			.map((item: IExternalCustomizationItem) => {
+				const pluginUri = this.findPluginUri(item.uri);
+				const storage = pluginUri ? PromptsStorage.plugin : this.inferStorageFromUri(item.uri);
+
+				return {
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: item.name,
+					filename: basename(item.uri),
+					description: item.description,
+					promptType,
+					disabled: false,
+					groupKey: item.groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
+					storage,
+					pluginUri,
+				};
+			})
 			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Infers the storage source of a URI by checking workspace folders,
+	 * user data paths, and plugin locations.
+	 */
+	private inferStorageFromUri(uri: URI): PromptsStorage {
+		// Check if under a workspace folder
+		if (this.workspaceContextService.getWorkspaceFolder(uri)) {
+			return PromptsStorage.local;
+		}
+
+		// Check if under the active project root (Sessions window may use
+		// an active root that is not a workspace folder, e.g. worktree/repo)
+		const activeProjectRoot = this.workspaceService.getActiveProjectRoot();
+		if (activeProjectRoot && isEqualOrParent(uri, activeProjectRoot)) {
+			return PromptsStorage.local;
+		}
+
+		// Check if under user data prompts home
+		const promptsHome = this.userDataProfileService.currentProfile.promptsHome;
+		if (isEqualOrParent(uri, promptsHome)) {
+			return PromptsStorage.user;
+		}
+
+		// Default to user for remaining files (e.g. user-scoped files
+		// outside the recognized prompts home)
+		return PromptsStorage.user;
 	}
 
 	/**
@@ -1608,16 +1648,78 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		// When items come from an external provider, skip storage-based grouping
-		// and render a flat list. The provider controls the full item set, so
-		// Workspace/User/Extension categories don't apply.
+		// When items come from an external provider, group by groupKey if
+		// any items define one; otherwise fall through to standard
+		// storage-based grouping (storage is auto-inferred from URI).
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider) {
-			matchedItems.sort((a, b) => a.name.localeCompare(b.name));
-			this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
-			this.list.splice(0, this.list.length, this.displayEntries);
-			this.updateEmptyState();
-			return matchedItems.length;
+			const hasExplicitGroups = matchedItems.some(item => item.groupKey !== undefined);
+			if (hasExplicitGroups) {
+				// Auto-build group definitions from the items' groupKey values,
+				// preserving insertion order. Items without a groupKey are
+				// placed into a fallback "Other" group. Uses a Map for O(1)
+				// lookups instead of repeated array scans.
+				const ungroupedKey = '__ungrouped__';
+				const groupsMap = new Map<string, { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }>();
+
+				for (const item of matchedItems) {
+					const key = item.groupKey ?? ungroupedKey;
+					let group = groupsMap.get(key);
+					if (!group) {
+						group = {
+							groupKey: key,
+							label: key === ungroupedKey ? localize('otherGroup', "Other") : key,
+							icon: this.getSectionIcon(),
+							description: '',
+							items: [],
+						};
+						groupsMap.set(key, group);
+					}
+					group.items.push(item);
+				}
+
+				const groups = Array.from(groupsMap.values());
+
+				// Sort items within each group
+				for (const group of groups) {
+					group.items.sort((a, b) => a.name.localeCompare(b.name));
+				}
+
+				// Build display entries with group headers
+				this.displayEntries = [];
+				let isFirstGroup = true;
+				for (const group of groups) {
+					if (group.items.length === 0) {
+						continue;
+					}
+
+					const collapsed = this.collapsedGroups.has(group.groupKey);
+
+					this.displayEntries.push({
+						type: 'group-header',
+						id: `group-${group.groupKey}`,
+						groupKey: group.groupKey,
+						label: group.label,
+						icon: group.icon,
+						count: group.items.length,
+						isFirst: isFirstGroup,
+						description: group.description,
+						collapsed,
+					});
+					isFirstGroup = false;
+
+					if (!collapsed) {
+						for (const item of group.items) {
+							this.displayEntries.push({ type: 'file-item', item });
+						}
+					}
+				}
+
+				this.list.splice(0, this.list.length, this.displayEntries);
+				this.updateEmptyState();
+				return matchedItems.length;
+			}
+			// No explicit groupKey — fall through to standard storage-based grouping below.
 		}
 
 		// Group items by storage
