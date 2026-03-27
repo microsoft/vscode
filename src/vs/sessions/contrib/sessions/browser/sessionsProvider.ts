@@ -39,15 +39,15 @@ export interface ISessionsBrowseAction {
 
 /**
  * Event fired when a temporary (untitled) session is replaced by a committed session.
- * The `original` chat is the temp session that was shown in the list;
- * `committed` is the real session that replaces it.
+ * The `from` chat is the temp session that was shown in the list;
+ * `to` is the real session that replaces it.
  *
  * @internal This is an implementation detail of the Copilot Chat sessions provider.
  * Do not implement or consume this event in other providers or services.
  */
 export interface IChatReplaceSessionEvent {
-	readonly original: IChatData;
-	readonly committed: IChatData;
+	readonly from: IChatData;
+	readonly to: IChatData;
 }
 
 /**

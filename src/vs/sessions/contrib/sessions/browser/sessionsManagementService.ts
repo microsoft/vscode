@@ -265,7 +265,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._register(this.sessionsProvidersService.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 
 		// When a provider replaces a temp session with a committed one, update the active session
-		this._register(this.sessionsProvidersService.onDidReplaceSession(e => this.setActiveSession(this._chatToSession(e.committed))));
+		this._register(this.sessionsProvidersService.onDidReplaceSession(e => this.setActiveSession(this._chatToSession(e.to))));
 
 		// Restore or auto-select active provider
 		this._initActiveProvider();

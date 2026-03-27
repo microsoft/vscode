@@ -1111,7 +1111,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._currentNewSession = undefined;
 
 		// Notify listeners that the temp session was replaced by the committed one
-		this._onDidReplaceSession.fire({ original: session, committed: committedSession });
+		this._onDidReplaceSession.fire({ from: session, to: committedSession });
 
 		return committedSession;
 	}
