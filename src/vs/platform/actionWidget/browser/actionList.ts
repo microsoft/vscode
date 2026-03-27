@@ -752,7 +752,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._list.splice(0, this._list.length, visible);
 
-		// Notify the parent that a re-layout is neededx
+		// Notify the parent that a re-layout is needed
 		this._onDidRequestLayout.fire();
 
 		// Restore focus after splice destroyed DOM elements,
