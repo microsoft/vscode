@@ -536,6 +536,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
+		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.ForceBackgroundMode) === true) {
+			args.isBackground = true;
+		}
 
 		const chatSessionResource = context.chatSessionResource;
 		let instance: ITerminalInstance | undefined;
@@ -866,6 +869,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
+		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.ForceBackgroundMode) === true) {
+			args.isBackground = true;
+		}
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
 

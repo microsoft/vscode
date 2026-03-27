@@ -28,6 +28,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
+	ForceBackgroundMode = 'chat.tools.terminal.forceBackgroundMode',
 	IdlePollInterval = 'chat.tools.terminal.idlePollInterval',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
@@ -639,6 +640,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		},
 		markdownDescription: localize('enforceTimeoutFromModel.description', "Whether to enforce the timeout value provided by the model in the run in terminal tool. When enabled, if the model provides a timeout parameter, the tool will stop tracking the command after that duration and return the output collected so far."),
+	},
+	[TerminalChatAgentToolsSettingId.ForceBackgroundMode]: {
+		restricted: true,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		markdownDescription: localize('forceBackgroundMode.description', "When enabled, all commands executed by the run in terminal tool are forced to run in background mode regardless of the model's `isBackground` parameter. This prevents the agent from blocking on long-running foreground commands. Each command will run in its own terminal and the agent must use `get_terminal_output` to check on progress."),
 	}
 };
 
