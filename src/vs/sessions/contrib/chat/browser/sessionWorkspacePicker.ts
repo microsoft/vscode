@@ -536,6 +536,7 @@ export class WorkspacePicker extends Disposable {
 		if (this._isSelectedWorkspace(selection)) {
 			this._selectedWorkspace = undefined;
 			this._updateTriggerLabel();
+			this._onDidChangeSelection.fire();
 		}
 	}
 
