@@ -1,6 +1,6 @@
 ---
 name: update-branch
-description: Rebase the current session branch onto the latest origin, resolving conflicts by preserving upstream changes and adapting session work to fit.
+description: Update a stale session branch by rebasing onto the latest origin. Use when the upstream has moved significantly and the session needs to catch up, resolving conflicts by preserving upstream changes and adapting session work to fit.
 ---
 <!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
