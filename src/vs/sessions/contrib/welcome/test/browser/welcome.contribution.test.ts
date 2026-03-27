@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -16,6 +16,7 @@ import { workbenchInstantiationService } from '../../../../../workbench/test/bro
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionsWelcomeContribution } from '../../browser/welcome.contribution.js';
+import { SessionsWalkthroughOverlay, WalkthroughOutcome } from '../../browser/sessionsWalkthrough.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
@@ -46,6 +47,18 @@ class MockChatEntitlementService implements Partial<IChatEntitlementService> {
 
 	update(): Promise<void> { return Promise.resolve(); }
 	markAnonymousRateLimited(): void { }
+}
+
+class TestWalkthroughOverlay extends Disposable {
+
+	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
+	readonly outcome: Promise<WalkthroughOutcome> = new Promise(resolve => {
+		this._resolveOutcome = resolve;
+	});
+
+	resolve(outcome: WalkthroughOutcome): void {
+		this._resolveOutcome(outcome);
+	}
 }
 
 suite('SessionsWelcomeContribution', () => {
@@ -81,6 +94,10 @@ suite('SessionsWelcomeContribution', () => {
 	function isOverlayVisible(): boolean {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		return SessionsWelcomeVisibleContext.getValue(contextKeyService) === true;
+	}
+
+	async function flushMicrotasks(): Promise<void> {
+		await Promise.resolve();
 	}
 
 	test('first launch shows overlay', () => {
@@ -188,6 +205,44 @@ suite('SessionsWelcomeContribution', () => {
 		});
 
 		assert.strictEqual(isOverlayVisible(), false, 'should dismiss after setup completes');
+	});
+
+	test('dismissing walkthrough does not mark welcome complete', async () => {
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
+		const walkthrough = new TestWalkthroughOverlay();
+		instantiationService.stubInstance(SessionsWalkthroughOverlay, walkthrough as unknown as SessionsWalkthroughOverlay);
+
+		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
+		assert.ok(contribution);
+		assert.strictEqual(isOverlayVisible(), true);
+
+		walkthrough.resolve('dismissed');
+		await flushMicrotasks();
+
+		const storageService = instantiationService.get(IStorageService);
+		assert.strictEqual(storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false), false);
+		assert.strictEqual(isOverlayVisible(), false);
+	});
+
+	test('completing walkthrough marks welcome complete', async () => {
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
+		const walkthrough = new TestWalkthroughOverlay();
+		instantiationService.stubInstance(SessionsWalkthroughOverlay, walkthrough as unknown as SessionsWalkthroughOverlay);
+
+		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
+		assert.ok(contribution);
+		assert.strictEqual(isOverlayVisible(), true);
+
+		walkthrough.resolve('completed');
+		await flushMicrotasks();
+
+		const storageService = instantiationService.get(IStorageService);
+		assert.strictEqual(storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false), true);
+		assert.strictEqual(isOverlayVisible(), false);
 	});
 
 	test('returning user: entitlement going to Available DOES show overlay', () => {

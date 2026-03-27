@@ -14,15 +14,31 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
-import { SessionsWalkthroughOverlay } from './sessionsWalkthrough.js';
+import { SessionsWalkthroughOverlay, WalkthroughOutcome } from './sessionsWalkthrough.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
+
+function needsChatSetup(chatEntitlementService: Pick<IChatEntitlementService, 'sentiment' | 'entitlement' | 'anonymous'>, includeUnknown: boolean = true): boolean {
+	const { sentiment, entitlement } = chatEntitlementService;
+	return (
+		!sentiment?.installed ||
+		sentiment?.disabled ||
+		entitlement === ChatEntitlement.Available ||
+		(
+			includeUnknown &&
+			entitlement === ChatEntitlement.Unknown &&
+			!chatEntitlementService.anonymous
+		)
+	);
+}
+
+function shouldPersistWelcomeCompletion(outcome: WalkthroughOutcome, chatEntitlementService: Pick<IChatEntitlementService, 'sentiment' | 'entitlement' | 'anonymous'>): boolean {
+	return outcome === 'completed' || !needsChatSetup(chatEntitlementService);
+}
 
 export class SessionsWelcomeContribution extends Disposable implements IWorkbenchContribution {
 
@@ -99,21 +115,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 	}
 
 	private _needsChatSetup(includeUnknown: boolean = true): boolean {
-		const { sentiment, entitlement } = this.chatEntitlementService;
-		if (
-			!sentiment?.installed ||						// Extension not installed: run setup to install
-			sentiment?.disabled ||							// Extension disabled: run setup to enable
-			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
-			(
-				includeUnknown &&
-				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
-				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
-			)
-		) {
-			return true;
-		}
-
-		return false;
+		return needsChatSetup(this.chatEntitlementService, includeUnknown);
 	}
 
 	private showWalkthrough(): void {
@@ -148,7 +150,9 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		// Handle the walkthrough outcome
 		walkthrough.outcome.then(outcome => {
 			this.logService.info(`[sessions welcome] Walkthrough finished with outcome: ${outcome}`);
-			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			if (shouldPersistWelcomeCompletion(outcome, this.chatEntitlementService)) {
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 			this.overlayRef.clear();
 			this.watchEntitlementState();
 		});
@@ -164,16 +168,13 @@ registerAction2(class extends Action2 {
 			title: localize2('resetSessionsWelcome', "Reset Sessions Welcome"),
 			category: Categories.Developer,
 			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyW,
-			},
 		});
 	}
 	run(accessor: ServicesAccessor): void {
 		const storageService = accessor.get(IStorageService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const logService = accessor.get(ILogService);
 
@@ -191,10 +192,22 @@ registerAction2(class extends Action2 {
 			layoutService.mainContainer,
 		));
 
+		store.add(autorun(reader => {
+			chatEntitlementService.sentimentObs.read(reader);
+			chatEntitlementService.entitlementObs.read(reader);
+
+			if (!needsChatSetup(chatEntitlementService)) {
+				storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				store.dispose();
+			}
+		}));
+
 		walkthrough.outcome
 			.then(outcome => {
 				logService.info(`[sessions welcome] Developer reset walkthrough finished with outcome: ${outcome}`);
-				storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				if (shouldPersistWelcomeCompletion(outcome, chatEntitlementService)) {
+					storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				}
 			})
 			.finally(() => {
 				store.dispose();
