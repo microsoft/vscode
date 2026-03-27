@@ -18,7 +18,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -120,8 +119,6 @@ class ChatSuspendThrottlingHandler extends Disposable {
 	constructor(
 		@INativeHostService nativeHostService: INativeHostService,
 		@IChatService chatService: IChatService,
-		@IProductService productService: IProductService,
-		@ILogService logService: ILogService,
 	) {
 		super();
 
@@ -132,10 +129,6 @@ class ChatSuspendThrottlingHandler extends Disposable {
 			// throttling is not applied so that the chat session can continue
 			// even when the window is not in focus.
 			nativeHostService.setBackgroundThrottling(!running);
-
-			if (productService.quality === 'insider') { // TODO@bpasero remove me in the future
-				logService.info(`[ChatSuspendThrottlingHandler] background throttling ${running ? 'suspended' : 'resumed'}`);
-			}
 		}));
 	}
 }
