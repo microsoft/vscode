@@ -258,7 +258,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const description = element.description.read(reader);
 			const timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
 
-			// When in progress with a description, only show description in the details row
+			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
 			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
 
 			// Clear and rebuild details row
