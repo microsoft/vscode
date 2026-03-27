@@ -60,7 +60,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				return override;
 			}
 			const session = this.sessionsService.activeSession.read(reader);
-			return session?.worktree ?? session?.repository;
+			const repo = session?.workspace.read(reader)?.repositories[0];
+			return repo?.workingDirectory ?? repo?.uri;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -73,8 +74,9 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		if (override) {
 			return override;
 		}
-		const session = this.sessionsService.getActiveSession();
-		return session?.worktree ?? session?.repository;
+		const session = this.sessionsService.activeSession.get();
+		const repo = session?.workspace.get()?.repositories[0];
+		return repo?.workingDirectory ?? repo?.uri;
 	}
 
 	setOverrideProjectRoot(root: URI): void {
@@ -107,13 +109,14 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * the file is also committed there so the session sees it immediately.
 	 */
 	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.getActiveSession();
-		if (!session?.repository) {
+		const session = this.sessionsService.activeSession.get();
+		const repo = session?.workspace.get()?.repositories[0];
+		if (!repo?.uri) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, session.repository, session.worktree);
+			await this.commitFileToRepos(fileUri, repo.uri, repo.workingDirectory);
 		}
 	}
 
@@ -123,13 +126,14 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * in the worktree if one is active.
 	 */
 	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.getActiveSession();
-		if (!session?.repository) {
+		const session = this.sessionsService.activeSession.get();
+		const repo = session?.workspace.get()?.repositories[0];
+		if (!repo?.uri) {
 			return;
 		}
 
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, session.repository, session.worktree);
+			await this.commitDeletionToRepos(fileUri, repo.uri, repo.workingDirectory);
 		}
 	}
 
@@ -256,5 +260,19 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			const filter = this.getStorageSourceFilter(cmd.promptPath.type);
 			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
 		});
+	}
+
+	private static readonly _skillUIIntegrations: ReadonlyMap<string, string> = new Map([
+		['act-on-feedback', localize('skillUI.actOnFeedback', "Used by the Submit Feedback button in the Changes toolbar")],
+		['generate-run-commands', localize('skillUI.generateRunCommands', "Used by the Run button in the title bar")],
+		['create-pr', localize('skillUI.createPr', "Used by the Create Pull Request button in the Changes toolbar")],
+		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft Pull Request button in the Changes toolbar")],
+		['update-pr', localize('skillUI.updatePr', "Used by the Update Pull Request button in the Changes toolbar")],
+		['merge-changes', localize('skillUI.mergeChanges', "Used by the Merge button in the Changes toolbar")],
+		['commit', localize('skillUI.commit', "Used by the Commit button in the Changes toolbar")],
+	]);
+
+	getSkillUIIntegrations(): ReadonlyMap<string, string> {
+		return SessionsAICustomizationWorkspaceService._skillUIIntegrations;
 	}
 }

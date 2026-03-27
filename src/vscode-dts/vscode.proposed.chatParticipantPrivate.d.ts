@@ -50,12 +50,6 @@ declare module 'vscode' {
 		constructor(cell: TextDocument);
 	}
 
-	export interface ChatRequestSessionGrouping {
-		readonly id: string;
-		readonly order: number;
-		readonly kind?: string;
-	}
-
 	export interface ChatRequest {
 		/**
 		 * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
@@ -121,11 +115,6 @@ declare module 'vscode' {
 		 * The request ID of the parent request that invoked this subagent.
 		 */
 		readonly parentRequestId?: string;
-
-		/**
-		 * Optional metadata used to group related requests together in the UI.
-		 */
-		readonly sessionGrouping?: ChatRequestSessionGrouping;
 
 		/**
 		 * The permission level for tool auto-approval in this request.
@@ -200,9 +189,14 @@ declare module 'vscode' {
 		readonly modelId?: string;
 
 		/**
+		 * The mode instructions that were active for this request, if any.
+		 */
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined, modeInstructions2: ChatRequestModeInstructions | undefined);
 	}
 
 	export class ChatResponseTurn2 {
@@ -421,4 +415,17 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	export interface LanguageModelToolInformation {
+		/**
+		 * The full reference name of this tool as used in agent definition files.
+		 *
+		 * For MCP tools, this is the canonical name in the format `serverShortName/toolReferenceName`
+		 * (e.g., `github/search_issues`). This can be used to map between the tool names specified
+		 * in agent `.md` files and the tool's internal {@link LanguageModelToolInformation.name id}.
+		 *
+		 * This property is only set for MCP tools. For other tool types, it is `undefined`.
+		 */
+		readonly fullReferenceName?: string;
+	}
 }

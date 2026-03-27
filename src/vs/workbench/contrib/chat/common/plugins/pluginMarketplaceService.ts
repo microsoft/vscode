@@ -778,10 +778,6 @@ function resolvePluginSource(pluginRoot: string | undefined, source: string): st
 	const repoRoot = URI.file('/');
 	const pluginRootUri = normalizedRoot ? normalizePath(joinPath(repoRoot, normalizedRoot)) : repoRoot;
 
-	if (!normalizedSource) {
-		return normalizedRoot || undefined;
-	}
-
 	if (normalizedRoot && (normalizedSource === normalizedRoot || normalizedSource.startsWith(`${normalizedRoot}/`))) {
 		return normalizedSource;
 	}

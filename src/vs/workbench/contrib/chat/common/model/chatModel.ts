@@ -29,7 +29,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionGrouping, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatPerfMark, markChat } from '../chatPerf.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
@@ -71,7 +72,6 @@ export interface ISerializableSendOptions {
 	agentIdSilent?: string;
 	slashCommand?: string;
 	confirmation?: string;
-	sessionGrouping?: IChatSessionGrouping;
 }
 
 /**
@@ -1665,6 +1665,9 @@ export interface IChatModelInputState {
 	/** Current selection ranges */
 	selections: ISelection[];
 
+	/** Current permission level for tool auto-approval */
+	permissionLevel?: ChatPermissionLevel;
+
 	/** Contributed stored state */
 	contrib: Record<string, unknown>;
 }
@@ -1684,6 +1687,7 @@ export interface ISerializableChatModelInputState {
 	} | undefined;
 	inputText: string;
 	selections: ISelection[];
+	permissionLevel?: ChatPermissionLevel;
 	contrib: Record<string, unknown>;
 }
 
@@ -1906,7 +1910,8 @@ class InputModel implements IInputModel {
 				metadata: value.selectedModel.metadata
 			} : undefined,
 			inputText: value.inputText,
-			selections: value.selections
+			selections: value.selections,
+			permissionLevel: value.permissionLevel,
 		};
 	}
 }
@@ -2198,7 +2203,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			},
 			contrib: serializedInputState.contrib,
 			inputText: serializedInputState.inputText,
-			selections: serializedInputState.selections
+			selections: serializedInputState.selections,
+			permissionLevel: serializedInputState.permissionLevel,
 		});
 
 		this.dataSerializer = dataRef?.serializer;
@@ -2538,6 +2544,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 
 		this._requests.push(request);
+		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
 		this._onDidChange.fire({ kind: 'addRequest', request });
 		return request;
 	}
@@ -2778,7 +2785,6 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		agentIdSilent: options.agentIdSilent,
 		slashCommand: options.slashCommand,
 		confirmation: options.confirmation,
-		sessionGrouping: options.sessionGrouping,
 	};
 }
 

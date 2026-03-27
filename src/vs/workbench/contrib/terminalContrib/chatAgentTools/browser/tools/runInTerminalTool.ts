@@ -73,9 +73,11 @@ import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 
 // #region Tool data
 
+const TERMINAL_SANDBOX_DOCUMENTATION_URL = 'https://aka.ms/vscode-sandboxing';
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
@@ -274,7 +276,7 @@ export async function createRunInTerminalToolData(
 		modelDescription,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
-		icon: isSandboxEnabled ? Codicon.terminalSecure : Codicon.terminal,
+		icon: Codicon.terminal,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -747,13 +749,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					language: presenterResult.language ?? undefined,
 				};
 				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
-					confirmationTitle = args.isBackground
-						? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
-						: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
+					if (presenterResult.languageDisplayName) {
+						confirmationTitle = args.isBackground
+							? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
+							: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
+					} else {
+						confirmationTitle = args.isBackground
+							? localize('runInTerminal.presentationOverride.background.inDirectory.withoutLanguage', "Run command in `{0}` in background within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel)
+							: localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
+					}
 				} else {
-					confirmationTitle = args.isBackground
-						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
-						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+					if (presenterResult.languageDisplayName) {
+						confirmationTitle = args.isBackground
+							? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
+							: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+					} else {
+						confirmationTitle = args.isBackground
+							? localize('runInTerminal.presentationOverride.background.withoutLanguage', "Run command in `{0}` in background?", shellType)
+							: localize('runInTerminal.presentationOverride.withoutLanguage', "Run command in `{0}`?", shellType);
+					}
 				}
 				if (!presenterResult.processOtherPresenters) {
 					break;
@@ -764,8 +778,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (requiresUnsandboxConfirmation) {
 			confirmationTitle = args.isBackground
-				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the sandbox in background?", shellType)
-				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the sandbox?", shellType);
+				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the [sandbox]({1}) in background?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
+				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
@@ -1194,6 +1208,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				didUserEditCommand,
 				didToolEditCommand,
 				isBackground: args.isBackground,
+				isSandboxWrapped: toolSpecificData.commandLine.isSandboxWrapped === true,
 				shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
 				error,
 				isNewSession,
@@ -1332,6 +1347,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						mimeType,
 						data: fileContent.value,
 					},
+					audience: [LanguageModelPartAudience.User],
 				});
 			} catch {
 				// Ignore files that can't be read

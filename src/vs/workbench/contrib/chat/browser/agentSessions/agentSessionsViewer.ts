@@ -14,10 +14,11 @@ import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compres
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -49,8 +50,9 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { compareIgnoreCase } from '../../../../../base/common/strings.js';
 
-export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
+export type AgentSessionListItem = IAgentSession | IAgentSessionSection | IAgentSessionShowMore | IAgentSessionShowLess;
 
 //#region Agent Session Renderer
 
@@ -68,6 +70,7 @@ interface IAgentSessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
+	readonly detailsIcon: HTMLElement;
 	readonly diffContainer: HTMLElement;
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
@@ -88,6 +91,8 @@ interface IAgentSessionItemTemplate {
 
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
+	readonly hideSessionBadge?: boolean;
+	readonly useStatusOnlyIcons?: boolean;
 	getHoverPosition(): HoverPosition;
 
 	isGroupedByRepository?(): boolean;
@@ -144,6 +149,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
+						h('div.agent-session-details-icon@detailsIcon'),
 						h('div.agent-session-badge@badge'),
 						h('span.agent-session-separator@separator'),
 						h('div.agent-session-diff-container@diffContainer',
@@ -178,6 +184,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			pinnedIndicator: elements.pinnedIndicator,
 			titleToolbar,
+			detailsIcon: elements.detailsIcon,
 			badge: elements.badge,
 			separator: elements.separator,
 			diffContainer: elements.diffContainer,
@@ -207,8 +214,35 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// Archived
 		template.element.classList.toggle('archived', session.element.isArchived());
 
-		// Icon
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+		// Section label for group hover detection
+		if (this.options.isGroupedByRepository?.()) {
+			const repoName = getRepositoryName(session.element);
+			if (repoName) {
+				template.element.setAttribute('data-section-label', repoName);
+			} else {
+				template.element.removeAttribute('data-section-label');
+			}
+		} else {
+			template.element.removeAttribute('data-section-label');
+		}
+
+		// Icon — in status-only mode, show status indicator in icon column and session type icon in details row
+		if (this.options.useStatusOnlyIcons) {
+			const statusIcon = this.getIcon(session.element, true);
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(statusIcon)}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			template.icon.style.color = statusIcon.color ? asCssVariable(statusIcon.color.id) : '';
+			if (session.element.providerType === AgentSessionProviders.Background) {
+				template.detailsIcon.className = 'agent-session-details-icon'; // hide default provider icon (same as Local in non-status-only mode)
+			} else {
+				template.detailsIcon.className = `agent-session-details-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+				template.detailsIcon.classList.add('visible');
+			}
+		} else {
+			const icon = this.getIcon(session.element);
+			template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(icon)}${session.element.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+			template.icon.style.color = icon.color ? asCssVariable(icon.color.id) : '';
+			template.detailsIcon.className = 'agent-session-details-icon';
+		}
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
@@ -279,6 +313,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+		if (this.options.hideSessionBadge) {
+			return false;
+		}
+
 		const badge = session.element.badge;
 		if (!badge) {
 			return false;
@@ -287,9 +325,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		// When grouped by repository, hide the badge only if the name it shows
 		// matches the section header (i.e. the repository name for this session).
 		// Badges with a different name (e.g. worktree name) are still shown.
-		// Archived sessions always keep their badge since they are grouped under
-		// the "Archived" section, not a repository section.
-		if (this.options.isGroupedByRepository?.() && !session.element.isArchived()) {
+		// Pinned and archived sessions always keep their badge since they are
+		// grouped under their own section, not a repository section.
+		if (
+			this.options.isGroupedByRepository?.() &&
+			!session.element.isArchived() &&
+			!session.element.isPinned()
+		) {
 			const raw = typeof badge === 'string' ? badge : badge.value;
 			const match = raw.match(/^\$\((?:repo|folder|worktree)\)\s*(.+)/);
 			if (match) {
@@ -359,7 +401,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return true;
 	}
 
-	private getIcon(session: IAgentSession): ThemeIcon {
+	private getIcon(session: IAgentSession, statusOnly?: boolean): ThemeIcon {
 		if (session.status === AgentSessionStatus.InProgress) {
 			return Codicon.sessionInProgress;
 		}
@@ -372,15 +414,37 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return Codicon.error;
 		}
 
+		if (statusOnly) {
+			// PR status icons
+			const metadata = session.metadata;
+			const hasPR = metadata?.pullRequestUrl || metadata?.pullRequestNumber;
+			if (hasPR) {
+				switch (metadata?.pullRequestState) {
+					case 'merged':
+						return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
+					case 'closed':
+						return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
+					case 'draft':
+						return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
+					default:
+						return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
+				}
+			}
+		}
+
 		if (!session.isRead() && !session.isArchived()) {
 			return Codicon.circleFilled;
 		}
 
-		if (session.providerType === AgentSessionProviders.Local) {
+		if (!statusOnly && session.providerType === AgentSessionProviders.Local) {
 			return Codicon.circleSmallFilled;
 		}
 
-		return session.icon;
+		if (!statusOnly) {
+			return session.icon;
+		}
+
+		return Codicon.circleSmallFilled;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -417,7 +481,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private renderStatus(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
 
-		const getTimeLabel = (session: IAgentSession) => {
+		// Show repository name for pinned sessions when grouped by repository,
+		// since they are not placed under a repository section header.
+		const repoPrefix = (session.element.isPinned() && this.options.isGroupedByRepository?.())
+			? getRepositoryName(session.element)
+			: undefined;
+
+		const getStatusText = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
 			if (session.status === AgentSessionStatus.InProgress && session.timing.lastRequestStarted) {
 				timeLabel = this.toDuration(session.timing.lastRequestStarted, Date.now(), false, false);
@@ -435,13 +505,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				}
 			}
 
-			return timeLabel;
+			return repoPrefix ? `${repoPrefix} \u00B7 ${timeLabel}` : timeLabel;
 		};
 
 		// Time label
-		template.statusTime.textContent = getTimeLabel(session.element);
+		template.statusTime.textContent = getStatusText(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.statusTime.textContent = getTimeLabel(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.statusTime.textContent = getStatusText(session.element), session.element.status === AgentSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 
 		return true;
 	}
@@ -587,6 +657,10 @@ interface IAgentSessionSectionTemplate {
 	readonly disposables: IDisposable;
 }
 
+export interface IAgentSessionSectionRendererOptions {
+	readonly hideSectionCount?: boolean;
+}
+
 export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IAgentSessionSection, FuzzyScore, IAgentSessionSectionTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session-section';
@@ -594,6 +668,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 	readonly templateId = AgentSessionSectionRenderer.TEMPLATE_ID;
 
 	constructor(
+		private readonly sectionOptions: IAgentSessionSectionRendererOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
@@ -634,7 +709,11 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 		template.label.textContent = element.element.label;
 
 		// Count
-		template.count.textContent = String(element.element.sessions.length);
+		if (this.sectionOptions.hideSectionCount) {
+			template.count.textContent = '';
+		} else {
+			template.count.textContent = String(element.element.sessions.length);
+		}
 
 		// Toolbar
 		ChatContextKeys.agentSessionSection.bindTo(template.contextKeyService).set(element.element.section);
@@ -656,16 +735,121 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 //#endregion
 
+//#region Show More / Show Less Renderer
+
+interface IAgentSessionShowMoreTemplate {
+	readonly container: HTMLElement;
+	readonly label: HTMLElement;
+	readonly disposables: DisposableStore;
+}
+
+export interface IAgentSessionShowMoreRendererOptions {
+	readonly compactLabel?: boolean;
+}
+
+export class AgentSessionShowMoreRenderer implements ICompressibleTreeRenderer<IAgentSessionShowMore, FuzzyScore, IAgentSessionShowMoreTemplate> {
+
+	static readonly TEMPLATE_ID = 'agent-session-show-more';
+	static readonly HEIGHT = 26;
+	static readonly COLLAPSED_HEIGHT = 1;
+
+	readonly templateId = AgentSessionShowMoreRenderer.TEMPLATE_ID;
+
+	constructor(private readonly options?: IAgentSessionShowMoreRendererOptions) { }
+
+	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
+		const disposables = new DisposableStore();
+
+		const elements = h(
+			'div.agent-session-show-more@container',
+			[h('span.agent-session-show-more-label@label')]
+		);
+
+		container.appendChild(elements.container);
+
+		return {
+			container: elements.container,
+			label: elements.label,
+			disposables,
+		};
+	}
+
+	renderElement(element: ITreeNode<IAgentSessionShowMore, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
+		template.label.textContent = this.options?.compactLabel
+			? localize('agentSessions.showMoreCompact', "+{0} more", element.element.remainingCount)
+			: localize('agentSessions.showMore', "Show {0} More...", element.element.remainingCount);
+		template.container.setAttribute('data-section-label', element.element.sectionLabel);
+	}
+
+	renderCompressedElements(): void {
+		throw new Error('Should never happen since show-more is incompressible');
+	}
+
+	disposeElement(): void { }
+
+	disposeTemplate(templateData: IAgentSessionShowMoreTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
+export class AgentSessionShowLessRenderer implements ICompressibleTreeRenderer<IAgentSessionShowLess, FuzzyScore, IAgentSessionShowMoreTemplate> {
+
+	static readonly TEMPLATE_ID = 'agent-session-show-less';
+	static readonly HEIGHT = AgentSessionShowMoreRenderer.HEIGHT;
+
+	readonly templateId = AgentSessionShowLessRenderer.TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): IAgentSessionShowMoreTemplate {
+		const disposables = new DisposableStore();
+
+		const elements = h(
+			'div.agent-session-show-more@container',
+			[h('span.agent-session-show-more-label@label')]
+		);
+
+		container.appendChild(elements.container);
+
+		return {
+			container: elements.container,
+			label: elements.label,
+			disposables,
+		};
+	}
+
+	renderElement(element: ITreeNode<IAgentSessionShowLess, FuzzyScore>, _index: number, template: IAgentSessionShowMoreTemplate): void {
+		template.label.textContent = localize('agentSessions.showLess', "Show less");
+		template.container.setAttribute('data-section-label', element.element.sectionLabel);
+	}
+
+	renderCompressedElements(): void {
+		throw new Error('Should never happen since show-less is incompressible');
+	}
+
+	disposeElement(): void { }
+
+	disposeTemplate(templateData: IAgentSessionShowMoreTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
+//#endregion
+
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
 	static readonly ITEM_HEIGHT = 54;
 	static readonly SECTION_HEIGHT = 26;
 
-	constructor(private readonly _approvalModel?: AgentSessionApprovalModel) { }
+	constructor(private readonly _approvalModel?: AgentSessionApprovalModel,
+		private readonly _compactShowMore?: boolean,
+	) { }
 
 	getHeight(element: AgentSessionListItem): number {
 		if (isAgentSessionSection(element)) {
 			return AgentSessionsListDelegate.SECTION_HEIGHT;
+		}
+
+		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
+			return this._compactShowMore ? AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
 		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
@@ -677,12 +861,23 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 	}
 
 	hasDynamicHeight(element: AgentSessionListItem): boolean {
+		if (isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
+			return true;
+		}
 		return !!this._approvalModel && isAgentSession(element);
 	}
 
 	getTemplateId(element: AgentSessionListItem): string {
 		if (isAgentSessionSection(element)) {
 			return AgentSessionSectionRenderer.TEMPLATE_ID;
+		}
+
+		if (isAgentSessionShowMore(element)) {
+			return AgentSessionShowMoreRenderer.TEMPLATE_ID;
+		}
+
+		if (isAgentSessionShowLess(element)) {
+			return AgentSessionShowLessRenderer.TEMPLATE_ID;
 		}
 
 		return AgentSessionRenderer.TEMPLATE_ID;
@@ -708,6 +903,14 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 			return localize('agentSessionSectionAriaLabel', "{0} sessions section, {1} sessions", element.label, element.sessions.length);
 		}
 
+		if (isAgentSessionShowMore(element)) {
+			return localize('agentSessionShowMoreAriaLabel', "Show {0} more sessions", element.remainingCount);
+		}
+
+		if (isAgentSessionShowLess(element)) {
+			return localize('agentSessionShowLessAriaLabel', "Show less sessions");
+		}
+
 		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
 	}
 }
@@ -718,6 +921,7 @@ export interface IAgentSessionsFilterExcludes {
 
 	readonly archived: boolean;
 	readonly read: boolean;
+	readonly repositoryGroupCapped: boolean;
 }
 
 export interface IAgentSessionsFilter {
@@ -775,15 +979,44 @@ export interface IAgentSessionsFilter {
 export class AgentSessionsDataSource extends Disposable implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
 	private static readonly CAPPED_SESSIONS_LIMIT = 3;
+	static readonly REPOSITORY_GROUP_LIMIT = 5;
 
 	private readonly _onDidGetChildren = this._register(new Emitter<number>());
 	readonly onDidGetChildren: Event<number> = this._onDidGetChildren.event;
 
+	private readonly _onDidExpandRepositoryGroup = this._register(new Emitter<void>());
+	readonly onDidExpandRepositoryGroup: Event<void> = this._onDidExpandRepositoryGroup.event;
+
+	private readonly expandedRepositoryGroups = new Set<string>();
+
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
+		private readonly repositoryGroupLimit?: number,
 	) {
 		super();
+
+		if (this.filter) {
+			let previousCapped = this.filter.getExcludes().repositoryGroupCapped;
+			this._register(this.filter.onDidChange(() => {
+				const currentCapped = this.filter!.getExcludes().repositoryGroupCapped;
+				// Only clear expanded state when capping transitions from off to on
+				if (currentCapped && !previousCapped) {
+					this.expandedRepositoryGroups.clear();
+				}
+				previousCapped = currentCapped;
+			}));
+		}
+	}
+
+	expandRepositoryGroup(sectionLabel: string): void {
+		this.expandedRepositoryGroups.add(sectionLabel);
+		this._onDidExpandRepositoryGroup.fire();
+	}
+
+	collapseRepositoryGroup(sectionLabel: string): void {
+		this.expandedRepositoryGroups.delete(sectionLabel);
+		this._onDidExpandRepositoryGroup.fire();
 	}
 
 	hasChildren(element: IAgentSessionsModel | AgentSessionListItem): boolean {
@@ -798,7 +1031,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			return element.sessions.length > 0;
 		}
 
-		// Session element
+		// Session element or show more
 		else {
 			return false;
 		}
@@ -838,10 +1071,22 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions	section
 		else if (isAgentSessionSection(element)) {
+			const isCappingEnabled = this.repositoryGroupLimit && this.filter?.getExcludes().repositoryGroupCapped;
+			if (isCappingEnabled && element.section === AgentSessionSection.Repository && element.sessions.length > this.repositoryGroupLimit) {
+				if (!this.expandedRepositoryGroups.has(element.label)) {
+					// Collapsed: show limited sessions + "show more"
+					const visible = element.sessions.slice(0, this.repositoryGroupLimit);
+					const remainingCount = element.sessions.length - this.repositoryGroupLimit;
+					return [...visible, { showMore: true as const, sectionLabel: element.label, remainingCount }];
+				} else {
+					// Expanded: show all sessions + "show less"
+					return [...element.sessions, { showLess: true as const, sectionLabel: element.label }];
+				}
+			}
 			return element.sessions;
 		}
 
-		// Session element
+		// Session element or show more
 		else {
 			return [];
 		}
@@ -852,7 +1097,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		const sorter = this.sorter;
 		const sortedSessions = sorter instanceof AgentSessionsSorter
-			? sessions.sort((a, b) => sorter.compare(a, b, isCapped /* special sorting for when results are capped to keep active ones top */))
+			? sessions.sort((a, b) => sorter.compare(a, b, true /* prioritize active sessions to keep in-progress/needs-input ones top within each group */))
 			: sessions.sort(sorter.compare.bind(sorter));
 
 		if (isCapped) {
@@ -948,15 +1193,13 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		const result: AgentSessionListItem[] = [];
 
-		if (pinnedSessions.length > 0) {
-			result.push({
-				section: AgentSessionSection.Pinned,
-				label: AgentSessionSectionLabels[AgentSessionSection.Pinned],
-				sessions: pinnedSessions,
-			});
-		}
+		// Pinned sessions are added directly (no section header) so they
+		// appear at the top without a "PINNED" group label.
+		result.push(...pinnedSessions);
 
-		for (const [, { label, sessions }] of repoMap) {
+		const sortedRepoGroups = [...repoMap.values()].sort((a, b) => compareIgnoreCase(a.label, b.label));
+
+		for (const { label, sessions } of sortedRepoGroups) {
 			result.push({
 				section: AgentSessionSection.Repository,
 				label,
@@ -1232,6 +1475,14 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 			return `section-${element.section}-${element.label}`;
 		}
 
+		if (isAgentSessionShowMore(element)) {
+			return `show-more-${element.sectionLabel}`;
+		}
+
+		if (isAgentSessionShowLess(element)) {
+			return `show-less-${element.sectionLabel}`;
+		}
+
 		if (isAgentSession(element)) {
 			return element.resource.toString();
 		}
@@ -1322,6 +1573,14 @@ export class AgentSessionsKeyboardNavigationLabelProvider implements ICompressib
 			return element.label;
 		}
 
+		if (isAgentSessionShowMore(element)) {
+			return element.sectionLabel;
+		}
+
+		if (isAgentSessionShowLess(element)) {
+			return element.sectionLabel;
+		}
+
 		return element.label;
 	}
 
@@ -1345,8 +1604,8 @@ export class AgentSessionsDragAndDrop extends Disposable implements ITreeDragAnd
 	}
 
 	getDragURI(element: AgentSessionListItem): string | null {
-		if (isAgentSessionSection(element)) {
-			return null; // section headers are not draggable
+		if (isAgentSessionSection(element) || isAgentSessionShowMore(element) || isAgentSessionShowLess(element)) {
+			return null; // section headers, show-more and show-less items are not draggable
 		}
 
 		return element.resource.toString();

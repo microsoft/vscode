@@ -16,7 +16,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get the output of a terminal command previously started with ${TerminalToolId.RunInTerminal}`,
+	modelDescription: `Get the output of a background terminal command previously started with ${TerminalToolId.RunInTerminal}. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal} when isBackground=true; terminal names, labels, and integers are not valid IDs.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -24,7 +24,8 @@ export const GetTerminalOutputToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: 'The ID of the terminal to check.'
+				description: `The ID of the background terminal to check (returned by ${TerminalToolId.RunInTerminal} when isBackground=true). This must be the exact opaque ID returned by that tool; terminal names, labels, or integers are invalid.`,
+				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
 			},
 		},
 		required: [
@@ -47,10 +48,20 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTerminalOutputInputParams;
+		const execution = RunInTerminalTool.getExecution(args.id);
+		if (!execution) {
+			return {
+				content: [{
+					kind: 'text',
+					value: `Error: No active terminal execution found with ID ${args.id}. The ID must be the exact value returned by ${TerminalToolId.RunInTerminal} for a background command.`
+				}]
+			};
+		}
+
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of terminal ${args.id}:\n${RunInTerminalTool.getBackgroundOutput(args.id)}`
+				value: `Output of terminal ${args.id}:\n${execution.getOutput()}`
 			}]
 		};
 	}

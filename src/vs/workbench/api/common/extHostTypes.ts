@@ -3530,6 +3530,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
 		readonly id?: string,
 		readonly modelId?: string,
+		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
 	) { }
 }
 
@@ -3565,6 +3566,23 @@ export enum ChatSessionStatus {
 	Completed = 1,
 	InProgress = 2,
 	NeedsInput = 3
+}
+
+export enum ChatSessionCustomizationType {
+	Agents = 'agents',
+	Skills = 'skills',
+	AgentInstructions = 'agentInstructions',
+	ContextInstructions = 'contextInstructions',
+	OnDemandInstructions = 'onDemandInstructions',
+	Prompts = 'prompts',
+}
+
+export enum ChatSessionCustomizationStorageLocation {
+	Workspace = 1,
+	User = 2,
+	Extension = 3,
+	Plugin = 4,
+	BuiltIn = 5,
 }
 
 export enum ChatDebugLogLevel {

@@ -605,10 +605,10 @@ suite('PromptFileParser', () => {
 
 	});
 
-	test('userInvocable getter falls back to deprecated user-invokable', async () => {
+	test('userInvocable getter reads user-invocable attribute', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
 
-		// user-invocable (new spelling) takes precedence
+		// user-invocable works
 		const content1 = [
 			'---',
 			'description: "Test"',
@@ -618,26 +618,15 @@ suite('PromptFileParser', () => {
 		const result1 = new PromptFileParser().parse(uri, content1);
 		assert.strictEqual(result1.header?.userInvocable, true);
 
-		// deprecated user-invokable still works as fallback
+		// user-invocable false
 		const content2 = [
 			'---',
 			'description: "Test"',
-			'user-invokable: false',
+			'user-invocable: false',
 			'---',
 		].join('\n');
 		const result2 = new PromptFileParser().parse(uri, content2);
 		assert.strictEqual(result2.header?.userInvocable, false);
-
-		// user-invocable takes precedence over deprecated user-invokable
-		const content3 = [
-			'---',
-			'description: "Test"',
-			'user-invocable: true',
-			'user-invokable: false',
-			'---',
-		].join('\n');
-		const result3 = new PromptFileParser().parse(uri, content3);
-		assert.strictEqual(result3.header?.userInvocable, true);
 
 		// neither set returns undefined
 		const content4 = [

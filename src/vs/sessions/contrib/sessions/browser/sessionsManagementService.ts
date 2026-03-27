@@ -3,80 +3,125 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ISessionOpenOptions, openSession as openSessionDefault } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
-import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChatService, IChatSendRequestOptions, IChatSessionGrouping } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { INewSession, CopilotCLISession, RemoteNewSession, AgentHostNewSession } from '../../chat/browser/newSession.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
-import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../common/sessionWorkspace.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { ISessionType, ISendRequestOptions, IChatChangeEvent } from './sessionsProvider.js';
+import { SessionsGroupModel } from './sessionsGroupModel.js';
+import { ISessionData, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, IChatData } from '../common/sessionData.js';
 import { IGitHubSessionContext } from '../../github/common/types.js';
-import { ResourceSet } from '../../../../base/common/map.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+
+/**
+ * Configuration properties available on new/pending sessions.
+ * Not part of the public {@link ISessionData} contract but present on
+ * concrete session implementations (CopilotCLISession, RemoteNewSession, AgentHostNewSession).
+ */
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
 /**
- * True when the active session uses the Background provider type (copilotcli).
- * Used to gate actions that require a local worktree (run script, open in VS Code, terminal).
+ * The provider ID of the active session (e.g., 'default-copilot', 'agenthost-hostA').
  */
+export const ActiveSessionProviderIdContext = new RawContextKey<string>('activeSessionProviderId', '', localize('activeSessionProviderId', "The provider ID of the active session"));
+
+/**
+ * The session type of the active session (e.g., 'copilotcli', 'cloud').
+ */
+export const ActiveSessionTypeContext = new RawContextKey<string>('activeSessionType', '', localize('activeSessionType', "The session type of the active session"));
+
 export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
 
 //#region Active Session Service
 
 const LAST_SELECTED_SESSION_KEY = 'agentSessions.lastSelectedSession';
+const ACTIVE_PROVIDER_KEY = 'sessions.activeProviderId';
+
+/**
+ * Event fired when sessions change within a provider.
+ */
+export interface ISessionsChangeEvent {
+	readonly added: readonly ISessionData[];
+	readonly removed: readonly ISessionData[];
+	readonly changed: readonly ISessionData[];
+}
 
 /**
  * An active session item extends IChatSessionItem with repository information.
  * - For agent session items: repository is the workingDirectory from metadata
  * - For new sessions: repository comes from the session option with id 'repository'
  */
-export interface IActiveSessionItem {
-	readonly resource: URI;
-	readonly isUntitled: boolean;
-	readonly label: string | undefined;
-	readonly repository: URI | undefined;
-	readonly worktree: URI | undefined;
-	readonly worktreeBranchName: string | undefined;
-	readonly worktreeBaseBranchProtected: boolean | undefined;
-	readonly providerType: string;
-}
-
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * Observable for the currently active session.
-	 */
-	readonly activeSession: IObservable<IActiveSessionItem | undefined>;
+	// -- Sessions --
 
 	/**
-	 * Returns the currently active session, if any.
+	 * Get all sessions from all registered providers.
 	 */
-	getActiveSession(): IActiveSessionItem | undefined;
+	getSessions(): ISessionData[];
+
+	/**
+	 * Get a session by its resource URI.
+	 */
+	getSession(resource: URI): ISessionData | undefined;
+
+	/**
+	 * Get all session types from all registered providers.
+	 */
+	getAllSessionTypes(): ISessionType[];
+
+	/**
+	 * Fires when available session types change (providers added/removed).
+	 */
+	readonly onDidChangeSessionTypes: Event<void>;
+
+	/**
+	 * Fires when sessions change across any provider.
+	 */
+	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+
+	// -- Active Session --
+
+	/**
+	 * Observable for the currently active session as {@link ISessionData}.
+	 */
+	readonly activeSession: IObservable<ISessionData | undefined>;
+
+	/**
+	 * Observable for the currently active sessions provider ID.
+	 * When only one provider exists, it is selected automatically.
+	 */
+	readonly activeProviderId: IObservable<string | undefined>;
+
+	/**
+	 * Set the active sessions provider by ID.
+	 */
+	setActiveProvider(providerId: string): void;
+
+	/**
+	 * Select an existing session as the active session.
+	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
+	 */
+	openSession(sessionResource: URI): Promise<void>;
 
 	/**
 	 * Select an existing session as the active session.
 	 * Sets `isNewChatSession` context to false and opens the session.
 	 */
-	openSession(sessionResource: URI, openOptions?: ISessionOpenOptions): Promise<void>;
+	openChat(chatResource: URI): Promise<void>;
 
 	/**
 	 * Switch to the new-session view.
@@ -90,28 +135,39 @@ export interface ISessionsManagementService {
 	getSessionRepositoryUri(session: IAgentSession): URI | undefined;
 
 	/**
-	 * Create a pending session object for the given target type.
-	 * Local sessions collect options locally; remote sessions notify the extension.
+	 * Create a new session for the given workspace.
+	 * Delegates to the provider identified by providerId.
 	 */
-	createNewSessionForTarget(target: AgentSessionTarget, sessionResource: URI, options?: { defaultRepoUri?: URI; agentHost?: boolean }): Promise<INewSession>;
+	createNewSession(providerId: string, workspace: ISessionWorkspace): ISessionData;
 
 	/**
-	 * Open a new session, apply options, and send the initial request.
-	 * Looks up the session by resource URI and builds send options from it.
+	 * Send a request to an existing session
 	 */
-	sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel; sessionGrouping?: IChatSessionGrouping }): Promise<void>;
+	sendAndCreateChat(options: ISendRequestOptions, session: ISessionData): Promise<void>;
+
+	/**
+	 * Send the initial request for a session.
+	 */
+	sendRequest(chat: IChatData, options: ISendRequestOptions, session?: ISessionData): Promise<void>;
+
+	/**
+	 * Update the session type for a new session.
+	 * The provider may recreate the session object.
+	 * If the session is the active session, the active session data is updated.
+	 */
+	setSessionType(chat: IChatData, type: ISessionType): Promise<void>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
 	 * so the Changes view reflects the update.
 	 */
-	commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void>;
+	commitWorktreeFiles(session: ISessionData, fileUris: URI[]): Promise<void>;
 
 	/**
 	 * Derive a GitHub context (owner, repo, prNumber) from an active session.
 	 * Returns `undefined` if the session is not associated with a GitHub repository.
 	 */
-	getGitHubContext(session: IActiveSessionItem): IGitHubSessionContext | undefined;
+	getGitHubContext(session: ISessionData): IGitHubSessionContext | undefined;
 
 	/**
 	 * Derive a GitHub context from a session resource URI.
@@ -123,92 +179,217 @@ export interface ISessionsManagementService {
 	 * Resolve a relative file path to a full URI based on the session's repository/worktree.
 	 */
 	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined;
+
+	// -- Session Actions --
+
+	/** Archive a session. */
+	archiveSession(session: ISessionData): Promise<void>;
+	/** Unarchive a session. */
+	unarchiveSession(session: ISessionData): Promise<void>;
+	/** Delete a session. */
+	deleteSession(session: ISessionData): Promise<void>;
+	/** Rename a session. */
+	renameSession(session: ISessionData, title: string): Promise<void>;
+	/** Mark a session as read or unread. */
+	setRead(session: ISessionData, read: boolean): void;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
+
+function latestDateAcrossChats(chats: readonly IChatData[], getter: (chat: IChatData) => Date | undefined): Date | undefined {
+	let latest: Date | undefined;
+	for (const chat of chats) {
+		const d = getter(chat);
+		if (d && (!latest || d > latest)) {
+			latest = d;
+		}
+	}
+	return latest;
+}
 
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
-	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
-	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
+	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
+	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
+	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
+	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
+
+	private _sessionTypes: readonly ISessionType[] = [];
+
+	private readonly _activeSession = observableValue<ISessionData | undefined>(this, undefined);
+	readonly activeSession: IObservable<ISessionData | undefined> = this._activeSession;
+	private readonly _activeProviderId = observableValue<string | undefined>(this, undefined);
+	readonly activeProviderId: IObservable<string | undefined> = this._activeProviderId;
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
+	private readonly _activeSessionProviderId: IContextKey<string>;
+	private readonly _activeSessionType: IContextKey<string>;
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
+	private readonly _groupModel: SessionsGroupModel;
+	private readonly _sessionDataCache = new Map<string, ISessionData>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatService private readonly chatService: IChatService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
 		// Bind context key to active session state.
 		// isNewSession is false when there are any established sessions in the model.
 		this.isNewChatSessionContext = IsNewChatSessionContext.bindTo(contextKeyService);
+		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
+		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
 		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
 
 		// Load last selected session
 		this.lastSelectedSession = this.loadLastSelectedSession();
 
+		// Initialize group model
+		this._groupModel = this._register(new SessionsGroupModel(storageService));
+
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this.saveLastSelectedSession()));
 
-		// Update active session when the agent sessions model changes (e.g., metadata updates with worktree/repository info)
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.refreshActiveSessionFromModel()));
+		// Forward session change events from providers and update active session
+		this._register(this.sessionsProvidersService.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 
-		// Clear active session if the active session gets archived
-		this._register(this.agentSessionsService.model.onDidChangeSessionArchivedState(e => {
-			if (e.isArchived()) {
-				const currentActive = this._activeSession.get();
-				if (currentActive && currentActive.resource.toString() === e.resource.toString()) {
-					this.openNewSessionView();
-				}
-			}
+		// Restore or auto-select active provider
+		this._initActiveProvider();
+		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
+			this._initActiveProvider();
+			this._updateSessionTypes();
 		}));
+
+		// Track active chat in the group model when the focused session changes in the chat widget
+		this._register(this.chatWidgetService.onDidChangeFocusedSession(() => this._syncActiveChatFromWidget()));
+		// The chat might have been added to the widget before it was added to the model due to the async approach of the current send implemenation
+		this._register(this._groupModel.onDidAddChatToSession(() => this._syncActiveChatFromWidget()));
 	}
 
-	private refreshActiveSessionFromModel(): void {
+	private _syncActiveChatFromWidget(): void {
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		const sessionResource = widget?.viewModel?.sessionResource;
+		if (!sessionResource) {
+			return;
+		}
+
+		// Find the chat data matching this session resource
+		const chat = this._getChat(sessionResource);
+		if (!chat) {
+			return;
+		}
+
+		// Update the group model's active chat
+		this._groupModel.setActiveChatId(chat.chatId);
+	}
+
+	private _initActiveProvider(): void {
+		const providers = this.sessionsProvidersService.getProviders();
+		if (providers.length === 0) {
+			return;
+		}
+
+		// If already set and still valid, keep it
+		const current = this._activeProviderId.get();
+		if (current && providers.some(p => p.id === current)) {
+			return;
+		}
+
+		// Try to restore from storage
+		const stored = this.storageService.get(ACTIVE_PROVIDER_KEY, StorageScope.PROFILE);
+		if (stored && providers.some(p => p.id === stored)) {
+			this._activeProviderId.set(stored, undefined);
+			return;
+		}
+
+		// Auto-select the first (or only) provider
+		this._activeProviderId.set(providers[0].id, undefined);
+	}
+
+	setActiveProvider(providerId: string): void {
+		this._activeProviderId.set(providerId, undefined);
+		this.storageService.store(ACTIVE_PROVIDER_KEY, providerId, StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	/**
+	 * Convert an array of chats into deduplicated sessions using the group model.
+	 * Multiple chats may map to the same session group; this returns one
+	 * {@link ISessionData} per unique group.
+	 */
+	private _chatsToSessions(chats: readonly IChatData[]): ISessionData[] {
+		const seen = new Set<string>();
+		const sessions: ISessionData[] = [];
+		for (const chat of chats) {
+			const groupId = this._groupModel.getSessionIdForChat(chat.chatId) ?? chat.chatId;
+			if (!seen.has(groupId)) {
+				seen.add(groupId);
+				sessions.push(this._chatToSession(chat));
+			}
+		}
+		return sessions;
+	}
+
+	private onDidChangeSessionsFromSessionsProviders(e: IChatChangeEvent): void {
+		const sessionEvent: ISessionsChangeEvent = {
+			added: this._chatsToSessions(e.added),
+			removed: this._chatsToSessions(e.removed),
+			changed: this._chatsToSessions(e.changed),
+		};
+		this._onDidChangeSessions.fire(sessionEvent);
 		const currentActive = this._activeSession.get();
+
+		// Remove chats from the group model and clean up session cache
+		for (const removed of e.removed) {
+			const sessionId = this._groupModel.getSessionIdForChat(removed.chatId);
+			this._groupModel.removeChat(removed.chatId);
+			if (sessionId && this._groupModel.getChatIds(sessionId).length === 0) {
+				this._sessionDataCache.delete(sessionId);
+			}
+		}
+
 		if (!currentActive) {
 			return;
 		}
 
-		if (currentActive.isUntitled) {
-			return;
+		if (e.removed.length) {
+			if (e.removed.some(r => currentActive.chats.get().find(c => c.chatId === r.chatId))) {
+				// Only open new session view if the group has no remaining chats
+				if (this._groupModel.getChatIds(currentActive.sessionId).length === 0) {
+					this.openNewSessionView();
+				}
+				return;
+			}
 		}
 
-		const agentSession = this.agentSessionsService.model.getSession(currentActive.resource);
-		if (agentSession) {
-			this.setActiveSession(agentSession);
-		} else {
-			this.showNextSession();
-		}
-	}
-
-	private showNextSession(): void {
-		const sessions = this.agentSessionsService.model.sessions
-			.filter(s => !s.isArchived())
-			.sort((a, b) => (b.timing.lastRequestEnded ?? b.timing.created) - (a.timing.lastRequestEnded ?? a.timing.created));
-
-		if (sessions.length > 0) {
-			this.setActiveSession(sessions[0]);
-			this.instantiationService.invokeFunction(openSessionDefault, sessions[0]);
-		} else {
-			this.openNewSessionView();
+		if (e.changed.length) {
+			const updated = e.changed.find(s => currentActive.chats.get().find(c => c.chatId === s.chatId));
+			if (updated?.isArchived.get()) {
+				// Only open new session view if all chats in the group are archived
+				const groupId = this._groupModel.getSessionIdForChat(currentActive.sessionId);
+				const chatIds = groupId ? this._groupModel.getChatIds(groupId) : [];
+				const allChats = this.sessionsProvidersService.getSessions();
+				const allArchived = chatIds.length === 0 || chatIds.every(id => {
+					const chat = allChats.find(c => c.chatId === id);
+					return !chat || chat.isArchived.get();
+				});
+				if (allArchived) {
+					this.openNewSessionView();
+				}
+				return;
+			}
+			if (updated) {
+				this.setActiveSession(this._chatToSession(updated));
+				return;
+			}
 		}
 	}
 
@@ -250,210 +431,178 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			worktreeBaseBranchProtected];
 	}
 
-	getActiveSession(): IActiveSessionItem | undefined {
-		return this._activeSession.get();
+	getSessions(): ISessionData[] {
+		const allChats = this.sessionsProvidersService.getSessions();
+		const chatById = new Map<string, IChatData>();
+		for (const chat of allChats) {
+			chatById.set(chat.chatId, chat);
+		}
+
+		const groupedChats = new Map<string, IChatData[]>();
+
+		for (const chat of allChats) {
+			let groupId = this._groupModel.getSessionIdForChat(chat.chatId);
+			if (!groupId) {
+				// No group exists — create a single-chat group
+				groupId = chat.chatId;
+				this._groupModel.addChat(groupId, chat.chatId);
+			}
+			if (!groupedChats.has(groupId)) {
+				groupedChats.set(groupId, []);
+			}
+		}
+
+		// Order chats within each group according to the group model
+		const sessions: ISessionData[] = [];
+		for (const [groupId, chats] of groupedChats) {
+			const orderedChatIds = this._groupModel.getChatIds(groupId);
+			for (const chatId of orderedChatIds) {
+				const chat = chatById.get(chatId);
+				if (chat) {
+					chats.push(chat);
+				}
+			}
+			if (chats.length > 0) {
+				sessions.push(this._chatToSession(chats[0]));
+			}
+		}
+		return sessions;
 	}
 
-	async openSession(sessionResource: URI, openOptions?: ISessionOpenOptions): Promise<void> {
-		const existingSession = this.agentSessionsService.model.getSession(sessionResource);
-		if (!existingSession) {
-			this.logService.warn(`[SessionsManagement] openSession: session not found in model: ${sessionResource.toString()}, model has ${this.agentSessionsService.model.sessions.length} sessions with types: ${[...new Set(this.agentSessionsService.model.sessions.map(s => s.providerType))].join(', ')}`);
+	private _getChat(resource: URI): IChatData | undefined {
+		return this.sessionsProvidersService.getSessions().find(s => this.uriIdentityService.extUri.isEqual(s.resource, resource));
+	}
+
+	getSession(resource: URI): ISessionData | undefined {
+		const chat = this._getChat(resource);
+		return chat ? this._chatToSession(chat) : undefined;
+	}
+
+	getAllSessionTypes(): ISessionType[] {
+		return [...this._sessionTypes];
+	}
+
+	private _collectSessionTypes(): ISessionType[] {
+		const types: ISessionType[] = [];
+		const seen = new Set<string>();
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			for (const type of provider.sessionTypes) {
+				if (!seen.has(type.id)) {
+					seen.add(type.id);
+					types.push(type);
+				}
+			}
+		}
+		return types;
+	}
+
+	private _updateSessionTypes(): void {
+		const newTypes = this._collectSessionTypes();
+		const oldIds = new Set(this._sessionTypes.map(t => t.id));
+		const newIds = new Set(newTypes.map(t => t.id));
+		if (oldIds.size !== newIds.size || [...oldIds].some(id => !newIds.has(id))) {
+			this._sessionTypes = newTypes;
+			this._onDidChangeSessionTypes.fire();
+		}
+	}
+
+	async openChat(chatResource: URI): Promise<void> {
+		const sessionData = this.getSession(chatResource);
+		const chat = this._getChat(chatResource);
+
+		this.logService.info(`[SessionsManagement] openChat: ${chatResource.toString()} provider=${chat?.providerId}`);
+		this.isNewChatSessionContext.set(false);
+		this.setActiveSession(sessionData);
+
+		await this.chatWidgetService.openSession(chatResource, ChatViewPaneTarget);
+	}
+
+	async openSession(sessionResource: URI): Promise<void> {
+		const sessionData = this.getSession(sessionResource);
+		if (!sessionData) {
+			this.logService.warn(`[SessionsManagement] openSession: session not found: ${sessionResource.toString()}`);
 			throw new Error(`Session with resource ${sessionResource.toString()} not found`);
 		}
-		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${existingSession.providerType}`);
+		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
-		this.setActiveSession(existingSession);
-		await this.instantiationService.invokeFunction(openSessionDefault, existingSession, openOptions);
+		this.setActiveSession(sessionData);
+
+		const activeChatResource = sessionData.activeChat.get().resource;
+		await this.chatWidgetService.openSession(activeChatResource, ChatViewPaneTarget);
 	}
 
-	async createNewSessionForTarget(target: AgentSessionTarget, sessionResource: URI, options?: { defaultRepoUri?: URI; agentHost?: boolean }): Promise<INewSession> {
+	createNewSession(providerId: string, workspace: ISessionWorkspace): ISessionData {
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
 		}
 
-		let newSession: INewSession;
-		if (target === AgentSessionProviders.Background) {
-			newSession = this.instantiationService.createInstance(CopilotCLISession, sessionResource, options?.defaultRepoUri);
-		} else if (options?.agentHost) {
-			newSession = new AgentHostNewSession(sessionResource, target);
-		} else {
-			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
+		if (!provider) {
+			throw new Error(`Sessions provider '${providerId}' not found`);
 		}
-		this._newSession.value = newSession;
-		this.setActiveSession(newSession);
-		return newSession;
+
+		const chatData = provider.createNewSession(workspace);
+		const sessionData = this._chatToSession(chatData);
+
+		this.setActiveSession(sessionData);
+		return sessionData;
 	}
 
-	async sendRequestForNewSession(sessionResource: URI, options?: { permissionLevel?: ChatPermissionLevel; sessionGrouping?: IChatSessionGrouping }): Promise<void> {
-		const session = this._newSession.value;
-		if (!session) {
-			this.logService.error(`[SessionsManagementService] No new session found for resource: ${sessionResource.toString()}`);
-			return;
+	async setSessionType(chat: IChatData, type: ISessionType): Promise<void> {
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === chat.providerId);
+		if (!provider) {
+			throw new Error(`Sessions provider '${chat.providerId}' not found`);
 		}
 
-		if (!this.uriIdentityService.extUri.isEqual(sessionResource, session.resource)) {
-			this.logService.error(`[SessionsManagementService] Session resource mismatch. Expected: ${session.resource.toString()}, received: ${sessionResource.toString()}`);
-			return;
+		const updatedChat = provider.setSessionType(chat.chatId, type);
+		const updatedSession = this._chatToSession(updatedChat);
+
+		const activeSession = this._activeSession.get();
+		if (activeSession && activeSession.sessionId === updatedSession.sessionId) {
+			this.setActiveSession(updatedSession);
 		}
-
-		const query = session.query;
-		if (!query) {
-			this.logService.error('[SessionsManagementService] No query set on session');
-			return;
-		}
-
-		const contribution = this.chatSessionsService.getChatSessionContribution(session.target);
-
-		// Resolve mode from session's modeId (falls back to Agent)
-		const modeKind = session.mode?.kind ?? ChatModeKind.Agent;
-		const modeIsBuiltin = session.mode ? isBuiltinChatMode(session.mode) : true;
-		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
-
-		const rawModeInstructions = session.mode?.modeInstructions?.get();
-		const modeInstructions = rawModeInstructions ? {
-			name: session.mode!.name.get(),
-			content: rawModeInstructions.content,
-			toolReferences: this.toolsService.toToolReferences(rawModeInstructions.toolReferences),
-			metadata: rawModeInstructions.metadata,
-		} : undefined;
-
-		const sendOptions: IChatSendRequestOptions = {
-			location: ChatAgentLocation.Chat,
-			userSelectedModelId: session.modelId,
-			modeInfo: {
-				kind: modeKind,
-				isBuiltin: modeIsBuiltin,
-				modeInstructions,
-				modeId,
-				applyCodeBlockSuggestionId: undefined,
-				permissionLevel: options?.permissionLevel ?? ChatPermissionLevel.Default,
-			},
-			agentIdSilent: contribution?.type,
-			attachedContext: session.attachedContext,
-			sessionGrouping: options?.sessionGrouping ?? { id: generateUuid(), order: 0 },
-		};
-
-		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
-		await this.doSendRequestForNewSession(session, query, sendOptions, session.selectedOptions);
-
-		// Clean up the session after sending (setter disposes the previous value)
-		this._newSession.value = undefined;
 	}
 
-	private async doSendRequestForNewSession(session: INewSession, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
-		// 1. Open the session - loads the model and shows the ChatViewPane
-		const chatWidget = await this.openNewSession(session);
-		const permissionLevel = sendOptions.modeInfo?.permissionLevel;
-		if (permissionLevel) {
-			chatWidget.input.setPermissionLevel(permissionLevel);
+	async sendAndCreateChat(options: ISendRequestOptions, session: ISessionData): Promise<void> {
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
 
-		// 2. Load the session to apply selected options and have it ready when the view opens
-		await this.loadNewSession(session, selectedOptions);
+		const chatData = provider.createNewSessionFrom(session.chats.get()[0].chatId);
 
-		//3. Send the initial request to kick off the session creation on the extension side
-		const existingResources = new ResourceSet(this.agentSessionsService.model.sessions.map(s => s.resource));
-		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
-		if (result.kind === 'rejected') {
-			this.logService.error(`[ActiveSessionService] sendRequest rejected: ${result.reason}`);
-			return;
+		const newChat = await provider.sendRequest(chatData.chatId, options);
+
+		// Set the new agent session as active
+		if (newChat) {
+			// It's likely that the provider has already added the new chat to the group before provider.sendRequest returns.
+			// This will cause a new group to be created for the new chat which actually belongs to the same session.
+			if (this._groupModel.hasGroupForSession(newChat.chatId)) {
+				this._groupModel.deleteSession(newChat.chatId);
+			}
+			// Add the new chat to the session's group
+			this._groupModel.addChat(session.sessionId, newChat.chatId);
 		}
 
-		// 4. This is just a heuristic to wait for the extension to create the session before trying to find the session associated with the chat widget, which is what we want to set as active.
-		// This allows to set the active session to the new session immediately instead of waiting for the chat widget to open, which results in a smoother user experience
-		const probableNewSession = await this.loadProbableNewAgentSession(session, existingResources);
-		this.setActiveSession(probableNewSession);
-
-		// 5. Wait for the real new session to appear in the chat widget
-		const newSession = await this.loadNewAgentSession(chatWidget, session);
-		this.setActiveSession(newSession);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 	}
 
-	private async openNewSession(session: INewSession): Promise<IChatWidget> {
+	async sendRequest(chat: IChatData, options: ISendRequestOptions): Promise<void> {
 		this.isNewChatSessionContext.set(false);
-		const sessionResource = session.resource;
-		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-		if (!chatWidget) {
-			throw new Error(`Failed to open chat session for resource ${sessionResource.toString()}`);
+
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === chat.providerId);
+		if (!provider) {
+			throw new Error(`Sessions provider '${chat.providerId}' not found`);
 		}
-		return chatWidget;
-	}
 
-	private async loadNewSession(session: INewSession, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
-		const modelRef = await this.chatService.acquireOrLoadSession(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		if (modelRef) {
-			const model = modelRef.object;
+		// Delegate to the provider
+		const newChat = await provider.sendRequest(chat.chatId, options);
 
-			// Set the selected model on the input model so the model picker reflects it
-			if (session.modelId) {
-				const languageModel = this.languageModelsService.lookupLanguageModel(session.modelId);
-				if (languageModel) {
-					model.inputModel.setState({
-						selectedModel: { identifier: session.modelId, metadata: languageModel }
-					});
-				}
-			}
-
-			// Set the selected mode on the input model so the mode picker reflects it
-			if (session.mode) {
-				model.inputModel.setState({
-					mode: { id: session.mode.id, kind: session.mode.kind }
-				});
-			}
-
-			// Apply selected options (repository, branch, etc.) to the contributed session
-			if (selectedOptions && selectedOptions.size > 0) {
-				const contributedSession = model.contributedChatSession;
-				if (contributedSession) {
-					model.setContributedChatSession({
-						...contributedSession,
-						initialSessionOptions: selectedOptions,
-					});
-				}
-			}
-			modelRef.dispose();
-		}
-	}
-
-	private async loadProbableNewAgentSession(session: INewSession, existingSessions: ResourceSet): Promise<IAgentSession> {
-		const probableNewSession = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && !existingSessions.has(s.resource));
-		if (probableNewSession) {
-			return probableNewSession;
-		}
-		let listener: IDisposable | undefined;
-		try {
-			return await new Promise<IAgentSession>(resolve => {
-				listener = this.agentSessionsService.model.onDidChangeSessions(() => {
-					const s = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && !existingSessions.has(s.resource));
-					if (s) {
-						listener?.dispose();
-						resolve(s);
-					}
-				});
-			});
-		} finally {
-			listener?.dispose();
-		}
-	}
-
-	private async loadNewAgentSession(chatWidget: IChatWidget, session: INewSession): Promise<IAgentSession> {
-		const newSession = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && this.uriIdentityService.extUri.isEqual(s.resource, chatWidget.viewModel?.sessionResource));
-		if (newSession) {
-			return newSession;
-		}
-		let listener: IDisposable | undefined;
-		try {
-			return await new Promise<IAgentSession>(resolve => {
-				listener = chatWidget.onDidChangeViewModel(() => {
-					const s = this.agentSessionsService.model.sessions.find(s => s.providerType === session.target && this.uriIdentityService.extUri.isEqual(s.resource, chatWidget.viewModel?.sessionResource));
-					if (s) {
-						listener?.dispose();
-						resolve(s);
-					}
-				});
-			});
-		} finally {
-			listener?.dispose();
+		// Set the new agent session as active
+		if (newChat) {
+			// Add the new chat to the session's group
+			this._groupModel.addChat(newChat.chatId, newChat.chatId);
+			this.setActiveSession(this._chatToSession(newChat));
 		}
 	}
 
@@ -471,90 +620,27 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return repositoryUri;
 	}
 
-	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
-		let activeSessionItem: IActiveSessionItem | undefined;
+	private setActiveSession(session: ISessionData | undefined): void {
+		// Update context keys from session data
+		this._activeSessionProviderId.set(session?.providerId ?? '');
+		this._activeSessionType.set(session?.sessionType ?? '');
+		this._isBackgroundProvider.set(session?.sessionType === AgentSessionProviders.Background);
+
+		if (session && isAgentSession(session)) {
+			this.lastSelectedSession = session.resource;
+		}
+
 		if (session) {
-			if (isAgentSession(session)) {
-				this.lastSelectedSession = session.resource;
-				const [repository, worktree, worktreeBranchName, worktreeBaseBranchProtected] = this.getRepositoryFromMetadata(session);
-				activeSessionItem = {
-					isUntitled: false,
-					label: session.label,
-					resource: session.resource,
-					repository: repository,
-					worktree,
-					worktreeBranchName: worktreeBranchName,
-					worktreeBaseBranchProtected: worktreeBaseBranchProtected === true,
-					providerType: session.providerType,
-				};
-			} else {
-				activeSessionItem = {
-					isUntitled: true,
-					label: undefined,
-					resource: session.resource,
-					repository: session.project?.uri,
-					worktree: undefined,
-					worktreeBranchName: undefined,
-					worktreeBaseBranchProtected: undefined,
-					providerType: session.target,
-				};
-				this._newActiveSessionDisposables.clear();
-				this._newActiveSessionDisposables.add(session.onDidChange(e => {
-					if (e === 'repoUri') {
-						this.doSetActiveSession({
-							isUntitled: true,
-							label: undefined,
-							resource: session.resource,
-							repository: session.project?.uri,
-							worktree: undefined,
-							worktreeBranchName: undefined,
-							worktreeBaseBranchProtected: undefined,
-							providerType: session.target,
-						});
-					}
-				}));
-			}
-		}
-
-		this.doSetActiveSession(activeSessionItem);
-	}
-
-	private doSetActiveSession(activeSessionItem: IActiveSessionItem | undefined): void {
-		if (this.equalsSessionItem(this._activeSession.get(), activeSessionItem)) {
-			return;
-		}
-
-		if (activeSessionItem) {
-			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}`);
-			this.logService.trace(`[ActiveSessionService] Active session details: ${JSON.stringify(activeSessionItem)}`);
+			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}`);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
 
-		this._isBackgroundProvider.set(activeSessionItem?.providerType === AgentSessionProviders.Background);
-		this._activeSession.set(activeSessionItem, undefined);
+		this._activeSession.set(session, undefined);
 	}
 
-	private equalsSessionItem(a: IActiveSessionItem | undefined, b: IActiveSessionItem | undefined): boolean {
-		if (a === b) {
-			return true;
-		}
-		if (!a || !b) {
-			return false;
-		}
-		return (
-			a.label === b.label &&
-			a.resource.toString() === b.resource.toString() &&
-			a.repository?.toString() === b.repository?.toString() &&
-			a.worktree?.toString() === b.worktree?.toString() &&
-			a.worktreeBranchName === b.worktreeBranchName &&
-			a.providerType === b.providerType &&
-			a.worktreeBaseBranchProtected === b.worktreeBaseBranchProtected
-		);
-	}
-
-	async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void> {
-		const worktreeUri = session.worktree;
+	async commitWorktreeFiles(session: ISessionData, fileUris: URI[]): Promise<void> {
+		const worktreeUri = session.workspace.get()?.repositories[0]?.workingDirectory;
 		if (!worktreeUri) {
 			throw new Error('Cannot commit worktree files: active session has no associated worktree');
 		}
@@ -567,9 +653,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.agentSessionsService.model.resolve(AgentSessionProviders.Background);
 	}
 
-	getGitHubContext(session: IActiveSessionItem): IGitHubSessionContext | undefined {
+	getGitHubContext(session: ISessionData): IGitHubSessionContext | undefined {
 		// 1. Try parsing a github-remote-file URI (Cloud sessions)
-		const repoUri = session.repository;
+		const repoUri = session.workspace.get()?.repositories[0]?.uri;
 		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			const parts = repoUri.path.split('/').filter(Boolean);
 			if (parts.length >= 2) {
@@ -613,21 +699,25 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
+		// Try finding the ISessionData first (preferred path)
+		const sessionData = this.getSession(sessionResource);
+		if (sessionData) {
+			return this.getGitHubContext(sessionData);
+		}
+
+		// Fallback: construct context directly from agent session metadata
 		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (!agentSession) {
 			return undefined;
 		}
-		const [repository, worktree] = this.getRepositoryFromMetadata(agentSession);
-		return this.getGitHubContext({
-			resource: sessionResource,
-			isUntitled: false,
-			label: agentSession.label,
-			repository,
-			worktree,
-			worktreeBranchName: undefined,
-			worktreeBaseBranchProtected: undefined,
-			providerType: agentSession.providerType,
-		} satisfies IActiveSessionItem);
+		const [repository] = this.getRepositoryFromMetadata(agentSession);
+		if (repository && repository.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = repository.path.split('/').filter(Boolean);
+			if (parts.length >= 2) {
+				return { owner: decodeURIComponent(parts[0]), repo: decodeURIComponent(parts[1]), prNumber: undefined };
+			}
+		}
+		return undefined;
 	}
 
 	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined {
@@ -643,27 +733,77 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return URI.joinPath(baseUri, relativePath);
 	}
 
-	private _parsePRNumberFromSession(session: IActiveSessionItem): number | undefined {
-		const agentSession = this.agentSessionsService.model.getSession(session.resource);
-		const metadata = agentSession?.metadata;
-		if (!metadata) {
-			return undefined;
-		}
-
-		// Direct prNumber field
-		if (typeof metadata.pullRequestNumber === 'number') {
-			return metadata.pullRequestNumber as number;
-		}
-
-		// Parse from pullRequestUrl: https://github.com/{owner}/{repo}/pull/{number}
-		if (typeof metadata.pullRequestUrl === 'string') {
-			const match = /\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
+	private _parsePRNumberFromSession(session: ISessionData): number | undefined {
+		const prUri = session.pullRequest.get()?.uri;
+		if (prUri) {
+			const match = /\/pull\/(\d+)/.exec(prUri.path);
 			if (match) {
 				return parseInt(match[1], 10);
 			}
 		}
-
 		return undefined;
+	}
+
+	/**
+	 * Wraps a primary {@link IChatData} and its sibling chats into an {@link ISessionData}.
+	 * Uses `Object.create` so that all properties of the primary chat are inherited
+	 * through the prototype chain, avoiding issues with class getters.
+	 *
+	 * The `chats` and `activeChat` observables are derived from the group model
+	 * and update automatically when the group model fires a change event.
+	 */
+	private _chatToSession(chat: IChatData): ISessionData {
+		const sessionId = this._groupModel.getSessionIdForChat(chat.chatId) ?? chat.chatId;
+
+		/* const cached = this._sessionDataCache.get(sessionId);
+		if (cached) {
+			return cached;
+		} */
+
+		const chatsObs = observableFromEvent(
+			this,
+			Event.filter(this._groupModel.onDidChange, e => e.sessionId === sessionId),
+			() => {
+				const chatIds = this._groupModel.getChatIds(sessionId);
+				if (chatIds.length === 0) {
+					return [chat];
+				}
+				const provider = this.sessionsProvidersService.getProviders().find(p => p.id === chat.providerId);
+				const providerChats = provider?.getSessions() || [];
+				const chatById = new Map(providerChats.map(c => [c.chatId, c]));
+				const chatOrder = new Map(chatIds.map((id, index) => [id, index]));
+				const resolved = chatIds.map(id => chatById.get(id)).filter((c): c is IChatData => !!c);
+				if (resolved.length === 0) {
+					return [chat];
+				}
+				return resolved.sort((a, b) => (chatOrder.get(a.chatId) ?? Infinity) - (chatOrder.get(b.chatId) ?? Infinity));
+			},
+		);
+		const activeChatObs = chatsObs.map(chats => {
+			if (!this._groupModel.hasGroupForSession(sessionId)) {
+				return chat; //new Sessions might not be in the group model
+			}
+			const activeChatId = this._groupModel.getActiveChatId(sessionId);
+			const activeChat = chats.find(c => c.chatId === activeChatId);
+			if (!activeChat) {
+				throw new Error(`Active chat with ID ${activeChatId} not found in session ${sessionId}`);
+			}
+			return activeChat;
+		});
+
+		const updatedAtObs = chatsObs.map(chats => latestDateAcrossChats(chats, c => c.updatedAt.get())!);
+		const lastTurnEndObs = chatsObs.map(chats => latestDateAcrossChats(chats, c => c.lastTurnEnd.get()));
+
+		const sessionData: ISessionData = {
+			...chatsObs.get()[0], // Inherit properties from the primary chat
+			sessionId,
+			updatedAt: updatedAtObs,
+			lastTurnEnd: lastTurnEndObs,
+			chats: chatsObs,
+			activeChat: activeChatObs,
+		};
+		this._sessionDataCache.set(sessionId, sessionData);
+		return sessionData;
 	}
 
 	private loadLastSelectedSession(): URI | undefined {
@@ -682,6 +822,39 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private saveLastSelectedSession(): void {
 		if (this.lastSelectedSession) {
 			this.storageService.store(LAST_SELECTED_SESSION_KEY, this.lastSelectedSession.toString(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+	}
+
+	// -- Session Actions --
+
+	async archiveSession(session: ISessionData): Promise<void> {
+		for (const chat of session.chats.get()) {
+			await this.sessionsProvidersService.archiveSession(chat.chatId);
+		}
+	}
+
+	async unarchiveSession(session: ISessionData): Promise<void> {
+		for (const chat of session.chats.get()) {
+			await this.sessionsProvidersService.unarchiveSession(chat.chatId);
+		}
+	}
+
+	async deleteSession(session: ISessionData): Promise<void> {
+		this._sessionDataCache.delete(session.sessionId);
+		for (const chat of session.chats.get()) {
+			// Clear the chat widget before removing from storage
+			await this.chatWidgetService.getWidgetBySessionResource(chat.resource)?.clear();
+			await this.sessionsProvidersService.deleteSession(chat.chatId);
+		}
+	}
+
+	async renameSession(session: ISessionData, title: string): Promise<void> {
+		await this.sessionsProvidersService.renameSession(session.chats.get()[0].chatId, title);
+	}
+
+	setRead(session: ISessionData, read: boolean): void {
+		for (const chat of session.chats.get()) {
+			this.sessionsProvidersService.setRead(chat.chatId, read);
 		}
 	}
 }

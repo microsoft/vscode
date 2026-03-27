@@ -7,7 +7,7 @@ import { $, clearNode, getWindow, hide, scheduleAtNextAnimationFrame } from '../
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
-import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration, ThinkingDisplayMode } from '../../../common/constants.js';
@@ -26,7 +26,7 @@ import { localize } from '../../../../../../nls.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -34,9 +34,12 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
+import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
+import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -139,6 +142,10 @@ interface ILazyThinkingItem {
 type ILazyItem = ILazyToolItem | ILazyThinkingItem;
 const THINKING_SCROLL_MAX_HEIGHT = 200;
 
+const TITLE_CACHE_STORAGE_KEY = 'chat.thinkingTitleCache';
+const TITLE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TITLE_CACHE_MAX_ENTRIES = 1000;
+
 const enum WorkingMessageCategory {
 	Thinking = 'thinking',
 	Terminal = 'terminal',
@@ -228,6 +235,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private workingSpinnerLabel: HTMLElement | undefined;
 	private availableMessagesByCategory = new Map<WorkingMessageCategory, string[]>();
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
+	private readonly toolIconsByCallId = new Map<string, HTMLElement>();
 	private readonly toolLabelsByCallId = new Map<string, string>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
@@ -242,6 +250,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly diffStatsByPartId = new Map<string, IEditSessionDiffStats>();
+	private _aggregatedDiff: IEditSessionDiffStats = { added: 0, removed: 0 };
+
+	get aggregatedDiff(): IEditSessionDiffStats { return this._aggregatedDiff; }
 
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
 		let pool = this.availableMessagesByCategory.get(category);
@@ -278,6 +290,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService hoverService: IHoverService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -677,7 +690,20 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			labelElement.appendChild(restSpan);
 		}
 
-		this._collapseButton.element.ariaLabel = title;
+		// Show aggregated diff stats from edit pills
+		if (this.diffStatsByPartId.size > 0) {
+			const { added, removed } = this._aggregatedDiff;
+			const diffContainer = $('span.chat-thinking-title-diff');
+			diffContainer.appendChild($('span.label-added', {}, `+${added}`));
+			diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
+			labelElement.appendChild(diffContainer);
+
+			const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
+			const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
+			this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+		} else {
+			this._collapseButton.element.ariaLabel = title;
+		}
 	}
 
 	private setDropdownClickable(clickable: boolean): void {
@@ -878,6 +904,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
+		// Reuse any existing generated title from tool invocations or thinking parts.
 		const existingTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle
 			?? this.allThinkingParts.find(t => t.generatedTitle)?.generatedTitle;
 		if (existingTitle) {
@@ -886,6 +913,27 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.setGeneratedTitleOnAllParts(existingTitle);
 			this.setFinalizedTitle(existingTitle);
 			return;
+		}
+
+		// Only check the persisted cache when re-rendering
+		// (all tool invocations are serialized), not during live streaming.
+		const allSerialized = this.toolInvocations.length > 0
+			&& this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
+		if (allSerialized) {
+			// Fallback: check the persisted title cache using the last tool call (non-local sessions only)
+			if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+				const lastToolInvocation = this.toolInvocations[this.toolInvocations.length - 1];
+				if (lastToolInvocation) {
+					const cachedTitle = this.getCachedTitle(lastToolInvocation.toolCallId);
+					if (cachedTitle) {
+						this.currentTitle = cachedTitle;
+						this.content.generatedTitle = cachedTitle;
+						this.setGeneratedTitleOnAllParts(cachedTitle);
+						this.setFinalizedTitle(cachedTitle);
+						return;
+					}
+				}
+			}
 		}
 
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
@@ -945,6 +993,55 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		for (const thinkingPart of this.allThinkingParts) {
 			thinkingPart.generatedTitle = title;
 		}
+	}
+
+	private loadTitleCache(): Record<string, { title: string; storedAt: number }> {
+		return this.storageService.getObject<Record<string, { title: string; storedAt: number }>>(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE) ?? {};
+	}
+
+	private saveTitleCache(cache: Record<string, { title: string; storedAt: number }>): void {
+		if (Object.keys(cache).length === 0) {
+			this.storageService.remove(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(TITLE_CACHE_STORAGE_KEY, JSON.stringify(cache), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+
+	private getTitleCacheKey(toolCallId: string): string {
+		return `${chatSessionResourceToId(this.element.sessionResource)}:${toolCallId}`;
+	}
+
+	private getCachedTitle(toolCallId: string): string | undefined {
+		const entry = this.loadTitleCache()[this.getTitleCacheKey(toolCallId)];
+		if (!entry || (Date.now() - entry.storedAt) > TITLE_CACHE_TTL_MS) {
+			return undefined;
+		}
+		return entry.title;
+	}
+
+	private setCachedTitle(toolCallId: string, title: string): void {
+		const cache = this.loadTitleCache();
+		const now = Date.now();
+
+		// Evict expired entries on write
+		for (const key of Object.keys(cache)) {
+			if ((now - cache[key].storedAt) > TITLE_CACHE_TTL_MS) {
+				delete cache[key];
+			}
+		}
+
+		cache[this.getTitleCacheKey(toolCallId)] = { title, storedAt: now };
+
+		// Cap size by dropping oldest entries
+		const keys = Object.keys(cache);
+		if (keys.length > TITLE_CACHE_MAX_ENTRIES) {
+			const sorted = keys.sort((a, b) => cache[a].storedAt - cache[b].storedAt);
+			for (let i = 0; i < sorted.length - TITLE_CACHE_MAX_ENTRIES; i++) {
+				delete cache[sorted[i]];
+			}
+		}
+
+		this.saveTitleCache(cache);
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
@@ -1104,6 +1201,15 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				this.setFinalizedTitle(generatedTitle);
 				this.content.generatedTitle = generatedTitle;
 				this.setGeneratedTitleOnAllParts(generatedTitle);
+
+				// Persist to storage for non-local sessions only
+				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+					const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
+					if (lastTool) {
+						this.setCachedTitle(lastTool.toolCallId, generatedTitle);
+					}
+				}
+
 				return;
 			}
 		} catch (error) {
@@ -1144,6 +1250,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		return true;
 	}
 
+	private updateAggregatedDiff(): void {
+		let totalAdded = 0;
+		let totalRemoved = 0;
+		for (const stats of this.diffStatsByPartId.values()) {
+			totalAdded += stats.added;
+			totalRemoved += stats.removed;
+		}
+		this._aggregatedDiff = { added: totalAdded, removed: totalRemoved };
+
+		// Re-render the finalized title if streaming is already complete,
+		// since diff events from edit pills may arrive after the title was set.
+		if (this.streamingCompleted || this.element.isComplete) {
+			this.setFinalizedTitle(this.currentTitle);
+		}
+	}
+
 	private setFallbackTitle(): void {
 		const finalLabel = this.appendedItemCount > 0
 			? localize('chat.thinking.finished.withSteps', 'Finished with {0} step{1}', this.appendedItemCount, this.appendedItemCount === 1 ? '' : 's')
@@ -1174,13 +1296,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
-		originalParent?: HTMLElement
+		originalParent?: HTMLElement,
+		onDidChangeDiff?: Event<IEditSessionDiffStats>
 	): void {
 		this.processPendingRemovals();
 
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.appendedItemCount++;
+
+		// Listen for diff changes from edit pills
+		if (onDidChangeDiff && toolInvocationId) {
+			this._register(onDidChangeDiff(stats => {
+				this.diffStatsByPartId.set(toolInvocationId, stats);
+				this.updateAggregatedDiff();
+			}));
+		}
 
 		// get random message based on tool type
 		if (this.workingSpinnerLabel) {
@@ -1224,6 +1355,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
 			this.toolWrappersByCallId.delete(toolCallId);
+			this.toolIconsByCallId.delete(toolCallId);
 		}
 
 		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
@@ -1342,6 +1474,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		if (wrapper) {
 			wrapper.remove();
 			this.toolWrappersByCallId.delete(toolCallId);
+			this.toolIconsByCallId.delete(toolCallId);
 		}
 
 		// make sure to remove any lazy item as well
@@ -1470,6 +1603,18 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					// queue item to be removed if it was streaming and presentation is hidden
 					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
 						isStreaming = false;
+
+						// Update terminal tool icon based on sandbox wrapping state
+						const termData = toolInvocationOrMarkdown.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+						if (termData?.kind === 'terminal') {
+							const iconEl = this.toolIconsByCallId.get(toolCallId);
+							if (iconEl) {
+								const newIcon = termData.commandLine?.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal;
+								iconEl.className = 'chat-thinking-icon';
+								iconEl.classList.add(...ThemeIcon.asClassNameArray(newIcon));
+							}
+						}
+
 						if (toolInvocationOrMarkdown.presentation === 'hidden') {
 							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
 							this.schedulePendingRemovalsFlush();
@@ -1628,6 +1773,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
 		if (isToolInvocation && toolInvocationOrMarkdown.toolCallId) {
 			this.toolWrappersByCallId.set(toolInvocationOrMarkdown.toolCallId, itemWrapper);
+			this.toolIconsByCallId.set(toolInvocationOrMarkdown.toolCallId, iconElement);
 		}
 
 		this.appendToWrapper(itemWrapper);

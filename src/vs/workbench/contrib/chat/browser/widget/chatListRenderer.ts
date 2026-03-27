@@ -114,6 +114,7 @@ import { isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chat
 const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
+const WORKING_CAUGHT_UP_DEBOUNCE_MS = 50;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -1067,7 +1068,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' ||
-			(lastPart.kind === 'markdownContent' && !moreContentAvailable) ||
+			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element)) ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
@@ -1079,6 +1080,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return false;
+	}
+
+	/**
+	 *  Adds a debounce on when to show "working" shimmer.
+	 */
+	private hasBeenCaughtUpLongEnough(element: IChatResponseViewModel): boolean {
+		const lastRenderTime = element.renderData?.lastRenderTime;
+		if (typeof lastRenderTime !== 'number' || lastRenderTime === 0) {
+			return false;
+		}
+		return (Date.now() - lastRenderTime) >= WORKING_CAUGHT_UP_DEBOUNCE_MS;
 	}
 
 
@@ -2448,7 +2460,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
 						markdownPart.codeblocksPartId,
 						markdown,
-						templateData.value
+						templateData.value,
+						markdownPart.onDidChangeDiff
 					);
 				}
 
@@ -2462,7 +2475,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
 						markdownPart.codeblocksPartId,
 						markdown,
-						templateData.value
+						templateData.value,
+						markdownPart.onDidChangeDiff
 					);
 				}
 			} else if (!this.shouldPinPart(markdown, context.element) && !isBlankMarkdown && !hasPendingEditCodeblock) {

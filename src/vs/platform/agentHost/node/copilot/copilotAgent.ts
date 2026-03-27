@@ -12,12 +12,15 @@ import { FileAccess } from '../../../../base/common/network.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
+import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
+import { localize } from '../../../../nls.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
-import { PermissionKind, type PolicyState } from '../../common/state/sessionState.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ToolResultContentType, type IPendingMessage, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
+import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
+import { FileEditTracker } from './fileEditTracker.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -46,9 +49,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _pendingPermissions = new Map<string, { sessionId: string; deferred: DeferredPromise<boolean> }>();
 	/** Working directory per session, used when resuming. */
 	private readonly _sessionWorkingDirs = new Map<string, string>();
+	/** File edit trackers per session, keyed by raw session ID. */
+	private readonly _editTrackers = new Map<string, FileEditTracker>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 	}
@@ -129,8 +136,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// If @vscode/ripgrep is in an .asar file, the binary is unpacked.
 			const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 			const rgDir = dirname(rgDiskPath);
-			const currentPath = env['PATH'];
-			env['PATH'] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
+			// On Windows the env key is typically "Path" (not "PATH"). Since we copied
+			// process.env into a plain (case-sensitive) object, we must find the actual key.
+			const pathKey = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH';
+			const currentPath = env[pathKey];
+			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
 			const client = new CopilotClient({
@@ -196,6 +206,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			streaming: true,
 			workingDirectory: config?.workingDirectory,
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
+			hooks: this._createSessionHooks(),
 		});
 
 		const wrapper = this._trackSession(raw);
@@ -225,6 +236,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		await entry.session.send({ prompt, attachments: sdkAttachments });
 		this._logService.info(`[Copilot:${sessionId}] session.send() returned`);
+	}
+
+	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (!entry) {
+			this._logService.warn(`[Copilot:${sessionId}] setPendingMessages: session not found`);
+			return;
+		}
+
+		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
+		if (steeringMessage) {
+			this._logService.info(`[Copilot:${sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
+			entry.session.send({
+				prompt: steeringMessage.userMessage.text,
+				mode: 'immediate',
+			}).catch(err => {
+				this._logService.error(`[Copilot:${sessionId}] Steering message failed`, err);
+			});
+		}
+
+		// Queued messages are consumed by the server (AgentSideEffects)
+		// which dispatches SessionTurnStarted and calls sendMessage directly.
+		// No SDK-level enqueue is needed.
 	}
 
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
@@ -293,8 +328,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- helpers ------------------------------------------------------------
 
 	/**
-	 * Handles a permission request from the SDK by firing a progress event
-	 * and waiting for the renderer to respond via respondToPermissionRequest.
+	 * Handles a permission request from the SDK by firing a `tool_ready` event
+	 * (which transitions the tool to PendingConfirmation) and waiting for the
+	 * side-effects layer to respond via respondToPermissionRequest.
 	 */
 	private async _handlePermissionRequest(
 		request: { kind: string; toolCallId?: string;[key: string]: unknown },
@@ -314,34 +350,84 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 
-		const requestId = generateUuid();
-		this._logService.info(`[Copilot:${invocation.sessionId}] Requesting permission from renderer: requestId=${requestId}`);
+		const toolCallId = request.toolCallId;
+		if (!toolCallId) {
+			// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
+			this._logService.warn(`[Copilot:${invocation.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
+			return { kind: 'denied-interactively-by-user' };
+		}
+
+		this._logService.info(`[Copilot:${invocation.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
 
 		const deferred = new DeferredPromise<boolean>();
-		this._pendingPermissions.set(requestId, { sessionId: invocation.sessionId, deferred });
+		this._pendingPermissions.set(toolCallId, { sessionId: invocation.sessionId, deferred });
 
-		const permissionKind = ([PermissionKind.Shell, PermissionKind.Write, PermissionKind.Mcp, PermissionKind.Read, PermissionKind.Url] as const).includes(request.kind as PermissionKind)
-			? request.kind as PermissionKind
-			: PermissionKind.Read; // Treat unknown kinds as read (safest default)
+		// Derive display information from the permission request kind
+		const { confirmationTitle, invocationMessage, toolInput } = this._getPermissionDisplay(request);
 
-		// Fire the event so the renderer can handle it
+		// Fire a tool_ready event to transition the tool to PendingConfirmation
 		this._onDidSessionProgress.fire({
 			session,
-			type: 'permission_request',
-			requestId,
-			permissionKind,
-			toolCallId: request.toolCallId,
-			path: typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined),
-			fullCommandText: typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined,
-			intention: typeof request.intention === 'string' ? request.intention : undefined,
-			serverName: typeof request.serverName === 'string' ? request.serverName : undefined,
-			toolName: typeof request.toolName === 'string' ? request.toolName : undefined,
-			rawRequest: tryStringify(request) ?? '[unserializable permission request]',
+			type: 'tool_ready',
+			toolCallId,
+			invocationMessage,
+			toolInput,
+			confirmationTitle,
 		});
 
 		const approved = await deferred.p;
-		this._logService.info(`[Copilot:${invocation.sessionId}] Permission response: requestId=${requestId}, approved=${approved}`);
+		this._logService.info(`[Copilot:${invocation.sessionId}] Permission response: toolCallId=${toolCallId}, approved=${approved}`);
 		return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
+	}
+
+	/**
+	 * Derives display fields from a permission request for the tool confirmation UI.
+	 */
+	private _getPermissionDisplay(request: { kind: string;[key: string]: unknown }): {
+		confirmationTitle: string;
+		invocationMessage: string;
+		toolInput?: string;
+	} {
+		const path = typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined);
+		const fullCommandText = typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined;
+		const intention = typeof request.intention === 'string' ? request.intention : undefined;
+		const serverName = typeof request.serverName === 'string' ? request.serverName : undefined;
+		const toolName = typeof request.toolName === 'string' ? request.toolName : undefined;
+
+		switch (request.kind) {
+			case 'shell':
+				return {
+					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
+					invocationMessage: intention ?? localize('copilot.permission.shell.message', "Run command"),
+					toolInput: fullCommandText,
+				};
+			case 'write':
+				return {
+					confirmationTitle: localize('copilot.permission.write.title', "Write file"),
+					invocationMessage: path ? localize('copilot.permission.write.message', "Edit {0}", path) : localize('copilot.permission.write.messageGeneric', "Edit file"),
+					toolInput: tryStringify(path ? { path } : request) ?? undefined,
+				};
+			case 'mcp': {
+				const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+				return {
+					confirmationTitle: serverName ? `${serverName}: ${title}` : title,
+					invocationMessage: serverName ? `${serverName}: ${title}` : title,
+					toolInput: tryStringify({ serverName, toolName }) ?? undefined,
+				};
+			}
+			case 'read':
+				return {
+					confirmationTitle: localize('copilot.permission.read.title', "Read file"),
+					invocationMessage: intention ?? localize('copilot.permission.read.message', "Read file"),
+					toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
+				};
+			default:
+				return {
+					confirmationTitle: localize('copilot.permission.default.title', "Permission request"),
+					invocationMessage: localize('copilot.permission.default.message', "Permission request"),
+					toolInput: tryStringify(request) ?? undefined,
+				};
+		}
 	}
 
 	private _clearToolCallsForSession(sessionId: string): void {
@@ -351,6 +437,44 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._activeToolCalls.delete(key);
 			}
 		}
+	}
+
+	private _getOrCreateEditTracker(rawSessionId: string): FileEditTracker {
+		let tracker = this._editTrackers.get(rawSessionId);
+		if (!tracker) {
+			tracker = new FileEditTracker(rawSessionId, this._sessionDataService, this._fileService, this._logService);
+			this._editTrackers.set(rawSessionId, tracker);
+		}
+		return tracker;
+	}
+
+	/**
+	 * Creates SDK session hooks for pre/post tool use. The `onPreToolUse`
+	 * hook snapshots files before edit tools run. The `onPostToolUse` hook
+	 * snapshots the after-content so that it's ready synchronously when
+	 * `onToolComplete` fires.
+	 */
+	private _createSessionHooks() {
+		return {
+			onPreToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
+				if (isEditTool(input.toolName)) {
+					const filePath = getEditFilePath(input.toolArgs);
+					if (filePath) {
+						const tracker = this._getOrCreateEditTracker(invocation.sessionId);
+						await tracker.trackEditStart(filePath);
+					}
+				}
+			},
+			onPostToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
+				if (isEditTool(input.toolName)) {
+					const filePath = getEditFilePath(input.toolArgs);
+					if (filePath) {
+						const tracker = this._editTrackers.get(invocation.sessionId);
+						await tracker?.completeEdit(filePath);
+					}
+				}
+			},
+		};
 	}
 
 	private _trackSession(raw: CopilotSession, sessionIdOverride?: string): CopilotSessionWrapper {
@@ -405,6 +529,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const trackingKey = `${rawId}:${e.data.toolCallId}`;
 			this._activeToolCalls.set(trackingKey, { toolName: e.data.toolName, displayName, parameters });
 			const toolKind = getToolKind(e.data.toolName);
+
 			this._onDidSessionProgress.fire({
 				session,
 				type: 'tool_start',
@@ -432,16 +557,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._activeToolCalls.delete(trackingKey);
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
+
+			const content: IToolResultContent[] = [];
+			if (toolOutput !== undefined) {
+				content.push({ type: ToolResultContentType.Text, text: toolOutput });
+			}
+
+			// File edit data was already prepared by the onPostToolUse hook
+			const tracker = this._editTrackers.get(rawId);
+			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
+			if (tracker && filePath) {
+				const fileEdit = tracker.takeCompletedEdit(filePath);
+				if (fileEdit) {
+					content.push(fileEdit);
+				}
+			}
+
 			this._onDidSessionProgress.fire({
 				session,
 				type: 'tool_complete',
 				toolCallId: e.data.toolCallId,
-				success: e.data.success,
-				pastTenseMessage: getPastTenseMessage(tracked?.toolName ?? '', displayName, tracked?.parameters, e.data.success),
-				toolOutput,
+				result: {
+					success: e.data.success,
+					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success),
+					content: content.length > 0 ? content : undefined,
+					error: e.data.error,
+				},
 				isUserRequested: e.data.isUserRequested,
-				result: e.data.result,
-				error: e.data.error,
 				toolTelemetry: e.data.toolTelemetry !== undefined ? tryStringify(e.data.toolTelemetry) : undefined,
 				parentToolCallId: e.data.parentToolCallId,
 			});
@@ -614,6 +756,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const raw = await client.resumeSession(sessionId, {
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
 			workingDirectory: this._sessionWorkingDirs.get(sessionId),
+			hooks: this._createSessionHooks(),
 		});
 		return this._trackSession(raw, sessionId);
 	}
@@ -678,16 +821,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				toolInfoByCallId.delete(d.toolCallId);
 				const displayName = getToolDisplayName(info.toolName);
+				const toolOutput = d.error?.message ?? d.result?.content;
+				const content: IToolResultContent[] = [];
+				if (toolOutput !== undefined) {
+					content.push({ type: ToolResultContentType.Text, text: toolOutput });
+				}
 				result.push({
 					session,
 					type: 'tool_complete',
 					toolCallId: d.toolCallId,
-					success: d.success,
-					pastTenseMessage: getPastTenseMessage(info.toolName, displayName, info.parameters, d.success),
-					toolOutput: d.error?.message ?? d.result?.content,
+					result: {
+						success: d.success,
+						pastTenseMessage: getPastTenseMessage(info.toolName, displayName, info.parameters, d.success),
+						content: content.length > 0 ? content : undefined,
+						error: d.error,
+					},
 					isUserRequested: d.isUserRequested,
-					result: d.result,
-					error: d.error,
 					toolTelemetry: d.toolTelemetry !== undefined ? tryStringify(d.toolTelemetry) : undefined,
 				});
 			}

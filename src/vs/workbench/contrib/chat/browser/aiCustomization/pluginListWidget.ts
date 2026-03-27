@@ -34,7 +34,7 @@ import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plug
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { pluginIcon } from './aiCustomizationIcons.js';
-import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
+import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
 
@@ -133,7 +133,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.name.textContent = formatDisplayName(element.item.name);
 
 		if (element.item.description) {
-			templateData.description.textContent = truncateToFirstSentence(element.item.description);
+			templateData.description.textContent = truncateToFirstLine(element.item.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -298,6 +298,8 @@ export class PluginListWidget extends Disposable {
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
+	private lastHeight: number = 0;
+	private lastWidth: number = 0;
 	private readonly collapsedGroups = new Set<string>();
 	private marketplaceCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -528,6 +530,11 @@ export class PluginListWidget extends Disposable {
 			this.marketplaceItems = [];
 			this.filterPlugins();
 		}
+
+		// Re-layout to account for the back link height change
+		if (this.lastHeight > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
+		}
 	}
 
 	private async queryMarketplace(): Promise<void> {
@@ -701,31 +708,36 @@ export class PluginListWidget extends Disposable {
 	}
 
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
-		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
+		this.lastHeight = height;
+		this.lastWidth = width;
 
-		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
-		this.list.layout(Math.max(0, listHeight), width);
+		this.element.style.height = `${height}px`;
 
-		if (sectionFooterHeight === 0) {
-			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
-				if (this._store.isDisposed) {
-					return;
-				}
-				const actualFooterHeight = this.sectionHeader.offsetHeight;
-				if (actualFooterHeight > 0) {
-					const correctedHeight = height - actualFooterHeight - searchBarHeight - backLinkHeight;
-					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
-					this.list.layout(Math.max(0, correctedHeight), width);
-				}
-			});
+		// Measure sibling elements to calculate the list height.
+		// When offsetHeight returns 0 the container just became visible
+		// after display:none and the browser hasn't reflowed yet — defer
+		// layout to the next frame so measurements are accurate.
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
+		if (searchBarHeight === 0) {
+			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
+			return;
 		}
+		const footerHeight = this.sectionHeader.offsetHeight;
+		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 	}
 
 	focusSearch(): void {
 		this.searchInput.focus();
+	}
+
+	revealLastItem(): void {
+		if (this.list.length > 0) {
+			this.list.reveal(this.list.length - 1);
+		}
 	}
 
 	focus(): void {
