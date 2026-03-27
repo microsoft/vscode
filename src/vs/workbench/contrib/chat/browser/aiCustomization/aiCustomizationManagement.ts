@@ -53,6 +53,16 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<str
 );
 
 /**
+ * Context key for the active harness (session type) in the customizations editor.
+ * Extensions use this in when-clauses to scope create actions to their harness.
+ */
+export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS = new RawContextKey<string>(
+	'aiCustomizationManagementHarness',
+	'',
+	localize('aiCustomizationManagementHarness', "The active harness (session type) in the Chat Customizations editor")
+);
+
+/**
  * Menu ID for the AI Customization Management Editor title bar actions.
  */
 export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationManagementEditorTitle');

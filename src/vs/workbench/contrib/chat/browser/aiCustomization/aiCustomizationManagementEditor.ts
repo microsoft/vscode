@@ -46,6 +46,7 @@ import {
 	BUILTIN_STORAGE,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR,
 	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION,
+	CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS,
 	SIDEBAR_DEFAULT_WIDTH,
 	SIDEBAR_MIN_WIDTH,
 	SIDEBAR_MAX_WIDTH,
@@ -315,6 +316,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
 	private readonly sectionContextKey: IContextKey<string>;
+	private readonly harnessContextKey: IContextKey<string>;
 
 	constructor(
 		group: IEditorGroup,
@@ -343,6 +345,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
+		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
@@ -566,6 +569,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return; // setActiveHarness will trigger another autorun cycle
 			}
 
+			this.harnessContextKey.set(activeId);
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
