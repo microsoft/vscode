@@ -60,7 +60,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 2px 8px;
+	padding: 2px 0;
 	min-height: 22px;
 	font-weight: 500;
 	font-size: 12px;
