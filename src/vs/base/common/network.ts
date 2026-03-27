@@ -75,6 +75,9 @@ export namespace Schemas {
 
 	export const vscodeTerminal = 'vscode-terminal';
 
+	/** Scheme used for the image carousel editor. */
+	export const vscodeImageCarousel = 'vscode-image-carousel';
+
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
 
@@ -89,9 +92,6 @@ export namespace Schemas {
 
 	/** Scheme used for local chat session content */
 	export const vscodeLocalChatSession = 'vscode-chat-session';
-
-	/** Scheme used for virtual chat prompt files with embedded content */
-	export const vscodeChatPrompt = 'vscode-chat-prompt';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)

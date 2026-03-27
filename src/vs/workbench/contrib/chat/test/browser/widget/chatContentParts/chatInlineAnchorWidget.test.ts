@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { renderFileWidgets } from '../../../../browser/widget/chatContentParts/chatInlineAnchorWidget.js';
@@ -145,4 +143,3 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.ok(!widget, 'Widget should not be rendered for malformed URI');
 	});
 });
-

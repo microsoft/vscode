@@ -5,8 +5,6 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -15,22 +13,17 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { ChatViewId, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
-import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
-import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
-import { AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
-import { IAgentSessionProjectionService } from '../agentSessions/agentSessionProjectionService.js';
+import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export interface INewEditSessionActionContext {
 
@@ -50,6 +43,23 @@ export interface INewEditSessionActionContext {
 	 * If false or not set, the prompt is sent immediately.
 	 */
 	isPartialQuery?: boolean;
+}
+
+function isNewEditSessionActionContext(arg: unknown): arg is INewEditSessionActionContext {
+	if (arg && typeof arg === 'object') {
+		const obj = arg as Record<string, unknown>;
+		if (obj.inputValue !== undefined && typeof obj.inputValue !== 'string') {
+			return false;
+		}
+		if (obj.agentMode !== undefined && typeof obj.agentMode !== 'boolean') {
+			return false;
+		}
+		if (obj.isPartialQuery !== undefined && typeof obj.isPartialQuery !== 'boolean') {
+			return false;
+		}
+		return true;
+	}
+	return false;
 }
 
 export function registerNewChatActions() {
@@ -98,12 +108,11 @@ export function registerNewChatActions() {
 						id: MenuId.ChatNewMenu,
 						group: '1_open',
 						order: 1,
-					},
-					{
-						id: MenuId.CompactWindowEditorTitle,
-						group: 'navigation',
-						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-						order: 1
+						when: ContextKeyExpr.and(
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'),
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'),
+							ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')
+						)
 					}
 				],
 				keybinding: {
@@ -120,71 +129,70 @@ export function registerNewChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const accessibilityService = accessor.get(IAccessibilityService);
-			const projectionService = accessor.get(IAgentSessionProjectionService);
-
-			// Exit projection mode if active (back button behavior)
-			if (projectionService.isActive) {
-				await projectionService.exitProjection();
-				return;
-			}
-			const viewsService = accessor.get(IViewsService);
-
-			const executeCommandContext = args[0] as INewEditSessionActionContext | undefined;
+			const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
 
 			// Context from toolbar or lastFocusedWidget
 			const context = getEditingSessionContext(accessor, args);
-			const { editingSession, chatWidget: widget } = context ?? {};
-			if (!widget) {
-				return;
+			await runNewChatAction(accessor, context, executeCommandContext);
+		}
+	}
+	);
+
+	const iconVariants = [
+		{ idSuffix: '.copilotIcon', iconValue: 'copilot', icon: Codicon.copilot },
+		{ idSuffix: '.newSessionIcon', iconValue: 'new-session', icon: Codicon.newSession },
+		{ idSuffix: '.commentIcon', iconValue: 'comment', icon: Codicon.comment },
+	] as const;
+
+	for (const variant of iconVariants) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: ACTION_ID_NEW_CHAT + variant.idSuffix,
+					title: localize2('chat.newEdits.label', "New Chat"),
+					category: CHAT_CATEGORY,
+					icon: variant.icon,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
+					f1: false,
+					menu: [{
+						id: MenuId.ChatNewMenu,
+						group: '1_open',
+						order: 1,
+						when: ChatContextKeys.newChatButtonExperimentIcon.isEqualTo(variant.iconValue)
+					}]
+				});
 			}
 
-			const dialogService = accessor.get(IDialogService);
-
-			const model = widget.viewModel?.model;
-			if (model && !(await handleCurrentEditingSession(model, undefined, dialogService))) {
-				return;
+			async run(accessor: ServicesAccessor, ...args: unknown[]) {
+				const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
+				const context = getEditingSessionContext(accessor, args);
+				await runNewChatAction(accessor, context, executeCommandContext);
 			}
+		});
+	}
 
-			await editingSession?.stop();
+	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
-			// Create a new session with the same type as the current session
-			const currentResource = widget.viewModel?.model.sessionResource;
-			const sessionType = currentResource ? getChatSessionType(currentResource) : localChatSessionType;
-			if (isIChatViewViewContext(widget.viewContext) && sessionType !== localChatSessionType) {
-				// For the sidebar, we need to explicitly load a session with the same type
-				const newResource = getResourceForNewChatSession(sessionType);
-				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				await view.loadSession(newResource);
-			} else {
-				// For the editor, widget.clear() already preserves the session type via clearChatEditor
-				await widget.clear();
-			}
+	registerAction2(class NewLocalChatAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.newLocalChat',
+				title: localize2('chat.newLocalChat.label', "New Local Chat"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.plus,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
+				f1: false,
+			});
+		}
 
-			widget.attachmentModel.clear(true);
-			widget.input.relatedFiles?.clear();
-			widget.focusInput();
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const executeCommandContext = isNewEditSessionActionContext(args[0]) ? args[0] : undefined;
 
-			accessibilityService.alert(localize('newChat', "New chat"));
-
-			if (!executeCommandContext) {
-				return;
-			}
-
-			if (typeof executeCommandContext.agentMode === 'boolean') {
-				widget.input.setChatMode(executeCommandContext.agentMode ? ChatModeKind.Agent : ChatModeKind.Edit);
-			}
-
-			if (executeCommandContext.inputValue) {
-				if (executeCommandContext.isPartialQuery) {
-					widget.setInput(executeCommandContext.inputValue);
-				} else {
-					widget.acceptInput(executeCommandContext.inputValue);
-				}
-			}
+			// Context from toolbar or lastFocusedWidget
+			const context = getEditingSessionContext(accessor, args);
+			await runNewChatAction(accessor, context, executeCommandContext, AgentSessionProviders.Local);
 		}
 	});
-	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
 	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleNavigationToolbar, {
 		command: {
@@ -195,6 +203,16 @@ export function registerNewChatActions() {
 		when: ChatContextKeys.agentSessionsViewerOrientation.notEqualsTo(AgentSessionsViewerOrientation.SideBySide), // when sessions show side by side, no need for a back button
 		group: 'navigation',
 		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.ChatTitleBarMenu, {
+		command: {
+			id: ACTION_ID_NEW_CHAT,
+			title: localize2('chat.newEdits.label', "New Chat"),
+		},
+		when: ChatContextKeys.enabled,
+		group: 'b_new',
+		order: -1,
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
@@ -288,19 +306,53 @@ export function registerNewChatActions() {
 	});
 }
 
-/**
- * Creates a new session resource URI with the specified session type.
- * For remote sessions, creates a URI with the session type as the scheme.
- * For local sessions, creates a LocalChatSessionUri.
- */
-function getResourceForNewChatSession(sessionType: string): URI {
-	const isRemoteSession = sessionType !== localChatSessionType;
-	if (isRemoteSession) {
-		return URI.from({
-			scheme: sessionType,
-			path: `/untitled-${generateUuid()}`,
-		});
+async function runNewChatAction(
+	accessor: ServicesAccessor,
+	context: EditingSessionActionContext | undefined,
+	executeCommandContext?: INewEditSessionActionContext,
+	sessionType?: AgentSessionProviders
+) {
+	const accessibilityService = accessor.get(IAccessibilityService);
+	const viewsService = accessor.get(IViewsService);
+	const configurationService = accessor.get(IConfigurationService);
+
+	const { editingSession, chatWidget: widget } = context ?? {};
+	if (!widget) {
+		return;
 	}
 
-	return LocalChatSessionUri.forSession(generateUuid());
+	const dialogService = accessor.get(IDialogService);
+
+	const model = widget.viewModel?.model;
+	if (model && !(await handleCurrentEditingSession(model, undefined, dialogService))) {
+		return;
+	}
+
+	await editingSession?.stop();
+
+	// Create a new session, preserving the session type (or using the specified one)
+	await clearChatSessionPreservingType(widget, viewsService, sessionType);
+
+	widget.attachmentModel.clear(true);
+	widget.focusInput();
+
+	accessibilityService.alert(localize('newChat', "New chat"));
+
+	if (!executeCommandContext) {
+		return;
+	}
+
+	if (typeof executeCommandContext.agentMode === 'boolean') {
+		widget.input.setChatMode(executeCommandContext.agentMode ? ChatModeKind.Agent : ChatModeKind.Edit);
+	} else if (widget.input.currentModeKind === ChatModeKind.Edit && configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden)) {
+		widget.input.setChatMode(ChatModeKind.Agent);
+	}
+
+	if (executeCommandContext.inputValue) {
+		if (executeCommandContext.isPartialQuery) {
+			widget.setInput(executeCommandContext.inputValue);
+		} else {
+			widget.acceptInput(executeCommandContext.inputValue);
+		}
+	}
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../../../../base/common/arrays.js';
-import { raceTimeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
@@ -47,19 +46,40 @@ import { McpPromptArgumentPick } from '../../../../../mcp/browser/mcpPromptArgum
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
 import { searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../../../common/participants/chatAgents.js';
-import { IChatEditingService } from '../../../../common/editing/chatEditingService.js';
 import { getAttachableImageExtension } from '../../../../common/model/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../../../common/participants/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
-import { ToolSet } from '../../../../common/tools/languageModelToolsService.js';
+import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import {
+	PromptsType,
+	Target
+} from '../../../../common/promptSyntax/promptTypes.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
+import { IChatService } from '../../../../common/chatService/chatService.js';
+import { IChatDebugService } from '../../../../common/chatDebugService.js';
+import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
+import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
+
+/**
+ * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
+ * letter matching, consistent with `isValidSlashCommandName`.
+ */
+const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
+
+/**
+ * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
+ */
+const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -67,6 +87,8 @@ class SlashCommandCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IChatService chatService: IChatService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IMcpService mcpService: IMcpService,
 	) {
 		super();
@@ -80,11 +102,15 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+
+				let customAgentTarget: Target | undefined = undefined;
 				if (widget.lockedAgentId) {
-					return null;
+					const sessionResource = widget.viewModel.model.sessionResource;
+					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
+					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -107,18 +133,40 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return {
-					suggestions: slashCommands.map((c, i): CompletionItem => {
-						const withSlash = `/${c.command}`;
-						return {
-							label: withSlash,
-							insertText: c.executeImmediately ? '' : `${withSlash} `,
-							documentation: c.detail,
-							range,
-							sortText: c.sortText ?? 'a'.repeat(i + 1),
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
-						};
-					})
+					suggestions: slashCommands
+						.filter(c => {
+							// silent commands are client-side only... so they're not "attaching anything"
+							// so this check can be scoped to when the command _does_ attach something before
+							// checking if the widget supports attachments at all
+							if (!c.silent && !widget.attachmentCapabilities.supportsPromptAttachments) {
+								return false;
+							}
+							if (c.when && !widget.scopedContextKeyService.contextMatchesRules(c.when)) {
+								return false;
+							}
+							if (!widget.lockedAgentId) {
+								return true;
+							}
+							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
+								return false;
+							}
+							if (c.targets && customAgentTarget && !c.targets.includes(customAgentTarget)) {
+								return false;
+							}
+							return true;
+						})
+						.map((c, i): CompletionItem => {
+							const withSlash = `/${c.command}`;
+							return {
+								label: { label: withSlash, description: c.detail },
+								insertText: c.executeImmediately ? '' : `${withSlash} `,
+								documentation: c.detail,
+								range,
+								sortText: c.sortText ?? 'a'.repeat(i + 1),
+								kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+								command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
+							};
+						})
 				};
 			}
 		}));
@@ -151,19 +199,21 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				return {
-					suggestions: slashCommands.map((c, i): CompletionItem => {
-						const withSlash = `${chatSubcommandLeader}${c.command}`;
-						return {
-							label: withSlash,
-							insertText: c.executeImmediately ? '' : `${withSlash} `,
-							documentation: c.detail,
-							range,
-							filterText: `${chatAgentLeader}${c.command}`,
-							sortText: c.sortText ?? 'z'.repeat(i + 1),
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
-							command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
-						};
-					})
+					suggestions: slashCommands
+						.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when))
+						.map((c, i): CompletionItem => {
+							const withSlash = `${chatSubcommandLeader}${c.command}`;
+							return {
+								label: { label: withSlash, description: c.detail },
+								insertText: c.executeImmediately ? '' : `${withSlash} `,
+								documentation: c.detail,
+								range,
+								filterText: `${chatAgentLeader}${c.command}`,
+								sortText: c.sortText ?? 'z'.repeat(i + 1),
+								kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+								command: c.executeImmediately ? { id: ChatSubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` } satisfies IChatExecuteActionContext] } : undefined,
+							};
+						})
 				};
 			}
 		}));
@@ -176,7 +226,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -198,12 +248,38 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (widget.lockedAgentId) {
+				if (widget.lockedAgentId && !widget.attachmentCapabilities.supportsPromptAttachments) {
+					return null;
+				}
+
+				// Filter out commands that are not user-invocable (hidden from / menu)
+				const userInvocableCommands = promptCommands
+					.filter(c => {
+						if (widget.lockedAgentId) {
+							// Exclude extension-provided prompt files for locked agents.
+							if (c.promptPath.extension) {
+								return false;
+							}
+							// Exclude hooks as those don't work in locked agent scenarios.
+							try {
+								const promptType = getPromptFileType(c.promptPath.uri);
+								if (promptType && promptType === PromptsType.hook) {
+									return false;
+								}
+							} catch {
+
+							}
+						}
+						return true;
+					})
+					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false)
+					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
+				if (userInvocableCommands.length === 0) {
 					return null;
 				}
 
 				return {
-					suggestions: promptCommands.map((c, i): CompletionItem => {
+					suggestions: userInvocableCommands.map((c, i): CompletionItem => {
 						const label = `/${c.name}`;
 						const description = c.description;
 						return {
@@ -229,7 +305,7 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`
-				const range = computeCompletionRanges(model, position, /\/[a-z0-9_.-]*/g);
+				const range = computeCompletionRanges(model, position, /\/[\p{L}0-9_.-]*/gu);
 				if (!range) {
 					return null;
 				}
@@ -272,6 +348,7 @@ class AgentCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -285,7 +362,7 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return;
 				}
@@ -326,7 +403,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				const range = computeCompletionRanges(model, position, AgentOrSlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -338,6 +415,11 @@ class AgentCompletions extends Disposable {
 
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
+
+				// Filter out chatSessions contributions for slash command completions
+				const chatSessionContributions = this.chatSessionsService.getAllChatSessionContributions();
+				const chatSessionAgentIds = new Set(chatSessionContributions.map(contribution => contribution.type));
+				const agentsForSlashCommands = agents.filter(a => !chatSessionAgentIds.has(a.id));
 
 				// When the input is only `/`, items are sorted by sortText.
 				// When typing, filterText is used to score and sort.
@@ -351,6 +433,7 @@ class AgentCompletions extends Disposable {
 
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
+					.filter(a => !chatSessionAgentIds.has(a.id))
 					.map(agent => {
 						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const detail = agent.description;
@@ -371,7 +454,7 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: justAgents.concat(
-						coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
+						coalesce(agentsForSlashCommands.flatMap(agent => agent.slashCommands.map((c, i) => {
 							if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentModeKind)?.id !== agent.id) {
 								return;
 							}
@@ -420,7 +503,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				const range = computeCompletionRanges(model, position, AgentOrSlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -431,7 +514,9 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentModeKind));
+					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentModeKind))
+					// Filter out chatSessions contributions for slash command completions
+					.filter(a => !this.chatSessionsService.getChatSessionContribution(a.id));
 
 				return {
 					suggestions: coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
@@ -485,7 +570,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				const range = computeCompletionRanges(model, position, AgentOrSlashCommandWord);
 				if (!range) {
 					return;
 				}
@@ -538,7 +623,7 @@ class AgentCompletions extends Disposable {
 
 		for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
 			// Could allow text after 'position'
-			if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
+			if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/[\p{L}0-9_.:-]*)?$/u)) {
 				// No text allowed between agent and subcommand
 				return;
 			}
@@ -776,6 +861,7 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
+	private static readonly addDebugEventsSnapshotCommand = '_addDebugEventsSnapshotCmd';
 	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}[\\w:-]*`, 'g'); // MUST be using `g`-flag
 
 
@@ -786,13 +872,14 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IOutlineModelService private readonly outlineService: IOutlineModelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -878,9 +965,116 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		});
 
+		// Session Reference completion
+		const sessionWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');
+		this.registerVariableCompletions('sessionReference', async ({ widget, range }, token) => {
+			if (widget.location !== ChatAgentLocation.Chat) {
+				return;
+			}
+
+			const typedWord = range.varWord?.word ?? '';
+			const sessionPrefix = `${chatVariableLeader}session`;
+			const result: CompletionList = { suggestions: [] };
+
+			if (typedWord.toLowerCase().startsWith(`${sessionPrefix}:`)) {
+				// User has typed #session: — fetch all sessions and show them inline
+				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
+
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						allSessions.push({
+							title: item.label,
+							sessionResource: item.resource,
+							lastMessageDate: item.timing.lastRequestEnded ?? item.timing.created,
+							icon: item.iconPath ?? providerIcon,
+						});
+					}
+				}
+
+				const currentSessionResource = widget.viewModel?.sessionResource;
+				const filteredSessions = allSessions
+					.filter(s => !currentSessionResource || s.sessionResource.toString() !== currentSessionResource.toString())
+					.sort((a, b) => b.lastMessageDate - a.lastMessageDate);
+
+				for (const session of filteredSessions) {
+					const text = `${sessionPrefix}:${session.title}`;
+					const dateStr = new Date(session.lastMessageDate).toLocaleString();
+					result.suggestions.push({
+						label: { label: session.title, description: dateStr },
+						filterText: `${sessionPrefix}:${session.title}`,
+						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
+						range,
+						kind: CompletionItemKind.Text,
+						sortText: `z${String(Number.MAX_SAFE_INTEGER - session.lastMessageDate).padStart(20, '0')}`,
+						command: {
+							id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
+								id: session.sessionResource.toString(),
+								icon: session.icon,
+								range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
+								data: session.sessionResource
+							})]
+						}
+					});
+				}
+			} else {
+				// User typed # or #s etc — show single #session entry that inserts #session: and re-triggers suggest
+				result.suggestions.push({
+					label: { label: sessionPrefix, description: localize('session.description', 'Attach a chat session') },
+					filterText: sessionPrefix,
+					insertText: `${sessionPrefix}:`,
+					range,
+					kind: CompletionItemKind.Text,
+					sortText: 'z',
+					command: { id: 'editor.action.triggerSuggest', title: '' },
+				});
+			}
+			return result;
+		}, sessionWordPattern);
+
+		// Debug Events Snapshot completion
+		this.registerVariableCompletions('debugEventsSnapshot', ({ widget, range }) => {
+			if (widget.location !== ChatAgentLocation.Chat) {
+				return;
+			}
+
+			const sessionResource = widget.viewModel?.sessionResource;
+			if (!sessionResource || this.chatDebugService.getEvents(sessionResource).length === 0) {
+				return;
+			}
+
+			const text = `${chatVariableLeader}debugEventsSnapshot`;
+			const result: CompletionList = { suggestions: [] };
+			result.suggestions.push({
+				label: { label: text, description: localize('debugEventsSnapshot.description', 'Attach debug events snapshot') },
+				filterText: text,
+				insertText: '',
+				range,
+				kind: CompletionItemKind.Text,
+				sortText: 'z',
+				command: {
+					id: BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, title: '', arguments: [widget]
+				}
+			});
+			return result;
+		});
+
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => {
 			assertType(arg instanceof ReferenceArgument);
 			return this.cmdAddReference(arg);
+		}));
+
+		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, async (_services, widget: IChatWidget) => {
+			const sessionResource = widget.viewModel?.sessionResource;
+			if (!sessionResource) {
+				return;
+			}
+			const attachment = await createDebugEventsAttachment(sessionResource, this.chatDebugService);
+			widget.attachmentModel.addContext(attachment);
 		}));
 	}
 
@@ -992,19 +1186,6 @@ class BuiltinDynamicCompletions extends Disposable {
 			const newLen = result.suggestions.push(makeCompletionItem(resource, FileKind.FILE, i === 0 ? localize('activeFile', 'Active file') : undefined, i === 0));
 			if (newLen - len >= 5) {
 				break;
-			}
-		}
-
-		// RELATED FILES
-		if (widget.input.currentModeKind !== ChatModeKind.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
-			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
-			for (const relatedFileGroup of relatedFiles) {
-				for (const relatedFile of relatedFileGroup.files) {
-					if (!seen.has(relatedFile.uri)) {
-						seen.add(relatedFile.uri);
-						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
-					}
-				}
 			}
 		}
 
@@ -1220,7 +1401,7 @@ class ToolCompletions extends Disposable {
 					let documentation: string | undefined;
 
 					let name: string;
-					if (item instanceof ToolSet) {
+					if (isToolSet(item)) {
 						detail = item.description;
 						name = item.referenceName;
 
@@ -1243,7 +1424,6 @@ class ToolCompletions extends Disposable {
 						documentation,
 						insertText: withLeader + ' ',
 						kind: CompletionItemKind.Tool,
-						sortText: 'z',
 					});
 
 				}

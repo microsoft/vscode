@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
@@ -27,8 +28,9 @@ export class ChatCollapsibleMarkdownContentPart extends ChatCollapsibleContentPa
 		context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService);
 		this.icon = Codicon.check;
 	}
 
@@ -37,9 +39,7 @@ export class ChatCollapsibleMarkdownContentPart extends ChatCollapsibleContentPa
 
 		if (this.markdownContent) {
 			this.contentElement = $('.chat-collapsible-markdown-body');
-			const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(this.markdownContent), {
-				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}));
+			const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(this.markdownContent)));
 			this.contentElement.appendChild(rendered.element);
 			wrapper.appendChild(this.contentElement);
 		}

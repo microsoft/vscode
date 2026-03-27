@@ -53,6 +53,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorTitle', "The editor title menu")
 	},
 	{
+		key: 'modalEditor/editorTitle',
+		id: MenuId.ModalEditorEditorTitle,
+		description: localize('menus.modalEditorEditorTitle', "The editor title menu in the modal editor")
+	},
+	{
 		key: 'editor/title/run',
 		id: MenuId.EditorTitleRun,
 		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
@@ -480,6 +485,24 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
+		key: 'chat/input/editing/sessionApplyActions',
+		id: MenuId.ChatEditingSessionApplySubmenu,
+		description: localize('menus.chatEditingSessionApplySubmenu', "Submenu for apply actions in the Chat Editing session changes toolbar."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chat/input/editing/sessionTitleToolbar',
+		id: MenuId.ChatEditingSessionTitleToolbar,
+		description: localize('menus.chatEditingSessionTitleToolbar', "The Chat Editing widget toolbar menu for session title."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chat/input/editing/sessionChangeToolbar',
+		id: MenuId.ChatEditingSessionChangeToolbar,
+		description: localize('menus.chatEditingSessionChangeToolbar', "The Chat Editing widget toolbar menu for session changes."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.AgentSessionsContext,
@@ -500,6 +523,32 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.chatMultiDiffContext', "The Chat Multi-Diff context menu."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider',
+	},
+	{
+		key: 'chat/customizations/create',
+		id: MenuId.for('AICustomizationManagementCreate'),
+		description: localize('menus.chatCustomizationsCreate', "The create button in the Chat Customizations management editor."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
+	},
+	{
+		key: 'chat/editor/inlineGutter',
+		id: MenuId.ChatEditorInlineMenu,
+		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
+		supportsSubmenus: false,
+		proposed: 'contribChatEditorInlineGutterMenu',
+	},
+	{
+		key: 'chat/contextUsage/actions',
+		id: MenuId.ChatContextUsageActions,
+		description: localize('menus.chatContextUsageActions', "Actions in the chat context usage details popup."),
+		proposed: 'chatParticipantAdditions'
+	},
+	{
+		key: 'chat/newSession',
+		id: MenuId.ChatNewMenu,
+		description: localize('menus.chatNewSession', "The Chat new session menu."),
+		proposed: 'chatSessionsProvider'
 	},
 ];
 

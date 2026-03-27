@@ -591,7 +591,7 @@ export class FileWalker {
 			if (this.normalizedFilePatternLowercase) {
 				return isFilePatternMatch(candidate, this.normalizedFilePatternLowercase);
 			} else if (this.filePattern) {
-				return isFilePatternMatch(candidate, this.filePattern, false);
+				return isFilePatternMatch(candidate, this.filePattern, false, this.config.ignoreGlobCase);
 			}
 		}
 

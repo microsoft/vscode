@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { DeferredPromise, raceCancellationError, Sequencer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader, scopesMatch } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
@@ -33,6 +34,15 @@ export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostM
 
 export interface IExtHostMpcService extends ExtHostMcpShape {
 	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable;
+
+	/** Event that fires when the set of MCP server definitions changes. */
+	readonly onDidChangeMcpServerDefinitions: Event<void>;
+
+	/** Returns all MCP server definitions known to the editor. */
+	readonly mcpServerDefinitions: readonly vscode.McpServerDefinition[];
+
+	/** Starts an MCP gateway that exposes MCP servers via HTTP endpoints. */
+	startMcpGateway(): Promise<vscode.McpGateway | undefined>;
 }
 
 const serverDataValidation = vObj({
@@ -65,6 +75,17 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		servers: vscode.McpServerDefinition[];
 	}>();
 
+	// MCP server definitions synced from main thread
+	private readonly _onDidChangeMcpServerDefinitions = this._register(new Emitter<void>());
+	readonly onDidChangeMcpServerDefinitions: Event<void> = this._onDidChangeMcpServerDefinitions.event;
+	private _mcpServerDefinitions: readonly vscode.McpServerDefinition[] = [];
+
+	// Active gateways with their server emitters for dynamic updates
+	private readonly _activeGateways = new Map<string, {
+		servers: vscode.McpGatewayServer[];
+		onDidChangeServers: Emitter<readonly vscode.McpGatewayServer[]>;
+	}>();
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService protected readonly _logService: ILogService,
@@ -74,6 +95,17 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
+	}
+
+	/** Returns all MCP server definitions known to the editor. */
+	get mcpServerDefinitions(): readonly vscode.McpServerDefinition[] {
+		return this._mcpServerDefinitions;
+	}
+
+	/** Called by main thread to notify that MCP server definitions have changed. */
+	$onDidChangeMcpServerDefinitions(servers: McpServerDefinition.Serialized[]): void {
+		this._mcpServerDefinitions = servers.map(dto => Convert.McpServerDefinition.to(dto));
+		this._onDidChangeMcpServerDefinitions.fire();
 	}
 
 	$startMcp(id: number, opts: IStartMcpOptions): void {
@@ -229,6 +261,49 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		this._initialProviderPromises.add(promise);
 
 		return store;
+	}
+
+	/** {@link vscode.lm.startMcpGateway} */
+	public async startMcpGateway(): Promise<vscode.McpGateway | undefined> {
+		const result = await this._proxy.$startMcpGateway();
+		if (!result) {
+			return undefined;
+		}
+
+		const gatewayId = result.gatewayId;
+		const servers: vscode.McpGatewayServer[] = result.servers.map(s => ({
+			label: s.label,
+			address: URI.revive(s.address),
+		}));
+		const onDidChangeServers = new Emitter<readonly vscode.McpGatewayServer[]>();
+
+		this._activeGateways.set(gatewayId, { servers, onDidChangeServers });
+
+		return {
+			get servers() { return servers; },
+			onDidChangeServers: onDidChangeServers.event,
+			dispose: () => {
+				this._activeGateways.delete(gatewayId);
+				onDidChangeServers.dispose();
+				this._proxy.$disposeMcpGateway(gatewayId);
+			}
+		};
+	}
+
+	/** Called by main thread to notify that a gateway's server set has changed. */
+	$onDidChangeGatewayServers(gatewayId: string, newServers: { label: string; address: UriComponents }[]): void {
+		const gateway = this._activeGateways.get(gatewayId);
+		if (!gateway) {
+			return;
+		}
+
+		const servers: vscode.McpGatewayServer[] = newServers.map(s => ({
+			label: s.label,
+			address: URI.revive(s.address),
+		}));
+		gateway.servers.length = 0;
+		gateway.servers.push(...servers);
+		gateway.onDidChangeServers.fire(servers);
 	}
 }
 

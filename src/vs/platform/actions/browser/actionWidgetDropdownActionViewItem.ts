@@ -14,6 +14,7 @@ import { IActionWidgetService } from '../../actionWidget/browser/actionWidget.js
 import { ActionWidgetDropdown, IActionWidgetDropdownOptions } from '../../actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 /**
  * Action view item for the custom action widget dropdown widget.
@@ -28,6 +29,7 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(undefined, action);
 	}
@@ -40,7 +42,7 @@ export class ActionWidgetDropdownActionViewItem extends BaseActionViewItem {
 			return this.renderLabel(this.element);
 		};
 
-		this.actionWidgetDropdown = this._register(new ActionWidgetDropdown(container, { ...this.actionWidgetOptions, labelRenderer }, this._actionWidgetService, this._keybindingService));
+		this.actionWidgetDropdown = this._register(new ActionWidgetDropdown(container, { ...this.actionWidgetOptions, labelRenderer }, this._actionWidgetService, this._keybindingService, this._telemetryService));
 		this._register(this.actionWidgetDropdown.onDidChangeVisibility(visible => {
 			this.element?.setAttribute('aria-expanded', `${visible}`);
 		}));

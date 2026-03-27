@@ -88,6 +88,9 @@ export interface IEnvironmentService {
 	disableExperiments: boolean;
 	serviceMachineIdResource: URI;
 
+	// --- agent sessions workspace
+	agentSessionsWorkspace?: URI;
+
 	// --- Policy
 	policyFile?: URI;
 
@@ -146,6 +149,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	crossOriginIsolated?: boolean;
 	exportPolicyData?: string;
+	exportDefaultKeybindings?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

@@ -33,6 +33,8 @@ export const RemoteNameContext = new RawContextKey<string>('remoteName', '', loc
 export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace is from a virtual file system or an empty string."));
 export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
+export const IsSessionsWindowContext = new RawContextKey<boolean>('isSessionsWindow', false, localize('isSessionsWindow', "Whether the current window is a sessions window."));
+
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 
 export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
@@ -91,6 +93,10 @@ export const SelectedEditorsInGroupFileOrUntitledResourceContextKey = new RawCon
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
 export const EditorPartSingleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.toNegated();
 export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
+
+export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));
+export const EditorPartModalMaximizedContext = new RawContextKey<boolean>('editorPartModalMaximized', false, localize('editorPartModalMaximized', "Whether the modal editor part is maximized"));
+export const EditorPartModalNavigationContext = new RawContextKey<boolean>('editorPartModalNavigation', false, localize('editorPartModalNavigation', "Whether the modal editor part has navigation context"));
 
 // Editor Layout Context Keys
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
@@ -176,6 +182,11 @@ export function getVisbileViewContextKey(viewId: string): string { return `view.
 //#region < --- Resources --- >
 
 abstract class AbstractResourceContextKey {
+
+	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
+	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
+	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
+
 	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the resource") });
 	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined, { type: 'string', description: localize('resourceFilename', "The file name of the resource") });
 	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
@@ -185,8 +196,6 @@ abstract class AbstractResourceContextKey {
 	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined, { type: 'string', description: localize('resourceExtname', "The extension name of the resource") });
 	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
 	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
-
-	protected readonly _disposables = new DisposableStore();
 
 	protected _value: URI | undefined;
 	protected readonly _resourceKey: IContextKey<string | null>;
@@ -214,10 +223,6 @@ abstract class AbstractResourceContextKey {
 		this._extensionKey = AbstractResourceContextKey.Extension.bindTo(this._contextKeyService);
 		this._hasResource = AbstractResourceContextKey.HasResource.bindTo(this._contextKeyService);
 		this._isFileSystemResource = AbstractResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
-	}
-
-	dispose(): void {
-		this._disposables.dispose();
 	}
 
 	protected _setLangId(): void {
@@ -277,6 +282,9 @@ abstract class AbstractResourceContextKey {
 }
 
 export class ResourceContextKey extends AbstractResourceContextKey {
+
+	private readonly _disposables = new DisposableStore();
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IFileService fileService: IFileService,
@@ -299,11 +307,17 @@ export class ResourceContextKey extends AbstractResourceContextKey {
 			}
 		}));
 	}
+
+	dispose(): void {
+		this._disposables.dispose();
+	}
 }
 
-export class StaticResourceContextKey extends AbstractResourceContextKey {
-	// No event listeners
-}
+/**
+ * This is a version of ResourceContextKey that is not disposable and has no listeners for model change events.
+ * It will configure itself for the state/presence of a model only when created and not update.
+ */
+export class StaticResourceContextKey extends AbstractResourceContextKey { }
 
 
 //#endregion

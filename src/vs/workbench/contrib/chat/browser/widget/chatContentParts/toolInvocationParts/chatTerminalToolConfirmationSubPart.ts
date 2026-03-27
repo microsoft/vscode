@@ -11,7 +11,7 @@ import { asArray } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
 import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { thenIfNotDisposed, thenRegisterOrDispose, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { thenRegisterOrDispose, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import Severity from '../../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../../base/common/types.js';
@@ -32,17 +32,17 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
-import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import type { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
-import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
+import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
@@ -161,7 +161,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		));
 		thenRegisterOrDispose(textModelService.createModelReference(model.uri), this._store);
 		const editor = this._register(this.editorPool.get());
-		const renderPromise = editor.object.render({
+		editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
@@ -170,7 +170,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			textModel: Promise.resolve(model),
 			chatSessionResource: this.context.element.sessionResource
 		}, this.currentWidthDelegate());
-		this._register(thenIfNotDisposed(renderPromise, () => this._onDidChangeHeight.fire()));
 		this.codeblocks.push({
 			codeBlockIndex: this.codeBlockStartIndex,
 			codemapperUri: undefined,
@@ -181,10 +180,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			uriPromise: Promise.resolve(model.uri),
 			chatSessionResource: this.context.element.sessionResource
 		});
-		this._register(editor.object.onDidChangeContentHeight(() => {
-			editor.object.layout(this.currentWidthDelegate());
-			this._onDidChangeHeight.fire();
-		}));
 		this._register(model.onDidChangeContent(e => {
 			const currentValue = model.getValue();
 			// Only set userEdited if the content actually differs from the initial value
@@ -215,6 +210,15 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				buttons: this._createButtons(moreActions)
 			},
 		));
+
+		if (terminalData.requestUnsandboxedExecution) {
+			const reasonText = (terminalData.requestUnsandboxedExecutionReason && terminalData.requestUnsandboxedExecutionReason.trim())
+				|| localize('chat.terminal.unsandboxedExecution.defaultReason', "The model did not provide a reason for requesting unsandboxed execution.");
+			const unsandboxedReasonMarkdown = new MarkdownString(undefined, { supportThemeIcons: true });
+			unsandboxedReasonMarkdown.appendMarkdown(`$(${Codicon.info.id}) `);
+			unsandboxedReasonMarkdown.appendText(reasonText);
+			this._appendMarkdownPart(elements.disclaimer, unsandboxedReasonMarkdown, codeBlockRenderOptions);
+		}
 
 		if (disclaimer) {
 			this._appendMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
@@ -388,7 +392,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 			}
 		}));
-		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this.domNode = confirmWidget.domNode;
 	}
@@ -398,6 +401,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			const tooltip = this.keybindingService.appendKeybinding(tooltipDetail, actionId);
 			return { label, tooltip };
 		};
+
 		return [
 			{
 				...getLabelAndTooltip(localize('tool.allow', "Allow"), AcceptToolConfirmationActionId),
@@ -457,6 +461,5 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);
-		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 	}
 }

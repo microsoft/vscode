@@ -129,7 +129,6 @@ export enum WorkbenchSettingsEditorSettings {
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
 	recommendedExtensionsGalleryInfo: IStringDictionary<IGalleryExtension>;
-	commonlyUsed: string[];
 };
 
 let cachedExtensionToggleData: ExtensionToggleData | undefined;
@@ -155,7 +154,7 @@ export async function getExperimentalExtensionToggleData(
 		return cachedExtensionToggleData;
 	}
 
-	if (productService.extensionRecommendations && productService.commonlyUsedSettings) {
+	if (productService.extensionRecommendations) {
 		const settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations> = {};
 		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
 			const extensionInfo = productService.extensionRecommendations![extensionId];
@@ -188,8 +187,7 @@ export async function getExperimentalExtensionToggleData(
 
 		cachedExtensionToggleData = {
 			settingsEditorRecommendedExtensions,
-			recommendedExtensionsGalleryInfo,
-			commonlyUsed: productService.commonlyUsedSettings
+			recommendedExtensionsGalleryInfo
 		};
 		return cachedExtensionToggleData;
 	}

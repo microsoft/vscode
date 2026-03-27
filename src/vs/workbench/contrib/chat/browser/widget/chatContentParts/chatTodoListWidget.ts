@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { trackFocus } from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
-import { IChatTodoListService, IChatTodo } from '../../../common/tools/chatTodoListService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { TodoListToolDescriptionFieldSettingId } from '../../../common/tools/builtinTools/manageTodoListTool.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { IChatTodo, IChatTodoListService } from '../../../common/tools/chatTodoListService.js';
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
 	getHeight(element: IChatTodo): number {
@@ -42,10 +40,6 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 	static TEMPLATE_ID = 'todoListRenderer';
 	readonly templateId: string = TodoListRenderer.TEMPLATE_ID;
 
-	constructor(
-		private readonly configurationService: IConfigurationService
-	) { }
-
 	renderTemplate(container: HTMLElement): ITodoListTemplate {
 		const templateDisposables = new DisposableStore();
 		const todoElement = dom.append(container, dom.$('li.todo-item'));
@@ -67,16 +61,11 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 		statusIcon.className = `todo-status-icon codicon ${this.getStatusIconClass(todo.status)}`;
 		statusIcon.style.color = this.getStatusIconColor(todo.status);
 
-		// Update title with tooltip if description exists and description field is enabled
-		const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
-		const title = includeDescription && todo.description && todo.description.trim() ? todo.description : undefined;
-		iconLabel.setLabel(todo.title, undefined, { title });
+		iconLabel.setLabel(todo.title);
 
 		// Update aria-label
 		const statusText = this.getStatusText(todo.status);
-		const ariaLabel = includeDescription && todo.description && todo.description.trim()
-			? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
-			: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+		const ariaLabel = localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
 		todoElement.setAttribute('aria-label', ariaLabel);
 	}
 
@@ -124,9 +113,6 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
 
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
-
 	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
 	private expandoButton!: Button;
@@ -138,15 +124,22 @@ export class ChatTodoListWidget extends Disposable {
 	private _currentSessionResource: URI | undefined;
 	private _todoList: WorkbenchList<IChatTodo> | undefined;
 
+	private readonly _inChatTodoListContextKey: IContextKey<boolean>;
+
 	constructor(
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
+		this._inChatTodoListContextKey = ChatContextKeys.inChatTodoList.bindTo(contextKeyService);
 		this.domNode = this.createChatTodoWidget();
+
+		// Track focus state for context key
+		const focusTracker = this._register(trackFocus(this.domNode));
+		this._register(focusTracker.onDidFocus(() => this._inChatTodoListContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this._inChatTodoListContextKey.set(false)));
 
 		// Listen to context key changes to update clear button state when request state changes
 		this._register(this.contextKeyService.onDidChangeContext(e => {
@@ -162,7 +155,6 @@ export class ChatTodoListWidget extends Disposable {
 
 	private hideWidget(): void {
 		this.domNode.style.display = 'none';
-		this._onDidChangeHeight.fire();
 	}
 
 	private createChatTodoWidget(): HTMLElement {
@@ -216,6 +208,7 @@ export class ChatTodoListWidget extends Disposable {
 	private createClearButton(): void {
 		this.clearButton = new Button(this.clearButtonContainer, {
 			supportIcons: true,
+			ariaLabel: localize('chat.todoList.clearButton', 'Clear all todos'),
 		});
 		this.clearButton.element.tabIndex = 0;
 		this.clearButton.icon = Codicon.clearAll;
@@ -253,6 +246,27 @@ export class ChatTodoListWidget extends Disposable {
 		}
 	}
 
+	public hasTodos(): boolean {
+		return this.domNode.classList.contains('has-todos') && !!this._todoList && this._todoList.length > 0;
+	}
+
+	public hasFocus(): boolean {
+		return dom.isAncestorOfActiveElement(this.todoListContainer);
+	}
+
+	public focus(): boolean {
+		if (!this.hasTodos()) {
+			return false;
+		}
+
+		if (!this._isExpanded) {
+			this.toggleExpanded();
+		}
+
+		this._todoList?.domFocus();
+		return this.hasFocus();
+	}
+
 	private updateTodoDisplay(): void {
 		if (!this._currentSessionResource) {
 			return;
@@ -269,7 +283,6 @@ export class ChatTodoListWidget extends Disposable {
 		this.domNode.classList.add('has-todos');
 		this.renderTodoList(todoList);
 		this.domNode.style.display = 'block';
-		this._onDidChangeHeight.fire();
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {
@@ -287,16 +300,13 @@ export class ChatTodoListWidget extends Disposable {
 				'ChatTodoListRenderer',
 				this.todoListContainer,
 				new TodoListDelegate(),
-				[new TodoListRenderer(this.configurationService)],
+				[new TodoListRenderer()],
 				{
 					alwaysConsumeMouseWheel: false,
 					accessibilityProvider: {
 						getAriaLabel: (todo: IChatTodo) => {
 							const statusText = this.getStatusText(todo.status);
-							const includeDescription = this.configurationService.getValue<boolean>(TodoListToolDescriptionFieldSettingId) !== false;
-							return includeDescription && todo.description && todo.description.trim()
-								? localize('chat.todoList.itemWithDescription', '{0}, {1}, {2}', todo.title, statusText, todo.description)
-								: localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
+							return localize('chat.todoList.item', '{0}, {1}', todo.title, statusText);
 						},
 						getWidgetAriaLabel: () => localize('chatTodoList', 'Chat Todo List')
 					}
@@ -328,7 +338,6 @@ export class ChatTodoListWidget extends Disposable {
 			this.expandIcon.classList.add('codicon-chevron-right');
 
 			this.updateTitleElement(this.titleElement, todoList);
-			this._onDidChangeHeight.fire();
 		}
 	}
 
@@ -345,8 +354,6 @@ export class ChatTodoListWidget extends Disposable {
 			const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
 			this.updateTitleElement(this.titleElement, todoList);
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	private clearAllTodos(): void {

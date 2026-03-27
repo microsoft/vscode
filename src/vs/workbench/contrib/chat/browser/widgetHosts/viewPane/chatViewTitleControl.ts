@@ -14,11 +14,9 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
@@ -51,28 +49,18 @@ export class ChatViewTitleControl extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.render(this.container);
 
-		this.registerListeners();
 		this.registerActions();
 	}
 
-	private registerListeners(): void {
-
-		// Update on configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatViewTitleEnabled)) {
-				this.doUpdate();
-			}
-		}));
-	}
-
 	private registerActions(): void {
+		const that = this;
+
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -90,7 +78,7 @@ export class ChatViewTitleControl extends Disposable {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const instantiationService = accessor.get(IInstantiationService);
 
-				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker);
+				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.titleLabel.value?.element, undefined);
 				await agentSessionsPicker.pickAgentSession();
 			}
 		}));
@@ -98,8 +86,10 @@ export class ChatViewTitleControl extends Disposable {
 
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
-			h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
-			h('div.chat-view-title-actions-toolbar@actionsToolbar'),
+			h('div.chat-view-title-inner', [
+				h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
+				h('div.chat-view-title-actions-toolbar@actionsToolbar'),
+			]),
 		]);
 
 		// Toolbar on the left
@@ -185,15 +175,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private shouldRender(): boolean {
-		if (!this.isEnabled()) {
-			return false; // title hidden via setting
-		}
-
 		return !!this.model?.title; // we need a chat showing and not being empty
-	}
-
-	private isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled) === true;
 	}
 
 	getHeight(): number {

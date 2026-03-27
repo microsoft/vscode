@@ -400,13 +400,15 @@ export class FormatString extends Marker {
 		}
 	}
 
+	// Note: word-based case transforms rely on uppercase/lowercase distinctions.
+	// For scripts without case, transforms are effectively no-ops.
 	private _toKebabCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
 
-		if (!value.match(/[a-z0-9]/)) {
+		if (!value.match(/[\p{L}0-9]/u)) {
 			return value
 				.trim()
 				.toLowerCase()
@@ -414,12 +416,16 @@ export class FormatString extends Marker {
 				.replace(/[\s_]+/g, '-');
 		}
 
-		const match2 = value
-			.trim()
-			.match(/[A-Z]{2,}(?=[A-Z][a-z]+[0-9]*|\b)|[A-Z]?[a-z]+[0-9]*|[A-Z]|[0-9]+/g);
+		const cleaned = value.trim().replace(/^_+|_+$/g, '');
+
+		const match2 = cleaned.match(/\p{Lu}{2,}(?=\p{Lu}\p{Ll}+[0-9]*|[\s_-]|$)|\p{Lu}?\p{Ll}+[0-9]*|\p{Lu}(?=\p{Lu}\p{Ll})|\p{Lu}(?=[\s_-]|$)|[0-9]+/gu);
 
 		if (!match2) {
-			return value;
+			return cleaned
+				.split(/[\s_-]+/)
+				.filter(word => word.length > 0)
+				.map(word => word.toLowerCase())
+				.join('-');
 		}
 
 		return match2
@@ -428,7 +434,7 @@ export class FormatString extends Marker {
 	}
 
 	private _toPascalCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
@@ -439,7 +445,7 @@ export class FormatString extends Marker {
 	}
 
 	private _toCamelCase(value: string): string {
-		const match = value.match(/[a-z0-9]+/gi);
+		const match = value.match(/[\p{L}0-9]+/gu);
 		if (!match) {
 			return value;
 		}
@@ -453,7 +459,7 @@ export class FormatString extends Marker {
 	}
 
 	private _toSnakeCase(value: string): string {
-		return value.replace(/([a-z])([A-Z])/g, '$1_$2')
+		return value.replace(/(\p{Ll})(\p{Lu})/gu, '$1_$2')
 			.replace(/[\s\-]+/g, '_')
 			.toLowerCase();
 	}

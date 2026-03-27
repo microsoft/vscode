@@ -66,7 +66,7 @@ export class TestThemeService implements IThemeService {
 	_onFileIconThemeChange = new Emitter<IFileIconTheme>();
 	_onProductIconThemeChange = new Emitter<IProductIconTheme>();
 
-	constructor(theme = new TestColorTheme(), fileIconTheme = new TestFileIconTheme(), productIconTheme = new UnthemedProductIconTheme()) {
+	constructor(theme: IColorTheme = new TestColorTheme(), fileIconTheme: IFileIconTheme = new TestFileIconTheme(), productIconTheme: IProductIconTheme = new UnthemedProductIconTheme()) {
 		this._colorTheme = theme;
 		this._fileIconTheme = fileIconTheme;
 		this._productIconTheme = productIconTheme;

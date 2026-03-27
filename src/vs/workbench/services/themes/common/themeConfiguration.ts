@@ -282,7 +282,19 @@ const colorSchemeToPreferred = {
 };
 
 export class ThemeConfiguration {
-	constructor(private configurationService: IConfigurationService, private hostColorService: IHostColorSchemeService) {
+	constructor(private configurationService: IConfigurationService, private hostColorService: IHostColorSchemeService, private readonly isNewUser: boolean = false) {
+	}
+
+	private shouldAutoDetectColorScheme(): boolean {
+		const { value, userValue, userLocalValue, userRemoteValue } = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
+		if (value) {
+			return true;
+		}
+		if (this.isNewUser) {
+			const hasUserScopedValue = userValue !== undefined || userLocalValue !== undefined || userRemoteValue !== undefined;
+			return !hasUserScopedValue;
+		}
+		return false;
 	}
 
 	public get colorTheme(): string {
@@ -302,7 +314,30 @@ export class ThemeConfiguration {
 	}
 
 	public get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		const tokenColorCustomization = this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		const textMateRules = tokenColorCustomization.textMateRules;
+		if (!textMateRules) {
+			return tokenColorCustomization;
+		}
+		const updatedRules = textMateRules.map(rule => {
+			const fontSize = rule.settings?.fontSize;
+			const lineHeight = rule.settings?.lineHeight;
+			if (fontSize !== undefined && lineHeight === undefined) {
+				return {
+					...rule,
+					settings: {
+						...rule.settings,
+						lineHeight: fontSize
+					}
+				};
+			}
+			return rule;
+		});
+		const updatedTokenColorCustomization = {
+			...tokenColorCustomization,
+			textMateRules: updatedRules
+		};
+		return updatedTokenColorCustomization;
 	}
 
 	public get semanticTokenColorCustomizations(): ISemanticTokenColorCustomizations | undefined {
@@ -313,14 +348,14 @@ export class ThemeConfiguration {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
 			return this.hostColorService.dark ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT;
 		}
-		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+		if (this.shouldAutoDetectColorScheme()) {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
 	}
 
 	public isDetectingColorScheme(): boolean {
-		return this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME);
+		return this.shouldAutoDetectColorScheme();
 	}
 
 	public getColorThemeSettingId(): ThemeSettings {
