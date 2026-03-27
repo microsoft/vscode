@@ -8,7 +8,7 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 fi
 
-cd $ROOT
+cd "$ROOT"
 
 # Parse arguments
 EXTRA_ARGS=()
@@ -50,6 +50,9 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
+# Known suite names (used for help text and validation)
+KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html"
+
 if $HELP; then
 	echo "Usage: $0 [options]"
 	echo ""
@@ -74,10 +77,7 @@ if $HELP; then
 	echo "                                supports comma-separated list and glob patterns"
 	echo "  --help, -h                    show this help"
 	echo ""
-	echo "Available suites:"
-	echo "  api-folder, api-workspace, colorize, terminal-suggest, typescript,"
-	echo "  markdown, emmet, git, git-base, ipynb, notebook-renderers,"
-	echo "  configuration-editing, github-authentication, css, html"
+	echo "Available suites: $KNOWN_SUITES"
 	echo ""
 	echo "All other options are forwarded to the node.js test runner (see scripts/test.sh --help)."
 	echo "Note: extra options are not forwarded to extension host suites (--suite mode)."
@@ -148,7 +148,6 @@ echo "Storing log files into '$VSCODELOGSDIR'."
 
 # Validate --suite filter matches at least one known suite
 if [[ -n "$SUITE_FILTER" ]]; then
-	KNOWN_SUITES="api-folder api-workspace colorize terminal-suggest typescript markdown emmet git git-base ipynb notebook-renderers configuration-editing github-authentication css html"
 	SUITE_MATCHED=false
 	for suite in $KNOWN_SUITES; do
 		if should_run_suite "$suite"; then
@@ -159,7 +158,7 @@ if [[ -n "$SUITE_FILTER" ]]; then
 	if [[ "$SUITE_MATCHED" == "false" ]]; then
 		echo "Error: no suites match filter '$SUITE_FILTER'"
 		echo "Available suites: $KNOWN_SUITES"
-		rm -rf $VSCODEUSERDATADIR
+		rm -rf -- "$VSCODEUSERDATADIR"
 		exit 1
 	fi
 fi
@@ -172,7 +171,7 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	echo "### node.js integration tests"
 	echo
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		./scripts/test.sh --runGlob **/*.integrationTest.js "${EXTRA_ARGS[@]}"
+		./scripts/test.sh --runGlob "**/*.integrationTest.js" "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"
 	fi
@@ -182,7 +181,7 @@ fi
 if [[ -z "$SUITE_FILTER" ]] && $HAS_FILTER; then
 	echo ""
 	echo "Filter active, skipping extension host tests."
-	rm -rf $VSCODEUSERDATADIR
+	rm -rf -- "$VSCODEUSERDATADIR"
 	exit 0
 fi
 
@@ -190,8 +189,10 @@ fi
 # Tests in the extension host
 
 # Forward grep pattern to extension test runners
+GREP_ARGS=()
 if [[ -n "$GREP_PATTERN" ]]; then
 	export MOCHA_GREP="$GREP_PATTERN"
+	GREP_ARGS=(--grep "$GREP_PATTERN")
 fi
 
 API_TESTS_EXTRA_ARGS="--disable-telemetry --disable-experiments --skip-welcome --skip-release-notes --crash-reporter-directory=$VSCODECRASHDIR --logsPath=$VSCODELOGSDIR --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-extensions --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
@@ -222,7 +223,7 @@ if should_run_suite colorize; then
 echo
 echo "### Colorize tests"
 echo
-npm run test-extension -- -l vscode-colorize-tests ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l vscode-colorize-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -230,7 +231,7 @@ if should_run_suite terminal-suggest; then
 echo
 echo "### Terminal Suggest tests"
 echo
-npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -246,7 +247,7 @@ if should_run_suite markdown; then
 echo
 echo "### Markdown tests"
 echo
-npm run test-extension -- -l markdown-language-features ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l markdown-language-features "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -270,7 +271,7 @@ if should_run_suite git-base; then
 echo
 echo "### Git Base tests"
 echo
-npm run test-extension -- -l git-base ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l git-base "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -278,7 +279,7 @@ if should_run_suite ipynb; then
 echo
 echo "### Ipynb tests"
 echo
-npm run test-extension -- -l ipynb ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l ipynb "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -286,7 +287,7 @@ if should_run_suite notebook-renderers; then
 echo
 echo "### Notebook Output tests"
 echo
-npm run test-extension -- -l notebook-renderers ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l notebook-renderers "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -294,7 +295,7 @@ if should_run_suite configuration-editing; then
 echo
 echo "### Configuration editing tests"
 echo
-npm run test-extension -- -l configuration-editing ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l configuration-editing "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -302,7 +303,7 @@ if should_run_suite github-authentication; then
 echo
 echo "### GitHub Authentication tests"
 echo
-npm run test-extension -- -l github-authentication ${GREP_PATTERN:+--grep "$GREP_PATTERN"}
+npm run test-extension -- -l github-authentication "${GREP_ARGS[@]}"
 kill_app
 fi
 
@@ -312,17 +313,17 @@ if should_run_suite css; then
 echo
 echo "### CSS tests"
 echo
-cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
+cd "$ROOT/extensions/css-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
 fi
 
 if should_run_suite html; then
 echo
 echo "### HTML tests"
 echo
-cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
+cd "$ROOT/extensions/html-language-features/server" && "$ROOT/scripts/node-electron.sh" test/index.js
 fi
 
 
 # Cleanup
 
-rm -rf $VSCODEUSERDATADIR
+rm -rf -- "$VSCODEUSERDATADIR"

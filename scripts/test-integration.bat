@@ -10,9 +10,7 @@ set "RUN_GLOB="
 set "GREP_PATTERN="
 set "SUITE_FILTER="
 set "SHOW_HELP="
-set "EXTRA_ARGS="
 
-set "ARGS=%*"
 :parse_args
 if "%~1"=="" goto done_parsing
 if /i "%~1"=="--help" (set SHOW_HELP=1& shift & goto parse_args)
@@ -136,7 +134,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 if not defined SUITE_FILTER if defined HAS_FILTER (
 	echo.
 	echo Filter active, skipping extension host tests.
-	rmdir /s /q %VSCODEUSERDATADIR% 2>nul
+	rmdir /s /q "%VSCODEUSERDATADIR%" 2>nul
 	exit /b 0
 )
 
@@ -165,18 +163,22 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call :should_run_suite colorize || goto skip_colorize
 echo.
 echo ### Colorize tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l vscode-colorize-tests %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l vscode-colorize-tests --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l vscode-colorize-tests
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_colorize
 
 call :should_run_suite terminal-suggest || goto skip_terminal_suggest
 echo.
 echo ### Terminal Suggest tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l terminal-suggest --enable-proposed-api=vscode.vscode-api-tests
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_terminal_suggest
 
@@ -190,9 +192,11 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call :should_run_suite markdown || goto skip_markdown
 echo.
 echo ### Markdown tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l markdown-language-features %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l markdown-language-features --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l markdown-language-features
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_markdown
 
@@ -216,45 +220,55 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call :should_run_suite git-base || goto skip_git_base
 echo.
 echo ### Git Base tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l git-base %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l git-base --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l git-base
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_git_base
 
 call :should_run_suite ipynb || goto skip_ipynb
 echo.
 echo ### Ipynb tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l ipynb %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l ipynb --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l ipynb
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_ipynb
 
 call :should_run_suite notebook-renderers || goto skip_notebook_renderers
 echo.
 echo ### Notebook Output tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l notebook-renderers %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l notebook-renderers --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l notebook-renderers
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_notebook_renderers
 
 call :should_run_suite configuration-editing || goto skip_configuration_editing
 echo.
 echo ### Configuration editing tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l configuration-editing %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l configuration-editing --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l configuration-editing
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_configuration_editing
 
 call :should_run_suite github-authentication || goto skip_github_authentication
 echo.
 echo ### GitHub Authentication tests
-set "_grep_arg="
-if defined GREP_PATTERN set "_grep_arg=--grep "%GREP_PATTERN%""
-call npm run test-extension -- -l github-authentication %_grep_arg%
+if defined GREP_PATTERN (
+	call npm run test-extension -- -l github-authentication --grep "%GREP_PATTERN%"
+) else (
+	call npm run test-extension -- -l github-authentication
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 :skip_github_authentication
 
@@ -277,7 +291,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Cleanup
 
-rmdir /s /q %VSCODEUSERDATADIR%
+rmdir /s /q "%VSCODEUSERDATADIR%"
 
 popd
 
