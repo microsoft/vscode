@@ -182,7 +182,8 @@ Program Execution:
 
 Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
-- Returns a terminal ID for checking status and runtime later`];
+- Returns a terminal ID for checking status and runtime later
+- If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later`];
 
 	if (isSandboxEnabled) {
 		parts.push(createSandboxLines(networkDomains).join('\n'));
