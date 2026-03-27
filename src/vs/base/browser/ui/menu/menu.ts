@@ -1246,6 +1246,10 @@ ${formatRule(Codicon.menuSubmenu)}
 	justify-content: center;
 }
 
+.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .menu-item-check:has(+ .menu-item-icon) {
+	visibility: hidden;
+}
+
 /* Context Menu */
 
 .context-view.monaco-menu-container {
