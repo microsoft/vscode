@@ -15,6 +15,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 export interface IAgentSessionApprovalInfo {
 	readonly label: string;
 	readonly languageId: string | undefined;
+	readonly since: Date;
 	confirm(): void;
 }
 
@@ -112,6 +113,7 @@ export class AgentSessionApprovalModel extends Disposable {
 					setIfChanged({
 						label,
 						languageId,
+						since: new Date(),
 						confirm: () => confirmState.confirm({ type: ToolConfirmKind.UserAction }),
 					});
 					return;
