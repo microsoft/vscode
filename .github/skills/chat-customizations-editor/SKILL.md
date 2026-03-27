@@ -53,6 +53,7 @@ The management editor fixture supports a `selectedSection` option to render any 
 | `chat/aiCustomizations/aiCustomizationManagementEditor/CliHarness/{Dark,Light}` | Default (Agents, CLI harness) |
 | `chat/aiCustomizations/aiCustomizationManagementEditor/ClaudeHarness/{Dark,Light}` | Default (Agents, Claude harness) |
 | `chat/aiCustomizations/aiCustomizationManagementEditor/Sessions/{Dark,Light}` | Sessions window variant |
+| `chat/aiCustomizations/aiCustomizationManagementEditor/HarnessMenu/{Dark,Light}` | Standalone harness dropdown menu with icons |
 
 **Adding a new tab fixture:** Add a variant to the `defineThemedFixtureGroup` in `aiCustomizationManagementEditor.fixture.ts`:
 ```typescript
@@ -180,3 +181,7 @@ Fixtures render at a fixed size (default 900×600) with many mock items. They wo
 - **Reflow timing** — the real product's `display:none → visible` transition may not have reflowed before `layout()` fires
 - **Narrow windows** — add narrow fixture variants (e.g., `width: 550, height: 400`)
 - **Real data counts** — a user with 1 MCP server sees very different layout than a fixture with 12
+
+### Context menu icons for plain Actions
+
+`Menu.doGetActionViewItem` in `src/vs/base/browser/ui/menu/menu.ts` now auto-enables icon rendering when `action.class` is set (`icon: !!action.class`). Before this fix, `BaseMenuActionViewItem` defaulted `icon` to `false`, so codicon classes from `ThemeIcon.asClassName()` were silently ignored. If you create context menu actions with icon CSS classes, icons will render automatically. The `HarnessMenu` fixture verifies this.

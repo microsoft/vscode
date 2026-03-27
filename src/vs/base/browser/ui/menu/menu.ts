@@ -412,6 +412,7 @@ export class Menu extends ActionBar {
 				enableMnemonics: options.enableMnemonics,
 				useEventAsContext: options.useEventAsContext,
 				keybinding: keybindingLabel,
+				icon: !!action.class,
 			};
 
 			const menuActionViewItem = new BaseMenuActionViewItem(options.context, action, menuItemOptions, this.menuStyles);
