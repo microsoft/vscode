@@ -138,8 +138,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
 
 		// When a workspace is selected, create a new session
-		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
+		this._register(this._workspacePicker.onDidChangeSelection(() => {
 			this._renderOptionGroupPickers();
+		}));
+		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
 			await this._onWorkspaceSelected(workspace);
 			this._focusEditor();
 		}));

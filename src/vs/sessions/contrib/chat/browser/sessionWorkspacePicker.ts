@@ -64,6 +64,8 @@ export class WorkspacePicker extends Disposable {
 
 	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection>());
 	readonly onDidSelectWorkspace: Event<IWorkspaceSelection> = this._onDidSelectWorkspace.event;
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 
 	private _selectedWorkspace: IWorkspaceSelection | undefined;
 
@@ -105,6 +107,7 @@ export class WorkspacePicker extends Disposable {
 				if (restored) {
 					this._selectedWorkspace = restored;
 					this._updateTriggerLabel();
+					this._onDidChangeSelection.fire();
 					this._onDidSelectWorkspace.fire(restored);
 				}
 			}
@@ -211,6 +214,7 @@ export class WorkspacePicker extends Disposable {
 		const updated = recents.map(p => ({ ...p, checked: false }));
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
 	}
 
 	/**
@@ -226,6 +230,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedWorkspace = selection;
 		this._persistSelectedWorkspace(selection);
 		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
 		if (fireEvent) {
 			this._onDidSelectWorkspace.fire(selection);
 		}
