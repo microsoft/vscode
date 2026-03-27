@@ -108,6 +108,8 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- For long-running tasks (e.g., servers), set isBackground=true',
 		'- Returns a terminal ID for checking status and runtime later',
 		'- Use Start-Job for background PowerShell jobs',
+		`- If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later`,
+		'- If unsure whether a command will be long-running, prefer isBackground=true — you can always check the output later',
 	];
 
 	if (isSandboxEnabled) {
@@ -130,6 +132,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
+		`- NEVER run Start-Sleep or similar wait commands in a foreground terminal. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} instead`,
 	);
 
 	return parts.join('\n');
@@ -183,7 +186,8 @@ Program Execution:
 Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
 - Returns a terminal ID for checking status and runtime later
-- If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later`];
+- If a foreground command (isBackground=false) is taking too long, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work. Use ${TerminalToolId.GetTerminalOutput} to check its output or ${TerminalToolId.AwaitTerminal} to wait for it to complete later
+- If unsure whether a command will be long-running, prefer isBackground=true — you can always check the output later`];
 
 	if (isSandboxEnabled) {
 		parts.push(createSandboxLines(networkDomains).join('\n'));
@@ -201,7 +205,8 @@ Best Practices:
 - Quote variables: "$var" instead of $var to handle spaces
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
-- Avoid printing credentials unless absolutely required`);
+- Avoid printing credentials unless absolutely required
+- NEVER run sleep or similar wait commands in a foreground terminal. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} instead`);
 
 	return parts.join('');
 }
@@ -295,11 +300,11 @@ export async function createRunInTerminalToolData(
 				},
 				isBackground: {
 					type: 'boolean',
-					description: `Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using ${TerminalToolId.GetTerminalOutput}.`
+					description: `Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using ${TerminalToolId.GetTerminalOutput}. If unsure whether a command will be long-running, prefer isBackground=true.`
 				},
 				timeout: {
 					type: 'number',
-					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far with a timeout indicator. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
+					description: `An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far with a timeout indicator. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it's not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low. If a command times out, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work.`,
 				},
 				...isSandboxEnabled ? {
 					requestUnsandboxedExecution: {
