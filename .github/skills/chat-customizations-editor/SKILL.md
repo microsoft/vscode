@@ -30,15 +30,6 @@ When changing harness descriptor interfaces or factory functions, verify both co
 
 Principle: the UI widgets read everything from the descriptor — no harness-specific conditionals in widget code.
 
-## Extension-Contributed Harnesses (Proposed API)
-
-Extensions can register their own harness via the `chatSessionCustomizationProvider` proposed API (`src/vscode-dts/vscode.proposed.chatSessionCustomizationProvider.d.ts`). The extension provides metadata (label, icon, unsupported types) and an item provider that returns `ChatSessionCustomizationItem[]`. Key flow:
-
-1. **ExtHost** (`extHostChatAgents2.ts`) — `registerChatSessionCustomizationProvider` stores the provider and sends metadata to the main thread.
-2. **MainThread** (`mainThreadChatAgents2.ts`) — `$registerChatSessionCustomizationProvider` builds an `IHarnessDescriptor` with an `itemProvider` that calls back to the ExtHost, then registers it via `ICustomizationHarnessService.registerExternalHarness`.
-3. **Deduplication** — if an external harness has the same `id` as a static (hardcoded) harness, the external one replaces it in the available list. Disposing restores the static one.
-4. **Item enrichment** — the list widget infers `storage` from item URIs and, for instructions, parses files for `applyTo` frontmatter to populate badges and groupKeys. This uses the shared `buildInstructionListItem` helper.
-
 ## Testing
 
 Component explorer fixtures (see `component-fixtures` skill): `aiCustomizationListWidget.fixture.ts`, `aiCustomizationManagementEditor.fixture.ts` under `src/vs/workbench/test/browser/componentFixtures/`.
