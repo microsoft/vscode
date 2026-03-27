@@ -42,6 +42,7 @@ import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/co
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { IAgentSessionsService } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { countUnreadSessions } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { localize } from '../../../nls.js';
@@ -263,9 +264,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 						wireBadge();
 					}
 				});
-			} catch {
-				// If the extension service is not available for some reason, fall back
-				// to the other retry mechanisms without failing.
+			} catch (err) {
+				onUnexpectedError(err);
 			}
 		}
 	}
