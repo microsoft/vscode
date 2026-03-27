@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type IActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ISessionSummary, ROOT_STATE_URI, SessionLifecycle, SessionStatus, type ISessionState } from '../../common/state/sessionState.js';
+import { ISessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, type IMarkdownResponsePart, type ISessionState } from '../../common/state/sessionState.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
 
 suite('SessionStateManager', () => {
@@ -246,5 +246,40 @@ suite('SessionStateManager', () => {
 			turnId: 'turn-2',
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 0);
+	});
+
+	test('restoreSession creates session in Ready state with pre-populated turns', () => {
+		const turns = [
+			{
+				id: 'turn-1',
+				userMessage: { text: 'hello' },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'world' } satisfies IMarkdownResponsePart],
+				usage: undefined,
+				state: TurnState.Complete,
+			},
+		];
+
+		const state = manager.restoreSession(makeSessionSummary(), turns);
+		assert.strictEqual(state.lifecycle, SessionLifecycle.Ready);
+		assert.strictEqual(state.turns.length, 1);
+		assert.strictEqual(state.turns[0].userMessage.text, 'hello');
+		assert.strictEqual((state.turns[0].responseParts[0] as IMarkdownResponsePart).content, 'world');
+	});
+
+	test('restoreSession returns existing state for duplicate session', () => {
+		manager.createSession(makeSessionSummary());
+		const existing = manager.getSessionState(sessionUri);
+
+		const state = manager.restoreSession(makeSessionSummary(), []);
+		assert.strictEqual(state, existing);
+	});
+
+	test('restoreSession does not emit sessionAdded notification', () => {
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.restoreSession(makeSessionSummary(), []);
+
+		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
 	});
 });

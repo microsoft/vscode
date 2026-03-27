@@ -447,9 +447,15 @@ export function buildModelPickerItems(
 export function getModelPickerAccessibilityProvider() {
 	return {
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+			if (element.isSectionToggle) {
+				return undefined;
+			}
 			return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
+			if (element.isSectionToggle) {
+				return 'menuitem';
+			}
 			switch (element.kind) {
 				case ActionListItemKind.Action: return 'menuitemradio';
 				case ActionListItemKind.Separator: return 'separator';
@@ -583,6 +589,13 @@ export class ModelPickerWidget extends Disposable {
 		this._renderLabel();
 	}
 
+	setEnabled(enabled: boolean): void {
+		if (this._domNode) {
+			this._domNode.classList.toggle('disabled', !enabled);
+			this._domNode.setAttribute('aria-disabled', String(!enabled));
+		}
+	}
+
 	setBadge(badge: ModelPickerBadge | undefined): void {
 		this._badge = badge;
 		this._updateBadge();
@@ -626,7 +639,7 @@ export class ModelPickerWidget extends Disposable {
 
 	show(anchor?: HTMLElement): void {
 		const anchorElement = anchor ?? this._domNode;
-		if (!anchorElement) {
+		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
 

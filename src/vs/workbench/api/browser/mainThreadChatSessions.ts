@@ -24,6 +24,7 @@ import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/edito
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
+import { getInProgressSessionDescription } from '../../contrib/chat/browser/chatSessions/chatSessionDescription.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService, ReadonlyChatSessionOptionsMap } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -137,7 +138,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 						variableData: variables ? { variables } : undefined,
 						id: turn.id,
 						modelId: turn.modelId,
-					};
+						modeInstructions: turn.modeInstructions ? revive(turn.modeInstructions) : undefined,
+					} satisfies IChatSessionRequestHistoryItem;
 				}
 
 				return {
@@ -326,6 +328,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 			command: request.command,
 			variableData: undefined,
 			modelId: request.modelId,
+			modeInstructions: request.modeInstructions,
 		};
 	}
 
@@ -580,7 +583,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
 
 			// Migrate artifacts from old session to new session
-			this._chatArtifactsService.migrateArtifacts(originalResource, modifiedResource);
+			this._chatArtifactsService.getArtifacts(originalResource).migrate(this._chatArtifactsService.getArtifacts(modifiedResource));
 
 			// Eagerly invoke debug providers for Copilot CLI sessions so the real
 			// session appears in the debug panel immediately after the untitled →
@@ -668,7 +671,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Override description if there's an in-progress count
 		const inProgress = model.getRequests().filter(r => r.response && !r.response.isComplete);
 		if (inProgress.length) {
-			outgoingSession.description = this._chatSessionsService.getInProgressSessionDescription(model);
+			outgoingSession.description = getInProgressSessionDescription(model);
 		}
 
 		// Override changes

@@ -50,6 +50,7 @@ export interface IGitHubPullRequest {
 	readonly state: GitHubPullRequestState;
 	readonly author: IGitHubUser;
 	readonly headRef: string;
+	readonly headSha: string;
 	readonly baseRef: string;
 	readonly isDraft: boolean;
 	readonly createdAt: string;

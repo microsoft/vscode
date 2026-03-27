@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionData } from '../../sessions/common/sessionData.js';
 import { IJSONEditingService } from '../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
-import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
+import { TaskRunSource } from '../../../../workbench/contrib/tasks/common/tasks.js';
+import { ITaskService } from '../../../../workbench/contrib/tasks/common/taskService.js';
 
 export type TaskStorageTarget = 'user' | 'workspace';
 type TaskRunOnOption = 'default' | 'folderOpen' | 'worktreeCreated';
@@ -70,42 +71,42 @@ export interface ISessionsConfigurationService {
 	 * updated when the tasks.json file changes. Each entry includes the
 	 * storage target the task was loaded from.
 	 */
-	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ISessionTaskWithTarget[]>;
+	getSessionTasks(session: ISessionData): IObservable<readonly ISessionTaskWithTarget[]>;
 
 	/**
 	 * Returns tasks that do NOT have `inSessions: true` — used as
 	 * suggestions in the "Add Run Action" picker.
 	 */
-	getNonSessionTasks(session: IActiveSessionItem): Promise<readonly INonSessionTaskEntry[]>;
+	getNonSessionTasks(session: ISessionData): Promise<readonly INonSessionTaskEntry[]>;
 
 	/**
 	 * Sets `inSessions: true` on an existing task (identified by label),
 	 * updating it in place in its tasks.json.
 	 */
-	addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
+	addTaskToSessions(task: ITaskEntry, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
 
 	/**
 	 * Creates a new shell task with `inSessions: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
-	createAndAddTask(label: string | undefined, command: string, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
+	createAndAddTask(label: string | undefined, command: string, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
 
 	/**
 	 * Updates an existing task entry, optionally moving it between user and
 	 * workspace storage.
 	 */
-	updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: IActiveSessionItem, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void>;
+	updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISessionData, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void>;
 
 	/**
 	 * Removes an existing task entry from its tasks.json.
 	 */
-	removeTask(taskLabel: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void>;
+	removeTask(taskLabel: string, session: ISessionData, target: TaskStorageTarget): Promise<void>;
 
 	/**
-	 * Runs a task entry in a terminal, resolving the correct platform
-	 * command and using the session worktree as cwd.
+	 * Runs a task via the task service, looking it up by label in the
+	 * workspace folder corresponding to the session worktree.
 	 */
-	runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void>;
+	runTask(task: ITaskEntry, session: ISessionData): Promise<void>;
 
 	/**
 	 * Observable label of the pinned task for the given repository.
@@ -125,13 +126,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly _PINNED_TASK_LABELS_KEY = 'agentSessions.pinnedTaskLabels';
-	private static readonly _SUPPORTED_TASK_TYPES = new Set(['shell', 'npm']);
-
 	private readonly _sessionTasks = observableValue<readonly ISessionTaskWithTarget[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
-	/** Maps `cwd.toString() + command` to the terminal `instanceId`. */
-	private readonly _taskTerminals = new Map<string, number>();
-	private readonly _knownSessionWorktrees = new Map<string, string | undefined>();
 	private readonly _pinnedTaskLabels: Map<string, string>;
 	private readonly _pinnedTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
 
@@ -142,21 +138,18 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		@IFileService private readonly _fileService: IFileService,
 		@IJSONEditingService private readonly _jsonEditingService: IJSONEditingService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITaskService private readonly _taskService: ITaskService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		this._pinnedTaskLabels = this._loadPinnedTaskLabels();
-
-		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
-			this._handleActiveSessionChange(activeSession);
-		}));
 	}
 
-	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ISessionTaskWithTarget[]> {
-		const folder = session.worktree ?? session.repository;
+	getSessionTasks(session: ISessionData): IObservable<readonly ISessionTaskWithTarget[]> {
+		const repo = this._getSessionRepo(session);
+		const folder = repo?.workingDirectory ?? repo?.uri;
 		if (folder) {
 			this._ensureFileWatch(folder);
 		}
@@ -168,7 +161,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return this._sessionTasks;
 	}
 
-	async getNonSessionTasks(session: IActiveSessionItem): Promise<readonly INonSessionTaskEntry[]> {
+	async getNonSessionTasks(session: ISessionData): Promise<readonly INonSessionTaskEntry[]> {
 		const result: INonSessionTaskEntry[] = [];
 
 		const workspaceUri = this._getTasksJsonUri(session, 'workspace');
@@ -194,7 +187,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return result;
 	}
 
-	async addTaskToSessions(task: ITaskEntry, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void> {
+	async addTaskToSessions(task: ITaskEntry, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return;
@@ -225,7 +218,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 	}
 
-	async createAndAddTask(label: string | undefined, command: string, session: IActiveSessionItem, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined> {
+	async createAndAddTask(label: string | undefined, command: string, session: ISessionData, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return undefined;
@@ -254,7 +247,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return newTask;
 	}
 
-	async updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: IActiveSessionItem, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void> {
+	async updateTask(originalTaskLabel: string, updatedTask: ITaskEntry, session: ISessionData, currentTarget: TaskStorageTarget, newTarget: TaskStorageTarget): Promise<void> {
 		const currentTasksJsonUri = this._getTasksJsonUri(session, currentTarget);
 		const newTasksJsonUri = this._getTasksJsonUri(session, newTarget);
 		if (!currentTasksJsonUri || !newTasksJsonUri) {
@@ -290,15 +283,16 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			await this._commitTasksFile(session);
 		}
 
-		if (session.repository) {
-			const key = session.repository.toString();
+		const repoUri = this._getSessionRepo(session)?.uri;
+		if (repoUri) {
+			const key = repoUri.toString();
 			if (this._pinnedTaskLabels.get(key) === originalTaskLabel) {
 				this._setPinnedTaskLabelForKey(key, updatedTask.label);
 			}
 		}
 	}
 
-	async removeTask(taskLabel: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void> {
+	async removeTask(taskLabel: string, session: ISessionData, target: TaskStorageTarget): Promise<void> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
 			return;
@@ -319,38 +313,33 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			await this._commitTasksFile(session);
 		}
 
-		if (session.repository) {
-			const key = session.repository.toString();
+		const repoUri = this._getSessionRepo(session)?.uri;
+		if (repoUri) {
+			const key = repoUri.toString();
 			if (this._pinnedTaskLabels.get(key) === taskLabel) {
 				this._setPinnedTaskLabelForKey(key, undefined);
 			}
 		}
 	}
 
-	async runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void> {
-		const command = this._resolveCommand(task);
-		if (!command) {
-			return;
-		}
-
-		const cwd = session.worktree ?? session.repository;
+	async runTask(task: ITaskEntry, session: ISessionData): Promise<void> {
+		const repo = this._getSessionRepo(session);
+		const cwd = repo?.workingDirectory ?? repo?.uri;
 		if (!cwd) {
 			return;
 		}
 
-		const terminalKey = `${cwd.toString()}${command}`;
-		let terminal = this._getExistingTerminalInstance(terminalKey);
-		if (!terminal) {
-			terminal = await this._terminalService.createTerminal({
-				location: TerminalLocation.Panel,
-				config: { name: task.label },
-				cwd
-			});
-			this._taskTerminals.set(terminalKey, terminal.instanceId);
+		const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(cwd);
+		if (!workspaceFolder) {
+			return;
 		}
-		await terminal.sendText(command, true);
-		this._terminalService.setActiveInstance(terminal);
-		await this._terminalService.revealActiveTerminal();
+
+		const resolvedTask = await this._taskService.getTask(workspaceFolder, task.label);
+		if (!resolvedTask) {
+			return;
+		}
+
+		await this._taskService.run(resolvedTask, undefined, TaskRunSource.User);
 	}
 
 	getPinnedTaskLabel(repository: URI | undefined): IObservable<string | undefined> {
@@ -377,22 +366,14 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 	// --- private helpers ---
 
-	private _getExistingTerminalInstance(terminalKey: string): ITerminalInstance | undefined {
-		const instanceId = this._taskTerminals.get(terminalKey);
-		if (instanceId === undefined) {
-			return undefined;
-		}
-		const instance = this._terminalService.instances.find(i => i.instanceId === instanceId);
-		if (!instance || instance.hasChildProcesses) {
-			this._taskTerminals.delete(terminalKey);
-			return undefined;
-		}
-		return instance;
+	private _getSessionRepo(session: ISessionData) {
+		return session.workspace.get()?.repositories[0];
 	}
 
-	private _getTasksJsonUri(session: IActiveSessionItem, target: TaskStorageTarget): URI | undefined {
+	private _getTasksJsonUri(session: ISessionData, target: TaskStorageTarget): URI | undefined {
 		if (target === 'workspace') {
-			const folder = session.worktree ?? session.repository;
+			const repo = this._getSessionRepo(session);
+			const folder = repo?.workingDirectory ?? repo?.uri;
 			return folder ? joinPath(folder, '.vscode', 'tasks.json') : undefined;
 		}
 		return joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
@@ -407,106 +388,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 	}
 
-	private async _readAllTasks(session: IActiveSessionItem): Promise<readonly ITaskEntry[]> {
-		const result: ITaskEntry[] = [];
-
-		// Read workspace tasks
-		const workspaceUri = this._getTasksJsonUri(session, 'workspace');
-		if (workspaceUri) {
-			const workspaceJson = await this._readTasksJson(workspaceUri);
-			if (workspaceJson.tasks) {
-				result.push(...workspaceJson.tasks.filter(t => this._isSupportedTask(t)));
-			}
-		}
-
-		// Read user tasks
-		const userUri = this._getTasksJsonUri(session, 'user');
-		if (userUri) {
-			const userJson = await this._readTasksJson(userUri);
-			if (userJson.tasks) {
-				result.push(...userJson.tasks.filter(t => this._isSupportedTask(t)));
-			}
-		}
-
-		return result;
-	}
-
 	private _isSupportedTask(task: ITaskEntry): boolean {
-		return !!task.type && SessionsConfigurationService._SUPPORTED_TASK_TYPES.has(task.type);
-	}
-
-	private _resolveCommand(task: ITaskEntry): string | undefined {
-		if (task.type === 'npm') {
-			if (!task.script) {
-				return undefined;
-			}
-			const base = task.path
-				? `npm --prefix ${task.path} run ${task.script}`
-				: `npm run ${task.script}`;
-			return this._appendArgs(base, task.args);
-		}
-
-		let command: string | undefined;
-		let platformArgs: CommandString[] | undefined;
-
-		if (isWindows && task.windows?.command) {
-			command = task.windows.command;
-			platformArgs = task.windows.args;
-		} else if (isMacintosh && task.osx?.command) {
-			command = task.osx.command;
-			platformArgs = task.osx.args;
-		} else if (!isWindows && !isMacintosh && task.linux?.command) {
-			command = task.linux.command;
-			platformArgs = task.linux.args;
-		} else {
-			command = task.command;
-		}
-
-		// Platform-specific args override task-level args
-		const args = platformArgs ?? task.args;
-		return this._appendArgs(command, args);
-	}
-
-	private _appendArgs(command: string | undefined, args: CommandString[] | undefined): string | undefined {
-		if (!command) {
-			return undefined;
-		}
-		if (!args || args.length === 0) {
-			return command;
-		}
-		const resolvedArgs = args.map(a => CommandString.value(a)).join(' ');
-		return `${command} ${resolvedArgs}`;
-	}
-
-	private _handleActiveSessionChange(session: IActiveSessionItem | undefined): void {
-		if (!session) {
-			return;
-		}
-
-		const sessionKey = session.resource.toString();
-		const currentWorktree = session.worktree?.toString();
-		if (!this._knownSessionWorktrees.has(sessionKey)) {
-			this._knownSessionWorktrees.set(sessionKey, currentWorktree);
-			return;
-		}
-
-		const previousWorktree = this._knownSessionWorktrees.get(sessionKey);
-		this._knownSessionWorktrees.set(sessionKey, currentWorktree);
-		if (!currentWorktree || previousWorktree === currentWorktree) {
-			return;
-		}
-
-		void this._runWorktreeCreatedTasks(session);
-	}
-
-	private async _runWorktreeCreatedTasks(session: IActiveSessionItem): Promise<void> {
-		const tasks = await this._readAllTasks(session);
-		for (const task of tasks) {
-			if (!task.inSessions || task.runOptions?.runOn !== 'worktreeCreated') {
-				continue;
-			}
-			await this.runTask(task, session);
-		}
+		return !!task.label;
 	}
 
 	private _ensureFileWatch(folder: URI): void {
@@ -556,8 +439,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		transaction(tx => this._sessionTasks.set([...sessionTasks, ...userSessionTasks], tx));
 	}
 
-	private async _commitTasksFile(session: IActiveSessionItem): Promise<void> {
-		const worktree = session.worktree; // Only commit if there's a worktree. The local scenario does not need it
+	private async _commitTasksFile(session: ISessionData): Promise<void> {
+		const worktree = this._getSessionRepo(session)?.workingDirectory; // Only commit if there's a worktree. The local scenario does not need it
 		if (!worktree) {
 			return;
 		}

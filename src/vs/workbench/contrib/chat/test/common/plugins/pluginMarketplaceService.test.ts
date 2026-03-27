@@ -265,8 +265,12 @@ suite('parsePluginSource', () => {
 		assert.deepStrictEqual(result, { kind: PluginSourceKind.RelativePath, path: 'base' });
 	});
 
-	test('returns undefined for empty source without pluginRoot', () => {
-		assert.strictEqual(parsePluginSource('', undefined, logContext), undefined);
+	test('returns base dir for empty source without pluginRoot', () => {
+		assert.deepStrictEqual(parsePluginSource('', undefined, logContext), { kind: PluginSourceKind.RelativePath, path: '' });
+	});
+
+	test('returns base dir for undefined source without pluginRoot', () => {
+		assert.deepStrictEqual(parsePluginSource(undefined, undefined, logContext), { kind: PluginSourceKind.RelativePath, path: '' });
 	});
 
 	test('parses github object source', () => {

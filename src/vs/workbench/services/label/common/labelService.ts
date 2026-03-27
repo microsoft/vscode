@@ -454,10 +454,23 @@ export class LabelService extends Disposable implements ILabelService {
 					const i = resource.authority.indexOf('+');
 					return i === -1 ? resource.authority : resource.authority.slice(i + 1);
 				}
-				case 'path':
+				case 'path': {
+					let pathValue = resource.path;
+					if (formatting.stripPathSegments) {
+						let pos = 0;
+						for (let i = 0; i < formatting.stripPathSegments; i++) {
+							const next = pathValue.indexOf('/', pos + 1);
+							if (next === -1) {
+								break;
+							}
+							pos = next;
+						}
+						pathValue = pathValue.substring(pos);
+					}
 					return formatting.stripPathStartingSeparator
-						? resource.path.slice(resource.path[0] === formatting.separator ? 1 : 0)
-						: resource.path;
+						? pathValue.slice(pathValue[0] === formatting.separator ? 1 : 0)
+						: pathValue;
+				}
 				default: {
 					if (qsToken === 'query') {
 						const { query } = resource;
