@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IElementData, IElementAncestor } from '../../browserElements/common/browserElements.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
@@ -67,97 +67,110 @@ function useScopedDisposal() {
 }
 
 /**
- * Start element inspection mode on a browser view. Sets up an
- * overlay that highlights elements on hover. When the user clicks, the
- * element data is returned and the overlay is removed.
+ * Manages element inspection on a browser view.
  *
- * @param browser The browser view to inspect.
- * @param token Cancellation token to abort the inspection.
+ * Attaches a persistent CDP session in the constructor; methods wait for
+ * it to be ready before issuing commands.
  */
-export async function getElementData(browser: BrowserView, token: CancellationToken): Promise<IElementData | undefined> {
-	using store = useScopedDisposal();
+export class BrowserViewElementInspector extends Disposable {
 
-	const connection = store.add(await browser.attach());
+	private readonly _connectionPromise: Promise<ICDPConnection>;
 
-	// Important: don't use `Runtime.*` commands in this flow so we can support element selection during debugging
-	await connection.sendCommand('DOM.enable');
-	await connection.sendCommand('Overlay.enable');
+	constructor(browser: BrowserView) {
+		super();
 
-	store.add({
-		dispose: async () => {
+		this._connectionPromise = browser.attach().then(
+			async conn => {
+				// Important: don't use `Runtime.*` commands so we can support inspection during debugging.
+				// We also initialize here rather than during selection as CSS.enable will hang if debugging is paused, but works if enabled beforehand.
+				await conn.sendCommand('DOM.enable');
+				await conn.sendCommand('Overlay.enable');
+				await conn.sendCommand('CSS.enable');
+
+				if (this._store.isDisposed) {
+					conn.dispose();
+					throw new Error('Inspector disposed before connection was ready');
+				}
+				this._register(conn);
+				return conn;
+			}
+		);
+	}
+
+	/**
+	 * Start element inspection mode on the browser view. Sets up an
+	 * overlay that highlights elements on hover. When the user clicks, the
+	 * element data is returned and the overlay is removed.
+	 *
+	 * @param token Cancellation token to abort the inspection.
+	 */
+	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
+		const connection = await this._connectionPromise;
+		const store = new DisposableStore();
+		const result = new Promise<IElementData | undefined>((resolve, reject) => {
+			store.add(token.onCancellationRequested(() => {
+				resolve(undefined);
+			}));
+
+			store.add(connection.onEvent(async (event) => {
+				if (event.method !== 'Overlay.inspectNodeRequested') {
+					return;
+				}
+
+				const params = event.params as { backendNodeId: number };
+				if (!params?.backendNodeId) {
+					reject(new Error('Missing backendNodeId in inspectNodeRequested event'));
+					return;
+				}
+
+				try {
+					const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
+					resolve(nodeData);
+				} catch (err) {
+					reject(err);
+				}
+			}));
+		});
+
+		try {
+			await connection.sendCommand('Overlay.setInspectMode', {
+				mode: 'searchForNode',
+				highlightConfig: inspectHighlightConfig,
+			});
+			return await result;
+		} finally {
 			try {
 				await connection.sendCommand('Overlay.setInspectMode', {
 					mode: 'none',
-					highlightConfig: {
-						showInfo: false,
-						showStyles: false
-					}
+					highlightConfig: { showInfo: false, showStyles: false }
 				});
 				await connection.sendCommand('Overlay.hideHighlight');
-				await connection.sendCommand('Overlay.disable');
 			} catch {
 				// Best effort cleanup
 			}
+			store.dispose();
 		}
-	});
-
-	const result = new Promise<IElementData | undefined>((resolve, reject) => {
-		store.add(token.onCancellationRequested(() => {
-			resolve(undefined);
-		}));
-
-		store.add(connection.onEvent(async (event) => {
-			if (event.method !== 'Overlay.inspectNodeRequested') {
-				return;
-			}
-
-			const params = event.params as { backendNodeId: number };
-			if (!params?.backendNodeId) {
-				reject(new Error('Missing backendNodeId in inspectNodeRequested event'));
-				return;
-			}
-
-			try {
-				const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
-				resolve(nodeData);
-			} catch (err) {
-				reject(err);
-			}
-		}));
-	});
-
-	await connection.sendCommand('Overlay.setInspectMode', {
-		mode: 'searchForNode',
-		highlightConfig: inspectHighlightConfig,
-	});
-
-	return await result;
-}
-
-/**
- * Get element data for the currently focused element in a browser view.
- *
- * @param browser The browser view to inspect.
- */
-export async function getFocusedElementData(browser: BrowserView): Promise<IElementData | undefined> {
-	using store = useScopedDisposal();
-
-	const connection = store.add(await browser.attach());
-	await connection.sendCommand('Runtime.enable');
-
-	const { result } = await connection.sendCommand('Runtime.evaluate', {
-		expression: `document.activeElement`,
-		returnByValue: false,
-	}) as { result: { objectId?: string } };
-
-	if (!result?.objectId) {
-		return undefined;
 	}
 
-	return extractNodeData(connection, { objectId: result.objectId });
-}
+	/**
+	 * Get element data for the currently focused element.
+	 */
+	async getFocusedElementData(): Promise<IElementData | undefined> {
+		const connection = await this._connectionPromise;
 
-// ---- private helpers --------------------------------------------------
+		await connection.sendCommand('Runtime.enable');
+		const { result } = await connection.sendCommand('Runtime.evaluate', {
+			expression: 'document.activeElement',
+			returnByValue: false,
+		}) as { result: { objectId?: string } };
+
+		if (!result?.objectId) {
+			return undefined;
+		}
+
+		return extractNodeData(connection, { objectId: result.objectId });
+	}
+}
 
 async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?: number; objectId?: string }): Promise<IElementData> {
 	using store = useScopedDisposal();
@@ -188,9 +201,7 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 		}
 	}));
 
-	await connection.sendCommand('DOM.enable');
 	await connection.sendCommand('DOM.getDocument');
-	await connection.sendCommand('CSS.enable');
 
 	const { node } = await connection.sendCommand('DOM.describeNode', id) as { node: INode };
 	if (!node) {
@@ -230,20 +241,17 @@ async function extractNodeData(connection: ICDPConnection, id: { backendNodeId?:
 
 	const attributes = attributeArrayToRecord(node.attributes);
 
-	let ancestors: IElementAncestor[] | undefined;
-	try {
-		ancestors = [];
-		let currentNode: INode | undefined = discoveredNodesByNodeId[nodeId];
-		while (currentNode) {
-			const attributes = attributeArrayToRecord(currentNode.attributes);
-			ancestors.unshift({
-				tagName: currentNode.localName,
-				id: attributes.id,
-				classNames: attributes.class?.trim().split(/\s+/).filter(Boolean)
-			});
-			currentNode = currentNode.parentId ? discoveredNodesByNodeId[currentNode.parentId] : undefined;
-		}
-	} catch { }
+	const ancestors: IElementAncestor[] = [];
+	let currentNode: INode | undefined = discoveredNodesByNodeId[nodeId] ?? node;
+	while (currentNode) {
+		const attributes = attributeArrayToRecord(currentNode.attributes);
+		ancestors.unshift({
+			tagName: currentNode.localName,
+			id: attributes.id,
+			classNames: attributes.class?.trim().split(/\s+/).filter(Boolean)
+		});
+		currentNode = currentNode.parentId ? discoveredNodesByNodeId[currentNode.parentId] : undefined;
+	}
 
 	let computedStyles: Record<string, string> | undefined;
 	try {
