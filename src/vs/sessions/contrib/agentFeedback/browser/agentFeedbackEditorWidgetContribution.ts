@@ -27,7 +27,7 @@ import * as nls from '../../../../nls.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
@@ -201,16 +201,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined! };
 
-			// Edit action — only disabled for PR review comments
-			const isEditable = comment.source !== SessionEditorCommentSource.PRReview;
-			const editTooltip = isEditable
-				? nls.localize('editComment', "Edit")
-				: nls.localize('editPRCommentDisabled', "PR review comments cannot be edited");
 			itemActions.editAction = new Action(
 				'agentFeedback.widget.edit',
-				editTooltip,
+				nls.localize('editComment', "Edit"),
 				ThemeIcon.asClassName(Codicon.edit),
-				isEditable,
+				true,
 				(): void => { this._startEditing(comment, text, itemActions); },
 			);
 			actionBar.push(itemActions.editAction, { icon: true, label: false });
@@ -323,10 +318,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
-		if (comment.source === SessionEditorCommentSource.PRReview) {
-			return;
-		}
-
 		// Disable all actions while editing
 		actions.editAction.enabled = false;
 		if (actions.convertAction) {
@@ -382,8 +373,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _saveEdit(comment: ISessionEditorComment, newText: string): void {
 		if (comment.source === SessionEditorCommentSource.AgentFeedback) {
 			this._agentFeedbackService.updateFeedback(this._sessionResource, comment.sourceId, newText);
-		} else if (comment.source === SessionEditorCommentSource.CodeReview) {
-			this._codeReviewService.updateComment(this._sessionResource, comment.sourceId, newText);
+		} else {
+			// PR review and code review comments are converted to agent feedback on edit
+			this._convertToAgentFeedbackWithText(comment, newText);
 		}
 	}
 
@@ -391,7 +383,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		editStore.dispose();
 
 		// Re-enable actions
-		actions.editAction.enabled = comment.source !== SessionEditorCommentSource.PRReview;
+		actions.editAction.enabled = true;
 		if (actions.convertAction) {
 			actions.convertAction.enabled = true;
 		}
@@ -406,6 +398,13 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _convertToAgentFeedback(comment: ISessionEditorComment): void {
+		this._convertToAgentFeedbackWithText(comment, comment.text);
+	}
+
+	/**
+	 * Converts a non-agent-feedback comment into an agent feedback item, optionally with edited text.
+	 */
+	private _convertToAgentFeedbackWithText(comment: ISessionEditorComment, text: string): void {
 		if (!comment.canConvertToAgentFeedback) {
 			return;
 		}
@@ -418,7 +417,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._sessionResource,
 			comment.resourceUri,
 			comment.range,
-			comment.text,
+			text,
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			sourcePRReviewCommentId,
@@ -627,7 +626,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -672,7 +671,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
+		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
 	}
 
 	private _rebuildWidgets(
@@ -733,8 +732,8 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			return undefined;
 		}
 
-		const changes = this._agentSessionsService.getSession(this._sessionResource)?.changes;
-		if (!(changes instanceof Array)) {
+		const changes = this._sessionsManagementService.getSession(this._sessionResource)?.changes.get();
+		if (!changes) {
 			return undefined;
 		}
 

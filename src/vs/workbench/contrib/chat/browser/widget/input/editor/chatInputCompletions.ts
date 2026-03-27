@@ -69,7 +69,7 @@ import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachm
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
-export { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult } from './chatInputCompletionUtils.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -106,9 +106,6 @@ class SlashCommandCompletions extends Disposable {
 
 				let customAgentTarget: Target | undefined = undefined;
 				if (widget.lockedAgentId) {
-					if (!widget.attachmentCapabilities.supportsPromptAttachments) {
-						return null;
-					}
 					const sessionResource = widget.viewModel.model.sessionResource;
 					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
 					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
@@ -139,6 +136,12 @@ class SlashCommandCompletions extends Disposable {
 				return {
 					suggestions: slashCommands
 						.filter(c => {
+							// silent commands are client-side only... so they're not "attaching anything"
+							// so this check can be scoped to when the command _does_ attach something before
+							// checking if the widget supports attachments at all
+							if (!c.silent && !widget.attachmentCapabilities.supportsPromptAttachments) {
+								return false;
+							}
 							if (c.when && !widget.scopedContextKeyService.contextMatchesRules(c.when)) {
 								return false;
 							}
@@ -254,10 +257,6 @@ class SlashCommandCompletions extends Disposable {
 				const userInvocableCommands = promptCommands
 					.filter(c => {
 						if (widget.lockedAgentId) {
-							// Exclude extension-provided prompt files for locked agents.
-							if (c.promptPath.extension) {
-								return false;
-							}
 							// Exclude hooks as those don't work in locked agent scenarios.
 							try {
 								const promptType = getPromptFileType(c.promptPath.uri);
@@ -877,6 +876,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -962,6 +962,77 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			return result;
 		});
+
+		// Session Reference completion
+		const sessionWordPattern = new RegExp(`${chatVariableLeader}[^\\s]*`, 'g');
+		this.registerVariableCompletions('sessionReference', async ({ widget, range }, token) => {
+			if (widget.location !== ChatAgentLocation.Chat) {
+				return;
+			}
+
+			const typedWord = range.varWord?.word ?? '';
+			const sessionPrefix = `${chatVariableLeader}session`;
+			const result: CompletionList = { suggestions: [] };
+
+			if (typedWord.toLowerCase().startsWith(`${sessionPrefix}:`)) {
+				// User has typed #session: — fetch all sessions and show them inline
+				const allSessions: { title: string; sessionResource: URI; lastMessageDate: number; icon: ThemeIcon }[] = [];
+
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				for await (const group of this.chatSessionsService.getChatSessionItems(sessionProviderFilter, token)) {
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						allSessions.push({
+							title: item.label,
+							sessionResource: item.resource,
+							lastMessageDate: item.timing.lastRequestEnded ?? item.timing.created,
+							icon: item.iconPath ?? providerIcon,
+						});
+					}
+				}
+
+				const currentSessionResource = widget.viewModel?.sessionResource;
+				const filteredSessions = allSessions
+					.filter(s => !currentSessionResource || s.sessionResource.toString() !== currentSessionResource.toString())
+					.sort((a, b) => b.lastMessageDate - a.lastMessageDate);
+
+				for (const session of filteredSessions) {
+					const text = `${sessionPrefix}:${session.title}`;
+					const dateStr = new Date(session.lastMessageDate).toLocaleString();
+					result.suggestions.push({
+						label: { label: session.title, description: dateStr },
+						filterText: `${sessionPrefix}:${session.title}`,
+						insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
+						range,
+						kind: CompletionItemKind.Text,
+						sortText: `z${String(Number.MAX_SAFE_INTEGER - session.lastMessageDate).padStart(20, '0')}`,
+						command: {
+							id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
+								id: session.sessionResource.toString(),
+								icon: session.icon,
+								range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
+								data: session.sessionResource
+							})]
+						}
+					});
+				}
+			} else {
+				// User typed # or #s etc — show single #session entry that inserts #session: and re-triggers suggest
+				result.suggestions.push({
+					label: { label: sessionPrefix, description: localize('session.description', 'Attach a chat session') },
+					filterText: sessionPrefix,
+					insertText: `${sessionPrefix}:`,
+					range,
+					kind: CompletionItemKind.Text,
+					sortText: 'z',
+					command: { id: 'editor.action.triggerSuggest', title: '' },
+				});
+			}
+			return result;
+		}, sessionWordPattern);
 
 		// Debug Events Snapshot completion
 		this.registerVariableCompletions('debugEventsSnapshot', ({ widget, range }) => {

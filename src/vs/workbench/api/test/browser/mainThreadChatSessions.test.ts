@@ -9,6 +9,7 @@ import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { URI } from '../../../../base/common/uri.js';
 import { asSinonMethodStub } from '../../../../base/test/common/sinonUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -177,6 +178,72 @@ suite('ObservableChatSession', function () {
 		assert.ok(session.requestHandler);
 	});
 
+	test('initialization revives modeInstructions in history', async function () {
+		const sessionContent = createSessionContent({
+			history: [
+				{
+					type: 'request',
+					prompt: 'Hello',
+					participant: 'test',
+					modeInstructions: {
+						uri: { $mid: MarshalledId.Uri, scheme: 'file', path: '/custom-agent' },
+						name: 'my-agent',
+						content: 'instructions',
+						toolReferences: [],
+						isBuiltin: false,
+					},
+				},
+			],
+		});
+
+		const session = disposables.add(await createInitializedSession(sessionContent));
+		const requestItem = session.history[0];
+		assert.strictEqual(requestItem.type, 'request');
+		if (requestItem.type === 'request') {
+			assert.ok(requestItem.modeInstructions);
+			assert.ok(URI.isUri(requestItem.modeInstructions.uri));
+			assert.strictEqual(requestItem.modeInstructions.name, 'my-agent');
+			assert.strictEqual(requestItem.modeInstructions.isBuiltin, false);
+		}
+	});
+
+	test('toRequestDto passes modeInstructions through', async function () {
+		const session = disposables.add(await createInitializedSession(createSessionContent({ hasForkHandler: true })));
+		assert.ok(session.forkSession);
+
+		const modeInstructions = {
+			uri: URI.parse('file:///custom-agent'),
+			name: 'my-agent',
+			content: 'agent instructions',
+			toolReferences: [],
+			isBuiltin: false,
+		};
+		const request: IChatSessionRequestHistoryItem = {
+			type: 'request',
+			id: 'req-1',
+			prompt: 'Hello with mode',
+			participant: 'participant',
+			modeInstructions,
+		};
+
+		const forkedItem = {
+			resource: URI.file('/tmp/forked.md'),
+			label: 'Forked',
+			changes: [],
+			timing: {
+				created: 123,
+				lastRequestStarted: 234,
+				lastRequestEnded: 345,
+			},
+		};
+		asSinonMethodStub(proxy.$forkChatSession).resolves(forkedItem);
+		await session.forkSession?.(request, CancellationToken.None);
+
+		const call = asSinonMethodStub(proxy.$forkChatSession).firstCall;
+		const sentDto = call.args[2] as IChatSessionRequestHistoryItemDto;
+		assert.deepStrictEqual(sentDto.modeInstructions, modeInstructions);
+	});
+
 	test('initialization sets forkSession and revives forked items', async function () {
 		const session = disposables.add(await createInitializedSession(createSessionContent({ hasForkHandler: true })));
 		assert.ok(session.forkSession);
@@ -208,6 +275,7 @@ suite('ObservableChatSession', function () {
 			command: undefined,
 			variableData: undefined,
 			modelId: undefined,
+			modeInstructions: undefined,
 		};
 		const result = await session.forkSession?.(request, CancellationToken.None);
 
@@ -836,47 +904,6 @@ suite('MainThreadChatSessions', function () {
 
 		// Now getSessionOption should return the value
 		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
-
-		mainThread.$unregisterChatSessionContentProvider(1);
-	});
-
-	test('hasAnySessionOptions returns correct values', async function () {
-		const sessionScheme = 'test-session-type';
-		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
-
-		const resourceWithOptions = URI.parse(`${sessionScheme}:/session-with-options`);
-		const resourceWithoutOptions = URI.parse(`${sessionScheme}:/session-without-options`);
-
-		// Session with options
-		const sessionContentWithOptions: IChatSessionDto = {
-			resource: resourceWithOptions,
-			history: [],
-			hasActiveResponseCallback: false,
-			hasRequestHandler: false,
-			hasForkHandler: false,
-			supportsInterruption: false,
-			options: { 'models': 'gpt-4' }
-		};
-
-		// Session without options
-		const sessionContentWithoutOptions: IChatSessionDto = {
-			resource: resourceWithoutOptions,
-			history: [],
-			hasActiveResponseCallback: false,
-			hasRequestHandler: false,
-			hasForkHandler: false,
-			supportsInterruption: false,
-		};
-
-		asSinonMethodStub(proxy.$provideChatSessionContent)
-			.onFirstCall().resolves(sessionContentWithOptions)
-			.onSecondCall().resolves(sessionContentWithoutOptions);
-
-		await chatSessionsService.getOrCreateChatSession(resourceWithOptions, CancellationToken.None);
-		await chatSessionsService.getOrCreateChatSession(resourceWithoutOptions, CancellationToken.None);
-
-		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithOptions), true);
-		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithoutOptions), false);
 
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});

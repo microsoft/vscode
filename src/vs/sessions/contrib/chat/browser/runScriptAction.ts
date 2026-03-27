@@ -26,16 +26,14 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISession } from '../../sessions/common/sessionData.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
-import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 
@@ -92,7 +90,7 @@ function getPrimaryTask(tasks: readonly ISessionTaskWithTarget[], pinnedTaskLabe
 }
 
 interface IRunScriptActionContext {
-	readonly session: IActiveSessionItem;
+	readonly session: ISession;
 	readonly tasks: readonly ISessionTaskWithTarget[];
 	readonly pinnedTaskLabel: string | undefined;
 }
@@ -110,12 +108,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>;
 
 	constructor(
-		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
+		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 	) {
 		super();
@@ -134,13 +130,14 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = this._activeSessionService.activeSession.read(reader);
+			const activeSession = this._sessionManagementService.activeSession.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
 
 			const tasks = this._sessionsConfigService.getSessionTasks(activeSession).read(reader);
-			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(activeSession.repository).read(reader);
+			const repo = activeSession.workspace.read(reader)?.repositories[0];
+			const pinnedTaskLabel = this._sessionsConfigService.getPinnedTaskLabel(repo?.uri).read(reader);
 			return { session: activeSession, tasks, pinnedTaskLabel };
 		}).recomputeInitiallyAndOnChange(this._store);
 
@@ -162,8 +159,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					action,
 					options,
 					that._activeRunState,
-					(session: IActiveSessionItem) => that._showConfigureQuickPick(session),
-					(session: IActiveSessionItem, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
+					(session: ISession) => that._showConfigureQuickPick(session),
+					(session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
 				);
 			},
 		));
@@ -213,7 +210,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}
 
 			const { session, tasks } = activeState;
-			const configureScriptPrecondition = session.worktree ?? session.repository ? ContextKeyExpr.true() : ContextKeyExpr.false();
+			const repo = session.workspace.read(reader)?.repositories[0];
+			const configureScriptPrecondition = repo?.workingDirectory ?? repo?.uri ? ContextKeyExpr.true() : ContextKeyExpr.false();
 
 			reader.store.add(registerAction2(class extends Action2 {
 				constructor() {
@@ -255,19 +253,13 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					if (session.isUntitled) {
-						const viewPane = that._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
-						viewPane?.sendQuery('/generate-run-commands');
-					} else {
-						const widget = that._chatWidgetService.getWidgetBySessionResource(session.resource);
-						await widget?.acceptInput('/generate-run-commands');
-					}
+					await that._sessionManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
 				}
 			}));
 		}));
 	}
 
-	private async _showConfigureQuickPick(session: IActiveSessionItem): Promise<ITaskEntry | undefined> {
+	private async _showConfigureQuickPick(session: ISession): Promise<ITaskEntry | undefined> {
 		const nonSessionTasks = await this._sessionsConfigService.getNonSessionTasks(session);
 		if (nonSessionTasks.length === 0) {
 			// No existing tasks, go straight to custom command input
@@ -316,7 +308,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private async _showCustomCommandInput(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<ITaskEntry | undefined> {
+	private async _showCustomCommandInput(session: ISession, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<ITaskEntry | undefined> {
 		const taskConfiguration = await this._showCustomCommandWidget(session, existingTask, mode);
 		if (!taskConfiguration) {
 			return undefined;
@@ -370,8 +362,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		);
 	}
 
-	private _showCustomCommandWidget(session: IActiveSessionItem, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<IRunScriptCustomTaskWidgetResult | undefined> {
-		const workspaceTargetDisabledReason = !(session.worktree ?? session.repository)
+	private _showCustomCommandWidget(session: ISession, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<IRunScriptCustomTaskWidgetResult | undefined> {
+		const repo = session.workspace.get()?.repositories[0];
+		const workspaceTargetDisabledReason = !(repo?.workingDirectory ?? repo?.uri)
 			? localize('workspaceStorageUnavailableTooltip', "Workspace storage is unavailable for this session")
 			: undefined;
 		const isConfigureMode = mode === 'configure';
@@ -445,16 +438,15 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		_options: IActionViewItemOptions,
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
-		private readonly _showConfigureQuickPick: (session: IActiveSessionItem) => Promise<ITaskEntry | undefined>,
-		private readonly _showCustomCommandInput: (session: IActiveSessionItem, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
+		private readonly _showConfigureQuickPick: (session: ISession) => Promise<ITaskEntry | undefined>,
+		private readonly _showCustomCommandInput: (session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly _viewsService: IViewsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super(undefined, action);
 
@@ -563,6 +555,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}
 
 		const { tasks, session, pinnedTaskLabel } = state;
+		const repo = session.workspace.get()?.repositories[0];
 		const actions: IActionWidgetDropdownAction[] = [];
 
 		// Category for normal tasks (no header shown)
@@ -584,10 +577,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					label: isPinned ? localize('unpinTask', "Unpin") : localize('pinTask', "Pin"),
 					tooltip: isPinned ? localize('unpinTaskTooltip', "Unpin") : localize('pinTaskTooltip', "Pin"),
 					class: ThemeIcon.asClassName(isPinned ? Codicon.pinned : Codicon.pin),
-					enabled: !!session.repository,
+					enabled: !!repo?.uri,
 					run: async () => {
 						this._actionWidgetService.hide();
-						this._sessionsConfigService.setPinnedTaskLabel(session.repository, isPinned ? undefined : task.label);
+						this._sessionsConfigService.setPinnedTaskLabel(repo?.uri, isPinned ? undefined : task.label);
 					}
 				},
 				{
@@ -634,7 +627,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}
 
 		// "Add Task..." action
-		const canConfigure = !!(session.worktree ?? session.repository);
+		const canConfigure = !!(repo?.workingDirectory ?? repo?.uri);
 		actions.push({
 			id: 'runScript.addAction',
 			label: localize('configureDefaultRunAction', "Add Task..."),
@@ -671,13 +664,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: addCategory,
 			run: async () => {
-				if (session.isUntitled) {
-					const viewPane = this._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
-					viewPane?.sendQuery('/generate-run-commands');
-				} else {
-					const widget = this._chatWidgetService.getWidgetBySessionResource(session.resource);
-					await widget?.acceptInput('/generate-run-commands');
-				}
+				await this._sessionsManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
 			},
 		});
 

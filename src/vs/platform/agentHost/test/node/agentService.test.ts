@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { AgentSession } from '../../common/agentService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
@@ -21,7 +22,15 @@ suite('AgentService (node dispatcher)', () => {
 	let copilotAgent: MockAgent;
 
 	setup(() => {
-		service = disposables.add(new AgentService(new NullLogService(), disposables.add(new FileService(new NullLogService()))));
+		const nullSessionDataService: ISessionDataService = {
+			_serviceBrand: undefined,
+			getSessionDataDir: () => URI.parse('inmemory:/session-data'),
+			getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
+			openDatabase: () => { throw new Error('not implemented'); },
+			deleteSessionData: async () => { },
+			cleanupOrphanedData: async () => { },
+		};
+		service = disposables.add(new AgentService(new NullLogService(), disposables.add(new FileService(new NullLogService())), nullSessionDataService));
 		copilotAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
@@ -59,7 +68,7 @@ suite('AgentService (node dispatcher)', () => {
 			disposables.add(service.onDidAction(e => envelopes.push(e)));
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
-			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionDelta));
+			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
 		});
 	});
 

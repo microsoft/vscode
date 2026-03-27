@@ -17,7 +17,6 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalSandboxNetworkSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
@@ -37,7 +36,7 @@ export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
-	wrapCommand(command: string): string;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean): string;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
@@ -84,7 +83,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			// If terminal sandbox settings changed, update sandbox config.
 			if (
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains) ||
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
 			) {
@@ -126,10 +127,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._os;
 	}
 
-	public wrapCommand(command: string): string {
+	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean): string {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
+		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
+		if (requestUnsandboxedExecution) {
+			return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
+		}
+
 		if (!this._execPath) {
 			throw new Error('Executable path not set to run sandbox commands');
 		}
@@ -142,9 +148,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
 		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
-		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
+		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
-			return `"${this._execPath}" ${wrappedCommand}`;
+			return `${wrappedCommand}`;
 		}
 		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 	}
@@ -177,9 +183,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		this._srtPathResolved = true;
 		const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
 		if (remoteEnv) {
-
 			this._appRoot = remoteEnv.appRoot.path;
-			this._execPath = this._pathJoin(this._appRoot, 'node');
+			this._execPath = remoteEnv.execPath;
 		}
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
 		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
@@ -191,7 +196,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			await this._initTempDir();
 		}
 		if (this._tempDir) {
-			const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+			const allowedDomainsSetting = this._configurationService.getValue<string[]>(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains) ?? [];
+			const deniedDomainsSetting = this._configurationService.getValue<string[]>(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains) ?? [];
+			const allowTrustedDomains = this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains) ?? false;
 			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
 				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 				: {};
@@ -202,15 +209,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			const linuxAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite);
 			const macAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite);
 
-			let allowedDomains = networkSetting.allowedDomains ?? [];
-			if (networkSetting.allowTrustedDomains) {
+			let allowedDomains = allowedDomainsSetting;
+			if (allowTrustedDomains) {
 				allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
 			}
 
 			const sandboxSettings = {
 				network: {
 					allowedDomains,
-					deniedDomains: networkSetting.deniedDomains ?? []
+					deniedDomains: deniedDomainsSetting
 				},
 				filesystem: {
 					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
@@ -258,27 +265,37 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	}
 
 	private _getSandboxTempDirPath(remoteEnv: IRemoteAgentEnvironment | null): URI | undefined {
+		const sandboxTempDirName = this._getSandboxWindowTempDirName();
 		if (remoteEnv?.userHome) {
-			return URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			const sandboxRoot = URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
 		}
 
 		const nativeEnv = this._environmentService as IEnvironmentService & { userHome?: URI };
 		if (nativeEnv.userHome) {
-			return URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			const sandboxRoot = URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
 		}
 
 		return undefined;
 	}
 
+	private _getSandboxWindowTempDirName(): string | undefined {
+		const workbenchEnv = this._environmentService as IEnvironmentService & { window?: { id?: number } };
+		const windowId = workbenchEnv.window?.id;
+		return typeof windowId === 'number' ? `tmp_vscode_${windowId}` : undefined;
+	}
+
 	public getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
-		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
-		let allowedDomains = networkSetting.allowedDomains ?? [];
-		if (networkSetting.allowTrustedDomains) {
+		let allowedDomains = this._configurationService.getValue<string[]>(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains) ?? [];
+		const deniedDomains = this._configurationService.getValue<string[]>(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains) ?? [];
+		const allowTrustedDomains = this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains) ?? false;
+		if (allowTrustedDomains) {
 			allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
 		}
 		return {
 			allowedDomains,
-			deniedDomains: networkSetting.deniedDomains ?? []
+			deniedDomains
 		};
 	}
 

@@ -175,13 +175,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
+		@IFileService protected readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IPathService private readonly pathService: IPathService,
+		@IPathService protected readonly pathService: IPathService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
@@ -1073,10 +1073,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const MAX_NAME_LENGTH = 64;
 		const sanitized = this.sanitizeAgentSkillText(name);
 		if (sanitized !== name) {
-			this.logger.warn(`[findAgentSkills] Agent skill name contains XML tags, removed: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill name contains XML tags, removed: ${uri}`);
 		}
 		if (sanitized.length > MAX_NAME_LENGTH) {
-			this.logger.warn(`[findAgentSkills] Agent skill name exceeds ${MAX_NAME_LENGTH} characters, truncated: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill name exceeds ${MAX_NAME_LENGTH} characters, truncated: ${uri}`);
 			return sanitized.substring(0, MAX_NAME_LENGTH);
 		}
 		return sanitized;
@@ -1089,10 +1089,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const MAX_DESCRIPTION_LENGTH = 1024;
 		const sanitized = this.sanitizeAgentSkillText(description);
 		if (sanitized !== description) {
-			this.logger.warn(`[findAgentSkills] Agent skill description contains XML tags, removed: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill description contains XML tags, removed: ${uri}`);
 		}
 		if (sanitized.length > MAX_DESCRIPTION_LENGTH) {
-			this.logger.warn(`[findAgentSkills] Agent skill description exceeds ${MAX_DESCRIPTION_LENGTH} characters, truncated: ${uri}`);
+			this.logger.debug(`[findAgentSkills] Agent skill description exceeds ${MAX_DESCRIPTION_LENGTH} characters, truncated: ${uri}`);
 			return sanitized.substring(0, MAX_DESCRIPTION_LENGTH);
 		}
 		return sanitized;
@@ -1145,6 +1145,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
 					when: internalSkill?.when,
+					pluginUri: file.pluginUri,
+					extension: file.extension,
 				});
 			}
 		}
@@ -1301,6 +1303,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
 		for (const hookFile of hookFiles) {
+			// Plugins are handled separately down below because they do their own parsing+interpolation
+			if (hookFile.storage === PromptsStorage.plugin) {
+				continue;
+			}
+
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
 				const json = parseJSONC(content.value.toString());
@@ -1385,8 +1392,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 				storage: promptPath.storage,
 				status: 'skipped' as const,
 				skipReason: 'disabled' as const,
-				extensionId: promptPath.extension?.identifier?.value
-			}));
+				extension: promptPath.extension,
+				pluginUri: promptPath.pluginUri
+			} satisfies IPromptFileDiscoveryResult));
 			const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
 			return { type: PromptsType.skill, files, sourceFolders };
 		}
@@ -1417,11 +1425,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		allSkills.push(...discoveredSkills, ...extensionSkills.map((extPath) => ({
 			fileUri: extPath.uri,
 			storage: extPath.storage,
-			source: extPath.source === ExtensionAgentSourceType.contribution ? PromptFileSource.ExtensionContribution : PromptFileSource.ExtensionAPI
+			source: extPath.source === ExtensionAgentSourceType.contribution ? PromptFileSource.ExtensionContribution : PromptFileSource.ExtensionAPI,
+			extension: extPath.extension
 		})), ...pluginSkills.map((p) => ({
 			fileUri: p.uri,
 			storage: p.storage,
 			source: PromptFileSource.Plugin,
+			pluginUri: p.pluginUri,
 		})), ...this.internalCustomizations.getSkills()
 			.map(s => ({
 				fileUri: s.uri,
@@ -1450,17 +1460,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Stable sort; we should keep order consistent to the order in the user's configuration object
 		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
 
-		// Build map of URI to extension ID
-		const extensionIdByUri = new Map<string, string>();
-		for (const extSkill of extensionSkills) {
-			extensionIdByUri.set(extSkill.uri.toString(), extSkill.extension.identifier.value);
-		}
-
 		for (const skill of allSkills) {
 			const uri = skill.fileUri;
-			const storage = skill.storage;
-			const source = skill.source;
-			const extensionId = extensionIdByUri.get(uri.toString());
+			const { extension, pluginUri, storage, source } = skill;
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
@@ -1469,18 +1471,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 				let name = parsedFile.header?.name;
 
 				if (!name) {
-					this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
+					this.logger.debug(`[computeSkillDiscoveryInfo] Agent skill file missing name attribute, using folder name "${folderName}": ${uri}`);
 					name = folderName;
 				}
-				const sanitizedName = this.truncateAgentSkillName(name, uri);
+				let sanitizedName = this.truncateAgentSkillName(name, uri);
 				if (sanitizedName !== folderName) {
-					this.logger.warn(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
-
+					this.logger.debug(`[computeSkillDiscoveryInfo] Agent skill name "${sanitizedName}" does not match folder name "${folderName}", using folder name: ${uri}`);
+					sanitizedName = folderName;
 				}
 
 				if (seenNames.has(sanitizedName)) {
-					this.logger.warn(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${sanitizedName} at ${uri}`);
-					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: sanitizedName, duplicateOf: nameToUri.get(sanitizedName), extensionId, source });
+					this.logger.debug(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill name: ${sanitizedName} at ${uri}`);
+					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: sanitizedName, duplicateOf: nameToUri.get(sanitizedName), extension, source, pluginUri });
 					continue;
 				}
 
@@ -1490,7 +1492,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				nameToUri.set(sanitizedName, uri);
 				const disableModelInvocation = parsedFile.header?.disableModelInvocation === true;
 				const userInvocable = parsedFile.header?.userInvocable !== false;
-				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description, extensionId, source, disableModelInvocation, userInvocable });
+
+				files.push({ uri, storage, status: 'loaded', name: sanitizedName, description, extension, source, disableModelInvocation, userInvocable, pluginUri });
 
 				// Track skill type
 				skillsBySource.set(source, (skillsBySource.get(source) || 0) + 1);
@@ -1503,8 +1506,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 					status: 'skipped',
 					skipReason: 'parse-error',
 					errorMessage: msg,
-					extensionId,
-					source
+					extension,
+					source,
+					pluginUri
 				});
 			}
 		}
@@ -1518,19 +1522,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const agentFiles = await this.listPromptFiles(PromptsType.agent, token);
 		for (const promptPath of agentFiles) {
-			const uri = promptPath.uri;
-			const storage = promptPath.storage;
-			const extensionId = promptPath.extension?.identifier?.value;
+			const { uri, storage, pluginUri, extension } = promptPath;
 
 			if (disabledAgents.has(uri)) {
-				files.push({ uri, storage, status: 'skipped', skipReason: 'disabled', extensionId });
+				files.push({ uri, storage, status: 'skipped', skipReason: 'disabled', extension, pluginUri });
 				continue;
 			}
 
 			try {
 				const ast = await this.parseNew(uri, token);
 				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
-				files.push({ uri, storage, status: 'loaded', name, extensionId });
+				files.push({ uri, storage, status: 'loaded', name, extension, pluginUri });
 			} catch (e) {
 				files.push({
 					uri,
@@ -1538,7 +1540,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					status: 'skipped',
 					skipReason: 'parse-error',
 					errorMessage: e instanceof Error ? e.message : String(e),
-					extensionId
+					extension,
+					pluginUri
 				});
 			}
 		}
@@ -1552,14 +1555,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
 		for (const promptPath of promptFiles) {
-			const uri = promptPath.uri;
-			const storage = promptPath.storage;
-			const extensionId = promptPath.extension?.identifier?.value;
+			const { uri, storage, pluginUri, extension } = promptPath;
 
 			try {
 				const parsedPromptFile = await this.parseNew(uri, token);
 				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
-				files.push({ uri, storage, status: 'loaded', name, extensionId });
+				files.push({ uri, storage, status: 'loaded', name, extension, pluginUri });
 			} catch (e) {
 				files.push({
 					uri,
@@ -1567,7 +1568,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					status: 'skipped',
 					skipReason: 'parse-error',
 					errorMessage: e instanceof Error ? e.message : String(e),
-					extensionId
+					extension,
+					pluginUri
 				});
 			}
 		}
@@ -1583,12 +1585,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const promptPath of instructionsFiles) {
 			const uri = promptPath.uri;
 			const storage = promptPath.storage;
-			const extensionId = promptPath.extension?.identifier?.value;
+			const { pluginUri, extension } = promptPath;
 
 			try {
 				const parsedPromptFile = await this.parseNew(uri, token);
 				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
-				files.push({ uri, storage, status: 'loaded', name, extensionId });
+				files.push({ uri, storage, status: 'loaded', name, extension, pluginUri });
 			} catch (e) {
 				files.push({
 					uri,
@@ -1596,7 +1598,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					status: 'skipped',
 					skipReason: 'parse-error',
 					errorMessage: e instanceof Error ? e.message : String(e),
-					extensionId
+					extension,
+					pluginUri
 				});
 			}
 		}
@@ -1615,9 +1618,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 		for (const promptPath of hookFiles) {
-			const uri = promptPath.uri;
-			const storage = promptPath.storage;
-			const extensionId = promptPath.extension?.identifier?.value;
+			const { uri, storage, pluginUri, extension } = promptPath;
 			const name = basename(uri);
 
 			// Ignored if workspace is untrusted
@@ -1628,7 +1629,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					status: 'skipped',
 					skipReason: 'workspace-untrusted',
 					name: basename(promptPath.uri),
-					extensionId: promptPath.extension?.identifier?.value,
+					extension,
+					pluginUri
 				});
 				continue;
 			}
@@ -1641,7 +1643,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					status: 'skipped',
 					skipReason: 'claude-hooks-disabled',
 					name,
-					extensionId
+					extension,
+					pluginUri
 				});
 				continue;
 			}
@@ -1660,7 +1663,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 						skipReason: 'parse-error',
 						errorMessage: 'Invalid hooks file: must be a JSON object',
 						name,
-						extensionId
+						extension,
+						pluginUri
 					});
 					continue;
 				}
@@ -1680,13 +1684,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 						status: 'skipped',
 						skipReason: 'all-hooks-disabled',
 						name,
-						extensionId
+						extension,
+						pluginUri
 					});
 					continue;
 				}
 
 				// File is valid
-				files.push({ uri, storage, status: 'loaded', name, extensionId });
+				files.push({ uri, storage, status: 'loaded', name, extension, pluginUri });
 			} catch (e) {
 				files.push({
 					uri,
@@ -1695,7 +1700,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					skipReason: 'parse-error',
 					errorMessage: e instanceof Error ? e.message : String(e),
 					name,
-					extensionId
+					extension,
+					pluginUri
 				});
 			}
 		}

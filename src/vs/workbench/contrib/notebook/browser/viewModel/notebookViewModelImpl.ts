@@ -159,6 +159,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const handles: number[] = [];
 		cellRangesToIndexes(this._selectionCollection.selections).map(index => index < this.length ? this.cellAt(index) : undefined).forEach(cell => {
 			if (cell && !handlesSet.has(cell.handle)) {
+				handlesSet.add(cell.handle);
 				handles.push(cell.handle);
 			}
 		});

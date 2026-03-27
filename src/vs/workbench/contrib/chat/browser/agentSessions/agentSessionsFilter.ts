@@ -56,6 +56,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	states: [] as const,
 	archived: true as const /* archived are never excluded but toggle between expanded and collapsed */,
 	read: false as const,
+	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
 });
 
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
@@ -278,6 +279,15 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				that.storeExcludes({ ...that.excludes, read: !that.excludes.read });
 			}
 		}));
+	}
+
+	/**
+	 * Programmatically toggle the repository group capping state.
+	 */
+	setRepositoryGroupCapped(capped: boolean): void {
+		if (this.excludes.repositoryGroupCapped !== capped) {
+			this.storeExcludes({ ...this.excludes, repositoryGroupCapped: capped });
+		}
 	}
 
 	private registerResetAction(disposables: DisposableStore, menuId: MenuId): void {
