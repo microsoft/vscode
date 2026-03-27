@@ -428,7 +428,7 @@ function filterToUserAttachedContext(attachedContext: readonly IChatRequestVaria
 	);
 }
 
-async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<void> {
+async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<boolean> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
@@ -436,18 +436,18 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 	const chatService = accessor.get(IChatService);
 	const chatModel = chatService.getSession(sessionResource);
 	if (!chatModel) {
-		return;
+		return false;
 	}
 
 	const session = chatModel.editingSession;
 	if (!session) {
-		return;
+		return false;
 	}
 
 	const chatRequests = chatModel.getRequests();
 	const itemIndex = chatRequests.findIndex(request => request.id === requestId);
 	if (itemIndex === -1) {
-		return;
+		return false;
 	}
 
 	const editsToUndo = chatRequests.length - itemIndex;
@@ -486,7 +486,7 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 
 	if (!confirmation.confirmed) {
 		widget?.viewModel?.model.setCheckpoint(undefined);
-		return;
+		return false;
 	}
 
 	if (confirmation.checkboxChecked) {
@@ -496,17 +496,18 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 	// Restore the snapshot to what it was before the request(s) that we deleted
 	const snapshotRequestId = chatRequests[itemIndex].id;
 	await session.restoreSnapshot(snapshotRequestId, undefined);
+	return true;
 }
 
-async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
+async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<boolean> {
 	const requestId = isRequestVM(item) ? item.id :
 		isResponseVM(item) ? item.requestId : undefined;
 
 	if (!requestId) {
-		return;
+		return false;
 	}
 
-	await restoreSnapshotWithConfirmationByRequestId(accessor, item.sessionResource, requestId);
+	return restoreSnapshotWithConfirmationByRequestId(accessor, item.sessionResource, requestId);
 }
 
 registerAction2(class RemoveAction extends Action2 {
@@ -549,9 +550,9 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		await restoreSnapshotWithConfirmation(accessor, item);
+		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
 
-		if (isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
+		if (confirmed && isRequestVM(item) && configurationService.getValue('chat.undoRequests.restoreInput')) {
 			widget?.focusInput();
 			widget?.input.setValue(item.messageText, false);
 			const userAttachments = filterToUserAttachedContext(item.attachedContext);
@@ -609,9 +610,9 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		}
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
-		await restoreSnapshotWithConfirmation(accessor, item);
+		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
 
-		if (userAttachments.length) {
+		if (confirmed && userAttachments.length) {
 			await widget?.input.restoreAttachments(userAttachments);
 		}
 	}

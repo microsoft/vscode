@@ -2195,7 +2195,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		// Initialize input model from serialized data (undefined for new chats)
 		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
 		this.inputModel = new InputModel(serializedInputState && {
-			attachments: serializedInputState.attachments.map(IChatRequestVariableEntry.fromExport),
+			attachments: (serializedInputState.attachments ?? []).map(IChatRequestVariableEntry.fromExport),
 			mode: serializedInputState.mode,
 			selectedModel: serializedInputState.selectedModel && {
 				identifier: serializedInputState.selectedModel.identifier,

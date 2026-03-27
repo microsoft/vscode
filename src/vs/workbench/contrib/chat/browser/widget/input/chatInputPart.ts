@@ -16,6 +16,7 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -1403,7 +1404,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 				return attachment;
-			}))).filter(attachment => attachment !== undefined);
+			}))).filter(isDefined);
 		}
 
 		this._attachmentModel.clearAndSetContext(...restored);
