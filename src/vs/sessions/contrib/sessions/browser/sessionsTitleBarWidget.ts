@@ -248,8 +248,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				label
 			));
 
-			// Keyboard handler — only on the pill, not the count button
-			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			// Keyboard handler — container handles session picker, count button handles sidebar toggle
+			this._dynamicDisposables.add(addDisposableListener(this._container, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (countWidget.contains(e.target as Node)) {
+					return; // Let the count button handle its own keys
+				}
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
 					e.stopPropagation();
