@@ -220,7 +220,10 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 						const session = sessionsManagementService.activeSession.get();
 						if (session) {
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-							provider?.setModel(session.sessionId, model.identifier);
+							const activeChat = session.activeChat.get();
+							if (activeChat) {
+								provider?.setModel(activeChat.chatId, model.identifier);
+							}
 						}
 					},
 					getModels: () => getAvailableModels(languageModelsService),
@@ -294,9 +297,10 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			if (session instanceof CopilotCLISession) {
-				const isLoading = session.loading.read(reader);
-				hasRepositoryKey.set(!isLoading && !!session.gitRepository);
+			const chat = session?.activeChat.read(reader);
+			if (chat instanceof CopilotCLISession) {
+				const isLoading = chat.loading.read(reader);
+				hasRepositoryKey.set(!isLoading && !!chat.gitRepository);
 			} else {
 				hasRepositoryKey.set(false);
 			}

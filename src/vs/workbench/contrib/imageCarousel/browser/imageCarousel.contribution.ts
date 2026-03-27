@@ -160,7 +160,7 @@ registerAction2(OpenImageInCarouselAction);
 // --- Explorer Context Menu Integration ---
 
 /** Supported media (image + video) extensions for the carousel explorer context menu. */
-const MEDIA_EXTENSION_REGEX = /^\.(png|jpg|jpeg|jpe|gif|webp|svg|bmp|ico|mp4|webm)$/i;
+const MEDIA_EXTENSION_REGEX = /^\.(png|jpg|jpeg|jpe|gif|webp|svg|bmp|ico|mp4|webm|mov)$/i;
 
 function isMediaResource(uri: URI): boolean {
 	return MEDIA_EXTENSION_REGEX.test(extname(uri));
