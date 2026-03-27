@@ -25,6 +25,7 @@ import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
@@ -145,6 +146,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		const sessionCwd = getSessionCwd(session);
+		if (sessionCwd?.scheme === AGENT_HOST_SCHEME) {
+			return;
+		}
 
 		const targetPath = sessionCwd ?? await this._pathService.userHome();
 		const targetKey = targetPath.fsPath.toLowerCase();
