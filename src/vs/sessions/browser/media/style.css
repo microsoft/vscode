@@ -249,18 +249,22 @@
 
 /* ---- Scrollbar Size ---- */
 
+.agent-sessions-workbench {
+	--sessions-scrollbar-size: 8px;
+}
+
 .agent-sessions-workbench .monaco-scrollable-element > .scrollbar.vertical {
-	width: 8px !important;
+	width: var(--sessions-scrollbar-size) !important;
 }
 
 .agent-sessions-workbench .monaco-scrollable-element > .scrollbar.vertical > .slider {
-	width: 8px !important;
+	width: 100% !important;
 }
 
 .agent-sessions-workbench .monaco-scrollable-element > .scrollbar.horizontal {
-	height: 8px !important;
+	height: var(--sessions-scrollbar-size) !important;
 }
 
 .agent-sessions-workbench .monaco-scrollable-element > .scrollbar.horizontal > .slider {
-	height: 8px !important;
+	height: 100% !important;
 }
