@@ -88,6 +88,13 @@ The widget:
 - Re-renders automatically when the active session changes via `autorun` on `IActiveSessionService.activeSession`, and when session data changes via `IAgentSessionsService.model.onDidChangeSessions`
 - Is registered via `SessionsTitleBarContribution` (an `IWorkbenchContribution` in `contrib/sessions/browser/sessionsTitleBarWidget.ts`) that calls `IActionViewItemService.register()` to intercept the submenu rendering
 
+When the welcome view is hidden and the active session is not untitled, the command center also shows session-scoped actions alongside the picker:
+
+| Action | ID | Icon | Order | Behavior |
+|--------|----|------|-------|----------|
+| Add Chat | `agentSession.addChat` | `plus` | 102 | Prompts for a message and adds a new chat to the active session |
+| Mark as Done | `agentSession.markAsDone` | `check` | 103 | Archives the active session |
+
 ### 3.3 Left Toolbar
 
 The Agent Sessions titlebar includes a custom left toolbar that appears after the app icon. This toolbar:
@@ -643,6 +650,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-27 | Updated the command center documentation to include the session-scoped `Add Chat` and `Mark as Done` actions, and synced the `Add Chat` icon with the shared `plus` codicon used elsewhere in the sessions UI |
 | 2026-03-26 | Updated the sessions sidebar appear animation so only the body content (`.part.sidebar > .content`) slides/fades in during reveal while the sidebar title/header and footer remain fixed |
 | 2026-03-25 | Updated Sessions view documentation to reflect the refactored `SessionsView` implementation in `contrib/sessions/browser/views/sessionsView.ts` and documented the left-aligned "+ Session" sidebar action with its inline keybinding hint |
 | 2026-03-24 | Updated the sessions new-chat empty state: removed the watermark, vertically centered the empty-state controls block, restyled the workspace picker as an inline `New session in {dropdown}` title row aligned to the chat input, and tuned empty-state dropdown icon/chevron and local-mode spacing for the final visual polish. |
