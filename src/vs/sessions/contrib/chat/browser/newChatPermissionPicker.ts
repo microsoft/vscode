@@ -163,11 +163,11 @@ export class NewChatPermissionPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
 			item: {
-				label: localize('permissions.learnMore', "Learn More about Permissions"),
+				label: localize('permissions.learnMore', "Learn more about permissions"),
 				icon: Codicon.blank,
 				checked: false,
 			},
-			label: localize('permissions.learnMore', "Learn More about Permissions"),
+			label: localize('permissions.learnMore', "Learn more about permissions"),
 			hideIcon: false,
 			disabled: false,
 		});
