@@ -16,14 +16,17 @@ suite('SessionDatabase', () => {
 
 	const disposables = new DisposableStore();
 	let testDir: string;
+	let db: SessionDatabase | undefined;
+	let db2: SessionDatabase | undefined;
 
 	setup(() => {
 		testDir = join(tmpdir(), `vscode-session-db-test-${randomUUID()}`);
 		mkdirSync(testDir, { recursive: true });
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		disposables.clear();
+		await Promise.all([db?.close(), db2?.close()]);
 		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,7 +45,7 @@ suite('SessionDatabase', () => {
 				{ version: 2, sql: 'CREATE TABLE t2 (id INTEGER PRIMARY KEY)' },
 			];
 
-			const db = disposables.add(await SessionDatabase.open(dbPath(), migrations));
+			db = disposables.add(await SessionDatabase.open(dbPath(), migrations));
 
 			const tables = (await db.getAllTables()).sort();
 			assert.deepStrictEqual(tables, ['t1', 't2']);
@@ -54,10 +57,10 @@ suite('SessionDatabase', () => {
 			];
 
 			const db1 = await SessionDatabase.open(dbPath(), migrations);
-			db1.dispose();
+			await db1.close();
 
 			// Reopen — should not throw (table already exists, migration skipped)
-			const db2 = disposables.add(await SessionDatabase.open(dbPath(), migrations));
+			db2 = disposables.add(await SessionDatabase.open(dbPath(), migrations));
 			assert.deepStrictEqual(await db2.getAllTables(), ['t1']);
 		});
 
@@ -66,13 +69,13 @@ suite('SessionDatabase', () => {
 				{ version: 1, sql: 'CREATE TABLE t1 (id INTEGER PRIMARY KEY)' },
 			];
 			const db1 = await SessionDatabase.open(dbPath(), v1);
-			db1.dispose();
+			await db1.close();
 
 			const v2: ISessionDatabaseMigration[] = [
 				...v1,
 				{ version: 2, sql: 'CREATE TABLE t2 (id INTEGER PRIMARY KEY)' },
 			];
-			const db2 = disposables.add(await SessionDatabase.open(dbPath(), v2));
+			db2 = disposables.add(await SessionDatabase.open(dbPath(), v2));
 
 			const tables = (await db2.getAllTables()).sort();
 			assert.deepStrictEqual(tables, ['t1', 't2']);
@@ -88,7 +91,7 @@ suite('SessionDatabase', () => {
 
 			// Reopen with only v1 — t1 should not exist because the whole
 			// transaction was rolled back
-			const db = disposables.add(await SessionDatabase.open(dbPath(), [
+			db = disposables.add(await SessionDatabase.open(dbPath(), [
 				{ version: 1, sql: 'CREATE TABLE t1 (id INTEGER PRIMARY KEY)' },
 			]));
 			assert.deepStrictEqual(await db.getAllTables(), ['t1']);
@@ -100,7 +103,7 @@ suite('SessionDatabase', () => {
 	suite('file edits', () => {
 
 		test('store and retrieve a file edit', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
@@ -124,7 +127,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('retrieve multiple edits for a single tool call', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
@@ -153,7 +156,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('retrieve edits across multiple tool calls', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
@@ -185,19 +188,19 @@ suite('SessionDatabase', () => {
 		});
 
 		test('returns empty array for unknown tool call IDs', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			const edits = await db.getFileEdits(['nonexistent']);
 			assert.deepStrictEqual(edits, []);
 		});
 
 		test('returns empty array when given empty array', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			const edits = await db.getFileEdits([]);
 			assert.deepStrictEqual(edits, []);
 		});
 
 		test('replace on conflict (same toolCallId + filePath)', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
@@ -229,7 +232,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('readFileEditContent returns content on demand', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
@@ -249,13 +252,13 @@ suite('SessionDatabase', () => {
 		});
 
 		test('readFileEditContent returns undefined for missing edit', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			const content = await db.readFileEditContent('tc-missing', '/no/such/file');
 			assert.strictEqual(content, undefined);
 		});
 
 		test('persists binary content correctly', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			const binary = new Uint8Array([0, 1, 2, 255, 128, 64]);
 
 			await db.createTurn('turn-1');
@@ -275,7 +278,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('auto-creates turn if it does not exist', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			// storeFileEdit should succeed even without a prior createTurn call
 			await db.storeFileEdit({
@@ -299,13 +302,13 @@ suite('SessionDatabase', () => {
 	suite('turns', () => {
 
 		test('createTurn is idempotent', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			await db.createTurn('turn-1');
 			await db.createTurn('turn-1'); // should not throw
 		});
 
 		test('deleteTurn cascades to file edits', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
@@ -327,7 +330,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('deleteTurn only removes its own edits', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 
 			await db.createTurn('turn-1');
 			await db.createTurn('turn-2');
@@ -357,7 +360,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('deleteTurn is a no-op for unknown turn', async () => {
-			const db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(dbPath()));
 			await db.deleteTurn('nonexistent'); // should not throw
 		});
 	});
@@ -367,7 +370,7 @@ suite('SessionDatabase', () => {
 	suite('dispose', () => {
 
 		test('methods throw after dispose', async () => {
-			const db = await SessionDatabase.open(dbPath());
+			db = await SessionDatabase.open(dbPath());
 			db.dispose();
 
 			await assert.rejects(
@@ -377,7 +380,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('double dispose is safe', async () => {
-			const db = await SessionDatabase.open(dbPath());
+			db = await SessionDatabase.open(dbPath());
 			db.dispose();
 			db.dispose(); // should not throw
 		});
@@ -389,13 +392,13 @@ suite('SessionDatabase', () => {
 
 		test('constructor does not open the database', () => {
 			// Should not throw even if path does not exist yet
-			const db = new SessionDatabase(join(testDir, 'lazy', 'session.db'));
+			db = new SessionDatabase(join(testDir, 'lazy', 'session.db'));
 			disposables.add(db);
 			// No error — the database is not opened until first use
 		});
 
 		test('first async call opens and migrates the database', async () => {
-			const db = disposables.add(new SessionDatabase(dbPath()));
+			db = disposables.add(new SessionDatabase(dbPath()));
 			// Database file may not exist yet — first call triggers open
 			await db.createTurn('turn-1');
 			const edits = await db.getFileEdits(['nonexistent']);
@@ -403,7 +406,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('multiple concurrent calls share the same open promise', async () => {
-			const db = disposables.add(new SessionDatabase(dbPath()));
+			db = disposables.add(new SessionDatabase(dbPath()));
 			// Fire multiple calls concurrently — all should succeed
 			await Promise.all([
 				db.createTurn('turn-1'),
@@ -413,7 +416,7 @@ suite('SessionDatabase', () => {
 		});
 
 		test('dispose during open rejects subsequent calls', async () => {
-			const db = new SessionDatabase(dbPath());
+			db = new SessionDatabase(dbPath());
 			db.dispose();
 			await assert.rejects(() => db.createTurn('turn-1'), /disposed/);
 		});

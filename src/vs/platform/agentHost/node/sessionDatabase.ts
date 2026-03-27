@@ -155,7 +155,7 @@ async function runMigrations(db: Database, migrations: readonly ISessionDatabase
 export class SessionDatabase implements ISessionDatabase {
 
 	private _dbPromise: Promise<Database> | undefined;
-	private _disposed = false;
+	private _closed = false;
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
 	constructor(
@@ -175,7 +175,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	private _ensureDb(): Promise<Database> {
-		if (this._disposed) {
+		if (this._closed) {
 			return Promise.reject(new Error('SessionDatabase has been disposed'));
 		}
 		if (!this._dbPromise) {
@@ -192,7 +192,7 @@ export class SessionDatabase implements ISessionDatabase {
 					throw err;
 				}
 				// If dispose() was called while we were opening, close immediately.
-				if (this._disposed) {
+				if (this._closed) {
 					await dbClose(db);
 					throw new Error('SessionDatabase has been disposed');
 				}
@@ -293,11 +293,15 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
-	dispose(): void {
-		if (!this._disposed) {
-			this._disposed = true;
-			this._dbPromise?.then(db => db.close()).catch(() => { });
+	async close() {
+		if (!this._closed) {
+			this._closed = true;
+			await this._dbPromise?.then(db => db.close()).catch(() => { });
 		}
+	}
+
+	dispose(): void {
+		this.close();
 	}
 }
 
