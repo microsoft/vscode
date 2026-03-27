@@ -1688,6 +1688,7 @@ export interface IToolDataDto {
 	id: string;
 	toolReferenceName?: string;
 	legacyToolReferenceFullNames?: readonly string[];
+	fullReferenceName?: string;
 	tags?: readonly string[];
 	displayName: string;
 	userDescription?: string;
