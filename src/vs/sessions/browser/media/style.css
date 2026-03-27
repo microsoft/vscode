@@ -246,3 +246,21 @@
 .agent-sessions-workbench .badge > .badge-content {
 	border-radius: 4px !important;
 }
+
+/* ---- Scrollbar Size ---- */
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.vertical {
+	width: 8px !important;
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.vertical > .slider {
+	width: 8px !important;
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.horizontal {
+	height: 8px !important;
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.horizontal > .slider {
+	height: 8px !important;
+}
