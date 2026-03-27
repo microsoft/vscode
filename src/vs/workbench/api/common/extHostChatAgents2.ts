@@ -672,7 +672,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			label: metadata.label,
 			iconId: metadata.iconId,
 			unsupportedTypes: metadata.unsupportedTypes?.map(t => typeConvert.ChatSessionCustomizationType.from(t)),
-			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
 		};
 
 		this._proxy.$registerChatSessionCustomizationProvider(handle, chatSessionType, metadataDto, extension.identifier);
