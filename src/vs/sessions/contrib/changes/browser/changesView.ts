@@ -994,7 +994,7 @@ export class ChangesViewPane extends ViewPane {
 			const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
 			const actionRunner = this.renderDisposables.add(new ChangesViewActionRunner(
 				() => this.viewModel.activeSessionResourceObs.get(),
-				() => this.getSessionRefs(),
+				() => this.getSessionDiscardRef(),
 				() => this.getTreeSelection(),
 			));
 			this.tree = this.instantiationService.createInstance(
@@ -1197,26 +1197,16 @@ export class ChangesViewPane extends ViewPane {
 		return selection.filter(item => !!item && isChangesFileItem(item));
 	}
 
-	private getSessionRefs(): [string, string] {
-		const activeSession = this.sessionManagementService.activeSession.get();
-		const activeSessionIsolationMode = this.viewModel.activeSessionIsolationModeObs.get();
-		const activeSessionRepositoryState = this.viewModel.activeSessionRepositoryObs.get()?.state.get();
+	private getSessionDiscardRef(): string {
+		const versionMode = this.viewModel.versionModeObs.get();
+		const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.get();
+		const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.get();
 
-		let originalRef: string, modifiedRef: string;
-		if (activeSessionIsolationMode === IsolationMode.Worktree) {
-			// Worktree
-			originalRef = activeSession?.workspace.get()?.repositories[0].baseBranchName ?? '';
-			modifiedRef = activeSessionRepositoryState?.HEAD?.name ?? '';
-		} else {
-			// Workspace
-			const upstream = activeSessionRepositoryState?.HEAD?.upstream;
-			originalRef = upstream
-				? `${upstream.remote}/${upstream.name}`
-				: activeSessionRepositoryState?.HEAD?.name ?? '';
-			modifiedRef = activeSessionRepositoryState?.HEAD?.name ?? '';
-		}
-
-		return [originalRef, modifiedRef];
+		return versionMode === ChangesVersionMode.LastTurn
+			? lastCheckpointRef
+				? `${lastCheckpointRef}^`
+				: ''
+			: firstCheckpointRef ?? '';
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1267,7 +1257,7 @@ class ChangesViewActionRunner extends ActionRunner {
 
 	constructor(
 		private readonly getSessionResource: () => URI | undefined,
-		private readonly getSessionRefs: () => [originalRef: string, modifiedRef: string],
+		private readonly getSessionDiscardRef: () => string,
 		private readonly getSelectedFileItems: () => IChangesFileItem[]
 	) {
 		super();
@@ -1279,11 +1269,11 @@ class ChangesViewActionRunner extends ActionRunner {
 		}
 
 		const sessionResource = this.getSessionResource();
-		const [originalRef, modifiedRef] = this.getSessionRefs();
+		const discardRef = this.getSessionDiscardRef();
 		const selection = this.getSelectedFileItems();
 		const contextIsSelected = selection.some(s => isEqual(s.uri, context));
 		const actualContext = contextIsSelected ? selection.map(s => s.uri) : [context];
-		await action.run(sessionResource, originalRef, modifiedRef, ...actualContext);
+		await action.run(sessionResource, discardRef, ...actualContext);
 	}
 }
 
