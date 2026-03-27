@@ -1537,6 +1537,11 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Fetches items from an external customization provider, converting
 	 * the provider's items into the list widget format.
+	 *
+	 * Items are enriched with `storage` (inferred from URI) so that the
+	 * standard grouping logic in `filterItems` applies. For instructions,
+	 * files are parsed to extract `applyTo` patterns — populating `badge`,
+	 * `badgeTooltip`, and `groupKey` just like built-in instruction items.
 	 */
 	private async fetchItemsFromProvider(provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
@@ -1544,18 +1549,115 @@ export class AICustomizationListWidget extends Disposable {
 			return [];
 		}
 
-		return allItems
-			.filter(item => item.type === promptType)
+		const filtered = allItems.filter(item => item.type === promptType);
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const userHomeUri = await this.pathService.userHome();
+
+		// For instructions, parse files to extract applyTo patterns for grouping and badges
+		if (promptType === PromptsType.instructions) {
+			return this.enrichInstructionItemsFromProvider(filtered, projectRoot, userHomeUri);
+		}
+
+		return filtered
 			.map((item: IExternalCustomizationItem) => ({
 				id: item.uri.toString(),
 				uri: item.uri,
 				name: item.name,
 				filename: basename(item.uri),
 				description: item.description,
+				storage: this.inferStorageFromUri(item.uri, projectRoot, userHomeUri),
 				promptType,
 				disabled: false,
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Infers the storage origin of an external provider item based on its URI.
+	 * Items under the active workspace root are treated as `local` (workspace);
+	 * items under the user home directory are treated as `user`.
+	 */
+	private inferStorageFromUri(uri: URI, projectRoot: URI | undefined, userHome: URI): PromptsStorage {
+		if (projectRoot && isEqualOrParent(uri, projectRoot)) {
+			return PromptsStorage.local;
+		}
+		if (isEqualOrParent(uri, userHome)) {
+			return PromptsStorage.user;
+		}
+		return PromptsStorage.local;
+	}
+
+	/**
+	 * Enriches instruction items from an external provider by parsing each
+	 * file to extract frontmatter (`applyTo`, `name`, `description`).
+	 * This replicates the built-in instruction classification logic so that
+	 * provider items get proper grouping and applyTo badges.
+	 */
+	private async enrichInstructionItemsFromProvider(
+		externalItems: IExternalCustomizationItem[],
+		projectRoot: URI | undefined,
+		userHome: URI,
+	): Promise<IAICustomizationListItem[]> {
+		const promptType = PromptsType.instructions;
+
+		const parseResults = await Promise.all(externalItems.map(async item => {
+			try {
+				const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
+				return { item, parsed };
+			} catch {
+				return { item, parsed: undefined };
+			}
+		}));
+
+		const items: IAICustomizationListItem[] = [];
+		for (const { item, parsed } of parseResults) {
+			const storage = this.inferStorageFromUri(item.uri, projectRoot, userHome);
+			const applyTo = evaluateApplyToPattern(parsed?.header, isInClaudeRulesFolder(item.uri));
+			const name = parsed?.header?.name;
+			const description = parsed?.header?.description ?? item.description;
+			const friendlyName = this.getFriendlyName(name || item.name || getCleanPromptName(item.uri));
+
+			if (applyTo !== undefined) {
+				const badge = applyTo === '**'
+					? localize('alwaysAdded', "always added")
+					: applyTo;
+				const badgeTooltip = applyTo === '**'
+					? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
+					: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
+				items.push({
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: friendlyName,
+					filename: this.labelService.getUriLabel(item.uri, { relative: storage === PromptsStorage.local }),
+					displayName: friendlyName,
+					badge,
+					badgeTooltip,
+					description,
+					storage,
+					promptType,
+					typeIcon: storageToIcon(storage),
+					groupKey: 'context-instructions',
+					disabled: false,
+				});
+			} else {
+				items.push({
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: friendlyName,
+					filename: basename(item.uri),
+					displayName: friendlyName,
+					description,
+					storage,
+					promptType,
+					typeIcon: storageToIcon(storage),
+					groupKey: 'on-demand-instructions',
+					disabled: false,
+				});
+			}
+		}
+
+		items.sort((a, b) => a.name.localeCompare(b.name));
+		return items;
 	}
 
 	/**
@@ -1606,18 +1708,6 @@ export class AICustomizationListWidget extends Disposable {
 					});
 				}
 			}
-		}
-
-		// When items come from an external provider, skip storage-based grouping
-		// and render a flat list. The provider controls the full item set, so
-		// Workspace/User/Extension categories don't apply.
-		const activeDescriptor = this.harnessService.getActiveDescriptor();
-		if (activeDescriptor.itemProvider) {
-			matchedItems.sort((a, b) => a.name.localeCompare(b.name));
-			this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
-			this.list.splice(0, this.list.length, this.displayEntries);
-			this.updateEmptyState();
-			return matchedItems.length;
 		}
 
 		// Group items by storage
