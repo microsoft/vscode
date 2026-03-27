@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsWalkthrough.css';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, append, EventType, addDisposableListener } from '../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { $, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -32,6 +33,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private readonly card: HTMLElement;
 	private readonly contentContainer: HTMLElement;
 	private readonly footerContainer: HTMLElement;
+	private readonly stepDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly previouslyFocusedElement: HTMLElement | undefined;
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
 	private _outcomeResolved = false;
 
@@ -48,11 +51,31 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	) {
 		super();
 
+		const activeElement = getActiveElement();
+		this.previouslyFocusedElement = isHTMLElement(activeElement) ? activeElement : undefined;
+
 		this.overlay = append(container, $('.sessions-walkthrough-overlay'));
 		this.overlay.setAttribute('role', 'dialog');
 		this.overlay.setAttribute('aria-modal', 'true');
 		this.overlay.setAttribute('aria-label', localize('walkthrough.aria', "Sessions onboarding walkthrough"));
 		this._register(toDisposable(() => this.overlay.remove()));
+		this._register(addDisposableListener(this.overlay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.dismiss();
+				return;
+			}
+
+			if (e.key === 'Tab') {
+				this._trapFocus(e);
+			}
+		}));
+		this._register(addDisposableListener(this.overlay, EventType.MOUSE_DOWN, e => {
+			if (e.target === this.overlay) {
+				this.dismiss();
+			}
+		}));
 
 		this.card = append(this.overlay, $('.sessions-walkthrough-card'));
 
@@ -69,6 +92,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	// Sign In
 
 	private _renderSignIn(): void {
+		const stepDisposables = this.stepDisposables.value = new DisposableStore();
+
 		this.contentContainer.textContent = '';
 		this.footerContainer.textContent = '';
 
@@ -116,11 +141,15 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		errorContainer.style.display = 'none';
 
 		// Focus the first provider button so keyboard users can interact immediately
-		setTimeout(() => githubBtn.focus(), 0);
+		disposableTimeout(() => {
+			if (this.overlay.isConnected && !githubBtn.disabled) {
+				githubBtn.focus();
+			}
+		}, 0, stepDisposables);
 
 		for (let i = 0; i < providerButtons.length; i++) {
 			const strategy = providerStrategies[i];
-			this._register(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(providerButtons, errorContainer, strategy, titleEl, subtitleEl, providerRow)));
+			stepDisposables.add(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(providerButtons, errorContainer, strategy, titleEl, subtitleEl, providerRow)));
 		}
 	}
 
@@ -145,13 +174,19 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Fade the content
 		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 		await new Promise(resolve => setTimeout(resolve, 200));
+		if (this._shouldAbortUpdate(titleEl, subtitleEl, providerRow)) {
+			return;
+		}
 
 		// Swap title and subtitle in-place
 		titleEl.textContent = localize('walkthrough.settingUp', "Signing in\u2026");
 		subtitleEl.textContent = localize('walkthrough.poweredBy', "Complete authorization in your browser.");
 
 		// Replace provider buttons with progress bar
-		const heroText = providerRow.parentElement!;
+		const heroText = providerRow.parentElement;
+		if (!heroText) {
+			return;
+		}
 		providerRow.remove();
 		append(heroText, $('.sessions-walkthrough-progress-bar', undefined, $('.sessions-walkthrough-progress-bar-fill')));
 
@@ -162,6 +197,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
 				setupStrategy: strategy
 			});
+			if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+				return;
+			}
 
 			if (success) {
 				// Update title and subtitle for the finishing phase
@@ -172,8 +210,14 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				const stopped = await this.extensionService.stopExtensionHosts(
 					localize('walkthrough.restart', "Completing sessions setup")
 				);
+				if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+					return;
+				}
 				if (stopped) {
 					await this.extensionService.startExtensionHosts();
+					if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+						return;
+					}
 				}
 
 				// Show personalized success state
@@ -183,10 +227,16 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				error.textContent = localize('walkthrough.canceledError', "Sign-in was canceled. Please try again.");
 				error.style.display = '';
 				await new Promise(resolve => setTimeout(resolve, 2000));
+				if (this._shouldAbortUpdate(error)) {
+					return;
+				}
 				error.style.display = 'none';
 
 				this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 				await new Promise(resolve => setTimeout(resolve, 200));
+				if (!this.overlay.isConnected) {
+					return;
+				}
 				this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
 				this._renderSignIn();
 			}
@@ -197,23 +247,37 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			error.textContent = localize('walkthrough.signInError', "Something went wrong. Please try again.");
 			error.style.display = '';
 			await new Promise(resolve => setTimeout(resolve, 2000));
+			if (this._shouldAbortUpdate(error)) {
+				return;
+			}
 			error.style.display = 'none';
 
 			this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 			await new Promise(resolve => setTimeout(resolve, 200));
+			if (!this.overlay.isConnected) {
+				return;
+			}
 			this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
 			this._renderSignIn();
 		}
 	}
 
 	private async _showSignInSuccess(): Promise<void> {
+		const stepDisposables = this.stepDisposables.value = new DisposableStore();
+
 		// Get user's account name
 		const account = await this.defaultAccountService.getDefaultAccount();
 		const userName = account?.accountName ?? '';
+		if (!this.overlay.isConnected) {
+			return;
+		}
 
 		// Fade out current content
 		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 		await new Promise(resolve => setTimeout(resolve, 200));
+		if (!this.overlay.isConnected) {
+			return;
+		}
 
 		// Rebuild content in hero format
 		this.contentContainer.textContent = '';
@@ -239,10 +303,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Get Started button
 		const actions = append(right, $('.sessions-walkthrough-success-actions'));
 
-		const getStartedBtn = this._register(new Button(actions, { ...defaultButtonStyles }));
+		const getStartedBtn = stepDisposables.add(new Button(actions, { ...defaultButtonStyles }));
 		getStartedBtn.label = localize('walkthrough.getStarted', "Get Started");
 		getStartedBtn.focus();
-		this._register(getStartedBtn.onDidClick(() => {
+		stepDisposables.add(getStartedBtn.onDidClick(() => {
 			this._finish('completed');
 		}));
 
@@ -255,8 +319,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _finish(outcome: WalkthroughOutcome): void {
 		this.overlay.classList.add('sessions-walkthrough-dismissed');
-		const handle = setTimeout(() => this.dispose(), 250);
-		this._register(toDisposable(() => clearTimeout(handle)));
+		this._register(disposableTimeout(() => this.dispose(), 250));
 		if (!this._outcomeResolved) {
 			this._outcomeResolved = true;
 			this._resolveOutcome(outcome);
@@ -276,5 +339,45 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			this._resolveOutcome('dismissed');
 		}
 		super.dispose();
+		this.previouslyFocusedElement?.isConnected && this.previouslyFocusedElement.focus();
+	}
+
+	private _trapFocus(event: KeyboardEvent): void {
+		const focusableElements = this._getFocusableElements();
+		if (!focusableElements.length) {
+			return;
+		}
+
+		const activeElement = getActiveElement();
+		const fallbackElement = event.shiftKey ? focusableElements[focusableElements.length - 1] : focusableElements[0];
+		if (!isHTMLElement(activeElement)) {
+			event.preventDefault();
+			fallbackElement?.focus();
+			return;
+		}
+
+		const focusedIndex = focusableElements.indexOf(activeElement);
+		if (focusedIndex === -1) {
+			event.preventDefault();
+			fallbackElement?.focus();
+			return;
+		}
+
+		if (!event.shiftKey && focusedIndex === focusableElements.length - 1) {
+			event.preventDefault();
+			focusableElements[0].focus();
+		} else if (event.shiftKey && focusedIndex === 0) {
+			event.preventDefault();
+			focusableElements[focusableElements.length - 1]?.focus();
+		}
+	}
+
+	private _getFocusableElements(): HTMLElement[] {
+		return Array.from(this.card.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+			.filter(element => element.getClientRects().length > 0);
+	}
+
+	private _shouldAbortUpdate(...elements: HTMLElement[]): boolean {
+		return !this.overlay.isConnected || elements.some(element => !element.isConnected);
 	}
 }

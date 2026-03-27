@@ -151,7 +151,15 @@
 }
 
 .sessions-walkthrough-provider-btn.provider-github::before {
-	background-image: url('./github-mark.svg');
+	-webkit-mask-image: url('./github-mark.svg');
+	mask-image: url('./github-mark.svg');
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-size: contain;
+	mask-size: contain;
+	background-color: currentColor;
 }
 
 .sessions-walkthrough-provider-btn.provider-google::before {
@@ -237,7 +245,7 @@
 .sessions-walkthrough-logo {
 	width: 112px;
 	height: 112px;
-	background-image: url('./sessions-logo-dark.svg');
+	background-image: url('./sessions-logo-light.svg');
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
@@ -247,7 +255,7 @@
 
 .vs .sessions-walkthrough-logo,
 .hc-light .sessions-walkthrough-logo {
-	background-image: url('./sessions-logo-light.svg');
+	background-image: url('./sessions-logo-dark.svg');
 }
 
 /* ---- Action area (used inside content for sign-in step spinner) ---- */
