@@ -44,6 +44,11 @@ export namespace ThemeSettingDefaults {
 	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
 	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 
+	/** Previous dark default before the VS Code 2026 theme update. */
+	export const COLOR_THEME_DARK_OLD = 'Dark Modern';
+	/** Previous light default before the VS Code 2026 theme update. */
+	export const COLOR_THEME_LIGHT_OLD = 'Light Modern';
+
 	export const FILE_ICON_THEME = 'vs-seti';
 	export const PRODUCT_ICON_THEME = 'Default';
 }
