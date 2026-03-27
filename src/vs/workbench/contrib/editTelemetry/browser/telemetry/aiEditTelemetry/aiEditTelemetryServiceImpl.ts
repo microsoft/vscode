@@ -165,7 +165,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 
 			modeId: data.modeId,
-			modelId: data.modelId?.replace('/', '_'),
+			modelId: data.modelId?.replace(/[\/\\]/g, '_'),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 			acceptanceMethod: data.acceptanceMethod,
 
