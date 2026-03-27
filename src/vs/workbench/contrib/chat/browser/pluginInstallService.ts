@@ -238,7 +238,7 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult> {
-		const installed = this._pluginMarketplaceService.installedPlugins.get().filter(e => e.enabled);
+		const installed = this._pluginMarketplaceService.installedPlugins.get();
 		if (installed.length === 0) {
 			return { updatedNames: [], failedNames: [] };
 		}

@@ -20,7 +20,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
-import { ISessionData, SessionStatus } from '../../../sessions/common/sessionData.js';
+import { IChatData, ISessionData, SessionStatus } from '../../../sessions/common/sessionData.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
 function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionData {
@@ -33,9 +33,10 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 			detail: undefined,
 			baseBranchProtected: undefined,
 		}],
+		requiresWorkspaceTrust: false,
 	} : undefined;
-	return {
-		sessionId: 'test:session',
+	const chat: IChatData = {
+		chatId: 'test:session',
 		resource: URI.parse('file:///session'),
 		providerId: 'test',
 		sessionType: 'background',
@@ -53,9 +54,10 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 		isRead: observableValue('isRead', true),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
-		pullRequestUri: observableValue('pullRequestUri', undefined),
-		pullRequestStateIcon: observableValue('pullRequestStateIcon', undefined),
+		pullRequest: observableValue('pullRequest', undefined),
 	};
+	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('chats', [chat]), activeChat: observableValue('activeChat', chat) };
+	return session;
 }
 
 function makeTask(label: string, command?: string, inSessions?: boolean): ITaskEntry {
