@@ -27,6 +27,7 @@ import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
 import { IRecordingService, RecordingState } from './recordingService.js';
 import { IScreenshotService } from './screenshotService.js';
+import { IGitHubUploadService } from './githubUploadService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -69,6 +70,7 @@ export class IssueFormService implements IIssueFormService {
 		@IFileDialogService protected readonly fileDialogService: IFileDialogService,
 		@IFileService protected readonly fileService: IFileService,
 		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
+		@IGitHubUploadService protected readonly githubUploadService: IGitHubUploadService,
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -170,17 +172,7 @@ export class IssueFormService implements IIssueFormService {
 		// Handle submit
 		this.overlayDisposables.add(this.overlay.onDidSubmit(async ({ title, body, shouldCreate, isPrivate }) => {
 			const screenshots = this.overlay?.getScreenshots() ?? [];
-
-			// Build the final issue body with screenshot image uploads
-			let issueBody = body;
-			if (screenshots.length > 0) {
-				issueBody += '\n\n### Screenshots\n\n';
-				for (let i = 0; i < screenshots.length; i++) {
-					const screenshot = screenshots[i];
-					const imageData = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
-					issueBody += `![Screenshot ${i + 1}](${imageData})\n\n`;
-				}
-			}
+			const recordings = this.overlay?.getRecordings() ?? [];
 
 			// Determine the issue URL
 			let issueUrl = isPrivate && data.privateUri
@@ -195,12 +187,86 @@ export class IssueFormService implements IIssueFormService {
 				issueUrl = URI.revive(selectedExtension.uri).toString();
 			}
 
+			// Try uploading media to GitHub assets
+			// TODO: try with microsoft/vscode instead of octocat/Hello-World
+			// NOTE: microsoft/vscode may require SSO authorization for the microsoft org
+			// or additional permissions — test extensively before switching.
+			const owner = 'octocat';
+			const repo = 'Hello-World';
+			let mediaMarkdown = '';
+
+			if (screenshots.length > 0 || recordings.length > 0) {
+				this.logService.info(`[IssueFormService] Submit: ${screenshots.length} screenshots, ${recordings.length} recordings`);
+				try {
+					this.logService.info('[IssueFormService] Checking GitHub login...');
+					const isLoggedIn = await this.githubUploadService.isLoggedIn();
+					this.logService.info(`[IssueFormService] isLoggedIn=${isLoggedIn}`);
+					if (!isLoggedIn) {
+						this.logService.info('[IssueFormService] Opening GitHub login...');
+						const didLogin = await this.githubUploadService.login();
+						this.logService.info(`[IssueFormService] login result=${didLogin}`);
+						if (!didLogin) {
+							this.logService.warn('[IssueFormService] User cancelled GitHub login for upload');
+						}
+					}
+
+					if (await this.githubUploadService.isLoggedIn()) {
+						this.logService.info('[IssueFormService] Resolving repository ID...');
+						const repoId = await this.githubUploadService.resolveRepositoryId(owner, repo);
+						this.logService.info(`[IssueFormService] repoId=${repoId}`);
+						const uploadResults: { name: string; url: string; isVideo: boolean }[] = [];
+
+						for (let i = 0; i < screenshots.length; i++) {
+							this.logService.info(`[IssueFormService] Uploading screenshot ${i + 1}...`);
+							const screenshot = screenshots[i];
+							const imageData = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
+							const bytes = this.dataUrlToBytes(imageData);
+							if (bytes) {
+								const result = await this.githubUploadService.uploadAsset(
+									owner, repo, repoId,
+									`screenshot-${i + 1}.png`, bytes, 'image/png'
+								);
+								uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: false });
+								this.logService.info(`[IssueFormService] Screenshot uploaded: ${result.assetUrl}`);
+							}
+						}
+
+						for (const rec of recordings) {
+							this.logService.info(`[IssueFormService] Uploading recording ${rec.filePath}...`);
+							const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
+							const extension = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
+							const contentType = extension === 'mp4' ? 'video/mp4' : 'video/webm';
+							const result = await this.githubUploadService.uploadAsset(
+								owner, repo, repoId,
+								`recording.${extension}`, fileContent.value.buffer, contentType
+							);
+							uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: true });
+							this.logService.info(`[IssueFormService] Recording uploaded: ${result.assetUrl}`);
+						}
+
+						if (uploadResults.length > 0) {
+							mediaMarkdown = '\n\n### Attachments\n\n';
+							for (const r of uploadResults) {
+								if (r.isVideo) {
+									mediaMarkdown += `${r.url}\n\n`;
+								} else {
+									mediaMarkdown += `![${r.name}](${r.url})\n\n`;
+								}
+							}
+						}
+					}
+				} catch (err) {
+					this.logService.error('[IssueFormService] GitHub upload failed:', err);
+				}
+			}
+
+			const issueBody = body + mediaMarkdown;
 			const gitHubDetails = this.parseGitHubUrl(issueUrl);
+			this.logService.info(`[IssueFormService] Opening issue preview: issueUrl=${issueUrl}, hasToken=${!!data.githubAccessToken}, gitHubDetails=${JSON.stringify(gitHubDetails)}, bodyLen=${issueBody.length}`);
 
 			if (data.githubAccessToken && gitHubDetails && shouldCreate) {
 				await this.submitToGitHub(title, issueBody, gitHubDetails, data.githubAccessToken);
 			} else {
-				// Preview on GitHub via URL
 				let url = `${issueUrl}${issueUrl.indexOf('?') === -1 ? '?' : '&'}title=${encodeURIComponent(title)}&body=${encodeURIComponent(issueBody)}`;
 
 				if (url.length > 7500) {
@@ -229,6 +295,20 @@ export class IssueFormService implements IIssueFormService {
 			};
 		}
 		return undefined;
+	}
+
+	private dataUrlToBytes(dataUrl: string): Uint8Array | undefined {
+		const commaIndex = dataUrl.indexOf(',');
+		if (commaIndex === -1) {
+			return undefined;
+		}
+		const base64 = dataUrl.substring(commaIndex + 1);
+		const binaryString = atob(base64);
+		const bytes = new Uint8Array(binaryString.length);
+		for (let i = 0; i < binaryString.length; i++) {
+			bytes[i] = binaryString.charCodeAt(i);
+		}
+		return bytes;
 	}
 
 	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }, token: string): Promise<boolean> {
@@ -275,10 +355,69 @@ export class IssueFormService implements IIssueFormService {
 			await this.fileService.writeFile(target, VSBuffer.wrap(new Uint8Array(arrayBuffer)));
 			this.logService.info(`[IssueFormService] Recording saved to ${target.toString()}`);
 
-			this.overlay?.addRecording(target.fsPath, data.durationMs);
+			const thumbnailDataUrl = await this.generateVideoThumbnail(data.blob, data.mimeType);
+			this.overlay?.addRecording(target.fsPath, data.durationMs, thumbnailDataUrl);
 		} catch (err) {
 			this.logService.error('[IssueFormService] Failed to save recording:', err);
 		}
+	}
+
+	private generateVideoThumbnail(blob: Blob, _mimeType: string): Promise<string | undefined> {
+		return new Promise(resolve => {
+			const timeout = setTimeout(() => {
+				cleanup();
+				resolve(undefined);
+			}, 5000);
+
+			let cleaned = false;
+			const cleanup = () => {
+				if (cleaned) {
+					return;
+				}
+				cleaned = true;
+				clearTimeout(timeout);
+				URL.revokeObjectURL(url);
+				video.remove();
+			};
+
+			const url = URL.createObjectURL(blob);
+			const video = document.createElement('video');
+			video.muted = true;
+			video.preload = 'auto';
+			video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
+			document.body.appendChild(video);
+			video.src = url;
+
+			video.addEventListener('loadeddata', () => {
+				video.currentTime = Math.min(0.5, video.duration / 2);
+			}, { once: true });
+
+			video.addEventListener('seeked', () => {
+				try {
+					const canvas = document.createElement('canvas');
+					canvas.width = video.videoWidth;
+					canvas.height = video.videoHeight;
+					const ctx = canvas.getContext('2d');
+					if (ctx) {
+						ctx.drawImage(video, 0, 0);
+						const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+						cleanup();
+						resolve(dataUrl);
+					} else {
+						cleanup();
+						resolve(undefined);
+					}
+				} catch {
+					cleanup();
+					resolve(undefined);
+				}
+			}, { once: true });
+
+			video.addEventListener('error', () => {
+				cleanup();
+				resolve(undefined);
+			}, { once: true });
+		});
 	}
 
 	/** @deprecated Use openOverlayReporter instead. Kept for web fallback. */

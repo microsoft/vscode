@@ -27,12 +27,15 @@ import { IScreenshotService } from '../browser/screenshotService.js';
 import { NativeScreenshotService } from './nativeScreenshotService.js';
 import { IRecordingService } from '../browser/recordingService.js';
 import { NativeRecordingService } from './nativeRecordingService.js';
+import { IGitHubUploadService } from '../browser/githubUploadService.js';
+import { NativeGitHubUploadService } from './nativeGitHubUploadService.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
 registerSingleton(IScreenshotService, NativeScreenshotService, InstantiationType.Delayed);
 registerSingleton(IRecordingService, NativeRecordingService, InstantiationType.Delayed);
+registerSingleton(IGitHubUploadService, NativeGitHubUploadService, InstantiationType.Delayed);
 
 class NativeIssueContribution extends BaseIssueContribution {
 

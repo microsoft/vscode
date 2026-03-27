@@ -849,12 +849,22 @@ body.wizard-resizing {
 	opacity: 1;
 }
 
-/* ── Recording card ── */
+/* -- Recording card -- */
 .wizard-recording-card {
 	background: #1a1a1a;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	position: relative;
+}
+
+.wizard-recording-card > .wizard-screenshot-img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: inherit;
 }
 
 .wizard-recording-play {
@@ -864,6 +874,7 @@ body.wizard-resizing {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	z-index: 1;
 }
 
 .wizard-recording-card:hover .wizard-recording-play {
@@ -879,4 +890,5 @@ body.wizard-resizing {
 	background: rgba(0, 0, 0, 0.7);
 	padding: 1px 4px;
 	border-radius: 2px;
+	z-index: 1;
 }

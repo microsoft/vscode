@@ -16,6 +16,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
+import { IGitHubUploadService } from '../browser/githubUploadService.js';
 import { IRecordingService } from '../browser/recordingService.js';
 import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
@@ -37,9 +38,10 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IGitHubUploadService githubUploadService: IGitHubUploadService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService, recordingService, fileDialogService, fileService, environmentService);
+		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, layoutService, screenshotService, openerService, recordingService, fileDialogService, fileService, environmentService, githubUploadService);
 	}
 
 	// override to grab platform info

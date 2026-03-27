@@ -43,6 +43,9 @@ registerSingleton(IIssueFormService, IssueFormService, InstantiationType.Delayed
 registerSingleton(IScreenshotService, BrowserScreenshotService, InstantiationType.Delayed);
 registerSingleton(IRecordingService, BrowserRecordingService, InstantiationType.Delayed);
 
+import { IGitHubUploadService, BrowserGitHubUploadService } from './githubUploadService.js';
+registerSingleton(IGitHubUploadService, BrowserGitHubUploadService, InstantiationType.Delayed);
+
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");
 });

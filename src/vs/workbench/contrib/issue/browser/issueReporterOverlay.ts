@@ -72,7 +72,7 @@ export class IssueReporterOverlay {
 	private recordingElapsedTimer: ReturnType<typeof setInterval> | undefined;
 	private recordingStartTime = 0;
 	private currentRecordingState = RecordingState.Idle;
-	private readonly recordings: { filePath: string; durationMs: number }[] = [];
+	private readonly recordings: { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] = [];
 
 	// Step 4: Review
 	private titleInput!: HTMLInputElement;
@@ -850,6 +850,13 @@ export class IssueReporterOverlay {
 			const rec = this.recordings[i];
 			const card = append(this.screenshotContainer, $('div.wizard-screenshot-card.wizard-recording-card'));
 
+			// Show video thumbnail if available
+			if (rec.thumbnailDataUrl) {
+				const thumbImg = append(card, $('img.wizard-screenshot-img'));
+				thumbImg.setAttribute('src', rec.thumbnailDataUrl);
+				thumbImg.setAttribute('draggable', 'false');
+			}
+
 			// Dark overlay with play icon
 			const playOverlay = append(card, $('div.wizard-recording-play'));
 			playOverlay.appendChild(renderIcon(Codicon.play));
@@ -907,6 +914,10 @@ export class IssueReporterOverlay {
 
 	getScreenshots(): readonly IScreenshot[] {
 		return this.screenshots;
+	}
+
+	getRecordings(): readonly { filePath: string; durationMs: number; thumbnailDataUrl?: string }[] {
+		return this.recordings;
 	}
 
 	private buildIssueBody(): string {
@@ -987,8 +998,8 @@ export class IssueReporterOverlay {
 		this.updateToolbarActionsSlot();
 	}
 
-	addRecording(filePath: string, durationMs: number): void {
-		this.recordings.push({ filePath, durationMs });
+	addRecording(filePath: string, durationMs: number, thumbnailDataUrl?: string): void {
+		this.recordings.push({ filePath, durationMs, thumbnailDataUrl });
 		this.updateScreenshotThumbnails();
 		this.updateAttachmentButtons();
 		this.updateStepUI();
