@@ -353,7 +353,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
-					status: SessionStatus.Idle,
+					status: this._stateManager.getActiveTurnId(s.session.toString()) ? SessionStatus.InProgress : SessionStatus.Idle,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 				});

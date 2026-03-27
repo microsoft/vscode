@@ -31,6 +31,7 @@ import { FileService } from '../../files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
 import { SessionDataService } from './sessionDataService.js';
+import { createPeerTools } from './peerTools.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -70,7 +71,19 @@ function startAgentHost(): void {
 	let agentService: AgentService;
 	try {
 		agentService = new AgentService(logService, fileService, sessionDataService);
-		agentService.registerProvider(new CopilotAgent(logService, fileService, sessionDataService));
+		const copilotAgent = new CopilotAgent(logService, fileService, sessionDataService);
+
+		// Wire peer communication tools so sessions can discover and message each other
+		const peerToolsState = { summaries: new Map<string, string>() };
+		copilotAgent.setCustomTools(createPeerTools({
+			listSessions: () => agentService.listSessions(),
+			dispatchAction: (action, clientId, clientSeq) => agentService.dispatchAction(action, clientId, clientSeq),
+			stateManager: agentService.stateManager,
+			providerId: copilotAgent.id,
+			logService,
+		}, peerToolsState));
+
+		agentService.registerProvider(copilotAgent);
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
@@ -157,7 +170,7 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 				resource: s.session.toString(),
 				provider: AgentSession.provider(s.session) ?? 'copilot',
 				title: s.summary ?? 'Session',
-				status: SessionStatus.Idle,
+				status: agentService.stateManager.getActiveTurnId(s.session.toString()) ? SessionStatus.InProgress : SessionStatus.Idle,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
 				workingDirectory: s.workingDirectory,
