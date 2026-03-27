@@ -53,7 +53,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { isInClaudeRulesFolder, getCleanPromptName, AGENT_MD_FILENAME, CLAUDE_MD_FILENAME, CLAUDE_LOCAL_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
@@ -1180,7 +1180,12 @@ export class AICustomizationListWidget extends Disposable {
 		// instead of querying promptsService and applying filters.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider && promptType) {
-			return this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
+			const items = await this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
+			// Enrich instruction items that lack groupKey/badge with parsed frontmatter
+			if (promptType === PromptsType.instructions) {
+				return this.enrichProviderInstructionItems(items);
+			}
+			return items;
 		}
 
 		const items: IAICustomizationListItem[] = [];
@@ -1515,11 +1520,6 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Fetches items from an external customization provider, converting
 	 * the provider's items into the list widget format.
-	 *
-	 * Items are enriched with `storage` (inferred from URI) so that the
-	 * standard grouping logic in `filterItems` applies. For instructions,
-	 * files are parsed to extract `applyTo` patterns — populating `badge`,
-	 * `badgeTooltip`, and `groupKey` just like built-in instruction items.
 	 */
 	private async fetchItemsFromProvider(provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
@@ -1527,61 +1527,55 @@ export class AICustomizationListWidget extends Disposable {
 			return [];
 		}
 
-		const filtered = allItems.filter(item => item.type === promptType);
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		const userHomeUri = await this.pathService.userHome();
-
-		const items: IAICustomizationListItem[] = [];
-
-		if (promptType === PromptsType.instructions) {
-			// Parse instruction files to extract applyTo for grouping and badges
-			const parseResults = await Promise.all(filtered.map(async item => {
-				try {
-					const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
-					return { item, parsed };
-				} catch {
-					return { item, parsed: undefined };
-				}
-			}));
-			for (const { item, parsed } of parseResults) {
-				const storage = this.inferStorageFromUri(item.uri, projectRoot, userHomeUri);
-				items.push(this.buildInstructionListItem(
-					item.uri, item.name, item.description, storage,
-					parsed?.header, false,
-				));
-			}
-		} else {
-			for (const item of filtered) {
-				items.push({
-					id: item.uri.toString(),
-					uri: item.uri,
-					name: item.name,
-					filename: basename(item.uri),
-					description: item.description,
-					storage: this.inferStorageFromUri(item.uri, projectRoot, userHomeUri),
-					promptType,
-					disabled: false,
-				});
-			}
-		}
-
-		items.sort((a, b) => a.name.localeCompare(b.name));
-		return items;
+		return allItems
+			.filter(item => item.type === promptType)
+			.map((item: IExternalCustomizationItem) => ({
+				id: item.uri.toString(),
+				uri: item.uri,
+				name: item.name,
+				filename: basename(item.uri),
+				description: item.description,
+				promptType,
+				disabled: false,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/**
-	 * Infers the storage origin of an external provider item based on its URI.
-	 * Items under the active workspace root are treated as `local` (workspace);
-	 * items under the user home directory are treated as `user`.
+	 * Post-processes instruction items from an external provider by parsing
+	 * each file's frontmatter to compute `groupKey`, `badge`, and `badgeTooltip`
+	 * when the provider didn't supply them. Items that already have a `groupKey`
+	 * (i.e. the extension set them explicitly) are left untouched.
 	 */
-	private inferStorageFromUri(uri: URI, projectRoot: URI | undefined, userHome: URI): PromptsStorage {
-		if (projectRoot && isEqualOrParent(uri, projectRoot)) {
-			return PromptsStorage.local;
+	private async enrichProviderInstructionItems(items: IAICustomizationListItem[]): Promise<IAICustomizationListItem[]> {
+		const result: IAICustomizationListItem[] = [];
+		const toParse = items.filter(item => !item.groupKey);
+		const passThrough = items.filter(item => !!item.groupKey);
+
+		const parseResults = await Promise.all(toParse.map(async item => {
+			try {
+				const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
+				return { item, parsed };
+			} catch {
+				return { item, parsed: undefined };
+			}
+		}));
+
+		for (const { item, parsed } of parseResults) {
+			result.push(this.buildInstructionListItem(
+				item.uri,
+				item.name,
+				item.description,
+				item.storage ?? PromptsStorage.local,
+				parsed?.header,
+				item.disabled,
+				item.pluginUri,
+			));
 		}
-		if (isEqualOrParent(uri, userHome)) {
-			return PromptsStorage.user;
-		}
-		return PromptsStorage.local;
+
+		result.push(...passThrough);
+		result.sort((a, b) => a.name.localeCompare(b.name));
+		return result;
 	}
 
 	/**
@@ -1711,6 +1705,18 @@ export class AICustomizationListWidget extends Disposable {
 					});
 				}
 			}
+		}
+
+		// When items come from an external provider, skip storage-based grouping
+		// and render a flat list. The provider controls the full item set, so
+		// Workspace/User/Extension categories don't apply.
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		if (activeDescriptor.itemProvider) {
+			matchedItems.sort((a, b) => a.name.localeCompare(b.name));
+			this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			this.list.splice(0, this.list.length, this.displayEntries);
+			this.updateEmptyState();
+			return matchedItems.length;
 		}
 
 		// Group items by storage
