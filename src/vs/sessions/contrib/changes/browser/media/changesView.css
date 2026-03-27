@@ -87,8 +87,8 @@
 	font-size: 11px;
 	padding: 2px 0;
 	border-radius: 4px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	color: var(--vscode-descriptionForeground);
 	line-height: 1;
 	font-weight: 600;
 	min-width: 16px;
