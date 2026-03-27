@@ -11,17 +11,18 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LocalAgentsSessionsController } from '../../../browser/agentSessions/localAgentSessionsController.js';
 import { IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { chatModelToChatDetail } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatEditingSessionState, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatChangedRequestEvent, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 function createTestTiming(options?: {
 	created?: number;
@@ -34,6 +35,11 @@ function createTestTiming(options?: {
 		lastRequestStarted: options?.lastRequestStarted,
 		lastRequestEnded: options?.lastRequestEnded,
 	};
+}
+
+interface MockChatModel extends IChatModel {
+	setCustomTitle(title: string): void;
+	setRequestInProgress(inProgress: boolean): void;
 }
 
 function createMockChatModel(options: {
@@ -55,7 +61,7 @@ function createMockChatModel(options: {
 			modifiedURI: URI;
 		}>;
 	};
-}): IChatModel {
+}): MockChatModel {
 	const requests: IChatRequestModel[] = [];
 
 	if (options.hasRequests !== false) {
@@ -82,27 +88,46 @@ function createMockChatModel(options: {
 		state: observableValue('state', entry.state),
 		linesAdded: observableValue('linesAdded', entry.linesAdded),
 		linesRemoved: observableValue('linesRemoved', entry.linesRemoved),
-		modifiedURI: entry.modifiedURI
+		originalURI: entry.modifiedURI,
+		modifiedURI: entry.modifiedURI,
 	}));
 
 	const mockEditingSession = options.editingSession ? {
-		entries: observableValue('entries', editingSessionEntries ?? [])
+		entries: observableValue('entries', editingSessionEntries ?? []),
+		state: observableValue('state', ChatEditingSessionState.Idle)
 	} : undefined;
 
-	const _onDidChange = new Emitter<{ kind: string } | undefined>();
+	const _onDidChange = new Emitter<IChatChangeEvent>();
 
+	let title = options.customTitle ?? 'Test Chat Title';
+	const requestInProgress = observableValue('requestInProgress', options.requestInProgress ?? false);
 	return {
+		get title() {
+			return title;
+		},
 		sessionResource: options.sessionResource,
 		hasRequests: options.hasRequests !== false,
 		timestamp: options.timestamp ?? Date.now(),
-		requestInProgress: observableValue('requestInProgress', options.requestInProgress ?? false),
+		timing: createTestTiming({ created: options.timestamp }),
+		requestInProgress,
 		getRequests: () => requests,
 		onDidChange: _onDidChange.event,
-		editingSession: mockEditingSession,
-		setCustomTitle: (_title: string) => {
-			_onDidChange.fire({ kind: 'setCustomTitle' });
-		}
-	} as unknown as IChatModel;
+		editingSession: mockEditingSession as IChatModel['editingSession'],
+		lastRequestObs: observableValue('lastRequest', undefined),
+
+		// Mock helpers
+		setCustomTitle: (newTitle: string) => {
+			title = newTitle;
+			_onDidChange.fire({ kind: 'setCustomTitle', title });
+		},
+		setRequestInProgress: (inProgress: boolean) => {
+			if (requestInProgress.get() === inProgress) {
+				return;
+			}
+			requestInProgress.set(inProgress, undefined);
+			_onDidChange.fire({ kind: 'changedRequest' } as IChatChangedRequestEvent);
+		},
+	} as Partial<IChatModel> as MockChatModel;
 }
 
 suite('LocalAgentsSessionsController', () => {
@@ -599,19 +624,21 @@ suite('LocalAgentsSessionsController', () => {
 					changeEventCount++;
 				}));
 
+				await controller.refresh(CancellationToken.None);
+
 				const onDidChangeChatSessionItems = Event.toPromise(controller.onDidChangeChatSessionItems);
 
 				// Simulate progress change by triggering the progress listener
-				mockChatService.triggerProgressEvent(sessionResource);
+				mockModel.setRequestInProgress(true);
 				await onDidChangeChatSessionItems;
 
-				assert.strictEqual(changeEventCount, 1);
+				assert.strictEqual(changeEventCount, 2);
 			});
 		});
 
 		test('should fire onDidChangeChatSessionItems when model request status changes', async () => {
 			return runWithFakedTimers({}, async () => {
-				const controller = createController();
+				const controller = disposables.add(createController());
 
 				const sessionResource = LocalChatSessionUri.forSession('status-change-session');
 				const mockModel = createMockChatModel({
@@ -622,24 +649,18 @@ suite('LocalAgentsSessionsController', () => {
 
 				// Add the session first
 				mockChatService.addSession(mockModel);
-				mockChatService.setLiveSessionItems([{
-					sessionResource,
-					title: 'Test Session',
-					lastMessageDate: Date.now(),
-					isActive: true,
-					timing: createTestTiming(),
-					lastResponseState: ResponseModelState.Complete
-				}]);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel)]);
 
 				let changeEventCount = 0;
 				disposables.add(controller.onDidChangeChatSessionItems(() => {
 					changeEventCount++;
 				}));
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(changeEventCount, 0);
 
 				const onDidChangeChatSessionItems = Event.toPromise(controller.onDidChangeChatSessionItems);
 
-				// Simulate progress change by triggering the progress listener
-				mockChatService.triggerProgressEvent(sessionResource);
+				mockModel.setRequestInProgress(true);
 
 				await onDidChangeChatSessionItems;
 				assert.strictEqual(changeEventCount, 1);
@@ -670,7 +691,7 @@ suite('LocalAgentsSessionsController', () => {
 					changeEventCount++;
 				}));
 
-				(mockModel as unknown as { setCustomTitle: (title: string) => void }).setCustomTitle('New Title');
+				mockModel.setCustomTitle('New Title');
 
 				assert.strictEqual(changeEventCount, 0, 'onDidChangeChatSessionItems should NOT fire after model is removed');
 			});

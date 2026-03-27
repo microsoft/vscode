@@ -16,6 +16,7 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -386,12 +387,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
-	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
+	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>());
 	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
 	private _lastSessionPickerOptions: IChatInputPickerOptions | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
-	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>> = new Map();
+	private readonly _chatSessionOptionEmitters = this._register(new DisposableMap<string, Emitter<IChatSessionProviderOptionItem>>());
 
 	/**
 	 * Scoped context key service for this chat input part.
@@ -861,8 +862,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const { visibleGroupIds, optionGroups, effectiveSessionType } = result;
-		// Clear existing widgets
-		this.disposeSessionPickerWidgets();
+		this.chatSessionPickerWidgets.clearAndDisposeAll();
 
 		const widgets: (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] = [];
 		for (const optionGroup of optionGroups) {
@@ -1380,16 +1380,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.navigateHistory(false);
 	}
 
-	private async navigateHistory(previous: boolean): Promise<void> {
-		const historyEntry = previous ?
-			this.history.previous() : this.history.next();
+	/**
+	 * Restores attachments to the input, re-fetching image binary data as needed.
+	 */
+	async restoreAttachments(attachments: readonly IChatRequestVariableEntry[]): Promise<void> {
+		let restored = [...attachments];
 
-		let historyAttachments = historyEntry?.attachments ?? [];
-
-		// Check for images in history to restore the value.
-		if (historyAttachments.length > 0) {
-			historyAttachments = (await Promise.all(historyAttachments.map(async (attachment) => {
-				if (isImageVariableEntry(attachment) && attachment.references?.length && URI.isUri(attachment.references[0].reference)) {
+		if (restored.length > 0) {
+			restored = (await Promise.all(restored.map(async (attachment) => {
+				if (isImageVariableEntry(attachment) && !attachment.value && attachment.references?.length && URI.isUri(attachment.references[0].reference)) {
 					const currReference = attachment.references[0].reference;
 					try {
 						const imageBinary = currReference.toString(true).startsWith('http') ? await this.sharedWebExtracterService.readImage(currReference, CancellationToken.None) : (await this.fileService.readFile(currReference)).value;
@@ -1397,7 +1396,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							return undefined;
 						}
 						const newAttachment = { ...attachment };
-						newAttachment.value = (isImageVariableEntry(attachment) && attachment.isPasted) ? imageBinary.buffer : await resizeImage(imageBinary.buffer); // if pasted image, we do not need to resize.
+						newAttachment.value = (isImageVariableEntry(attachment) && attachment.isPasted) ? imageBinary.buffer : await resizeImage(imageBinary.buffer);
 						return newAttachment;
 					} catch (err) {
 						this.logService.error('Failed to fetch and reference.', err);
@@ -1405,10 +1404,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 				return attachment;
-			}))).filter(attachment => attachment !== undefined);
+			}))).filter(isDefined);
 		}
 
-		this._attachmentModel.clearAndSetContext(...historyAttachments);
+		this._attachmentModel.clearAndSetContext(...restored);
+	}
+
+	private async navigateHistory(previous: boolean): Promise<void> {
+		const historyEntry = previous ?
+			this.history.previous() : this.history.next();
+
+		await this.restoreAttachments(historyEntry?.attachments ?? []);
 
 		const inputText = historyEntry?.inputText ?? '';
 		const contribData = historyEntry?.contrib ?? {};
@@ -1531,7 +1537,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {
 		let emitter = this._chatSessionOptionEmitters.get(optionGroupId);
 		if (!emitter) {
-			emitter = this._register(new Emitter<IChatSessionProviderOptionItem>());
+			emitter = new Emitter<IChatSessionProviderOptionItem>();
 			this._chatSessionOptionEmitters.set(optionGroupId, emitter);
 		}
 		return emitter;
@@ -1753,7 +1759,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Fire option change events for existing widgets to sync their state
 		// (only if we have a session context - in welcome view, options aren't persisted yet)
 		if (ctx) {
-			for (const [optionGroupId] of this.chatSessionPickerWidgets.entries()) {
+			for (const [optionGroupId] of this.chatSessionPickerWidgets) {
 				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
 				if (currentOption) {
 					const optionGroup = optionGroups.find(g => g.id === optionGroupId);
@@ -1778,13 +1784,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.chatSessionPickerContainer) {
 			this.chatSessionPickerContainer.style.display = 'none';
 		}
-	}
-
-	private disposeSessionPickerWidgets(): void {
-		for (const widget of this.chatSessionPickerWidgets.values()) {
-			widget.dispose();
-		}
-		this.chatSessionPickerWidgets.clear();
 	}
 
 	/**

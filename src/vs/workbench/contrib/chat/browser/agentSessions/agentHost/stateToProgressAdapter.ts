@@ -6,7 +6,7 @@
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type ICompletedToolCall, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -72,6 +72,47 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 		history.push({ type: 'response', parts, participant: participantId });
 	}
 	return history;
+}
+
+/**
+ * Converts an active (in-progress) turn's accumulated state into progress
+ * items suitable for replaying into the chat UI when reconnecting to a
+ * session that is mid-turn.
+ *
+ * Returns serialized progress items for content already received (text,
+ * reasoning, completed tool calls) and live {@link ChatToolInvocation}
+ * objects for running tool calls and pending confirmations.
+ */
+export function activeTurnToProgress(activeTurn: IActiveTurn): IChatProgress[] {
+	const parts: IChatProgress[] = [];
+
+	for (const rp of activeTurn.responseParts) {
+		switch (rp.kind) {
+			case ResponsePartKind.Markdown:
+				if (rp.content) {
+					parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+				}
+				break;
+			case ResponsePartKind.Reasoning:
+				if (rp.content) {
+					parts.push({ kind: 'thinking', value: rp.content });
+				}
+				break;
+			case ResponsePartKind.ToolCall: {
+				const tc = rp.toolCall;
+				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall));
+				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
+					parts.push(toolCallStateToInvocation(tc));
+				}
+				break;
+			}
+			case ResponsePartKind.ContentRef:
+				break;
+		}
+	}
+
+	return parts;
 }
 
 /**

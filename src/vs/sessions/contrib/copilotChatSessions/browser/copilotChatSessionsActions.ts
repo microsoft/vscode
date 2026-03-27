@@ -25,7 +25,7 @@ import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
-import { ISessionData } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../sessions/common/sessionData.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CopilotCLISession, COPILOT_PROVIDER_ID } from './copilotChatSessionsProvider.js';
 import { COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE } from '../../sessions/browser/sessionTypes.js';
@@ -220,7 +220,10 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 						const session = sessionsManagementService.activeSession.get();
 						if (session) {
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-							provider?.setModel(session.sessionId, model.identifier);
+							const activeChat = session.activeChat.get();
+							if (activeChat) {
+								provider?.setModel(activeChat.chatId, model.identifier);
+							}
 						}
 					},
 					getModels: () => getAvailableModels(languageModelsService),
@@ -286,6 +289,7 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 	constructor(
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -294,9 +298,10 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			if (session instanceof CopilotCLISession) {
-				const isLoading = session.loading.read(reader);
-				hasRepositoryKey.set(!isLoading && !!session.gitRepository);
+			const providerSession = session ? sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
+			if (providerSession instanceof CopilotCLISession) {
+				const isLoading = providerSession.loading.read(reader);
+				hasRepositoryKey.set(!isLoading && !!providerSession.gitRepository);
 			} else {
 				hasRepositoryKey.set(false);
 			}
@@ -310,7 +315,7 @@ registerWorkbenchContribution2(CopilotActiveSessionContribution.ID, CopilotActiv
 /**
  * Bridges extension-contributed context menu actions from {@link MenuId.AgentSessionsContext}
  * to {@link SessionItemContextMenuId} for the new sessions view.
- * Registers wrapper commands that resolve {@link ISessionData} → {@link IAgentSession}
+ * Registers wrapper commands that resolve {@link ISession} → {@link IAgentSession}
  * and forward to the original command with marshalled context.
  */
 class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchContribution {
@@ -344,7 +349,7 @@ class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchCo
 			this._bridgedIds.add(commandId);
 
 			const wrapperId = `sessionsViewPane.bridge.${commandId}`;
-			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, sessionData?: ISessionData) => {
+			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, sessionData?: ISession) => {
 				if (!sessionData) {
 					return;
 				}

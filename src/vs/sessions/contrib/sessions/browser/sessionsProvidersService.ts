@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
-import { ISessionsChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
@@ -39,12 +39,12 @@ export interface ISessionsProvidersService {
 
 	// -- Aggregated Sessions --
 
-	/** Get all sessions from all providers. */
+	/** Get all chats from all providers. */
 	getSessions(): ISessionData[];
-	/** Get a session by its globally unique ID. */
-	getSession(sessionId: string): ISessionData | undefined;
+	/** Get a chat by its globally unique ID. */
+	getSession(chatId: string): ISessionData | undefined;
 	/** Fires when sessions change across any provider. */
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
 
 	// -- Session Actions (routed to the correct provider via sessionId) --
 
@@ -60,6 +60,8 @@ export interface ISessionsProvidersService {
 	setRead(sessionId: string, read: boolean): void;
 	/** Resolve a repository URI to a session workspace using the given provider. */
 	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined;
+	/** Returns the current untitled session for the given provider, if any. */
+	getUntitledSession(providerId: string): ISessionData | undefined; // TODO: Shoulds ideally be removed when new chat and picker is cleaned up
 }
 
 /**
@@ -75,8 +77,8 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
 	// -- Provider Registry --
 
@@ -137,48 +139,48 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return sessions;
 	}
 
-	getSession(sessionId: string): ISessionData | undefined {
-		const { provider } = this._resolveProvider(sessionId);
+	getSession(chatId: string): ISessionData | undefined {
+		const { provider } = this._resolveProvider(chatId);
 		if (!provider) {
 			return undefined;
 		}
-		return provider.getSessions().find(s => s.sessionId === sessionId);
+		return provider.getSessions().find(s => s.id === chatId);
 	}
 
 	// -- Session Actions --
 
-	async archiveSession(sessionId: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async archiveSession(chatId: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.archiveSession(sessionId);
+			await provider.archiveSession(chatId);
 		}
 	}
 
-	async unarchiveSession(sessionId: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async unarchiveSession(chatId: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.unarchiveSession(sessionId);
+			await provider.unarchiveSession(chatId);
 		}
 	}
 
-	async deleteSession(sessionId: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async deleteSession(chatId: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.deleteSession(sessionId);
+			await provider.deleteSession(chatId);
 		}
 	}
 
-	async renameSession(sessionId: string, title: string): Promise<void> {
-		const { provider } = this._resolveProvider(sessionId);
+	async renameSession(chatId: string, title: string): Promise<void> {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			await provider.renameSession(sessionId, title);
+			await provider.renameSession(chatId, title);
 		}
 	}
 
-	setRead(sessionId: string, read: boolean): void {
-		const { provider } = this._resolveProvider(sessionId);
+	setRead(chatId: string, read: boolean): void {
+		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
-			provider.setRead(sessionId, read);
+			provider.setRead(chatId, read);
 		}
 	}
 
@@ -187,18 +189,23 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return entry?.provider.resolveWorkspace(repositoryUri);
 	}
 
+	getUntitledSession(providerId: string): ISessionData | undefined {
+		const entry = this._providers.get(providerId);
+		return entry?.provider.getUntitledSession();
+	}
+
 	// -- Private Helpers --
 
 	/**
 	 * Extract provider ID from a globally unique session ID and look up the provider.
 	 */
-	private _resolveProvider(sessionId: string): { provider: ISessionsProvider | undefined; localId: string } {
-		const separatorIndex = sessionId.indexOf(SESSION_ID_SEPARATOR);
+	private _resolveProvider(chatId: string): { provider: ISessionsProvider | undefined; localId: string } {
+		const separatorIndex = chatId.indexOf(SESSION_ID_SEPARATOR);
 		if (separatorIndex === -1) {
-			return { provider: undefined, localId: sessionId };
+			return { provider: undefined, localId: chatId };
 		}
-		const providerId = sessionId.substring(0, separatorIndex);
-		const localId = sessionId.substring(separatorIndex + 1);
+		const providerId = chatId.substring(0, separatorIndex);
+		const localId = chatId.substring(separatorIndex + 1);
 		const entry = this._providers.get(providerId);
 		return { provider: entry?.provider, localId };
 	}

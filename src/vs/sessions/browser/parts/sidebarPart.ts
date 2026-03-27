@@ -42,8 +42,6 @@ import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/co
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { IAgentSessionsService } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { countUnreadSessions } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { localize } from '../../../nls.js';
 
 /**
@@ -64,7 +62,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private static readonly FOOTER_ITEM_HEIGHT = 26;
 	private static readonly FOOTER_ITEM_GAP = 4;
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
-	private static readonly FOOTER_BOTTOM_MARGIN = 12;
+	private static readonly FOOTER_BOTTOM_MARGIN = 2;
 	private static readonly FOOTER_BORDER_TOP = 1;
 
 	private footerContainer: HTMLElement | undefined;
@@ -201,7 +199,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		widget.tabIndex = 0;
 		widget.setAttribute('aria-label', localize('hideSidebar', "Hide Side Bar"));
 		append(widget, $(ThemeIcon.asCSSSelector(Codicon.tasklist)));
-		const badge = append(widget, $('span.session-status-toggle-badge'));
 
 		// Toggle sidebar on click
 		widgetDisposables.add(addDisposableListener(widget, EventType.CLICK, (e) => {
@@ -209,27 +206,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			e.stopPropagation();
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 		}));
-
-		// Update badge on session changes (deferred to avoid service unavailability)
-		const updateBadge = (svc: IAgentSessionsService) => {
-			const unread = countUnreadSessions(svc.model.sessions);
-			badge.textContent = unread > 0 ? `${unread}` : '';
-			badge.style.display = unread > 0 ? '' : 'none';
-			widget.setAttribute('aria-label', unread > 0
-				? localize('hideSidebarUnread', "Hide Side Bar, {0} unread session(s)", unread)
-				: localize('hideSidebar', "Hide Side Bar"));
-		};
-
-		setTimeout(() => {
-			try {
-				const svc = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-				updateBadge(svc);
-				widgetDisposables.add(svc.model.onDidChangeSessions(() => updateBadge(svc)));
-			} catch {
-				// Service not yet available
-				badge.style.display = 'none';
-			}
-		}, 0);
 	}
 
 	private createFooter(parent: HTMLElement): void {

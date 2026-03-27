@@ -1074,22 +1074,9 @@ export enum ChatAgentVoteDirection {
 	Up = 1
 }
 
-export enum ChatAgentVoteDownReason {
-	IncorrectCode = 'incorrectCode',
-	DidNotFollowInstructions = 'didNotFollowInstructions',
-	IncompleteCode = 'incompleteCode',
-	MissingContext = 'missingContext',
-	PoorlyWrittenOrFormatted = 'poorlyWrittenOrFormatted',
-	RefusedAValidRequest = 'refusedAValidRequest',
-	OffensiveOrUnsafe = 'offensiveOrUnsafe',
-	Other = 'other',
-	WillReportIssue = 'willReportIssue'
-}
-
 export interface IChatVoteAction {
 	kind: 'vote';
 	direction: ChatAgentVoteDirection;
-	reason: ChatAgentVoteDownReason | undefined;
 }
 
 export enum ChatCopyKind {
@@ -1525,7 +1512,7 @@ export interface IChatService {
 	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>;
 	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: IChatQuestionAnswers | undefined): void;
 
-	readonly onDidDisposeSession: Event<{ readonly sessionResource: readonly URI[]; readonly reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 

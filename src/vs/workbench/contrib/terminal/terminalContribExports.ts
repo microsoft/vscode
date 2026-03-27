@@ -46,6 +46,7 @@ export const enum TerminalContribSettingId {
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
+	TerminalSandboxEnabled = TerminalChatAgentToolsSettingId.TerminalSandboxEnabled,
 	DeprecatedTerminalSandboxNetwork = TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetwork,
 	TerminalSandboxNetworkAllowedDomains = TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains,
 	TerminalSandboxNetworkDeniedDomains = TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains,

@@ -124,6 +124,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 'view',
 		description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 	},
+	[TerminalSettingId.EditorUseEditorBackground]: {
+		type: 'boolean',
+		default: true,
+		markdownDescription: localize('terminal.integrated.editorUseEditorBackground', "Controls whether terminals in the editor area use the editor background color instead of the terminal background color. When enabled, this takes precedence over {0} for terminals in the editor area.", '`#terminal.integrated.background#`')
+	},
 	[TerminalSettingId.TabsFocusMode]: {
 		type: 'string',
 		enum: ['singleClick', 'doubleClick'],
@@ -625,7 +630,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationTimeout]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to skip the wait entirely. The default value {1} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to {0} if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. The default value {0} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to a large value if your shell starts very slowly.", '`-1`'),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,

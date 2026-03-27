@@ -18,7 +18,7 @@ import { TerminalCapability } from '../../../../platform/terminal/common/capabil
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionData } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../sessions/common/sessionData.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -33,7 +33,7 @@ const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsT
  * background sessions only. Returns `undefined` for non-background sessions
  * (Cloud, Local, etc.) which have no local worktree, or when no path is available.
  */
-function getSessionCwd(session: ISessionData | undefined): URI | undefined {
+function getSessionCwd(session: ISession | undefined): URI | undefined {
 	if (session?.sessionType !== AgentSessionProviders.Background) {
 		return undefined;
 	}
@@ -139,7 +139,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return existing;
 	}
 
-	private async _onActiveSessionChanged(session: ISessionData | undefined): Promise<void> {
+	private async _onActiveSessionChanged(session: ISession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
