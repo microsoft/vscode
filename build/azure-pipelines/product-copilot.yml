@@ -1,0 +1,140 @@
+jobs:
+  - job: Copilot
+    displayName: Copilot
+    timeoutInMinutes: 60
+    variables:
+      - name: skipComponentGovernanceDetection
+        value: true
+      - name: Codeql.SkipTaskAutoInjection
+        value: true
+    steps:
+      - checkout: self
+        lfs: true
+        fetchDepth: 1
+        fetchTags: false
+        displayName: Checkout microsoft/vscode
+
+      - script: |
+          set -e
+          git submodule update --init extensions/copilot
+        displayName: Initialize copilot submodule
+
+      - task: NodeTool@0
+        inputs:
+          versionSpec: "22.21.x"
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "github-distro-mixin-password"
+
+      - script: |
+          mkdir -p .build
+          cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
+          machine github.com
+          login vscode
+          password $(github-distro-mixin-password)
+          EOF
+        displayName: Setup distro auth
+
+      - task: Cache@2
+        inputs:
+          key: '"copilot_build_cache" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json'
+          path: $(Build.SourcesDirectory)/extensions/copilot/.build/build_cache
+          cacheHitVar: BUILD_CACHE_RESTORED
+        displayName: Restore copilot build cache
+
+      - script: $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh
+        displayName: Setup emsdk
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+      - script: echo '##vso[task.prependpath]/opt/dev/emsdk/upstream/emscripten'
+        displayName: Setup emsdk path 1
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+      - script: echo '##vso[task.prependpath]/opt/dev/emsdk'
+        displayName: Setup emsdk path 2
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+      - script: tar -xzf .build/build_cache/cache.tgz
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
+        displayName: Extract copilot build cache
+
+      - script: npm ci
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Install copilot dependencies
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+      - script: |
+          set -e
+          mkdir -p .build
+          node build/listBuildCacheFiles.js .build/build_cache_list.txt
+          mkdir -p .build/build_cache
+          tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+        displayName: Create copilot build cache archive
+
+      # Build
+      - script: |
+          set -e
+          git clone https://github.com/microsoft/vscode-capi.git --depth 1 $(Agent.BuildDirectory)/vscode-capi
+          cd $(Agent.BuildDirectory)/vscode-capi
+          npm ci && BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+          rm -rf $(Agent.BuildDirectory)/vscode-capi
+        displayName: Mixin vscode-capi
+
+      - script: npm run build
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Build copilot extension
+
+      # Test
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: 'VS Code Development WIF'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: npm run setup
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Setup copilot test environment
+
+      - script: npm run setup:dotnet
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Install dotnet cli
+
+      - script: npm run typecheck
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Typecheck
+
+      - script: npm run lint
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Lint
+
+      - script: npm run compile
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Compile
+
+      - script: npm run test:unit
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Run vitest unit tests
+
+      - script: npm run simulate-ci
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Run simulation tests
+
+      - script: xvfb-run -a npm run test:extension
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Run extension tests
+
+      - script: npm run test:prompt
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Run prompt tests
+
+      - script: xvfb-run -a npm run test:completions-core
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Run completions core tests
+
+      - script: xvfb-run -a npm run test:sanity
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Run sanity tests
