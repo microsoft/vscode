@@ -12,7 +12,7 @@
 	"repository": {
 		"double_dollar_math_block": {
 			"name": "markup.math.block.markdown",
-			"contentName": "meta.embedded.math.markdown",
+			"contentName": "meta.embedded.math.string.markdown",
 			"begin": "(?<=^\\s*)(\\${2})(?![^$]*\\${2})",
 			"beginCaptures": {
 				"1": {
@@ -22,7 +22,7 @@
 			"end": "(.*)(\\${2})",
 			"endCaptures": {
 				"1": {
-					"name": "meta.embedded.math.markdown",
+					"name": "meta.embedded.math.string.markdown",
 					"patterns": [
 						{
 							"include": "text.html.markdown.math#math"
@@ -47,7 +47,7 @@
 		},
 		"single_dollar_math_block": {
 			"name": "markup.math.block.markdown",
-			"contentName": "meta.embedded.math.markdown",
+			"contentName": "meta.embedded.math.string.markdown",
 			"begin": "(?<=^\\s*)(\\$)(?![^$]*\\$|\\d)",
 			"beginCaptures": {
 				"1": {
@@ -57,7 +57,7 @@
 			"end": "(.*)(\\${1})",
 			"endCaptures": {
 				"1": {
-					"name": "meta.embedded.math.markdown",
+					"name": "meta.embedded.math.string.markdown",
 					"patterns": [
 						{
 							"include": "text.html.markdown.math#math"
