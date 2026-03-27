@@ -44,7 +44,6 @@ suite('GetTerminalOutputTool', () => {
 		return {
 			completionPromise: Promise.resolve({ output } as ITerminalExecuteStrategyResult),
 			instance: {} as ITerminalInstance,
-			terminalToolSessionId: undefined,
 			getOutput: () => output,
 		};
 	}

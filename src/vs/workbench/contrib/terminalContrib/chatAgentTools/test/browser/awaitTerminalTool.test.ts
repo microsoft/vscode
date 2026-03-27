@@ -51,7 +51,6 @@ suite('AwaitTerminalTool', () => {
 		return {
 			completionPromise,
 			instance: {} as ITerminalInstance,
-			terminalToolSessionId: undefined,
 			getOutput: () => output
 		};
 	}
