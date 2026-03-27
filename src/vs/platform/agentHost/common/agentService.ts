@@ -101,7 +101,6 @@ export interface IAgentCreateSessionConfig {
 	readonly model?: string;
 	readonly session?: URI;
 	readonly workingDirectory?: string;
-	readonly editAutoApprovePatterns?: Record<string, boolean>;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */

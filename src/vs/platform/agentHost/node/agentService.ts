@@ -160,15 +160,6 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 		this._stateManager.createSession(summary);
 
-		// Apply initial edit auto-approve patterns if provided
-		if (config?.editAutoApprovePatterns) {
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionEditAutoApprovePatternsChanged,
-				session: session.toString(),
-				patterns: config.editAutoApprovePatterns,
-			});
-		}
-
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;

@@ -102,9 +102,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	// ---- Edit auto-approve --------------------------------------------------
 
 	/**
-	 * Default edit auto-approve patterns applied when the session has no
-	 * explicit `editAutoApprovePatterns`. Matches the VS Code
-	 * `chat.tools.edits.autoApprove` setting defaults.
+	 * Default edit auto-approve patterns applied by the agent host.
+	 * Matches the VS Code `chat.tools.edits.autoApprove` setting defaults.
 	 */
 	private static readonly _DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
 		'**/*': true,
@@ -118,11 +117,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 
 	/**
 	 * Returns whether a write to `filePath` should be auto-approved based on
-	 * the session's `editAutoApprovePatterns` (or the built-in defaults).
+	 * the built-in default patterns.
 	 */
-	private _shouldAutoApproveEdit(sessionKey: ProtocolURI, filePath: string): boolean {
-		const state = this._stateManager.getSessionState(sessionKey);
-		const patterns = state?.editAutoApprovePatterns ?? AgentSideEffects._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
+	private _shouldAutoApproveEdit(filePath: string): boolean {
+		const patterns = AgentSideEffects._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
 
 		let approved = true;
 		for (const [pattern, isApproved] of Object.entries(patterns)) {
@@ -159,10 +157,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
 				// Check if this is a write permission request that can be auto-approved
-				// based on the session's editAutoApprovePatterns.
+				// based on the default edit auto-approve patterns.
 				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
-					if (this._shouldAutoApproveEdit(sessionKey, e.permissionPath)) {
-						this._logService.info(`[AgentSideEffects] Auto-approving write to ${e.permissionPath} based on editAutoApprovePatterns`);
+					if (this._shouldAutoApproveEdit(e.permissionPath)) {
+						this._logService.info(`[AgentSideEffects] Auto-approving write to ${e.permissionPath} based on default edit auto-approve patterns`);
 						this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
 						agent.respondToPermissionRequest(e.toolCallId, true);
 						return;
@@ -379,15 +377,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			workingDirectory: command.workingDirectory,
 		};
 		this._stateManager.createSession(summary);
-
-		// Apply initial edit auto-approve patterns if provided
-		if (command.editAutoApprovePatterns) {
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionEditAutoApprovePatternsChanged,
-				session,
-				patterns: command.editAutoApprovePatterns,
-			});
-		}
 
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session });
 	}

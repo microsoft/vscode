@@ -45,7 +45,6 @@ export const enum ActionType {
 	SessionQueuedMessagesReordered = 'session/queuedMessagesReordered',
 	SessionCustomizationsChanged = 'session/customizationsChanged',
 	SessionCustomizationToggled = 'session/customizationToggled',
-	SessionEditAutoApprovePatternsChanged = 'session/editAutoApprovePatternsChanged',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -561,29 +560,6 @@ export interface ISessionCustomizationToggledAction {
 	enabled: boolean;
 }
 
-/**
- * The session's edit auto-approve patterns have changed.
- *
- * Dispatched by clients to inform the server which file edits may be
- * auto-approved. Full-replacement semantics: the `patterns` object
- * replaces the previous `editAutoApprovePatterns` entirely.
- *
- * The server enforces these patterns when handling file-edit permission
- * requests: matching writes are auto-approved instead of transitioning
- * to `PendingConfirmation`.
- *
- * @category Session Actions
- * @version 1
- * @clientDispatchable
- */
-export interface ISessionEditAutoApprovePatternsChangedAction {
-	type: ActionType.SessionEditAutoApprovePatternsChanged;
-	/** Session URI */
-	session: URI;
-	/** Glob patterns for edit auto-approval (full replacement) */
-	patterns: Record<string, boolean>;
-}
-
 // ─── Pending Message Actions ─────────────────────────────────────────────────
 
 /**
@@ -686,5 +662,4 @@ export type IStateAction =
 	| ISessionPendingMessageRemovedAction
 	| ISessionQueuedMessagesReorderedAction
 	| ISessionCustomizationsChangedAction
-	| ISessionCustomizationToggledAction
-	| ISessionEditAutoApprovePatternsChangedAction;
+	| ISessionCustomizationToggledAction;

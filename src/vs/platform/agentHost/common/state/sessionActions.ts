@@ -45,7 +45,6 @@ export {
 	type ISessionPendingMessageSetAction,
 	type ISessionPendingMessageRemovedAction,
 	type ISessionQueuedMessagesReorderedAction,
-	type ISessionEditAutoApprovePatternsChangedAction,
 	type IStateAction,
 } from './protocol/actions.js';
 
@@ -84,7 +83,6 @@ import type {
 	ISessionPendingMessageSetAction,
 	ISessionPendingMessageRemovedAction,
 	ISessionQueuedMessagesReorderedAction,
-	ISessionEditAutoApprovePatternsChangedAction,
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
@@ -121,7 +119,6 @@ export type IModelChangedAction = ISessionModelChangedAction;
 export type IPendingMessageSetAction = ISessionPendingMessageSetAction;
 export type IPendingMessageRemovedAction = ISessionPendingMessageRemovedAction;
 export type IQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedAction;
-export type IEditAutoApprovePatternsChangedAction = ISessionEditAutoApprovePatternsChangedAction;
 
 // Notifications
 export type INotification = IProtocolNotification;

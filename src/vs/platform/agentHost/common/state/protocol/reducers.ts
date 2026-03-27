@@ -485,11 +485,6 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
 			return { ...state, customizations: updated };
 		}
 
-		// ── Edit Auto-Approve Patterns ────────────────────────────────────────
-
-		case ActionType.SessionEditAutoApprovePatternsChanged:
-			return { ...state, editAutoApprovePatterns: action.patterns };
-
 		// ── Pending Messages ──────────────────────────────────────────────────
 
 		case ActionType.SessionPendingMessageSet: {
