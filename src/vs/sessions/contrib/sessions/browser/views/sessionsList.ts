@@ -215,12 +215,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
 		IsSessionReadContext.bindTo(template.contextKeyService).set(element.isRead.get());
 
-		// Pinned styling — show toolbar persistently when pinned
-		template.container.classList.toggle('pinned', isPinned);
-
-		// Archived styling — reactive
+		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
-			template.container.classList.toggle('archived', element.isArchived.read(reader));
+			const isArchived = element.isArchived.read(reader);
+			template.container.classList.toggle('archived', isArchived);
+			// Only apply pinned styling when not archived to avoid persistent toolbars on archived sessions
+			template.container.classList.toggle('pinned', isPinned && !isArchived);
 		}));
 
 
