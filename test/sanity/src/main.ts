@@ -16,7 +16,7 @@ import { setup as setupDevTunnelTests } from './devTunnel.test.js';
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality', 'screenshots-dir'],
 	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection'],
-	alias: { commit: 'c', quality: 'q', verbose: 'v' },
+	alias: { commit: 'c', quality: 'q', verbose: 'v', 'screenshots-dir': 's' },
 	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true },
 });
 
