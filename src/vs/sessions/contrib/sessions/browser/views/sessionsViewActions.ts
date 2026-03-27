@@ -246,7 +246,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionNewSession',
 			title: localize2('newSessionForWorkspace', "New Session"),
-			icon: Codicon.newSession,
+			icon: Codicon.plus,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
