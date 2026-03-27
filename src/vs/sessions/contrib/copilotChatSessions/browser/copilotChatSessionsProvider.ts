@@ -307,6 +307,10 @@ export class CopilotCLISession extends Disposable implements IChatData {
 	update(session: IChatData): void {
 		this._workspaceData.set(session.workspace.get(), undefined);
 	}
+
+	updateWorkspace(workspace: ISessionWorkspace | undefined): void {
+		this._workspaceData.set(workspace, undefined);
+	}
 }
 
 function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
@@ -549,6 +553,10 @@ export class RemoteNewSession extends Disposable implements IChatData {
 	}
 
 	update(session: IChatData): void { }
+
+	updateWorkspace(workspace: ISessionWorkspace | undefined): void {
+		this._workspaceData.set(workspace, undefined);
+	}
 }
 
 /**
@@ -755,69 +763,73 @@ class AgentSessionAdapter implements IChatData {
 	}
 
 	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
-		const [repoUri, worktreeUri, branchName, baseBranchName, baseBranchProtected] = this._extractRepositoryFromMetadata(session);
+		return buildAgentSessionWorkspace(session);
+	}
+}
 
-		const repository: ISessionRepository = {
-			uri: repoUri ?? URI.parse('unknown://'),
-			workingDirectory: worktreeUri,
-			detail: branchName,
-			baseBranchName,
-			baseBranchProtected,
-		};
+function buildAgentSessionWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
+	const [repoUri, worktreeUri, branchName, baseBranchName, baseBranchProtected] = extractAgentSessionRepository(session);
 
-		return {
-			label: getRepositoryName(session) ?? basename(repository.uri),
-			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
-			repositories: [repository],
-			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
-		};
+	const repository: ISessionRepository = {
+		uri: repoUri ?? URI.parse('unknown://'),
+		workingDirectory: worktreeUri,
+		detail: branchName,
+		baseBranchName,
+		baseBranchProtected,
+	};
+
+	return {
+		label: getRepositoryName(session) ?? basename(repository.uri),
+		icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
+		repositories: [repository],
+		requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
+	};
+}
+
+/**
+ * Extract repository/worktree information from session metadata.
+ * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
+ */
+function extractAgentSessionRepository(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, string | undefined, boolean | undefined] {
+	const metadata = session.metadata;
+	if (!metadata) {
+		return [undefined, undefined, undefined, undefined, undefined];
 	}
 
-	/**
-	 * Extract repository/worktree information from session metadata.
-	 * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
-	 */
-	private _extractRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, string | undefined, boolean | undefined] {
-		const metadata = session.metadata;
-		if (!metadata) {
-			return [undefined, undefined, undefined, undefined, undefined];
-		}
-
-		if (session.providerType === AgentSessionProviders.Cloud) {
-			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
-			const repositoryUri = URI.from({
-				scheme: GITHUB_REMOTE_FILE_SCHEME,
-				authority: 'github',
-				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
-			});
-			return [repositoryUri, undefined, undefined, undefined, undefined];
-		}
-
-		// Background/CLI sessions: check workingDirectoryPath first
-		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
-		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined, undefined, undefined, undefined];
-		}
-
-		// Fall back to repositoryPath + worktreePath
-		const repositoryPath = metadata?.repositoryPath as string | undefined;
-		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
-
-		const worktreePath = metadata?.worktreePath as string | undefined;
-		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
-
-		const worktreeBranchName = metadata?.branchName as string | undefined;
-		const worktreeBaseBranchName = metadata?.baseBranchName as string | undefined;
-		const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
-
-		return [
-			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
-			worktreeBranchName,
-			worktreeBaseBranchName,
-			worktreeBaseBranchProtected,
-		];
+	if (session.providerType === AgentSessionProviders.Cloud) {
+		const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
+		const repositoryUri = URI.from({
+			scheme: GITHUB_REMOTE_FILE_SCHEME,
+			authority: 'github',
+			path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
+		});
+		return [repositoryUri, undefined, undefined, undefined, undefined];
 	}
+
+	// Background/CLI sessions: check workingDirectoryPath first
+	const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
+	if (workingDirectoryPath) {
+		return [URI.file(workingDirectoryPath), undefined, undefined, undefined, undefined];
+	}
+
+	// Fall back to repositoryPath + worktreePath
+	const repositoryPath = metadata?.repositoryPath as string | undefined;
+	const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
+
+	const worktreePath = metadata?.worktreePath as string | undefined;
+	const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
+
+	const worktreeBranchName = metadata?.branchName as string | undefined;
+	const worktreeBaseBranchName = metadata?.baseBranchName as string | undefined;
+	const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
+
+	return [
+		URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
+		URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
+		worktreeBranchName,
+		worktreeBaseBranchName,
+		worktreeBaseBranchProtected,
+	];
 }
 
 /**
@@ -1233,6 +1245,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const existing = this._sessionCache.get(key);
 			if (existing instanceof AgentSessionAdapter) {
 				existing.update(session);
+				changed.push(existing);
+			} else if (existing instanceof CopilotCLISession || existing instanceof RemoteNewSession) {
+				existing.updateWorkspace(buildAgentSessionWorkspace(session));
 				changed.push(existing);
 			} else if (!existing) {
 				const adapter = new AgentSessionAdapter(session, this.id);
