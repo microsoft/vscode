@@ -265,7 +265,7 @@ class ChangesViewModel extends Disposable {
 		// Active session isolation mode
 		this.activeSessionIsolationModeObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.repositories[0].workingDirectory === undefined
+			return activeSession?.workspace.read(reader)?.repositories[0]?.workingDirectory === undefined
 				? IsolationMode.Workspace
 				: IsolationMode.Worktree;
 		});
@@ -1498,14 +1498,15 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 				const activeSession = sessionManagementService.activeSession.get();
 				const activeSessionIsolationMode = this.viewModel.activeSessionIsolationModeObs.get();
 				const activeSessionRepositoryState = this.viewModel.activeSessionRepositoryObs.get()?.state.get();
+				const activeSessionRepository = activeSession?.workspace.get()?.repositories[0];
 
-				const baseBranchName = activeSessionIsolationMode === IsolationMode.Workspace
-					? activeSession?.workspace.get()?.repositories[0].baseBranchName ?? ''
+				const baseBranchName = activeSessionIsolationMode === IsolationMode.Worktree
+					? activeSessionRepository?.baseBranchName ?? ''
 					: activeSessionRepositoryState?.HEAD?.upstream
 						? `${activeSessionRepositoryState.HEAD.upstream.remote}/${activeSessionRepositoryState.HEAD.upstream.name}`
 						: activeSessionRepositoryState?.HEAD?.name ?? '';
 
-				const branchName = activeSession?.workspace.get()?.repositories[0].detail
+				const branchName = activeSessionRepository?.detail
 					?? activeSessionRepositoryState?.HEAD?.name ?? '';
 
 				const allChangesDescription = baseBranchName && branchName
