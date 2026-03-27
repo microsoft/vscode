@@ -30,15 +30,15 @@
 	align-items: center;
 	justify-content: center;
 	flex: 1;
-	padding: 20px;
+	padding: 32px;
 	text-align: center;
 	gap: 8px;
 }
 
 .changes-view-body .changes-welcome-icon.codicon {
-	font-size: 48px !important;
+	font-size: 32px !important;
 	color: var(--vscode-descriptionForeground);
-	opacity: 0.6;
+	opacity: 0.4;
 }
 
 .changes-view-body .changes-welcome-message {
