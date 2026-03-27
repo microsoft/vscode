@@ -84,7 +84,7 @@ suite('HTML Embedded Formatting', () => {
 		await assertFormat('<html><head>\n<style>\n.foo{display:none;}\n</style></head></html>', '<html>\n\n<head>\n  <style>\n    .foo {\n      display: none;\n    }\n  </style>\n</head>\n\n</html>');
 	});
 
-	test('HTML & Styles with CSS format settings', async () => {
+	test('HTML & Styles with CSS format settings - newlineBetweenSelectors', async () => {
 		const options = {
 			css: {
 				format: {
@@ -96,6 +96,81 @@ suite('HTML Embedded Formatting', () => {
 			'<html><head>\n<style>\n.foo,\n.bar{display:none;}\n</style></head></html>',
 			'<html>\n\n<head>\n  <style>\n    .foo, .bar {\n      display: none;\n    }\n  </style>\n</head>\n\n</html>',
 			options
+		);
+	});
+
+	test('HTML & Styles with CSS format settings - newlineBetweenRules', async () => {
+		const options = {
+			css: {
+				format: {
+					newlineBetweenRules: false
+				}
+			}
+		};
+		await assertFormat(
+			'<html><head>\n<style>\n.foo{display:none;}\n.bar{color:red;}\n</style></head></html>',
+			'<html>\n\n<head>\n  <style>\n    .foo {\n      display: none;\n    }\n    .bar {\n      color: red;\n    }\n  </style>\n</head>\n\n</html>',
+			options
+		);
+	});
+
+	test('HTML & Styles with CSS format settings - spaceAroundSelectorSeparator', async () => {
+		const options = {
+			css: {
+				format: {
+					spaceAroundSelectorSeparator: true
+				}
+			}
+		};
+		await assertFormat(
+			'<html><head>\n<style>\ndiv>p{color:red;}\n</style></head></html>',
+			'<html>\n\n<head>\n  <style>\n    div > p {\n      color: red;\n    }\n  </style>\n</head>\n\n</html>',
+			options
+		);
+	});
+
+	test('HTML & Styles - indentation preserved around style tag boundaries', async () => {
+		// Verify that content before and after <style> maintains correct indentation
+		await assertFormat(
+			'<html><head><link rel="stylesheet" href="a.css">\n<style>\n.foo{display:none;}\n</style>\n<link rel="stylesheet" href="b.css"></head></html>',
+			'<html>\n\n<head>\n  <link rel="stylesheet" href="a.css">\n  <style>\n    .foo {\n      display: none;\n    }\n  </style>\n  <link rel="stylesheet" href="b.css">\n</head>\n\n</html>'
+		);
+	});
+
+	test('HTML & Styles - nested style tag indentation', async () => {
+		// Style tag nested inside body > div should have deeper indentation
+		await assertFormat(
+			'<html><body><div>\n<style>\n.foo{display:none;}\n</style>\n</div></body></html>',
+			'<html>\n\n<body>\n  <div>\n    <style>\n      .foo {\n        display: none;\n      }\n    </style>\n  </div>\n</body>\n\n</html>'
+		);
+	});
+
+	test('HTML & Styles - multiple style blocks', async () => {
+		const options = {
+			css: {
+				format: {
+					newlineBetweenSelectors: false
+				}
+			}
+		};
+		await assertFormat(
+			'<html><head>\n<style>\n.a,.b{color:red;}\n</style>\n<style>\n.c,.d{color:blue;}\n</style></head></html>',
+			'<html>\n\n<head>\n  <style>\n    .a, .b {\n      color: red;\n    }\n  </style>\n  <style>\n    .c, .d {\n      color: blue;\n    }\n  </style>\n</head>\n\n</html>',
+			options
+		);
+	});
+
+	test('HTML & Styles - empty style tag', async () => {
+		await assertFormat(
+			'<html><head><style></style></head></html>',
+			'<html>\n\n<head>\n  <style></style>\n</head>\n\n</html>'
+		);
+	});
+
+	test('HTML & Styles - style tag with only whitespace', async () => {
+		await assertFormat(
+			'<html><head><style>\n\n</style></head></html>',
+			'<html>\n\n<head>\n  <style>\n\n  </style>\n</head>\n\n</html>'
 		);
 	});
 
