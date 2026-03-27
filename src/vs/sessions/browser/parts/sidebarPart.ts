@@ -239,6 +239,27 @@ export class SidebarPart extends AbstractPaneCompositePart {
 					retryDisposable.dispose();
 				}
 			}));
+
+			// Also attempt a deferred retry so that we don't rely solely on a later visibility change.
+			queueMicrotask(() => {
+				if (!widgetDisposables.isDisposed) {
+					wireBadge();
+				}
+			});
+
+			// Additionally, retry once installed extensions are registered, which is when
+			// IAgentSessionsService is likely to become available.
+			try {
+				const extensionService = this.instantiationService.invokeFunction(accessor => accessor.get(IExtensionService));
+				extensionService.whenInstalledExtensionsRegistered().then(() => {
+					if (!widgetDisposables.isDisposed) {
+						wireBadge();
+					}
+				});
+			} catch {
+				// If the extension service is not available for some reason, fall back
+				// to the other retry mechanisms without failing.
+			}
 		}
 	}
 
