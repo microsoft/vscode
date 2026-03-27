@@ -293,7 +293,7 @@ class AgentSessionsLogger extends Disposable {
 			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({
 				id: agentSessionsOutputChannelId,
 				label: agentSessionsOutputChannelLabel,
-				log: false
+				log: true
 			});
 			this.isChannelRegistered = true;
 		}
