@@ -139,11 +139,12 @@ export function setup(context: TestContext) {
 				await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
 				return;
 			} catch (error) {
+				await context.captureScreenshot(page);
 				if (attempt === maxAttempts) {
-					await context.captureScreenshot(page);
 					throw error;
+				} else {
+					context.log(`Auth flow attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}, retrying...`);
 				}
-				context.log(`Auth flow attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}, retrying...`);
 			}
 		}
 	}
