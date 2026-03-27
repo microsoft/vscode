@@ -632,6 +632,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					type: item.type,
 					name: item.name,
 					description: item.description,
+					groupKey: item.groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
 				}));
 			},
 		};
