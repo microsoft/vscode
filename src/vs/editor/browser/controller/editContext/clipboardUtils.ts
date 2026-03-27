@@ -151,7 +151,11 @@ const ClipboardEventUtils = {
 	},
 
 	setTextData(clipboardData: IWritableClipboardData, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		clipboardData.setData(Mimes.text, text);
+		// Strip null characters (U+0000) before writing to clipboard.
+		// On Windows, the clipboard uses null-terminated strings, so any
+		// null character would truncate the remaining text.
+		// eslint-disable-next-line no-control-regex
+		clipboardData.setData(Mimes.text, text.replace(/\x00/g, ''));
 		if (typeof html === 'string') {
 			clipboardData.setData('text/html', html);
 		}
