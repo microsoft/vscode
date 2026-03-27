@@ -55,11 +55,9 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IRequestAddInstanceToGroupEvent, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, IXtermColorProvider, TerminalDataTransfers } from './terminal.js';
 import { TerminalLaunchHelpAction } from './terminalActions.js';
-import { TerminalEditorInput } from './terminalEditorInput.js';
 import { TerminalExtensionsRegistry } from './terminalExtensions.js';
 import { getColorClass, createColorStyleElement, getStandardColors } from './terminalIcon.js';
 import { TerminalProcessManager } from './terminalProcessManager.js';
@@ -73,7 +71,6 @@ import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfi
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { getUriLabelForShell, getShellIntegrationTimeout, getWorkspaceForTerminal, preparePathForShell } from '../common/terminalEnvironment.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -377,7 +374,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IPreferencesService _preferencesService: IPreferencesService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
@@ -387,7 +383,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -1443,13 +1438,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _refreshSelectionContextKey() {
-		const isActive = !!this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
-		let isEditorActive = false;
-		const editor = this._editorService.activeEditor;
-		if (editor) {
-			isEditorActive = editor instanceof TerminalEditorInput;
-		}
-		this._terminalHasTextContextKey.set((isActive || isEditorActive) && this.hasSelection());
+		this._terminalHasTextContextKey.set(this.hasSelection());
 	}
 
 	protected _createProcessManager(): TerminalProcessManager {
