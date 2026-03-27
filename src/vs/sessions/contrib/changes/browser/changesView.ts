@@ -410,7 +410,7 @@ export class ChangesViewPane extends ViewPane {
 		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
 		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
-		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other Session artifacts will appear here");
+		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
 		// Actions container - positioned outside and above the card
 		this.actionsContainer = dom.append(this.bodyContainer, $('.chat-editing-session-actions.outside-card'));
