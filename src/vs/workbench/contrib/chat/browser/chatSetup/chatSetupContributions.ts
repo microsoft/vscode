@@ -430,6 +430,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.planPro,
 							ChatContextKeys.Entitlement.planProPlus,
+							ChatContextKeys.Entitlement.planEdu,
 						)
 					),
 					menu: {
@@ -440,6 +441,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ContextKeyExpr.or(
 								ChatContextKeys.Entitlement.planPro,
 								ChatContextKeys.Entitlement.planProPlus,
+								ChatContextKeys.Entitlement.planEdu,
 							),
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
