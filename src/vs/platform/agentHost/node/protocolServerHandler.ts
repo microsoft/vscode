@@ -9,7 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
-import { isActionKnownToVersion, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
@@ -418,9 +418,6 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: IActionEnvelope): boolean {
 		const action = envelope.action;
-		if (!isActionKnownToVersion(action, client.protocolVersion)) {
-			return false;
-		}
 		if (action.type.startsWith('root/')) {
 			return client.subscriptions.has(ROOT_STATE_URI);
 		}

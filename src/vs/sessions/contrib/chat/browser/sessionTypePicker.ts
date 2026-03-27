@@ -34,7 +34,8 @@ export class SessionTypePicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session) {
-				this._sessionTypes = this.sessionsProvidersService.getSessionTypes(session);
+				const chat = session.activeChat.read(reader);
+				this._sessionTypes = this.sessionsProvidersService.getSessionTypes(chat);
 				this._sessionType = session.sessionType;
 			} else {
 				this._sessionTypes = [];
@@ -79,8 +80,8 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const session = this.sessionsManagementService.activeSession.get();
-		if (!session) {
+		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+		if (!chat) {
 			return;
 		}
 
@@ -95,7 +96,7 @@ export class SessionTypePicker extends Disposable {
 		const delegate: IActionListDelegate<ISessionType> = {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
-				this.sessionsManagementService.setSessionType(session, type);
+				this.sessionsManagementService.setSessionType(chat, type);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};

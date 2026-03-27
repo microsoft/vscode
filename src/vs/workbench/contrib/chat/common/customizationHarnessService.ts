@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,8 +14,9 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
+import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -119,6 +121,37 @@ export interface IHarnessDescriptor {
 	 * items of the given type when this harness is active.
 	 */
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
+	/**
+	 * When set, this harness is backed by an extension-contributed provider
+	 * that can supply customization items directly (bypassing promptsService
+	 * discovery and filtering).
+	 */
+	readonly itemProvider?: IExternalCustomizationItemProvider;
+}
+
+/**
+ * Represents a customization item provided by an external extension.
+ */
+export interface IExternalCustomizationItem {
+	readonly uri: URI;
+	readonly type: string;
+	readonly name: string;
+	readonly description?: string;
+}
+
+/**
+ * Provider interface for extension-contributed harnesses that supply
+ * customization items directly from their SDK.
+ */
+export interface IExternalCustomizationItemProvider {
+	/**
+	 * Event that fires when the provider's customizations change.
+	 */
+	readonly onDidChange: Event<void>;
+	/**
+	 * Provide the customization items this harness supports.
+	 */
+	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
 }
 
 /**
@@ -150,12 +183,6 @@ export interface ICustomizationHarnessService {
 	setActiveHarness(id: string): void;
 
 	/**
-	 * Registers a harness descriptor contributed by an extension's
-	 * customizations provider. Returns a disposable that removes the harness.
-	 */
-	registerContributedHarness(descriptor: IHarnessDescriptor): IDisposable;
-
-	/**
 	 * Convenience: returns the storage source filter for the active harness
 	 * and the given customization type.
 	 */
@@ -165,6 +192,13 @@ export interface ICustomizationHarnessService {
 	 * Returns the descriptor of the currently active harness.
 	 */
 	getActiveDescriptor(): IHarnessDescriptor;
+
+	/**
+	 * Registers an external harness contributed by an extension.
+	 * The harness appears in the UI toggle alongside static harnesses.
+	 * Returns a disposable that removes the harness when disposed.
+	 */
+	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable;
 }
 
 // #region Shared filter constants
@@ -381,53 +415,69 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 
 	private readonly _activeHarness: ISettableObservable<string>;
 	readonly activeHarness: IObservable<string>;
+
+	private readonly _staticHarnesses: readonly IHarnessDescriptor[];
+	private readonly _externalHarnesses: IHarnessDescriptor[] = [];
+	private readonly _availableHarnesses: ISettableObservable<readonly IHarnessDescriptor[]>;
 	readonly availableHarnesses: IObservable<readonly IHarnessDescriptor[]>;
 
-	private readonly _allHarnesses: readonly IHarnessDescriptor[];
-	private readonly _contributedHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, []);
-
 	constructor(
-		harnesses: readonly IHarnessDescriptor[],
+		staticHarnesses: readonly IHarnessDescriptor[],
 		defaultHarness: string,
-		builtInAvailable?: IObservable<readonly IHarnessDescriptor[]>,
 	) {
-		this._allHarnesses = harnesses;
+		this._staticHarnesses = staticHarnesses;
 		this._activeHarness = observableValue<string>(this, defaultHarness);
 		this.activeHarness = this._activeHarness;
+		this._availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, [...this._staticHarnesses]);
+		this.availableHarnesses = this._availableHarnesses;
+	}
 
-		const builtIn = builtInAvailable ?? constObservable(harnesses);
-		this.availableHarnesses = derived(this, reader => {
-			const built = builtIn.read(reader);
-			const contributed = this._contributedHarnesses.read(reader);
-			return [...built, ...contributed];
-		});
+	private _getAllHarnesses(): readonly IHarnessDescriptor[] {
+		return [...this._staticHarnesses, ...this._externalHarnesses];
+	}
+
+	private _refreshAvailableHarnesses(): void {
+		this._availableHarnesses.set(this._getAllHarnesses(), undefined);
+	}
+
+	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable {
+		this._externalHarnesses.push(descriptor);
+		this._refreshAvailableHarnesses();
+		return {
+			dispose: () => {
+				const idx = this._externalHarnesses.indexOf(descriptor);
+				if (idx >= 0) {
+					this._externalHarnesses.splice(idx, 1);
+					this._refreshAvailableHarnesses();
+					// If the removed harness was active, fall back to the first available
+					if (this._activeHarness.get() === descriptor.id) {
+						const all = this._getAllHarnesses();
+						if (all.length > 0) {
+							this._activeHarness.set(all[0].id, undefined);
+						}
+					}
+				}
+			}
+		};
 	}
 
 	setActiveHarness(id: string): void {
-		const available = this.availableHarnesses.get();
-		if (available.some(h => h.id === id)) {
+		if (this._getAllHarnesses().some(h => h.id === id)) {
 			this._activeHarness.set(id, undefined);
 		}
 	}
 
-	registerContributedHarness(descriptor: IHarnessDescriptor): IDisposable {
-		const current = this._contributedHarnesses.get();
-		this._contributedHarnesses.set([...current, descriptor], undefined);
-		return toDisposable(() => {
-			const updated = this._contributedHarnesses.get().filter(h => h !== descriptor);
-			this._contributedHarnesses.set(updated, undefined);
-		});
-	}
-
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		const descriptor = this.getActiveDescriptor();
-		return descriptor.getStorageSourceFilter(type);
+		const activeId = this._activeHarness.get();
+		const all = this._getAllHarnesses();
+		const descriptor = all.find(h => h.id === activeId);
+		return descriptor?.getStorageSourceFilter(type) ?? all[0].getStorageSourceFilter(type);
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
 		const activeId = this._activeHarness.get();
-		const available = this.availableHarnesses.get();
-		return available.find(h => h.id === activeId) ?? available[0] ?? this._allHarnesses[0];
+		const all = this._getAllHarnesses();
+		return all.find(h => h.id === activeId) ?? all[0];
 	}
 }
 

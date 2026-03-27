@@ -55,7 +55,7 @@ import { getMediaMime } from '../../../../../../base/common/mime.js';
  * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
  * `chat.editorAssociations` setting. Returns undefined if no association matches.
  */
-function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
+export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
 	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
 	// Sort patterns by length (longer patterns are more specific)
 	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);

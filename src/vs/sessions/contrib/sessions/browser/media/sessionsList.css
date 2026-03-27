@@ -54,8 +54,25 @@
 		}
 	}
 
+	.monaco-list-row .session-pinned-indicator {
+		display: none;
+		height: 16px;
+		align-items: center;
+		color: var(--vscode-descriptionForeground);
+		font-size: 12px;
+		pointer-events: none;
+
+		&.visible {
+			display: flex;
+		}
+	}
+
 	.monaco-list-row:hover,
 	.monaco-list-row.focused:not(.selected) {
+		.session-pinned-indicator {
+			display: none;
+		}
+
 		.session-title-toolbar {
 			display: block;
 		}

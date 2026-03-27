@@ -18,6 +18,7 @@ import { convertLegacyChatSessionTiming, IChatDetail, IChatService, ResponseMode
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getInProgressSessionDescription } from '../chatSessions/chatSessionDescription.js';
 
 export class LocalAgentsSessionsController extends Disposable implements IChatSessionItemController, IWorkbenchContribution {
 
@@ -120,7 +121,7 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 				return undefined; // ignore sessions without requests
 			}
 
-			description = this.chatSessionsService.getInProgressSessionDescription(model);
+			description = getInProgressSessionDescription(model);
 		} else if (chat.isActive) {
 			// Sessions that are active but don't have a chat model are ultimately untitled with no requests
 			return undefined;

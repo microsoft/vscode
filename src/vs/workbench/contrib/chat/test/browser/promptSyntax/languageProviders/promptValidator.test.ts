@@ -1346,7 +1346,7 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		test('deprecated user-invokable attribute shows warning', async () => {
+		test('removed user-invokable attribute is reported as unknown', async () => {
 			const content = [
 				'---',
 				'name: "TestAgent"',
@@ -1356,9 +1356,10 @@ suite('PromptValidator', () => {
 				'Body',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers.length, 1, 'user-invokable should produce exactly one diagnostic');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, `The 'user-invokable' attribute is deprecated. Use 'user-invocable' instead.`);
+			assert.ok(markers[0].message.includes('user-invokable'), 'warning should mention the attribute name');
+			assert.ok(markers[0].message.includes('not supported'), 'warning should say attribute is not supported');
 		});
 
 		test('disable-model-invocation attribute validation', async () => {

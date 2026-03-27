@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { IUntypedEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
+import { IUntypedEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, SaveReason } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID } from './aiCustomizationManagement.js';
 
@@ -19,6 +19,9 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	static readonly ID: string = AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID;
 
 	readonly resource = undefined;
+
+	private _isDirty = false;
+	private _saveHandler?: () => Promise<boolean>;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -58,5 +61,35 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	override async resolve(): Promise<null> {
 		return null;
+	}
+
+	override isDirty(): boolean {
+		return this._isDirty;
+	}
+
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+		if (options?.reason !== undefined && options.reason !== SaveReason.EXPLICIT) {
+			return undefined;
+		}
+		if (this._saveHandler) {
+			const saved = await this._saveHandler();
+			return saved ? this : undefined;
+		}
+		return undefined;
+	}
+
+	override async revert(): Promise<void> {
+		this.setDirty(false);
+	}
+
+	setDirty(dirty: boolean): void {
+		if (this._isDirty !== dirty) {
+			this._isDirty = dirty;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	setSaveHandler(handler: (() => Promise<boolean>) | undefined): void {
+		this._saveHandler = handler;
 	}
 }

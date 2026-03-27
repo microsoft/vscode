@@ -17,7 +17,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ToolResultContentType, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
+import { ToolResultContentType, type IPendingMessage, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
@@ -236,6 +236,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		await entry.session.send({ prompt, attachments: sdkAttachments });
 		this._logService.info(`[Copilot:${sessionId}] session.send() returned`);
+	}
+
+	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (!entry) {
+			this._logService.warn(`[Copilot:${sessionId}] setPendingMessages: session not found`);
+			return;
+		}
+
+		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
+		if (steeringMessage) {
+			this._logService.info(`[Copilot:${sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
+			entry.session.send({
+				prompt: steeringMessage.userMessage.text,
+				mode: 'immediate',
+			}).catch(err => {
+				this._logService.error(`[Copilot:${sessionId}] Steering message failed`, err);
+			});
+		}
+
+		// Queued messages are consumed by the server (AgentSideEffects)
+		// which dispatches SessionTurnStarted and calls sendMessage directly.
+		// No SDK-level enqueue is needed.
 	}
 
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {

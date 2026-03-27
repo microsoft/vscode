@@ -9,14 +9,12 @@ import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -81,12 +79,6 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 			category: Categories.View,
 			f1: true,
 			menu: [
-				{
-					id: Menus.AuxiliaryBarTitle,
-					group: 'navigation',
-					order: 100,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), AuxiliaryBarVisibleContext, SessionsWelcomeVisibleContext.toNegated())
-				},
 				{
 					id: Menus.TitleBarContext,
 					order: 1,

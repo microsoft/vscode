@@ -1,7 +1,10 @@
 ---
-description: Generate or modify run commands for the current session
+name: generate-run-commands
+description: Generate or modify run commands for the current session. Use when the user wants to set up or update run commands that appear in the session's Run button.
 ---
-<!-- Customize this prompt and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
+<!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
+
+# Generate Run Commands
 
 Help the user set up run commands for the current Agent Session workspace. Run commands appear in the session's Run button in the title bar.
 

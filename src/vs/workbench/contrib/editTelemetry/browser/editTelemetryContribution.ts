@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService, TelemetryLevel, telemetryLevelEnabled } from '../../../../platform/telemetry/common/telemetry.js';
@@ -48,6 +49,14 @@ export class EditTelemetryContribution extends Disposable {
 
 			r.store.add(instantiationService.createInstance(AiStatsFeature, annotatedDocuments.read(r)));
 		}));
+
+		// Register no-op fallbacks so that extensions can always call these
+		// commands even when AiContributionFeature is not active.
+		// AiContributionFeature overrides these with real implementations
+		// when active, and the no-ops restore when it is disposed.
+		this._register(CommandsRegistry.registerCommand('_aiEdits.hasAiContributions', () => false));
+		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAiContributions', () => { }));
+		this._register(CommandsRegistry.registerCommand('_aiEdits.clearAllAiContributions', () => { }));
 
 		const addAICoAuthor = observableConfigValue('git.addAICoAuthor', 'off', configurationService);
 		this._register(autorun(r => {

@@ -15,14 +15,12 @@ import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionOptionGroup } from './newSession.js';
 import { RemoteNewSession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 /**
  * Self-contained widget that renders extension-driven toolbar pickers
- * for Cloud/Remote sessions. Observes the active session from
- * {@link ISessionsProvidersService} and dynamically creates/destroys
- * picker widgets as option groups change.
+ * for Cloud/Remote sessions. Observes the active session and dynamically
+ * creates/destroys picker widgets as option groups change.
  */
 export class ExtensionToolbarPickers extends Disposable {
 
@@ -36,7 +34,6 @@ export class ExtensionToolbarPickers extends Disposable {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
@@ -63,18 +60,16 @@ export class ExtensionToolbarPickers extends Disposable {
 	}
 
 	private _bindToSession(): void {
-		// Get the current new session from the provider's internal state
-		const providers = this.sessionsProvidersService.getProviders();
-		for (const provider of providers) {
-			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-			const currentSession = (provider as any)._currentNewSession;
-			if (currentSession instanceof RemoteNewSession) {
-				this._renderToolbarPickers(currentSession, true);
-				this._sessionDisposables.add(currentSession.onDidChangeOptionGroups(() => {
-					this._renderToolbarPickers(currentSession);
-				}));
-				return;
-			}
+		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+		if (!chat) {
+			return;
+		}
+
+		if (chat instanceof RemoteNewSession) {
+			this._renderToolbarPickers(chat, true);
+			this._sessionDisposables.add(chat.onDidChangeOptionGroups(() => {
+				this._renderToolbarPickers(chat);
+			}));
 		}
 	}
 

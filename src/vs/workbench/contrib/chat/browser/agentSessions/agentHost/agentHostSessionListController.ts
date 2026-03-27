@@ -57,7 +57,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				};
 				this._items.push(item);
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
-			} else if (n.type === 'notify/sessionRemoved') {
+			} else if (n.type === 'notify/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
 				const removedId = AgentSession.id(n.session);
 				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
 				if (idx >= 0) {

@@ -15,6 +15,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
+	PendingMessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallConfirmationReason,
@@ -133,6 +134,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 					}
 				}
 			}
+
+			// After a turn completes (idle event), try to consume the next queued message
+			if (e.type === 'idle') {
+				this._tryConsumeNextQueuedMessage(sessionKey);
+			}
 		}));
 		return disposables;
 	}
@@ -198,7 +204,106 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				});
 				break;
 			}
+			case ActionType.SessionPendingMessageSet:
+			case ActionType.SessionPendingMessageRemoved:
+			case ActionType.SessionQueuedMessagesReordered: {
+				this._syncPendingMessages(action.session);
+				break;
+			}
 		}
+	}
+
+	/**
+	 * Pushes the current pending message state from the session to the agent.
+	 * The server controls queued message consumption; only steering messages
+	 * are forwarded to the agent for mid-turn injection.
+	 */
+	private _syncPendingMessages(session: ProtocolURI): void {
+		const state = this._stateManager.getSessionState(session);
+		if (!state) {
+			return;
+		}
+		const agent = this._options.getAgent(session);
+		agent?.setPendingMessages?.(
+			URI.parse(session),
+			state.steeringMessage,
+			[],
+		);
+
+		// Steering messages are consumed immediately by the agent;
+		// remove from protocol state so clients see the consumption.
+		if (state.steeringMessage) {
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionPendingMessageRemoved,
+				session,
+				kind: PendingMessageKind.Steering,
+				id: state.steeringMessage.id,
+			});
+		}
+
+		// If the session is idle, try to consume the next queued message
+		this._tryConsumeNextQueuedMessage(session);
+	}
+
+	/**
+	 * Consumes the next queued message by dispatching a server-initiated
+	 * `SessionTurnStarted` action with `queuedMessageId` set. The reducer
+	 * atomically creates the active turn and removes the message from the
+	 * queue. Only consumes one message at a time; subsequent messages are
+	 * consumed when the next `idle` event fires.
+	 */
+	private _tryConsumeNextQueuedMessage(session: ProtocolURI): void {
+		// Bail if there's already an active turn
+		if (this._stateManager.getActiveTurnId(session)) {
+			return;
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (!state?.queuedMessages?.length) {
+			return;
+		}
+
+		const msg = state.queuedMessages[0];
+		const turnId = generateUuid();
+
+		// Reset event mappers for the new turn (same as handleAction does for SessionTurnStarted)
+		for (const mapper of this._eventMappers.values()) {
+			mapper.reset(session);
+		}
+
+		// Dispatch server-initiated turn start; the reducer removes the queued message atomically
+		this._stateManager.dispatchServerAction({
+			type: ActionType.SessionTurnStarted,
+			session,
+			turnId,
+			userMessage: msg.userMessage,
+			queuedMessageId: msg.id,
+		});
+
+		// Send the message to the agent backend
+		const agent = this._options.getAgent(session);
+		if (!agent) {
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionError,
+				session,
+				turnId,
+				error: { errorType: 'noAgent', message: 'No agent found for session' },
+			});
+			return;
+		}
+		const attachments = msg.userMessage.attachments?.map((a): IAgentAttachment => ({
+			type: a.type,
+			path: a.path,
+			displayName: a.displayName,
+		}));
+		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments).catch(err => {
+			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionError,
+				session,
+				turnId,
+				error: { errorType: 'sendFailed', message: String(err) },
+			});
+		});
 	}
 
 	async handleCreateSession(command: ICreateSessionParams): Promise<void> {

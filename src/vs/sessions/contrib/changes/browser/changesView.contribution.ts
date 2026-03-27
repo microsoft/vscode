@@ -13,7 +13,6 @@ import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensi
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import './changesViewActions.js';
 import './fixCIChecksAction.js';
-import { ChangesViewController } from './changesViewController.js';
 import { ChangesTitleBarContribution } from './changesTitleBarWidget.js';
 
 const changesViewIcon = registerIcon('changes-view-icon', Codicon.gitCompare, localize2('changesViewIcon', 'View icon for the Changes view.').value);
@@ -22,7 +21,7 @@ const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContaine
 
 const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	id: CHANGES_VIEW_CONTAINER_ID,
-	title: localize2('changes', 'Changes'),
+	title: localize2('artifacts', 'Artifacts'),
 	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer),
 	icon: changesViewIcon,
 	order: 10,
@@ -34,7 +33,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 viewsRegistry.registerViews([{
 	id: CHANGES_VIEW_ID,
-	name: localize2('changes', 'Changes'),
+	name: localize2('artifacts', 'Artifacts'),
 	containerIcon: changesViewIcon,
 	ctorDescriptor: new SyncDescriptor(ChangesViewPane),
 	canToggleVisibility: true,
@@ -44,5 +43,4 @@ viewsRegistry.registerViews([{
 	windowVisibility: WindowVisibility.Sessions
 }], changesViewContainer);
 
-registerWorkbenchContribution2(ChangesViewController.ID, ChangesViewController, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChangesTitleBarContribution.ID, ChangesTitleBarContribution, WorkbenchPhase.AfterRestored);

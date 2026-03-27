@@ -37,7 +37,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID } from '../../browser/actions/chatActions.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } from '../../browser/actions/chatActions.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -1484,12 +1484,28 @@ suite('ChatTipService', () => {
 			commandExecutedEmitter.fire({ commandId: 'workbench.action.openSettings', args: [] });
 
 			assert.strictEqual(dismissed, true, `${tipId} should dismiss when its settings command is clicked`);
-			assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should hide for the rest of the session after actioning a tip');
+			assert.notStrictEqual(service.getWelcomeTip(contextKeyService)?.id, tipId, `${tipId} should not be shown again after actioning its command link`);
 
-			service.resetSession();
-			assertTipNeverShown(service, tipId);
+			const nextService = createService();
+			assertTipNeverShown(nextService, tipId);
 		});
 	}
+
+	test('dismisses createPrompt tip after clicking its command link', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+
+		const tip = findTipById(service, 'tip.createPrompt');
+		assert.ok(tip, 'Should show tip.createPrompt before command click');
+		assert.ok(tip.enabledCommands?.includes(GENERATE_PROMPT_COMMAND_ID), 'Tip should enable the create prompt command');
+
+		commandExecutedEmitter.fire({ commandId: GENERATE_PROMPT_COMMAND_ID, args: [] });
+
+		assert.notStrictEqual(service.getWelcomeTip(contextKeyService)?.id, 'tip.createPrompt', 'tip.createPrompt should not be shown again after actioning its command link');
+
+		const nextService = createService();
+		assertTipNeverShown(nextService, 'tip.createPrompt');
+	});
 
 	test('logs telemetry when tip is shown', () => {
 		const events: { eventName: string; data: Record<string, unknown> }[] = [];

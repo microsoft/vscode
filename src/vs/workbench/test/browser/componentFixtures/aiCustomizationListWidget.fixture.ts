@@ -104,7 +104,7 @@ function createMockHarnessService(): ICustomizationHarnessService {
 		override readonly availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('harnesses', [descriptor]);
 		override getStorageSourceFilter() { return defaultFilter; }
 		override getActiveDescriptor() { return descriptor; }
-		override registerContributedHarness() { return { dispose() { } }; }
+		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
 

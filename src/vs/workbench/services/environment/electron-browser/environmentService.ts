@@ -154,6 +154,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	@memoize
 	get isSessionsWindow(): boolean { return !!this.configuration.isSessionsWindow; }
 
+	@memoize
+	get agentPluginsHome(): URI { return URI.file(this.agentPluginsPath); }
+
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,
 		productService: IProductService

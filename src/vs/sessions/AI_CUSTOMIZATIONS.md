@@ -172,20 +172,24 @@ The underlying `storage` remains `PromptsStorage.extension` — the grouping is 
 Sessions overrides `PromptsService` via `AgenticPromptsService` (in `promptsService.ts`):
 
 - **Discovery**: `AgenticPromptFilesLocator` scopes workspace folders to the active session's worktree
-- **Built-in prompts**: Discovers bundled `.prompt.md` files from `vs/sessions/prompts/` and surfaces them with `PromptsStorage.builtin` storage type
-- **User override**: Built-in prompts are omitted when a user or workspace prompt with the same name exists
+- **Built-in skills**: Discovers bundled `SKILL.md` files from `vs/sessions/skills/{name}/` and surfaces them with `PromptsStorage.builtin` storage type
+- **User override**: Built-in skills are omitted when a user or workspace skill with the same name exists
 - **Creation targets**: `getSourceFolders()` override replaces VS Code profile user roots with `~/.copilot/{subfolder}` for CLI compatibility
 - **Hook folders**: Falls back to `.github/hooks` in the active worktree
 
-### Built-in Prompts
+### Built-in Skills
 
-Prompt files bundled with the Sessions app live in `src/vs/sessions/prompts/`. They are:
+All built-in customizations bundled with the Sessions app are skills, living in `src/vs/sessions/skills/{name}/SKILL.md`. They are:
 
-- Discovered at runtime via `FileAccess.asFileUri('vs/sessions/prompts')`
+- Discovered at runtime via `FileAccess.asFileUri('vs/sessions/skills')`
 - Tagged with `PromptsStorage.builtin` storage type
 - Shown in a "Built-in" group in the AI Customization tree view and management editor
-- Filtered out when a user/workspace prompt shares the same clean name (override behavior)
-- Included in storage filters for prompts and CLI-user types
+- Filtered out when a user/workspace skill shares the same name (override behavior)
+- Skills with UI integrations (e.g. `act-on-feedback`, `generate-run-commands`) display a "UI Integration" badge in the management editor
+
+### UI Integration Badges
+
+Skills that are directly invoked by UI elements (toolbar buttons, menu items) are annotated with a "UI Integration" badge in the management editor. The mapping is provided by `IAICustomizationWorkspaceService.getSkillUIIntegrations()`, which the Sessions implementation populates with the relevant skill names and tooltip descriptions. The badge appears on both the built-in skill and any user/workspace override, ensuring users understand that overriding the skill affects a UI surface.
 
 ### Count Consistency
 
@@ -201,7 +205,7 @@ Prompt files bundled with the Sessions app live in `src/vs/sessions/prompts/`. T
 
 ### Item Badges
 
-`IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name (same visual style as the MCP "Bridged" badge). For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. The badge text is also included in search filtering.
+`IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name (same visual style as the MCP "Bridged" badge). For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. For skills with UI integrations, the badge reads "UI Integration" with a tooltip describing which UI surface invokes the skill. The badge text is also included in search filtering.
 
 ### Debug Panel
 

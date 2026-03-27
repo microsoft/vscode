@@ -227,6 +227,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	set target(value: TerminalLocation | undefined) {
 		this._targetRef.object = value;
 		this._onDidChangeTarget.fire(value);
+		this._updateEditorBackgroundClass();
 	}
 
 	get instanceId(): number { return this._instanceId; }
@@ -399,6 +400,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
+		this._updateEditorBackgroundClass();
 
 		this._widgetManager = this._register(instantiationService.createInstance(TerminalWidgetManager));
 
@@ -580,6 +582,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
+			}
+			if (e.affectsConfiguration(TerminalSettingId.EditorUseEditorBackground)) {
+				this._updateEditorBackgroundClass();
 			}
 			const layoutSettings: string[] = [
 				TerminalSettingId.FontSize,
@@ -1918,6 +1923,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
 
+	private _updateEditorBackgroundClass(): void {
+		const useEditorBg = this.target === TerminalLocation.Editor && this._configurationService.getValue(TerminalSettingId.EditorUseEditorBackground);
+		this._wrapperElement.classList.toggle('use-editor-background', !!useEditorBg);
+	}
+
 	private async _updateUnicodeVersion(): Promise<void> {
 		this._processManager.setUnicodeVersion(this._terminalConfigurationService.config.unicodeVersion);
 	}
@@ -2813,16 +2823,20 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	constructor(
 		private readonly _target: IReference<TerminalLocation | undefined>,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 	}
 
 	getBackgroundColor(theme: IColorTheme) {
-		if (this._target.object === TerminalLocation.Editor) {
+		if (this._target.object === TerminalLocation.Editor && this._configurationService.getValue(TerminalSettingId.EditorUseEditorBackground)) {
 			return theme.getColor(editorBackground);
 		}
 		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
 		if (terminalBackground) {
 			return terminalBackground;
+		}
+		if (this._target.object === TerminalLocation.Editor) {
+			return theme.getColor(editorBackground);
 		}
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		if (location === ViewContainerLocation.Panel) {

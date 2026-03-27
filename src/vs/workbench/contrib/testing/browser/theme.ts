@@ -5,22 +5,13 @@
 
 import { localize } from '../../../../nls.js';
 import { activityErrorBadgeBackground, activityErrorBadgeForeground, badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { listErrorForeground, listWarningForeground } from '../../../../platform/theme/common/colors/listColors.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { TestResultState } from '../common/testTypes.js';
 
-export const testingColorIconFailed = registerColor('testing.iconFailed', {
-	dark: '#f14c4c',
-	light: '#f14c4c',
-	hcDark: '#f14c4c',
-	hcLight: '#B5200D'
-}, localize('testing.iconFailed', "Color for the 'failed' icon in the test explorer."));
+export const testingColorIconFailed = registerColor('testing.iconFailed', listErrorForeground, localize('testing.iconFailed', "Color for the 'failed' icon in the test explorer."));
 
-export const testingColorIconErrored = registerColor('testing.iconErrored', {
-	dark: '#f14c4c',
-	light: '#f14c4c',
-	hcDark: '#f14c4c',
-	hcLight: '#B5200D'
-}, localize('testing.iconErrored', "Color for the 'Errored' icon in the test explorer."));
+export const testingColorIconErrored = registerColor('testing.iconErrored', listErrorForeground, localize('testing.iconErrored', "Color for the 'Errored' icon in the test explorer."));
 
 export const testingColorIconPassed = registerColor('testing.iconPassed', {
 	dark: '#73c991',
@@ -31,7 +22,7 @@ export const testingColorIconPassed = registerColor('testing.iconPassed', {
 
 export const testingColorRunAction = registerColor('testing.runAction', testingColorIconPassed, localize('testing.runAction', "Color for 'run' icons in the editor."));
 
-export const testingColorIconQueued = registerColor('testing.iconQueued', '#cca700', localize('testing.iconQueued', "Color for the 'Queued' icon in the test explorer."));
+export const testingColorIconQueued = registerColor('testing.iconQueued', listWarningForeground, localize('testing.iconQueued', "Color for the 'Queued' icon in the test explorer."));
 
 export const testingColorIconUnset = registerColor('testing.iconUnset', '#848484', localize('testing.iconUnset', "Color for the 'Unset' icon in the test explorer."));
 

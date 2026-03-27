@@ -56,8 +56,9 @@ export class CloudModelPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			if (session instanceof RemoteNewSession) {
-				this._setSession(session);
+			const chat = session?.activeChat.read(reader);
+			if (chat instanceof RemoteNewSession) {
+				this._setSession(chat);
 			}
 		}));
 

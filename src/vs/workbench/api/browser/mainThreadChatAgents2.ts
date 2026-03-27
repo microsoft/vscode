@@ -13,6 +13,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { Position } from '../../../editor/common/core/position.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../editor/common/core/wordHelper.js';
@@ -27,7 +28,7 @@ import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat
 import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/chat/browser/agentSessions/agentSessions.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileContext, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -40,9 +41,12 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
+import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -102,6 +106,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _promptFileProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
 	private readonly _promptFileContentRegistrations = this._register(new DisposableMap<number, DisposableMap<string, IDisposable>>());
 
+	private readonly _customizationProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _customizationProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
@@ -122,9 +129,21 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
+
+		// When the provider API kill-switch is toggled off, dispose all registered providers
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.customizations.providerApi.enabled')) {
+				if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
+					this._customizationProviders.clearAndDisposeAll();
+					this._customizationProviderEmitters.clearAndDisposeAll();
+				}
+			}
+		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResource) {
@@ -580,6 +599,80 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$onDidChangePromptFiles(handle: number): void {
 		const emitter = this._promptFileProviderEmitters.get(handle);
+		if (emitter) {
+			emitter.fire();
+		}
+	}
+
+	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
+		if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
+			this._logService.trace(`[MainThreadChatAgents2] Customization provider API is disabled, ignoring registration from ${extensionId.value}`);
+			return;
+		}
+
+		const extension = await this._extensionService.getExtension(extensionId.value);
+		if (!extension) {
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for customization provider: ${extensionId.value}`);
+			return;
+		}
+
+		const emitter = new Emitter<void>();
+		this._customizationProviderEmitters.set(handle, emitter);
+
+		// Build the item provider that calls back to the ExtHost
+		const itemProvider: IExternalCustomizationItemProvider = {
+			onDidChange: emitter.event,
+			provideChatSessionCustomizations: async (token) => {
+				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
+				if (!items) {
+					return undefined;
+				}
+				return items.map((item: IChatSessionCustomizationItemDto): IExternalCustomizationItem => ({
+					uri: URI.revive(item.uri),
+					type: item.type,
+					name: item.name,
+					description: item.description,
+				}));
+			},
+		};
+
+		// Convert metadata to a harness descriptor
+		const hiddenSections = metadata.unsupportedTypes?.map(type => {
+			switch (type) {
+				case 'agent': return AICustomizationManagementSection.Agents;
+				case 'skill': return AICustomizationManagementSection.Skills;
+				case 'instructions': return AICustomizationManagementSection.Instructions;
+				case 'prompt': return AICustomizationManagementSection.Prompts;
+				case 'hook': return AICustomizationManagementSection.Hooks;
+				default: return type;
+			}
+		});
+
+		const descriptor: IHarnessDescriptor = {
+			id: chatSessionType,
+			label: metadata.label,
+			icon: metadata.iconId ? ThemeIcon.fromId(metadata.iconId) : ThemeIcon.fromId(Codicon.extensions.id),
+			hiddenSections,
+			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
+			getStorageSourceFilter: () => ({
+				// Extension-provided harnesses manage their own items via the provider,
+				// so we show all sources for storage-filter-based flows.
+				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension],
+			}),
+			itemProvider,
+		};
+
+		const registration = this._customizationHarnessService.registerExternalHarness(descriptor);
+		this._customizationProviders.set(handle, registration);
+	}
+
+	$unregisterChatSessionCustomizationProvider(handle: number): void {
+		this._customizationProviders.deleteAndDispose(handle);
+		this._customizationProviderEmitters.deleteAndDispose(handle);
+	}
+
+	$onDidChangeCustomizations(handle: number): void {
+		const emitter = this._customizationProviderEmitters.get(handle);
 		if (emitter) {
 			emitter.fire();
 		}
