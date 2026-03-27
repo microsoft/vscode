@@ -15,15 +15,8 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 	}
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
-
-		if (!(await this._sandboxService.isEnabled())) {
-			return undefined;
-		}
-
-		// Ensure sandbox config is initialized before wrapping
-		const sandboxConfigPath = await this._sandboxService.getSandboxConfigPath();
-		if (!sandboxConfigPath) {
-			// If no sandbox config is available, run without sandboxing
+		const sandboxPrereqs = await this._sandboxService.checkForSandboxingPrereqs();
+		if (!sandboxPrereqs.enabled) {
 			return undefined;
 		}
 
