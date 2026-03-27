@@ -149,7 +149,13 @@ jobs:
           sourceScanPath: $(Build.SourcesDirectory)
           alertWarningLevel: Medium
         continueOnError: true
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
+      - task: notice@0
+        displayName: "Generate NOTICE file"
+        inputs:
+          outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
+          outputformat: text
+        continueOnError: true
 
       - task: AzureCLI@2
         displayName: Fetch secrets
