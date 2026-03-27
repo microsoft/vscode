@@ -22,7 +22,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -57,18 +57,21 @@ import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatQuestion, IChatQuestionCarousel, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
+import { shouldRegeneratePlanningQuestions } from '../../common/planning/chatPlanningQuestionHeuristics.js';
+import { augmentPromptWithPlanningContext, buildPlanningTransitionContext, IPlanningTransitionContext, isPlanningModeName, mergePlanningTransitionContexts } from '../../common/planning/chatPlanningTransition.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
@@ -86,6 +89,9 @@ import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
+import { IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
+import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { generateDynamicPlanningQuestions } from '../planning/chatPlanningQuestionGenerator.js';
 
 const $ = dom.$;
 
@@ -272,6 +278,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private editorOptions!: ChatEditorOptions;
 
 	private recentlyRestoredCheckpoint: boolean = false;
+	private _planningTransitionContext: IPlanningTransitionContext | undefined;
+	private _lastPlanningQuestionSourceInput: string | undefined;
+	private _pendingPlanningQuestionResolveId: string | undefined;
+	private _skipDynamicPlanningQuestionsOnce = false;
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
@@ -319,6 +329,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const previousSessionResource = this._viewModel?.sessionResource;
+		if (!isEqual(previousSessionResource, viewModel?.sessionResource)) {
+			this._planningTransitionContext = undefined;
+			this._lastPlanningQuestionSourceInput = undefined;
+			this._pendingPlanningQuestionResolveId = undefined;
+			this._skipDynamicPlanningQuestionsOnce = false;
+		}
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
@@ -415,6 +431,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -859,6 +876,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.navigateToNextQuestion();
 	}
 
+	async refinePlan(): Promise<boolean> {
+		return this.triggerDynamicPlanningQuestions(this.getInput(), { storeToHistory: false });
+	}
+
 	toggleTipFocus(): boolean {
 		if (this._gettingStartedTipPartRef?.hasFocus()) {
 			this.focusInput();
@@ -1299,7 +1320,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async executeHandoff(handoff: IHandOff, agentId?: string): Promise<void> {
 		this.chatSuggestNextWidget.hide();
 
-		const promptToUse = handoff.prompt;
+		const promptToUse = this.getHandoffPrompt(handoff.prompt);
 
 		// If agentId is provided (from chevron dropdown), delegate to that chat session
 		// Otherwise, switch to the handoff agent
@@ -1325,6 +1346,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.acceptInput();
 			}
 		}
+	}
+
+	private getHandoffPrompt(prompt: string): string {
+		return augmentPromptWithPlanningContext(prompt, this.getPlanningTransitionContextForCurrentResponse());
+	}
+
+	private getPlanningTransitionContextForCurrentResponse() {
+		const items = this.viewModel?.getItems();
+		const lastItem = items?.[items.length - 1];
+		if (!lastItem || !isResponseVM(lastItem) || !lastItem.isComplete) {
+			return undefined;
+		}
+
+		const modeName = lastItem.model.request?.modeInfo?.modeInstructions?.name;
+		if (!isPlanningModeName(modeName)) {
+			return undefined;
+		}
+
+		const planningCarousel = [...lastItem.response.value].reverse().find(isUsedQuestionCarousel);
+		return mergePlanningTransitionContexts(this._planningTransitionContext, planningCarousel ? buildPlanningTransitionContext(planningCarousel) : undefined);
 	}
 
 	async handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void> {
@@ -2296,6 +2337,196 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private async maybeRunDynamicPlanningQuestions(input: string, options: IChatAcceptInputOptions): Promise<boolean> {
+		if (this._skipDynamicPlanningQuestionsOnce) {
+			this._skipDynamicPlanningQuestionsOnce = false;
+			return false;
+		}
+
+		if (!this.shouldRunDynamicPlanningQuestions(input)) {
+			return false;
+		}
+
+		return this.triggerDynamicPlanningQuestions(input, options);
+	}
+
+	private async triggerDynamicPlanningQuestions(input: string, options: IChatAcceptInputOptions): Promise<boolean> {
+		if (!input.trim()) {
+			return false;
+		}
+
+		if (!isPlanningModeName(this.input.currentModeObs.get().name.get())) {
+			return false;
+		}
+
+		if (this._pendingPlanningQuestionResolveId) {
+			this.input.focusQuestionCarousel();
+			return true;
+		}
+
+		if (this.input.questionCarousel) {
+			this.input.focusQuestionCarousel();
+			return true;
+		}
+
+		const questions = await generateDynamicPlanningQuestions(this.languageModelsService, this.getPlanningQuestionGenerationContext(input), CancellationToken.None);
+		if (!questions.length) {
+			return false;
+		}
+
+		this.showDynamicPlanningQuestionCarousel(input, questions, options);
+		return true;
+	}
+
+	private shouldRunDynamicPlanningQuestions(input: string): boolean {
+		if (!input.trim()) {
+			return false;
+		}
+
+		if (!isPlanningModeName(this.input.currentModeObs.get().name.get())) {
+			return false;
+		}
+
+		if (this.input.questionCarousel) {
+			return false;
+		}
+
+		const itemCount = this.viewModel?.getItems().length ?? 0;
+		if (itemCount === 0) {
+			return true;
+		}
+
+		const hasPlanningContext = Boolean(this.getPlanningTransitionContextForCurrentResponse() ?? this._planningTransitionContext);
+		const previousPlanningInput = this.getLastPlanningQuestionSourceInput();
+		if (!previousPlanningInput) {
+			return !hasPlanningContext;
+		}
+
+		return shouldRegeneratePlanningQuestions(input, previousPlanningInput, hasPlanningContext);
+	}
+
+	private getLastPlanningQuestionSourceInput(): string | undefined {
+		if (this._lastPlanningQuestionSourceInput?.trim()) {
+			return this._lastPlanningQuestionSourceInput;
+		}
+
+		const lastRequest = [...(this.viewModel?.getItems() ?? [])].reverse().find(isRequestVM);
+		return lastRequest?.messageText;
+	}
+
+	private getPlanningQuestionGenerationContext(input: string) {
+		const editor = this.getPreferredPlanningContextEditor();
+		const model = editor?.getModel();
+		const selection = editor?.getSelection();
+		const selectedText = model && selection && !selection.isEmpty() ? model.getValueInRange(selection) : undefined;
+
+		return {
+			userRequest: input,
+			modelId: this.input.currentLanguageModel,
+			activeFilePath: model?.uri.toString(),
+			selectedText,
+		};
+	}
+
+	private getPreferredPlanningContextEditor() {
+		const focusedEditor = this.codeEditorService.getFocusedCodeEditor();
+		if (focusedEditor && !this.isChatInternalEditor(focusedEditor.getModel()?.uri)) {
+			return focusedEditor;
+		}
+
+		const activeEditor = this.codeEditorService.getActiveCodeEditor();
+		if (activeEditor && !this.isChatInternalEditor(activeEditor.getModel()?.uri)) {
+			return activeEditor;
+		}
+
+		return this.codeEditorService.listCodeEditors().find(editor => !this.isChatInternalEditor(editor.getModel()?.uri));
+	}
+
+	private isChatInternalEditor(uri: URI | undefined): boolean {
+		if (!uri) {
+			return true;
+		}
+
+		return uri.scheme === Schemas.vscodeChatInput
+			|| uri.scheme === Schemas.vscodeChatCodeBlock
+			|| uri.scheme === Schemas.vscodeChatCodeCompareBlock
+			|| uri.scheme === Schemas.vscodeChatEditor;
+	}
+
+	private showDynamicPlanningQuestionCarousel(originalQuery: string, questions: IChatQuestion[], options: IChatAcceptInputOptions): void {
+		const carousel = new ChatQuestionCarouselData(questions, true, `dynamic-plan-${Date.now()}`);
+		this._pendingPlanningQuestionResolveId = carousel.resolveId;
+
+		const context = this.createDynamicPlanningQuestionRenderContext(originalQuery, carousel);
+		this.input.renderQuestionCarousel(carousel, context, {
+			shouldAutoFocus: true,
+			onSubmit: async answers => {
+				const answersRecord = answers ? Object.fromEntries(answers) : undefined;
+				carousel.data = answersRecord ?? {};
+				carousel.isUsed = true;
+				this.input.clearQuestionCarousel(undefined, carousel.resolveId);
+				this._pendingPlanningQuestionResolveId = undefined;
+				this._lastPlanningQuestionSourceInput = originalQuery;
+
+				const planningContext = buildPlanningTransitionContext(carousel, answersRecord);
+				this._planningTransitionContext = planningContext;
+				this._skipDynamicPlanningQuestionsOnce = true;
+
+				try {
+					await this._acceptInput(
+						{ query: augmentPromptWithPlanningContext(originalQuery, planningContext) },
+						{ ...options, storeToHistory: true }
+					);
+				} catch (error) {
+					this.logService.error('[Planning] Failed to submit dynamic planning questions', error);
+				}
+			}
+		});
+
+		this.input.focusQuestionCarousel();
+	}
+
+	private createDynamicPlanningQuestionRenderContext(input: string, carousel: IChatQuestionCarousel): IChatContentPartRenderContext {
+		const element = this.createSyntheticPlanningRequestViewModel(input);
+
+		return {
+			element,
+			elementIndex: Math.max(this.viewModel?.getItems().length ?? 0, 0),
+			container: this.container,
+			content: [carousel],
+			contentIndex: 0,
+			editorPool: undefined as never,
+			codeBlockStartIndex: 0,
+			treeStartIndex: 0,
+			diffEditorPool: undefined as never,
+			codeBlockModelCollection: this._codeBlockModelCollection,
+			currentWidth: constObservable(this.container.clientWidth),
+			onDidChangeVisibility: Event.None,
+			inlineTextModels: undefined as never,
+		};
+	}
+
+	private createSyntheticPlanningRequestViewModel(input: string): IChatRequestViewModel {
+		return {
+			id: 'dynamic-planning-questions',
+			sessionResource: this.viewModel!.sessionResource,
+			dataId: 'dynamic-planning-questions',
+			username: '',
+			message: { text: input, parts: [] },
+			messageText: input,
+			attempt: 0,
+			variables: [],
+			currentRenderedHeight: undefined,
+			shouldBeRemovedOnSend: undefined,
+			isComplete: true,
+			isCompleteAddedRequest: false,
+			slashCommand: undefined,
+			agentOrSlashCommandDetected: false,
+			shouldBeBlocked: constObservable(false),
+			timestamp: Date.now(),
+		};
+	}
+
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
@@ -2324,12 +2555,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
+		const inputValue = !query ? this.getInput() : query.query;
+		if (await this.maybeRunDynamicPlanningQuestions(inputValue, options)) {
+			return;
+		}
+
 		this._onDidAcceptInput.fire();
 		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
 
-		const editorValue = this.getInput();
 		const requestInputs: IChatRequestInputOptions = {
-			input: !query ? editorValue : query.query,
+			input: inputValue,
 			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
 
@@ -2832,6 +3067,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
+}
+
+function isUsedQuestionCarousel(content: unknown): content is IChatQuestionCarousel {
+	if (!content || typeof content !== 'object' || !('kind' in content) || content.kind !== 'questionCarousel') {
+		return false;
+	}
+
+	const carousel = content as IChatQuestionCarousel;
+	return Boolean(carousel.isUsed && carousel.data && Object.keys(carousel.data).length > 0);
 }
 
 const MIN_LIST_HEIGHT = 50;

@@ -1013,6 +1013,53 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class RefinePlanAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.refinePlan';
+
+		constructor() {
+			super({
+				id: RefinePlanAction.ID,
+				title: localize2('interactiveSession.refinePlan.label', "Chat: Refine Plan"),
+				tooltip: localize('refinePlan', "Refine Plan"),
+				icon: Codicon.refresh,
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.inChatSession,
+					ContextKeyExpr.or(
+						ChatContextKeys.chatModeName.isEqualTo('Plan'),
+						ChatContextKeys.chatModeName.isEqualTo('Planner'),
+						ChatContextKeys.chatModeName.isEqualTo('planner')
+					)
+				),
+				menu: {
+					id: MenuId.ChatInputSecondary,
+					order: 11,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.inChatSession,
+						ContextKeyExpr.or(
+							ChatContextKeys.chatModeName.isEqualTo('Plan'),
+							ChatContextKeys.chatModeName.isEqualTo('Planner'),
+							ChatContextKeys.chatModeName.isEqualTo('planner')
+						),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate()
+					)
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget || !(await widget.refinePlan())) {
+				alert(localize('chat.refinePlan.unavailable', "Enter or revise a planning request first to refine the plan."));
+			}
+		}
+	});
+
 	registerAction2(class FocusTipAction extends Action2 {
 		static readonly ID = 'workbench.action.chat.focusTip';
 

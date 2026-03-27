@@ -418,6 +418,11 @@ export interface IChatWidget {
 	 */
 	navigateToNextQuestion(): boolean;
 	/**
+	 * Explicitly regenerates planning questions for the current Plan-mode input.
+	 * @returns Whether the operation succeeded (i.e., a planning request was available and the carousel was shown or focused).
+	 */
+	refinePlan(): Promise<boolean>;
+	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
