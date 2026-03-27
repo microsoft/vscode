@@ -7,7 +7,7 @@ import { Throttler } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -168,7 +168,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
-	private readonly _serverTurnWatchers = this._register(new DisposableMap());
+	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
 	/** Per-session writeFile listeners for agent host editing sessions. */
 	private readonly _editingSessionListeners = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
@@ -497,7 +497,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * if applicable, and pipes turn progress through `progressObs`.
 	 */
 	private _watchForServerInitiatedTurns(backendSession: URI, sessionResource: URI): void {
-		const resourceKey = sessionResource.path.substring(1);
 		const sessionStr = backendSession.toString();
 
 		// Seed from the current state so we don't treat any pre-existing active
@@ -561,7 +560,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, sessionResource, turnStore);
 		}));
 
-		this._serverTurnWatchers.set(resourceKey, disposables);
+		this._serverTurnWatchers.set(sessionResource, disposables);
 	}
 
 	/**

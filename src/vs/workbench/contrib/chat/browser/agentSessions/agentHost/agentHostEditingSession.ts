@@ -246,10 +246,28 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 
 	// ---- Snapshots ----------------------------------------------------------
 
-	async restoreSnapshot(requestId: string, _stopId: string | undefined): Promise<void> {
-		const idx = this._checkpoints.findIndex(cp => cp.requestId === requestId);
+	private _findCheckpointIndex(requestId: string, stopId: string | undefined): number {
+		if (stopId !== undefined) {
+			return this._checkpoints.findIndex(cp => cp.requestId === requestId && cp.undoStopId === stopId);
+		}
+		// No specific stop: use the last checkpoint for this request
+		for (let i = this._checkpoints.length - 1; i >= 0; i--) {
+			if (this._checkpoints[i].requestId === requestId) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private _findCheckpoint(requestId: string, stopId: string | undefined): IAgentHostCheckpoint | undefined {
+		const idx = this._findCheckpointIndex(requestId, stopId);
+		return idx >= 0 ? this._checkpoints[idx] : undefined;
+	}
+
+	async restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
+		const idx = this._findCheckpointIndex(requestId, stopId);
 		if (idx < 0) {
-			this._logService.warn(`[AgentHostEditingSession] No checkpoint found for requestId=${requestId}`);
+			this._logService.warn(`[AgentHostEditingSession] No checkpoint found for requestId=${requestId}${stopId ? `, stopId=${stopId}` : ''}`);
 			return;
 		}
 
@@ -274,7 +292,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 	}
 
 	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
-		const cp = this._checkpoints.find(c => c.requestId === requestId);
+		const cp = this._findCheckpoint(requestId, stopId);
 		if (!cp) {
 			return undefined;
 		}
@@ -292,8 +310,8 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		});
 	}
 
-	async getSnapshotContents(requestId: string, uri: URI, _stopId: string | undefined): Promise<VSBuffer | undefined> {
-		const cp = this._checkpoints.find(c => c.requestId === requestId);
+	async getSnapshotContents(requestId: string, uri: URI, stopId: string | undefined): Promise<VSBuffer | undefined> {
+		const cp = this._findCheckpoint(requestId, stopId);
 		if (!cp) {
 			return undefined;
 		}

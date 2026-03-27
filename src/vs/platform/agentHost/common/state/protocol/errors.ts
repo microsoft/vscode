@@ -66,6 +66,11 @@ export const AhpErrorCodes = {
 	 * directory or workspace roots).
 	 */
 	PermissionDenied: -32009,
+	/**
+	 * The target resource already exists and the operation does not allow
+	 * overwriting (e.g. `writeFile` with `createOnly: true`).
+	 */
+	AlreadyExists: -32010,
 } as const;
 
 /** Union type of all AHP application error codes. */

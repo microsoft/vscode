@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -594,9 +594,20 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			content = VSBuffer.fromString(params.data);
 		}
 		try {
-			await this._fileService.writeFile(fileUri, content);
+			if (params.createOnly) {
+				await this._fileService.createFile(fileUri, content, { overwrite: false });
+			} else {
+				await this._fileService.writeFile(fileUri, content);
+			}
 			return {};
-		} catch (_e) {
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.FileExists) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
+			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
 		}
 	}

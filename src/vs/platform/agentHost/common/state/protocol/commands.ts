@@ -301,6 +301,7 @@ export interface IFetchContentResult {
  * @version 1
  * @throws `NotFound` (`-32008`) if the parent directory does not exist.
  * @throws `PermissionDenied` (`-32009`) if the client is not permitted to write to the path.
+ * @throws `AlreadyExists` (`-32010`) if `createOnly` is set and the file already exists.
  * @example
  * ```jsonc
  * // Client → Server
