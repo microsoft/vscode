@@ -1173,7 +1173,7 @@ export function groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
 	const groups = new Map<string, ISessionData[]>();
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
-		const label = workspace?.label || localize('noWorkspace', "No Workspace");
+		const label = workspace?.label ?? localize('unknown', "Unknown");
 		let group = groups.get(label);
 		if (!group) {
 			group = [];
@@ -1182,9 +1182,9 @@ export function groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
 		group.push(session);
 	}
 
-	const noWorkspaceLabel = localize('noWorkspace', "No Workspace");
+	const unknownWorkspaceLabel = localize('unknown', "Unknown");
 	const order = [...groups.keys()]
-		.filter(k => k !== noWorkspaceLabel)
+		.filter(k => k !== unknownWorkspaceLabel)
 		.sort((a, b) => a.localeCompare(b));
 
 	const result: ISessionSection[] = order.map(label => ({
@@ -1193,10 +1193,10 @@ export function groupByWorkspace(sessions: ISessionData[]): ISessionSection[] {
 		sessions: groups.get(label)!,
 	}));
 
-	// "No Workspace" always at the bottom
-	const noWorkspace = groups.get(noWorkspaceLabel);
-	if (noWorkspace) {
-		result.push({ id: `workspace:${noWorkspaceLabel}`, label: noWorkspaceLabel, sessions: noWorkspace });
+	// "Unknown Workspace" always at the bottom
+	const unknownWorkspace = groups.get(unknownWorkspaceLabel);
+	if (unknownWorkspace) {
+		result.push({ id: `workspace:${unknownWorkspaceLabel}`, label: unknownWorkspaceLabel, sessions: unknownWorkspace });
 	}
 
 	return result;
