@@ -41,7 +41,9 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				tooltip,
 				category: CHAT_CATEGORY,
 				icon,
-				precondition: canRunSessionCodeReviewContextKey,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.hasAgentSessionChanges,
+					canRunSessionCodeReviewContextKey),
 				menu: [
 					{
 						id: MenuId.ChatEditingSessionChangesToolbar,
@@ -49,7 +51,6 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 						order: 7,
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
-							ChatContextKeys.hasAgentSessionChanges,
 							ChatContextKeys.agentSessionType.notEqualsTo(AgentSessionProviders.Cloud),
 						),
 					},
