@@ -5,7 +5,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { Stylesheet, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
-import { LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext, Diagnostic, FormattingOptions, Settings, TextEdit } from './languageModes';
+import { LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext, Diagnostic } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 
 export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
@@ -60,11 +60,6 @@ export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegio
 		async getSelectionRange(document: TextDocument, position: Position) {
 			const embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.getSelectionRanges(embedded, [position], cssStylesheets.get(embedded))[0];
-		},
-		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = workspace.settings): Promise<TextEdit[]> {
-			const embedded = embeddedCSSDocuments.get(document);
-			const formatSettings = { ...formatParams, ...settings?.css?.format };
-			return cssLanguageService.format(embedded, range, formatSettings);
 		},
 		onDocumentRemoved(document: TextDocument) {
 			embeddedCSSDocuments.onDocumentRemoved(document);

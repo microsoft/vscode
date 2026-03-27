@@ -84,51 +84,6 @@ suite('HTML Embedded Formatting', () => {
 		await assertFormat('<html><head>\n<style>\n.foo{display:none;}\n</style></head></html>', '<html>\n\n<head>\n  <style>\n    .foo {\n      display: none;\n    }\n  </style>\n</head>\n\n</html>');
 	});
 
-	test('HTML & Styles with CSS format settings - newlineBetweenSelectors', async () => {
-		const options = {
-			css: {
-				format: {
-					newlineBetweenSelectors: false
-				}
-			}
-		};
-		await assertFormat(
-			'<html><head>\n<style>\n.foo,\n.bar{display:none;}\n</style></head></html>',
-			'<html>\n\n<head>\n  <style>\n    .foo, .bar {\n      display: none;\n    }\n  </style>\n</head>\n\n</html>',
-			options
-		);
-	});
-
-	test('HTML & Styles with CSS format settings - newlineBetweenRules', async () => {
-		const options = {
-			css: {
-				format: {
-					newlineBetweenRules: false
-				}
-			}
-		};
-		await assertFormat(
-			'<html><head>\n<style>\n.foo{display:none;}\n.bar{color:red;}\n</style></head></html>',
-			'<html>\n\n<head>\n  <style>\n    .foo {\n      display: none;\n    }\n    .bar {\n      color: red;\n    }\n  </style>\n</head>\n\n</html>',
-			options
-		);
-	});
-
-	test('HTML & Styles with CSS format settings - spaceAroundSelectorSeparator', async () => {
-		const options = {
-			css: {
-				format: {
-					spaceAroundSelectorSeparator: true
-				}
-			}
-		};
-		await assertFormat(
-			'<html><head>\n<style>\ndiv>p{color:red;}\n</style></head></html>',
-			'<html>\n\n<head>\n  <style>\n    div > p {\n      color: red;\n    }\n  </style>\n</head>\n\n</html>',
-			options
-		);
-	});
-
 	test('HTML & Styles - indentation preserved around style tag boundaries', async () => {
 		// Verify that content before and after <style> maintains correct indentation
 		await assertFormat(
@@ -146,17 +101,9 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('HTML & Styles - multiple style blocks', async () => {
-		const options = {
-			css: {
-				format: {
-					newlineBetweenSelectors: false
-				}
-			}
-		};
 		await assertFormat(
-			'<html><head>\n<style>\n.a,.b{color:red;}\n</style>\n<style>\n.c,.d{color:blue;}\n</style></head></html>',
-			'<html>\n\n<head>\n  <style>\n    .a, .b {\n      color: red;\n    }\n  </style>\n  <style>\n    .c, .d {\n      color: blue;\n    }\n  </style>\n</head>\n\n</html>',
-			options
+			'<html><head>\n<style>\n.a{color:red;}\n</style>\n<style>\n.b{color:blue;}\n</style></head></html>',
+			'<html>\n\n<head>\n  <style>\n    .a {\n      color: red;\n    }\n  </style>\n  <style>\n    .b {\n      color: blue;\n    }\n  </style>\n</head>\n\n</html>'
 		);
 	});
 
