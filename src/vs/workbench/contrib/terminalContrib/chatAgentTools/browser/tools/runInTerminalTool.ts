@@ -306,7 +306,7 @@ export async function createRunInTerminalToolData(
 				},
 				timeout: {
 					type: 'number',
-					description: `An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far with a timeout indicator. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it's not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low. If a command times out, use ${TerminalToolId.MoveTerminalToBackground} to move it to the background and continue with other work.`,
+					description: `A timeout in milliseconds for foreground commands (isBackground=false). When provided, the tool will automatically move the terminal to the background after this duration and return the output collected so far. The command continues running and its output can be checked later using ${TerminalToolId.GetTerminalOutput} or awaited with ${TerminalToolId.AwaitTerminal}. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it's not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low. This property is ignored for background commands.`,
 				},
 				...isSandboxEnabled ? {
 					requestUnsandboxedExecution: {
@@ -324,8 +324,13 @@ export async function createRunInTerminalToolData(
 				'explanation',
 				'goal',
 				'isBackground',
-				'timeout',
-			]
+			],
+			if: {
+				properties: { isBackground: { const: false } }
+			},
+			then: {
+				required: ['timeout']
+			}
 		}
 	};
 }
