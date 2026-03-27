@@ -65,6 +65,8 @@ const defaultChat = {
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
+const SIGN_IN_TITLE_BAR_ACTION_ID = 'workbench.action.chat.signInIndicator';
+
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatSetup';
@@ -369,7 +371,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		class ChatSetupSignInTitleBarAction extends Action2 {
 
-			static readonly ID = 'workbench.action.chat.signInIndicator';
+			static readonly ID = SIGN_IN_TITLE_BAR_ACTION_ID;
 
 			constructor() {
 				super({
@@ -602,7 +604,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		this._register(actionViewItemService.register(
 			MenuId.TitleBarAdjacentCenter,
-			'workbench.action.chat.signInIndicator',
+			SIGN_IN_TITLE_BAR_ACTION_ID,
 			(action, options) => new SignInTitleBarEntry(action, options)
 		));
 	}
@@ -838,9 +840,9 @@ class SignInTitleBarEntry extends BaseActionViewItem {
 	public override render(container: HTMLElement) {
 		super.render(container);
 
+		container.setAttribute('aria-label', this.action.label);
+
 		const content = dom.append(container, dom.$('.update-indicator.prominent'));
-		content.setAttribute('role', 'button');
-		content.setAttribute('aria-label', this.action.label);
 		const label = dom.append(content, dom.$('.indicator-label'));
 		label.textContent = this.action.label;
 	}
