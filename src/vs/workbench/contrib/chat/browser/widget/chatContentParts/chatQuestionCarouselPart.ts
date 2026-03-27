@@ -1200,14 +1200,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			? question.defaultValue
 			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
 
-		// Re-sort options so default options appear first
-		const options = defaultOptionIds.length > 0
-			? [...originalOptions].sort((a, b) => {
-				const aIsDefault = defaultOptionIds.includes(a.id);
-				const bIsDefault = defaultOptionIds.includes(b.id);
-				return aIsDefault === bIsDefault ? 0 : aIsDefault ? -1 : 1;
-			})
-			: originalOptions;
+		// Use the original options order so checkbox indices stay aligned with question.options
+		const options = originalOptions;
 
 		const checkboxes: Checkbox[] = [];
 		const listItems: HTMLElement[] = [];
