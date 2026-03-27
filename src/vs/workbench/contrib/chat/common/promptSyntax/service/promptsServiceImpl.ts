@@ -1286,7 +1286,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return result;
 	}
 
-	private async computeInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]> {
+	private async computeInstructionFiles(token: CancellationToken): Promise<readonly IPromptPath[]> {
 		return await this.listPromptFiles(PromptsType.instructions, token);
 	}
 
