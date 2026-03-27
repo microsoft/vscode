@@ -264,6 +264,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Forward session change events from providers and update active session
 		this._register(this.sessionsProvidersService.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 
+		// When a provider replaces a temp session with a committed one, update the active session
+		this._register(this.sessionsProvidersService.onDidReplaceSession(e => this.setActiveSession(this._chatToSession(e.committed))));
+
 		// Restore or auto-select active provider
 		this._initActiveProvider();
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
@@ -600,11 +603,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Delegate to the provider. The temp session appears in the list immediately
 		// via the provider's added event. sendRequest resolves with the committed session
 		// once the first turn completes and the session is persisted.
+		// The active session is updated via onDidReplaceSession before this resolves.
 		const newChat = await provider.sendRequest(chat.chatId, options);
 
-		// Add the committed chat to the session's group and set it as active
+		// Add the committed chat to the session's group
 		this._groupModel.addChat(newChat.chatId, newChat.chatId);
-		this.setActiveSession(this._chatToSession(newChat));
 	}
 
 	openNewSessionView(): void {
