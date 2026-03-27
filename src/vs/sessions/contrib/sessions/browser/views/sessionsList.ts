@@ -256,8 +256,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const changes = element.changes.read(reader);
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
-			const timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
+			let timeDate: Date | undefined;
 
+			// When the session is InProgress or NeedsInput, hide workspace/diff/time details in this row
+			const hideDetails = sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput;
+
+			if (!hideDetails) {
+				timeDate = this.options.sorting() === SessionsSorting.Updated ? element.updatedAt.read(reader) : element.createdAt;
+			}
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
@@ -273,7 +279,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			// Workspace badge — show when not grouped by workspace,
 			// or when the session is pinned/archived (their section headers
 			// don't carry the workspace name)
-			if (workspace && (
+			if (!hideDetails && workspace && (
 				this.options.grouping() !== SessionsGrouping.Workspace ||
 				this.options.isPinned(element) ||
 				element.isArchived.read(reader)
@@ -287,7 +293,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// Diff stats
-			if (changes.length > 0 && sessionStatus !== SessionStatus.InProgress) {
+			if (!hideDetails && changes.length > 0) {
 				let insertions = 0;
 				let deletions = 0;
 				for (const change of changes) {
@@ -329,21 +335,26 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				parts.push(statusEl);
 			}
 
-			// Timestamp — always visible
-			if (parts.length > 0) {
-				DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
-			}
-			const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
-			const formatTime = () => {
-				const seconds = Math.round((Date.now() - timeDate.getTime()) / 1000);
-				return seconds < 60 ? localize('secondsDuration', "now") : fromNow(timeDate, true);
-			};
-			timeEl.textContent = formatTime();
-			const targetWindow = DOM.getWindow(timeEl);
-			const interval = targetWindow.setInterval(() => {
+			// Timestamp — visible when not hiding details
+			if (!hideDetails && timeDate) {
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+				}
+				const timeEl = DOM.append(template.detailsRow, $('span.session-time'));
+				const definiteTimeDate = timeDate;
+				const formatTime = () => {
+					const seconds = Math.round((Date.now() - definiteTimeDate.getTime()) / 1000);
+					return seconds < 60 ? localize('secondsDuration', "now") : fromNow(definiteTimeDate, true);
+				};
 				timeEl.textContent = formatTime();
-			}, 60_000);
-			timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
+				const targetWindow = DOM.getWindow(timeEl);
+				const interval = targetWindow.setInterval(() => {
+					timeEl.textContent = formatTime();
+				}, 60_000);
+				timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
+			} else {
+				timeDisposable.clear();
+			}
 		}));
 
 		// Approval row — reactive
