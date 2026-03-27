@@ -349,6 +349,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					timeEl.textContent = formatTime();
 				}, 60_000);
 				timeDisposable.value = toDisposable(() => targetWindow.clearInterval(interval));
+			} else {
+				timeDisposable.clear();
 			}
 		}));
 
