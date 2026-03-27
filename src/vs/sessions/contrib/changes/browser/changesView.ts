@@ -1315,6 +1315,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IChangesTreeTemplate {
@@ -1342,6 +1343,11 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
 			label.element.appendChild(actionBarContainer);
+
+			templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				return activeSession?.sessionType ?? '';
+			}));
 		}
 
 		const decorationBadge = dom.$('.changes-decoration-badge');
