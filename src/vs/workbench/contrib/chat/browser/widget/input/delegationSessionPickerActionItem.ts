@@ -104,6 +104,11 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return false;
 		}
 
+		// Cloud delegation requires a git repository
+		if (type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
+			return false;
+		}
+
 		if (this.delegate.getActiveSessionProvider() === type) {
 			return true; // Always show active session type
 		}
