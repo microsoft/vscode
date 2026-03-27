@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Browser, Page } from 'playwright';
+import { Page } from 'playwright';
 import { TestContext } from './context.js';
 import { GitHubAuth } from './githubAuth.js';
 import { UITest } from './uiTest.js';
@@ -71,83 +71,80 @@ export function setup(context: TestContext) {
 
 	async function testCliApp(entryPoint: string) {
 		const cliDataDir = context.createTempDir();
-		const test = new UITest(context);
-		const auth = new GitHubAuth(context);
-		let browser: Browser | undefined;
-		let page: Page | undefined;
-
 		context.log('Logging out of Dev Tunnel to ensure fresh authentication');
 		context.run(entryPoint, '--cli-data-dir', cliDataDir, 'tunnel', 'user', 'logout');
 
-		context.log('Starting Dev Tunnel to local server using CLI');
-		await context.runCliApp('CLI', entryPoint,
-			[
-				'--cli-data-dir', cliDataDir,
-				'tunnel',
-				'--accept-server-license-terms',
-				'--server-data-dir', context.createTempDir(),
-				'--extensions-dir', test.extensionsDir,
-				'--verbose'
-			],
-			async (line) => {
-				const deviceCode = /To grant access .* use code ([A-Z0-9-]+)/.exec(line)?.[1];
-				if (deviceCode) {
-					context.log(`Device code detected: ${deviceCode}, starting device flow authentication`);
-					browser = await context.launchBrowser();
-					page = await context.getPage(browser.newPage());
-					await auth.runDeviceCodeFlow(page, deviceCode);
-					return;
-				}
-
-				const tunnelUrl = /Open this link in your browser (https?:\/\/[^\s]+)/.exec(line)?.[1];
-				if (tunnelUrl) {
-					const tunnelId = new URL(tunnelUrl).pathname.split('/').pop()!;
-					const url = context.getTunnelUrl(tunnelUrl, test.workspaceDir);
-					context.log(`CLI started successfully with tunnel URL: ${url}`);
-
-					if (!browser || !page) {
-						throw new Error('Browser instance is not available');
+		const test = new UITest(context);
+		const auth = new GitHubAuth(context);
+		const browser = await context.launchBrowser();
+		try {
+			const page = await context.getPage(browser.newPage());
+			context.log('Starting Dev Tunnel to local server using CLI');
+			await context.runCliApp('CLI', entryPoint,
+				[
+					'--cli-data-dir', cliDataDir,
+					'tunnel',
+					'--accept-server-license-terms',
+					'--server-data-dir', context.createTempDir(),
+					'--extensions-dir', test.extensionsDir,
+					'--verbose'
+				],
+				async (line) => {
+					const deviceCode = /To grant access .* use code ([A-Z0-9-]+)/.exec(line)?.[1];
+					if (deviceCode) {
+						context.log(`Device code detected: ${deviceCode}, starting device flow authentication`);
+						await auth.runDeviceCodeFlow(page, deviceCode);
+						return;
 					}
 
-					const maxAttempts = 3;
-					for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-						try {
-							context.log(`Navigating to ${url} (attempt ${attempt}/${maxAttempts})`);
-							await page.goto(url);
-
-							context.log('Waiting for the workbench to load');
-							await page.waitForSelector('.monaco-workbench');
-
-							context.log('Selecting GitHub Account');
-							await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();
-
-							context.log('Clicking Allow on confirmation dialog');
-							const popup = page.waitForEvent('popup');
-							await page.getByRole('button', { name: 'Allow' }).click();
-
-							await auth.runAuthorizeFlow(await popup);
-
-							context.log('Waiting for connection to be established');
-							await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
-							break;
-						} catch (error) {
-							if (attempt === maxAttempts) {
-								await context.captureScreenshot(page);
-								throw error;
-							}
-							context.log(`Auth flow attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}, retrying...`);
-						}
+					const tunnelUrl = /Open this link in your browser (https?:\/\/[^\s]+)/.exec(line)?.[1];
+					if (tunnelUrl) {
+						await connectToTunnel(tunnelUrl, page, test, auth);
+						await test.run(page);
+						test.validate();
+						return true;
 					}
-
-					await test.run(page);
-
-					context.log('Closing browser');
-					await browser.close();
-
-					test.validate();
-					return true;
 				}
+			);
+		} finally {
+			context.log('Closing browser');
+			await browser.close();
+		}
+	}
+
+	async function connectToTunnel(tunnelUrl: string, page: Page, test: UITest, auth: GitHubAuth) {
+		const tunnelId = new URL(tunnelUrl).pathname.split('/').pop()!;
+		const url = context.getTunnelUrl(tunnelUrl, test.workspaceDir);
+		context.log(`CLI started successfully with tunnel URL: ${url}`);
+
+		const maxAttempts = 3;
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				context.log(`Navigating to ${url} (attempt ${attempt}/${maxAttempts})`);
+				await page.goto(url);
+
+				context.log('Waiting for the workbench to load');
+				await page.waitForSelector('.monaco-workbench');
+
+				context.log('Selecting GitHub Account');
+				await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();
+
+				context.log('Clicking Allow on confirmation dialog');
+				const popup = page.waitForEvent('popup');
+				await page.getByRole('button', { name: 'Allow' }).click();
+
+				await auth.runAuthorizeFlow(await popup);
+
+				context.log('Waiting for connection to be established');
+				await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
+				return;
+			} catch (error) {
+				if (attempt === maxAttempts) {
+					await context.captureScreenshot(page);
+					throw error;
+				}
+				context.log(`Auth flow attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}, retrying...`);
 			}
-		);
+		}
 	}
 }
