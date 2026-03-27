@@ -6,8 +6,8 @@
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
-import { AgentHostFileSystemProvider, agentHostRemotePath } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostFileSystemProvider } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -24,31 +24,13 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { resolveTokenForResource } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
-import { AgentHostSessionListController } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { LoggingAgentConnection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
-import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
-
-/**
- * Given a sanitized URI authority, resolves the corresponding agent host
- * session target string by looking up the matching connection.
- *
- * Returns `undefined` if no connection matches the authority.
- */
-export function getRemoteAgentHostSessionTarget(
-	connections: readonly IRemoteAgentHostConnectionInfo[],
-	authority: string,
-): AgentSessionTarget | undefined {
-	for (const conn of connections) {
-		if (agentHostAuthority(conn.address) === authority) {
-			return `remote-${agentHostAuthority(conn.address)}-copilot`;
-		}
-	}
-	return undefined;
-}
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
@@ -73,12 +55,11 @@ class ConnectionState extends Disposable {
 /**
  * Discovers available agents from each connected remote agent host and
  * dynamically registers each one as a chat session type with its own
- * session handler, list controller, and language model provider.
+ * session handler and language model provider.
  *
- * Uses the same unified {@link AgentHostSessionHandler} and
- * {@link AgentHostSessionListController} as the local agent host,
- * obtaining per-connection {@link IAgentConnection} instances from
- * {@link IRemoteAgentHostService.getConnection}.
+ * Uses the same unified {@link AgentHostSessionHandler} as the local
+ * agent host, obtaining per-connection {@link IAgentConnection}
+ * instances from {@link IRemoteAgentHostService.getConnection}.
  */
 export class RemoteAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
@@ -100,6 +81,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IFileService private readonly _fileService: IFileService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
@@ -144,20 +126,21 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				if (existing.name !== connectionInfo.name) {
 					this._logService.info(`[RemoteAgentHost] Name changed for ${connectionInfo.address}: ${existing.name} -> ${connectionInfo.name}`);
 					this._connections.deleteAndDispose(connectionInfo.address);
-					this._setupConnection(connectionInfo.address, connectionInfo.name);
+					this._setupConnection(connectionInfo);
 				}
 			} else {
-				this._setupConnection(connectionInfo.address, connectionInfo.name);
+				this._setupConnection(connectionInfo);
 			}
 		}
 	}
 
-	private _setupConnection(address: string, name: string | undefined): void {
-		const connection = this._remoteAgentHostService.getConnection(address);
+	private _setupConnection(connectionInfo: IRemoteAgentHostConnectionInfo): void {
+		const connection = this._remoteAgentHostService.getConnection(connectionInfo.address);
 		if (!connection) {
 			return;
 		}
 
+		const { address, name } = connectionInfo;
 		const sanitized = agentHostAuthority(address);
 		const channelId = `agentHostIpc.remote.${sanitized}`;
 		const channelLabel = `Agent Host (${name || address})`;
@@ -200,6 +183,13 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		// Authenticate with this new connection
 		this._authenticateWithConnection(loggedConnection);
+
+		// Register a single sessions provider for the entire connection.
+		// It handles all agents discovered on this connection.
+		const sessionsProvider = this._instantiationService.createInstance(
+			RemoteAgentHostSessionsProvider, { connectionInfo, connection: loggedConnection });
+		store.add(sessionsProvider);
+		store.add(this._sessionsProvidersService.registerProvider(sessionsProvider));
 	}
 
 	private _handleRootStateChange(address: string, loggedConnection: LoggingAgentConnection, rootState: IRootState): void {
@@ -262,19 +252,15 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (cached) {
 				return cached;
 			}
-			const repository = this._sessionsManagementService.getActiveSession()?.repository;
-			if (repository) {
-				let dir: string | undefined;
-				if (repository.scheme === AGENT_HOST_SCHEME) {
-					// Decode the agent host URI to get the actual remote filesystem path
-					dir = agentHostRemotePath(repository);
-				} else if (repository.scheme === 'file') {
-					dir = repository.fsPath || repository.path;
-				}
-				if (dir) {
-					sessionWorkingDirs.set(resourceKey, dir);
-					return dir;
-				}
+			const activeSession = this._sessionsManagementService.activeSession.get();
+			const repoUri = activeSession?.workspace.get()?.repositories[0]?.uri;
+			if (repoUri) {
+				// The repository URI may be wrapped as a vscode-agent-host:// URI.
+				// Unwrap to get the original filesystem path.
+				const originalUri = repoUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(repoUri) : repoUri;
+				const dir = originalUri.path;
+				sessionWorkingDirs.set(resourceKey, dir);
+				return dir;
 			}
 			return undefined;
 		};
@@ -289,11 +275,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			requiresCustomModels: true,
 			supportsDelegation: false,
 		}));
-
-		// Session list controller (unified)
-		const listController = agentStore.add(this._instantiationService.createInstance(
-			AgentHostSessionListController, sessionType, agent.provider, loggedConnection, displayName));
-		agentStore.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
 		// Session handler (unified)
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
@@ -407,9 +388,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.remoteAgentHostsEnabled', "Enable connecting to remote agent hosts."),
+			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: false,
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental'],
 		},
 		[RemoteAgentHostsSettingId]: {
 			type: 'array',

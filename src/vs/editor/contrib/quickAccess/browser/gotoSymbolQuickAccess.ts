@@ -18,7 +18,7 @@ import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymb
 import { IOutlineModelService } from '../../documentSymbols/browser/outlineModel.js';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from './editorNavigationQuickAccess.js';
 import { localize } from '../../../../nls.js';
-import { IQuickInputButton, IQuickPick, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IKeyMods, IQuickInputButton, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { Position } from '../../../common/core/position.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
@@ -32,7 +32,7 @@ export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	uri?: URI;
 	symbolName?: string;
 	range?: { decoration: IRange; selection: IRange };
-	attach?(): void;
+	attach?(keyMods: IKeyMods, event: IQuickPickDidAcceptEvent): void;
 }
 
 export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
@@ -146,6 +146,13 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item && item.range) {
+				// When shift is held and attach is available, delegate to attach
+				// (e.g. to add to chat context) instead of navigating
+				if (picker.keyMods.shift && item.attach) {
+					item.attach(picker.keyMods, event);
+					return;
+				}
+
 				this.gotoLocation(context, { range: item.range.selection, keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
 				runOptions?.handleAccept?.(item, event.inBackground);

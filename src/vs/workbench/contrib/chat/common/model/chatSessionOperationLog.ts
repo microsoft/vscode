@@ -144,7 +144,6 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	followups: Adapt.v(m => m.response?.followups, objectsEqual),
 	modelState: Adapt.v(m => m.response?.stateT, objectsEqual),
 	vote: Adapt.v(m => m.response?.vote),
-	voteDownReason: Adapt.v(m => m.response?.voteDownReason),
 	slashCommand: Adapt.t(m => m.response?.slashCommand, Adapt.value((a, b) => a?.name === b?.name)),
 	usedContext: Adapt.v(m => m.response?.usedContext, objectsEqual),
 	contentReferences: Adapt.v(m => m.response?.contentReferences, objectsEqual),
@@ -161,6 +160,7 @@ const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISeriali
 	selectedModel: Adapt.v(i => i.selectedModel, (a, b) => a?.identifier === b?.identifier),
 	inputText: Adapt.v(i => i.inputText),
 	selections: Adapt.v(i => i.selections, objectsEqual),
+	permissionLevel: Adapt.v(i => i.permissionLevel),
 	contrib: Adapt.v(i => i.contrib, objectsEqual),
 });
 

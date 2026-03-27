@@ -14,23 +14,51 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, SessionsConfigurationService, ITaskEntry } from '../../browser/sessionsConfigurationService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
+import { IChatData, ISessionData, SessionStatus } from '../../../sessions/common/sessionData.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
-function makeSession(opts: { repository?: URI; worktree?: URI } = {}): IActiveSessionItem {
-	return {
+function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionData {
+	const workspace = opts.repository ? {
+		label: 'test',
+		icon: Codicon.folder,
+		repositories: [{
+			uri: opts.repository,
+			workingDirectory: opts.worktree,
+			detail: undefined,
+			baseBranchName: undefined,
+			baseBranchProtected: undefined,
+		}],
+		requiresWorkspaceTrust: false,
+	} : undefined;
+	const chat: IChatData = {
+		chatId: 'test:session',
 		resource: URI.parse('file:///session'),
-		isUntitled: false,
-		label: 'session',
-		repository: opts.repository,
-		worktree: opts.worktree,
-		worktreeBranchName: undefined,
-		providerType: 'background',
-	} as IActiveSessionItem;
+		providerId: 'test',
+		sessionType: 'background',
+		icon: Codicon.copilot,
+		createdAt: new Date(),
+		workspace: observableValue('workspace', workspace),
+		title: observableValue('title', 'session'),
+		updatedAt: observableValue('updatedAt', new Date()),
+		status: observableValue('status', SessionStatus.Untitled),
+		changes: observableValue('changes', []),
+		modelId: observableValue('modelId', undefined),
+		mode: observableValue('mode', undefined),
+		loading: observableValue('loading', false),
+		isArchived: observableValue('isArchived', false),
+		isRead: observableValue('isRead', true),
+		lastTurnEnd: observableValue('lastTurnEnd', undefined),
+		description: observableValue('description', undefined),
+		pullRequest: observableValue('pullRequest', undefined),
+	};
+	const session: ISessionData = { ...chat, sessionId: chat.chatId, chats: observableValue('chats', [chat]), activeChat: observableValue('activeChat', chat) };
+	return session;
 }
 
 function makeTask(label: string, command?: string, inSessions?: boolean): ITaskEntry {
@@ -56,10 +84,10 @@ suite('SessionsConfigurationService', () => {
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
 	let ranTasks: { label: string }[];
-	let committedFiles: { session: IActiveSessionItem; fileUris: URI[] }[];
+	let committedFiles: { session: ISessionData; fileUris: URI[] }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
+	let activeSessionObs: ReturnType<typeof observableValue<ISessionData | undefined>>;
 	let tasksByLabel: Map<string, Task>;
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
 
@@ -123,7 +151,7 @@ suite('SessionsConfigurationService', () => {
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
-			override async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]) { committedFiles.push({ session, fileUris }); }
+			override async commitWorktreeFiles(session: ISessionData, fileUris: URI[]) { committedFiles.push({ session, fileUris }); }
 		});
 
 		storageService = store.add(new InMemoryStorageService());

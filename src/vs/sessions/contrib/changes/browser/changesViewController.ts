@@ -3,12 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, derived, derivedOpts, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -29,29 +26,17 @@ export class ChangesViewController extends Disposable {
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
 		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
-		const activeSessionChangedSignal = observableSignalFromEvent(this,
-			this.agentSessionsService.model.onDidChangeSessions);
-
-		const activeSessionResourceObs = derivedOpts<URI | undefined>({ equalsFn: isEqual, }, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.resource;
-		});
-
 		const activeSessionHasChangesObs = derived<boolean>(reader => {
-			const sessionResource = activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			if (!activeSession) {
 				return false;
 			}
-
-			activeSessionChangedSignal.read(reader);
-			const model = this.agentSessionsService.getSession(sessionResource);
-			const changes = model?.changes instanceof Array ? model.changes : [];
+			const changes = activeSession.changes.read(reader);
 			return changes.length > 0;
 		});
 
@@ -65,19 +50,19 @@ export class ChangesViewController extends Disposable {
 		// if there are changes after the turn. If there were no changes before the
 		// turn and there are changes after the turn, show the auxiliary bar.
 		this._register(autorun((reader) => {
-			const activeSessionResource = activeSessionResourceObs.read(reader);
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
-			if (!activeSessionResource) {
+			if (!activeSession) {
 				return;
 			}
 
-			const pendingTurnState = this.pendingTurnStateByResource.get(activeSessionResource);
+			const pendingTurnState = this.pendingTurnStateByResource.get(activeSession.resource);
 			if (!pendingTurnState) {
 				return;
 			}
 
-			const activeSession = this.agentSessionsService.getSession(activeSessionResource);
-			const turnCompleted = !!activeSession?.timing.lastRequestEnded && activeSession.timing.lastRequestEnded >= pendingTurnState.submittedAt;
+			const lastTurnEnd = activeSession.lastTurnEnd.read(reader);
+			const turnCompleted = !!lastTurnEnd && lastTurnEnd.getTime() >= pendingTurnState.submittedAt;
 			if (!turnCompleted) {
 				return;
 			}
@@ -86,7 +71,7 @@ export class ChangesViewController extends Disposable {
 				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}
 
-			this.pendingTurnStateByResource.delete(activeSessionResource);
+			this.pendingTurnStateByResource.delete(activeSession.resource);
 		}));
 
 		this._register(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
