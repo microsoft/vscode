@@ -971,10 +971,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Get default option id (for singleSelect, defaultValue is a single string)
 		const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
 
-		// Re-sort options so the default option appears first
-		const options = defaultOptionId !== undefined
-			? [...originalOptions].sort((a, b) => (a.id === defaultOptionId ? -1 : b.id === defaultOptionId ? 1 : 0))
-			: originalOptions;
+		// Use original options order so selectedIndex matches question.options indexing
+		const options = originalOptions;
 
 		// Determine initially selected index
 		let selectedIndex = -1;
