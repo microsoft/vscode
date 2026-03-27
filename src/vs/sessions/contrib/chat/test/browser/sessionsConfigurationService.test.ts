@@ -31,6 +31,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 			uri: opts.repository,
 			workingDirectory: opts.worktree,
 			detail: undefined,
+			baseBranchName: undefined,
 			baseBranchProtected: undefined,
 		}],
 		requiresWorkspaceTrust: false,

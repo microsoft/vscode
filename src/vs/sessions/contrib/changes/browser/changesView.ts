@@ -10,6 +10,7 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -222,6 +223,7 @@ function buildTreeChildren(items: IChangesFileItem[]): IObjectTreeElement<Change
 class ChangesViewModel extends Disposable {
 	readonly sessionsChangedSignal: IObservable<void>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
+	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 
@@ -258,6 +260,14 @@ class ChangesViewModel extends Disposable {
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.resource;
+		});
+
+		// Active session isolation mode
+		this.activeSessionIsolationModeObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.workspace.read(reader)?.repositories[0]?.workingDirectory === undefined
+				? IsolationMode.Workspace
+				: IsolationMode.Worktree;
 		});
 
 		// Active session changes
@@ -748,10 +758,7 @@ export class ChangesViewPane extends ViewPane {
 			}));
 
 			this.renderDisposables.add(bindContextKey(isolationModeContextKey, this.scopedContextKeyService, reader => {
-				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				return activeSession?.workspace.read(reader)?.repositories[0].workingDirectory === undefined
-					? IsolationMode.Workspace
-					: IsolationMode.Worktree;
+				return this.viewModel.activeSessionIsolationModeObs.read(reader);
 			}));
 
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, reader => {
@@ -918,12 +925,17 @@ export class ChangesViewPane extends ViewPane {
 		// Create the tree
 		if (!this.tree && this.listContainer) {
 			const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
+			const actionRunner = this.renderDisposables.add(new ChangesViewActionRunner(
+				() => this.viewModel.activeSessionResourceObs.get(),
+				() => this.getSessionRefs(),
+				() => this.getTreeSelection(),
+			));
 			this.tree = this.instantiationService.createInstance(
 				WorkbenchCompressibleObjectTree<ChangesTreeElement>,
 				'ChangesViewTree',
 				this.listContainer,
 				new ChangesTreeDelegate(),
-				[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, MenuId.ChatEditingSessionChangesToolbar)],
+				[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, MenuId.ChatEditingSessionChangeToolbar, actionRunner)],
 				{
 					alwaysConsumeMouseWheel: false,
 					accessibilityProvider: {
@@ -1112,6 +1124,33 @@ export class ChangesViewPane extends ViewPane {
 		this.splitView.layout(availableHeight);
 	}
 
+	private getTreeSelection(): IChangesFileItem[] {
+		const selection = this.tree?.getSelection() ?? [];
+		return selection.filter(item => !!item && isChangesFileItem(item));
+	}
+
+	private getSessionRefs(): [string, string] {
+		const activeSession = this.sessionManagementService.activeSession.get();
+		const activeSessionIsolationMode = this.viewModel.activeSessionIsolationModeObs.get();
+		const activeSessionRepositoryState = this.viewModel.activeSessionRepositoryObs.get()?.state.get();
+
+		let originalRef: string, modifiedRef: string;
+		if (activeSessionIsolationMode === IsolationMode.Worktree) {
+			// Worktree
+			originalRef = activeSession?.workspace.get()?.repositories[0].baseBranchName ?? '';
+			modifiedRef = activeSessionRepositoryState?.HEAD?.name ?? '';
+		} else {
+			// Workspace
+			const upstream = activeSessionRepositoryState?.HEAD?.upstream;
+			originalRef = upstream
+				? `${upstream.remote}/${upstream.name}`
+				: activeSessionRepositoryState?.HEAD?.name ?? '';
+			modifiedRef = activeSessionRepositoryState?.HEAD?.name ?? '';
+		}
+
+		return [originalRef, modifiedRef];
+	}
+
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.currentBodyHeight = height;
@@ -1154,6 +1193,32 @@ export class ChangesViewPaneContainer extends ViewPaneContainer {
 	}
 }
 
+// --- Action Runner
+
+class ChangesViewActionRunner extends ActionRunner {
+
+	constructor(
+		private readonly getSessionResource: () => URI | undefined,
+		private readonly getSessionRefs: () => [originalRef: string, modifiedRef: string],
+		private readonly getSelectedFileItems: () => IChangesFileItem[]
+	) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: URI): Promise<void> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const sessionResource = this.getSessionResource();
+		const [originalRef, modifiedRef] = this.getSessionRefs();
+		const selection = this.getSelectedFileItems();
+		const contextIsSelected = selection.some(s => isEqual(s.uri, context));
+		const actualContext = contextIsSelected ? selection.map(s => s.uri) : [context];
+		await action.run(sessionResource, originalRef, modifiedRef, ...actualContext);
+	}
+}
+
 // --- Tree Delegate & Renderer
 
 class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
@@ -1187,6 +1252,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	constructor(
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
+		private actionRunner: ActionRunner | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1206,18 +1272,18 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		lineCountsContainer.appendChild(removedSpan);
 		label.element.appendChild(lineCountsContainer);
 
-		const decorationBadge = dom.$('.changes-decoration-badge');
-		label.element.appendChild(decorationBadge);
-
 		let toolbar: MenuWorkbenchToolBar | undefined;
 		let contextKeyService: IContextKeyService | undefined;
 		if (this.menuId) {
 			const actionBarContainer = $('.chat-collapsible-list-action-bar');
 			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
 			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined } }));
+			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
 			label.element.appendChild(actionBarContainer);
 		}
+
+		const decorationBadge = dom.$('.changes-decoration-badge');
+		label.element.appendChild(decorationBadge);
 
 		return { templateDisposables, label, toolbar, contextKeyService, reviewCommentsBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer };
 	}
@@ -1424,16 +1490,35 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
+				const activeSession = sessionManagementService.activeSession.get();
+				const activeSessionIsolationMode = this.viewModel.activeSessionIsolationModeObs.get();
+				const activeSessionRepositoryState = this.viewModel.activeSessionRepositoryObs.get()?.state.get();
+				const activeSessionRepository = activeSession?.workspace.get()?.repositories[0];
+
+				const baseBranchName = activeSessionIsolationMode === IsolationMode.Worktree
+					? activeSessionRepository?.baseBranchName ?? ''
+					: activeSessionRepositoryState?.HEAD?.upstream
+						? `${activeSessionRepositoryState.HEAD.upstream.remote}/${activeSessionRepositoryState.HEAD.upstream.name}`
+						: activeSessionRepositoryState?.HEAD?.name ?? '';
+
+				const branchName = activeSessionRepository?.detail
+					?? activeSessionRepositoryState?.HEAD?.name ?? '';
+
+				const allChangesDescription = baseBranchName && branchName
+					? `${branchName} → ${baseBranchName}`
+					: branchName ?? localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session');
+
 				return [
 					{
 						...action,
 						id: 'chatEditing.versionsAllChanges',
 						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
-						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
+						description: allChangesDescription,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
