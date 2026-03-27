@@ -53,7 +53,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
