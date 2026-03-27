@@ -41,7 +41,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IAgentSessionsService } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { countUnreadSessions } from '../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { localize } from '../../../nls.js';
@@ -212,6 +212,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		// Update badge on session changes
 		let wired = false;
+		const retryDisposable = widgetDisposables.add(new MutableDisposable());
 		const wireBadge = () => {
 			if (wired) {
 				return true;
@@ -230,6 +231,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				updateBadge();
 				widgetDisposables.add(agentSessionsService.model.onDidChangeSessions(() => updateBadge()));
 				wired = true;
+				retryDisposable.clear();
 				return true;
 			} catch {
 				badge.style.display = 'none';
@@ -239,11 +241,11 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 		if (!wireBadge()) {
 			// Service not yet available — retry when the sidebar becomes visible
-			const retryDisposable = widgetDisposables.add(this.layoutService.onDidChangePartVisibility(e => {
-				if (e.partId === Parts.SIDEBAR_PART && e.visible && wireBadge()) {
-					retryDisposable.dispose();
+			retryDisposable.value = this.layoutService.onDidChangePartVisibility(e => {
+				if (e.partId === Parts.SIDEBAR_PART && e.visible) {
+					wireBadge();
 				}
-			}));
+			});
 
 			// Also attempt a deferred retry so that we don't rely solely on a later visibility change.
 			queueMicrotask(() => {
