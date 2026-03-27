@@ -6,7 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -22,7 +22,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../.
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
-import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY } from './aiCustomizationManagement.js';
+import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY } from './aiCustomizationManagement.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -32,7 +32,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { matchesContiguousSubString, IMatch } from '../../../../../base/common/filters.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createActionViewItem, getContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -53,13 +53,12 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { getCleanPromptName, isInClaudeRulesFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatSessionsService, IChatSessionCustomizationItem, IChatSessionCustomizationItemGroup } from '../../common/chatSessionsService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -94,7 +93,8 @@ export interface IAICustomizationListItem {
 	readonly name: string;
 	readonly filename: string;
 	readonly description?: string;
-	readonly storage: PromptsStorage;
+	/** Storage origin. Set by core when items come from promptsService; omitted for external provider items. */
+	readonly storage?: PromptsStorage;
 	readonly promptType: PromptsType;
 	readonly disabled: boolean;
 	/** When set, overrides `storage` for display grouping purposes. */
@@ -419,7 +419,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		}
 
 		// Inline action bar from menu
-		const context = {
+		const context: Record<string, unknown> = {
 			uri: element.uri.toString(),
 			name: element.name,
 			promptType: element.promptType,
@@ -430,10 +430,12 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		// Create scoped context key service with item-specific keys for when-clause filtering
 		const overlayPairs: [string, string | boolean][] = [
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, element.promptType],
-			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, element.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, element.disabled],
 		];
+		if (element.storage) {
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, element.storage]);
+		}
 		if (element.pluginUri) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, element.pluginUri.toString()]);
 		}
@@ -481,92 +483,6 @@ export function sectionToPromptType(section: AICustomizationManagementSection): 
 }
 
 /**
- * Maps a management section to the well-known customization group IDs
- * used by {@link IChatSessionCustomizationsProvider}.
- */
-function sectionToCustomizationGroupIds(section: AICustomizationManagementSection): string[] {
-	switch (section) {
-		case AICustomizationManagementSection.Agents:
-			return ['agents'];
-		case AICustomizationManagementSection.Skills:
-			return ['skills'];
-		case AICustomizationManagementSection.Instructions:
-			return ['agentInstructions', 'contextInstructions', 'onDemandInstructions'];
-		case AICustomizationManagementSection.Prompts:
-			return ['prompts'];
-		case AICustomizationManagementSection.Hooks:
-			return ['hooks'];
-		default:
-			return [];
-	}
-}
-
-/**
- * Maps the numeric {@link IChatSessionCustomizationItem.storageLocation}
- * to its corresponding {@link PromptsStorage}.
- */
-function storageLocationToPromptsStorage(storageLocation: number): PromptsStorage {
-	switch (storageLocation) {
-		case 1: // Workspace
-			return PromptsStorage.local;
-		case 2: // User
-			return PromptsStorage.user;
-		case 3: // Extension
-			return PromptsStorage.extension;
-		case 4: // Plugin
-			return PromptsStorage.plugin;
-		case 5: // BuiltIn
-			return PromptsStorage.extension;
-		default:
-			return PromptsStorage.local;
-	}
-}
-
-/**
- * Maps the numeric {@link IChatSessionCustomizationItem.storageLocation}
- * to an optional groupKey override for the list display.
- */
-function storageLocationToGroupKey(storageLocation: number): string | undefined {
-	// BuiltIn items are grouped under the special "builtin" key
-	if (storageLocation === 5) {
-		return BUILTIN_STORAGE;
-	}
-	return undefined;
-}
-
-/**
- * Converts an {@link IChatSessionCustomizationItem} from the provider
- * into an {@link IAICustomizationListItem} for the list widget.
- */
-function mapProviderItemToListItem(
-	item: IChatSessionCustomizationItem,
-	groupId: string,
-	promptType: PromptsType,
-): IAICustomizationListItem {
-	const storage = storageLocationToPromptsStorage(item.storageLocation);
-	const filename = basename(item.uri);
-	// For instructions, use the group id as the groupKey so items
-	// are placed in the correct sub-group (agent-instructions, etc.)
-	const instructionGroupIds = new Set(['agentInstructions', 'contextInstructions', 'onDemandInstructions']);
-	const groupKey = instructionGroupIds.has(groupId)
-		? groupId.replace('Instructions', '-instructions')
-		: storageLocationToGroupKey(item.storageLocation);
-
-	return {
-		id: item.uri.toString(),
-		uri: item.uri,
-		name: item.label,
-		filename,
-		description: item.description,
-		storage,
-		promptType,
-		disabled: false,
-		groupKey,
-		typeIcon: item.icon,
-	};
-}
-
-/**
  * An ordered create action for the add button.
  */
 interface ICreateAction {
@@ -604,8 +520,6 @@ export class AICustomizationListWidget extends Disposable {
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
-	private _currentGroupCommands: IChatSessionCustomizationItemGroup['commands'];
-	private _currentGroupItemCommands: IChatSessionCustomizationItemGroup['itemCommands'];
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -642,7 +556,6 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -660,6 +573,24 @@ export class AICustomizationListWidget extends Disposable {
 			this.harnessService.activeHarness.read(reader);
 			this.updateAddButton();
 			this.refresh();
+		}));
+
+		// Refresh when available harnesses change (external provider registered/unregistered)
+		this._register(autorun(reader => {
+			this.harnessService.availableHarnesses.read(reader);
+			this.refresh();
+		}));
+
+		// Subscribe to the active provider's onDidChange event
+		const providerChangeDisposable = this._register(new MutableDisposable());
+		this._register(autorun(reader => {
+			this.harnessService.activeHarness.read(reader);
+			const activeDescriptor = this.harnessService.getActiveDescriptor();
+			if (activeDescriptor.itemProvider) {
+				providerChangeDisposable.value = activeDescriptor.itemProvider.onDidChange(() => this.refresh());
+			} else {
+				providerChangeDisposable.clear();
+			}
 		}));
 
 	}
@@ -776,7 +707,6 @@ export class AICustomizationListWidget extends Disposable {
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.refresh()));
 		this._register(this.promptsService.onDidChangeSkills(() => this.refresh()));
-		this._register(this.chatSessionsService.onDidChangeCustomizations(() => this.refresh()));
 
 		// Refresh on file deletions so the list updates after inline delete actions
 		this._register(this.fileService.onDidFilesChange(e => {
@@ -810,7 +740,7 @@ export class AICustomizationListWidget extends Disposable {
 		const item = e.element.item;
 
 		// Create context for the menu actions
-		const context = {
+		const context: Record<string, unknown> = {
 			uri: item.uri.toString(),
 			name: item.name,
 			promptType: item.promptType,
@@ -821,10 +751,12 @@ export class AICustomizationListWidget extends Disposable {
 		// Create scoped context key service with item-specific keys for when-clause filtering
 		const overlayPairs: [string, string | boolean][] = [
 			[AI_CUSTOMIZATION_ITEM_TYPE_KEY, item.promptType],
-			[AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage],
 			[AI_CUSTOMIZATION_ITEM_URI_KEY, item.uri.toString()],
 			[AI_CUSTOMIZATION_ITEM_DISABLED_KEY, item.disabled],
 		];
+		if (item.storage) {
+			overlayPairs.push([AI_CUSTOMIZATION_ITEM_STORAGE_KEY, item.storage]);
+		}
 		if (item.pluginUri) {
 			overlayPairs.push([AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, item.pluginUri.toString()]);
 		}
@@ -857,25 +789,9 @@ export class AICustomizationListWidget extends Disposable {
 			}),
 		];
 
-		// Add extension-provided item commands for non-built-in harnesses
-		const activeHarness = this.harnessService.activeHarness.get();
-		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
-		const extensionItemActions = (hasProvider && this._currentGroupItemCommands?.length)
-			? [
-				new Separator(),
-				...this._currentGroupItemCommands.map(cmd => new Action(
-					cmd.id,
-					cmd.title,
-					undefined,
-					true,
-					async () => { this.commandService.executeCommand(cmd.id, item.uri.toString()); },
-				)),
-			]
-			: [];
-
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => [...secondary, ...extensionItemActions, ...copyActions],
+			getActions: () => [...secondary, ...copyActions],
 		});
 	}
 
@@ -970,17 +886,6 @@ export class AICustomizationListWidget extends Disposable {
 		const descriptor = this.harnessService.getActiveDescriptor();
 		const override = descriptor.sectionOverrides?.get(this.currentSection);
 		const hasWorkspace = this.hasActiveWorkspace();
-
-		// Extension-contributed harness: use commands from the provider group
-		const activeHarness = this.harnessService.activeHarness.get();
-		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
-		if (hasProvider && this._currentGroupCommands?.length) {
-			return this._currentGroupCommands.map(cmd => ({
-				label: `$(${Codicon.add.id}) ${cmd.title}`,
-				enabled: true,
-				run: () => { this.commandService.executeCommand(cmd.id, ...(cmd.arguments ?? [])); },
-			}));
-		}
 
 		// Full command override (e.g. Claude hooks) — single action, no dropdown
 		if (override?.commandId) {
@@ -1092,6 +997,34 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
+		// Check for menu-contributed create actions from extensions.
+		// Extensions contribute to AICustomizationManagementCreateMenuId with
+		// when-clauses targeting aiCustomizationManagementHarness and
+		// aiCustomizationManagementSection context keys.
+		// When a harness contributes create actions, they REPLACE the built-in ones.
+		const menuActions = this.menuService.getMenuActions(
+			AICustomizationManagementCreateMenuId,
+			this.contextKeyService,
+			{ shouldForwardArgs: true },
+		);
+		const extensionCreateActions: ICreateAction[] = [];
+		for (const [, group] of menuActions) {
+			for (const menuItem of group) {
+				if (menuItem instanceof MenuItemAction) {
+					const icon = ThemeIcon.isThemeIcon(menuItem.item.icon) ? menuItem.item.icon.id : Codicon.add.id;
+					extensionCreateActions.push({
+						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
+						enabled: menuItem.enabled,
+						run: () => { menuItem.run(); },
+					});
+				}
+			}
+		}
+
+		if (extensionCreateActions.length > 0) {
+			return extensionCreateActions;
+		}
+
 		return actions;
 	}
 
@@ -1157,26 +1090,10 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private async loadItems(): Promise<void> {
 		const section = this.currentSection;
-		this._currentGroupCommands = undefined;
-		this._currentGroupItemCommands = undefined;
 		const items = await this.fetchItemsForSection(section);
 
 		if (this.currentSection !== section) {
 			return; // section changed while loading
-		}
-
-		// Fetch commands for extension-contributed harnesses separately to avoid
-		// race conditions when _fetchItemsFromProvider is also called for count
-		// computation on other sections.
-		const activeHarness = this.harnessService.activeHarness.get();
-		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
-		if (hasProvider) {
-			const groups = await this.chatSessionsService.getCustomizations(activeHarness, CancellationToken.None);
-			if (groups) {
-				const matchingIds = sectionToCustomizationGroupIds(section);
-				this._currentGroupCommands = groups.filter(g => matchingIds.includes(g.id)).flatMap(g => g.commands ?? []);
-				this._currentGroupItemCommands = groups.filter(g => matchingIds.includes(g.id)).flatMap(g => g.itemCommands ?? []);
-			}
 		}
 
 		this.allItems = items;
@@ -1241,15 +1158,15 @@ export class AICustomizationListWidget extends Disposable {
 	 * Shared between `loadItems` (active section) and `computeItemCountForSection` (any section).
 	 */
 	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
-		// Extension-contributed harnesses always use the provider path
-		const activeHarness = this.harnessService.activeHarness.get();
-		const hasProvider = this.chatSessionsService.hasCustomizationsProvider(activeHarness);
+		const promptType = sectionToPromptType(section);
 
-		if (hasProvider) {
-			return this._fetchItemsFromProvider(section);
+		// When the active harness has an external item provider, delegate to it
+		// instead of querying promptsService and applying filters.
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		if (activeDescriptor.itemProvider && promptType) {
+			return this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
 		}
 
-		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 		const extensionInfoByUri = new Map<string, { id: ExtensionIdentifier; displayName?: string }>();
@@ -1293,11 +1210,14 @@ export class AICustomizationListWidget extends Disposable {
 					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
+			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
 			const seenUris = new ResourceSet();
 			for (const skill of skills || []) {
 				const filename = basename(skill.uri);
 				const skillName = skill.name || basename(dirname(skill.uri)) || filename;
 				seenUris.add(skill.uri);
+				const skillFolderName = basename(dirname(skill.uri));
+				const uiTooltip = uiIntegrations.get(skillFolderName);
 				items.push({
 					id: skill.uri.toString(),
 					uri: skill.uri,
@@ -1308,6 +1228,8 @@ export class AICustomizationListWidget extends Disposable {
 					promptType,
 					pluginUri: skill.storage === PromptsStorage.plugin ? this.findPluginUri(skill.uri) : undefined,
 					disabled: false,
+					badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
+					badgeTooltip: uiTooltip,
 				});
 			}
 			// Also include disabled skills from the raw file list
@@ -1315,15 +1237,20 @@ export class AICustomizationListWidget extends Disposable {
 				for (const file of allSkillFiles) {
 					if (!seenUris.has(file.uri) && disabledUris.has(file.uri)) {
 						const filename = basename(file.uri);
+						const disabledName = file.name || basename(dirname(file.uri)) || filename;
+						const disabledFolderName = basename(dirname(file.uri));
+						const uiTooltip = uiIntegrations.get(disabledFolderName);
 						items.push({
 							id: file.uri.toString(),
 							uri: file.uri,
-							name: file.name || basename(dirname(file.uri)) || filename,
+							name: disabledName,
 							filename,
 							description: file.description,
 							storage: file.storage,
 							promptType,
 							disabled: true,
+							badge: uiTooltip ? localize('uiIntegrationBadge', "UI Integration") : undefined,
+							badgeTooltip: uiTooltip,
 						});
 					}
 				}
@@ -1559,7 +1486,9 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Apply storage source filter (removes items not in visible sources or excluded user roots)
 		const filter = this.workspaceService.getStorageSourceFilter(promptType);
-		const filteredItems = applyStorageSourceFilter(groupedItems, filter);
+		const withStorage = groupedItems.filter((item): item is IAICustomizationListItem & { readonly storage: PromptsStorage } => item.storage !== undefined);
+		const withoutStorage = groupedItems.filter(item => item.storage === undefined);
+		const filteredItems = [...applyStorageSourceFilter(withStorage, filter), ...withoutStorage];
 		items.length = 0;
 		items.push(...filteredItems);
 
@@ -1606,33 +1535,27 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Fetches items from the registered {@link IChatSessionCustomizationsProvider}
-	 * instead of the built-in {@link IPromptsService} discovery.
+	 * Fetches items from an external customization provider, converting
+	 * the provider's items into the list widget format.
 	 */
-	private async _fetchItemsFromProvider(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
-		const promptType = sectionToPromptType(section);
-
-		// Use the active harness ID as the session type
-		const activeHarness = this.harnessService.activeHarness.get();
-		const groups = await this.chatSessionsService.getCustomizations(activeHarness, CancellationToken.None);
-
-		if (!groups) {
+	private async fetchItemsFromProvider(provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		if (!allItems) {
 			return [];
 		}
 
-		// Filter groups to only those matching the current section
-		const matchingGroupIds = sectionToCustomizationGroupIds(section);
-		const filteredGroups = groups.filter(g => matchingGroupIds.includes(g.id));
-
-		const items: IAICustomizationListItem[] = [];
-		for (const group of filteredGroups) {
-			for (const item of group.items) {
-				items.push(mapProviderItemToListItem(item, group.id, promptType));
-			}
-		}
-
-		items.sort((a, b) => a.name.localeCompare(b.name));
-		return items;
+		return allItems
+			.filter(item => item.type === promptType)
+			.map((item: IExternalCustomizationItem) => ({
+				id: item.uri.toString(),
+				uri: item.uri,
+				name: item.name,
+				filename: basename(item.uri),
+				description: item.description,
+				promptType,
+				disabled: false,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/**
@@ -1685,7 +1608,19 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		// Group items — instructions use category-based grouping; other sections use storage-based
+		// When items come from an external provider, skip storage-based grouping
+		// and render a flat list. The provider controls the full item set, so
+		// Workspace/User/Extension categories don't apply.
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+		if (activeDescriptor.itemProvider) {
+			matchedItems.sort((a, b) => a.name.localeCompare(b.name));
+			this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			this.list.splice(0, this.list.length, this.displayEntries);
+			this.updateEmptyState();
+			return matchedItems.length;
+		}
+
+		// Group items by storage
 		const promptType = sectionToPromptType(this.currentSection);
 		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
 		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
@@ -1705,7 +1640,7 @@ export class AICustomizationListWidget extends Disposable {
 				].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents');
 
 		for (const item of matchedItems) {
-			const key = item.groupKey ?? item.storage;
+			const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
 			const group = groups.find(g => g.groupKey === key);
 			if (group) {
 				group.items.push(item);
@@ -1924,11 +1859,13 @@ export class AICustomizationListWidget extends Disposable {
 	 * Generates a debug report for the current section.
 	 */
 	async generateDebugReport(): Promise<string> {
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		return generateCustomizationDebugReport(
 			this.currentSection,
 			this.promptsService,
 			this.workspaceService,
 			{ allItems: this.allItems, displayEntries: this.displayEntries },
+			activeDescriptor.itemProvider,
 		);
 	}
 }

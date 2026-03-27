@@ -58,11 +58,12 @@ export class IsolationPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			if (session instanceof CopilotCLISession) {
-				const isLoading = session.loading.read(reader);
-				this._hasGitRepo = !isLoading && !!session.gitRepository;
+			const chat = session?.activeChat.read(reader);
+			if (chat instanceof CopilotCLISession) {
+				const isLoading = chat.loading.read(reader);
+				this._hasGitRepo = !isLoading && !!chat.gitRepository;
 				// Read isolation mode from session — session is the source of truth
-				session.isolationModeObservable.read(reader);
+				chat.isolationModeObservable.read(reader);
 			} else {
 				this._hasGitRepo = false;
 			}
@@ -71,7 +72,7 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _getSessionIsolationMode(): IsolationMode {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
 		return session instanceof CopilotCLISession ? session.isolationMode : 'worktree';
 	}
 
@@ -150,7 +151,7 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _setModeOnSession(mode: IsolationMode): void {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
 		if (!(session instanceof CopilotCLISession)) {
 			throw new Error('IsolationPicker requires a CopilotCLISession');
 		}

@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction, IToolCallConfirmedAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { SessionLifecycle, SessionStatus, TurnState, createSessionState, ROOT_STATE_URI, PolicyState, ResponsePartKind, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -1513,6 +1513,286 @@ suite('AgentHostChatContribution', () => {
 			// Turn dispatched via connection.dispatchAction
 			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
+		});
+	});
+
+	// ---- Reconnection to active turn ----------------------------------------
+
+	suite('reconnection to active turn', () => {
+
+		function makeSessionStateWithActiveTurn(sessionUri: string, overrides?: Partial<{ streamingText: string; reasoning: string }>): ISessionState {
+			const summary: ISessionSummary = {
+				resource: sessionUri,
+				provider: 'copilot',
+				title: 'Active Session',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			const activeTurnParts = [];
+			const reasoningText = overrides?.reasoning ?? '';
+			if (reasoningText) {
+				activeTurnParts.push({ kind: ResponsePartKind.Reasoning as const, id: 'reasoning-1', content: reasoningText });
+			}
+			activeTurnParts.push({ kind: ResponsePartKind.Markdown as const, id: 'md-active', content: overrides?.streamingText ?? 'Partial response so far' });
+			return {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-completed',
+					userMessage: { text: 'First message' },
+					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'md-1', content: 'First response' }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+				activeTurn: {
+					...createActiveTurn('turn-active', { text: 'Second message' }),
+					responseParts: activeTurnParts,
+				},
+			};
+		}
+
+		test('loads completed turns as history and active turn request/response', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-1');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-1' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			// Should have: completed turn (request + response) + active turn (request + empty response) = 4
+			assert.strictEqual(session.history.length, 4);
+			assert.strictEqual(session.history[0].type, 'request');
+			if (session.history[0].type === 'request') {
+				assert.strictEqual(session.history[0].prompt, 'First message');
+			}
+			assert.strictEqual(session.history[2].type, 'request');
+			if (session.history[2].type === 'request') {
+				assert.strictEqual(session.history[2].prompt, 'Second message');
+			}
+			// Active turn response should be an empty placeholder
+			assert.strictEqual(session.history[3].type, 'response');
+			if (session.history[3].type === 'response') {
+				assert.strictEqual(session.history[3].parts.length, 0);
+			}
+		});
+
+		test('sets isCompleteObs to false and populates progressObs for active turn', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-2');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-2' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.strictEqual(session.isCompleteObs?.get(), false, 'Should not be complete when active turn exists');
+			const progress = session.progressObs?.get() ?? [];
+			assert.ok(progress.length > 0, 'Should have initial progress from active turn');
+			// Should contain the streaming text as markdown
+			const markdownPart = progress.find(p => p.kind === 'markdownContent') as IChatMarkdownContent | undefined;
+			assert.ok(markdownPart, 'Should have markdown content from streaming text');
+			assert.strictEqual(markdownPart!.content.value, 'Partial response so far');
+		});
+
+		test('provides interruptActiveResponseCallback when reconnecting', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-3');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-3' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.ok(session.interruptActiveResponseCallback, 'Should provide interrupt callback');
+		});
+
+		test('interrupt callback dispatches turnCancelled action', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-cancel');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-cancel' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.ok(session.interruptActiveResponseCallback);
+			const result = await session.interruptActiveResponseCallback!();
+			assert.strictEqual(result, true);
+
+			// Should have dispatched a turnCancelled action
+			const cancelAction = agentHostService.dispatchedActions.find(d => d.action.type === 'session/turnCancelled');
+			assert.ok(cancelAction, 'Should dispatch session/turnCancelled');
+		});
+
+		test('streams new text deltas into progressObs after reconnection', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-stream');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString(), { streamingText: 'Before' });
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-stream' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const initialLen = (session.progressObs?.get() ?? []).length;
+
+			// Fire a delta action to simulate the server streaming more text
+			agentHostService.fireAction({
+				action: { type: 'session/delta', session: sessionUri.toString(), turnId: 'turn-active', partId: 'md-active', content: ' and more' } as ISessionAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			await timeout(10);
+
+			const progress = session.progressObs?.get() ?? [];
+			assert.ok(progress.length > initialLen, 'Should have appended new progress items');
+			// The last markdown part should be the delta
+			const lastMarkdown = [...progress].reverse().find(p => p.kind === 'markdownContent') as IChatMarkdownContent;
+			assert.ok(lastMarkdown, 'Should have a new markdown delta');
+			assert.strictEqual(lastMarkdown.content.value, ' and more');
+		});
+
+		test('marks session complete when turn finishes', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-complete');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString()));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-complete' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.strictEqual(session.isCompleteObs?.get(), false);
+
+			// Fire turnComplete to finish the active turn
+			agentHostService.fireAction({
+				action: { type: 'session/turnComplete', session: sessionUri.toString(), turnId: 'turn-active' } as ISessionAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			await timeout(10);
+
+			assert.strictEqual(session.isCompleteObs?.get(), true, 'Should be complete after turnComplete');
+		});
+
+		test('handles active turn with running tool call', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-tool');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+			sessionState.activeTurn!.responseParts.push({
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					toolCallId: 'tc-running',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Running command',
+					status: ToolCallStatus.Running,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-tool' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const progress = session.progressObs?.get() ?? [];
+			const toolInvocation = progress.find(p => p.kind === 'toolInvocation') as IChatToolInvocation | undefined;
+			assert.ok(toolInvocation, 'Should have a live tool invocation in progress');
+			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
+		});
+
+		test('handles active turn with pending tool confirmation', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-perm');
+			const sessionState = makeSessionStateWithActiveTurn(sessionUri.toString());
+			sessionState.activeTurn!.responseParts.push({
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					toolCallId: 'tc-pending',
+					toolName: 'bash',
+					displayName: 'Bash',
+					invocationMessage: 'Run command',
+					confirmationTitle: 'Clean up',
+					toolInput: 'rm -rf /tmp/test',
+					status: ToolCallStatus.PendingConfirmation,
+				},
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), sessionState);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-perm' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const progress = session.progressObs?.get() ?? [];
+			const permInvocation = progress.find(p => p.kind === 'toolInvocation') as IChatToolInvocation | undefined;
+			assert.ok(permInvocation, 'Should have a live permission request in progress');
+
+			// Complete the turn so the awaitConfirmation promise and its internal
+			// DisposableStore are cleaned up before test teardown.
+			agentHostService.fireAction({
+				action: { type: 'session/turnComplete', session: sessionUri.toString(), turnId: 'turn-active' } as ISessionAction,
+				serverSeq: 1,
+				origin: undefined,
+			});
+			await timeout(10);
+		});
+
+		test('no active turn loads completed history only with isComplete true', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'no-active-turn');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Done', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-done',
+					userMessage: { text: 'Hello' },
+					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'md-1', content: 'Hi' }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/no-active-turn' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.strictEqual(session.history.length, 2);
+			assert.strictEqual(session.isCompleteObs?.get(), true);
+			assert.deepStrictEqual(session.progressObs?.get(), []);
+		});
+
+		test('includes reasoning in initial progress', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionUri = AgentSession.uri('copilot', 'reconnect-reasoning');
+			agentHostService.sessionStates.set(sessionUri.toString(), makeSessionStateWithActiveTurn(sessionUri.toString(), {
+				streamingText: 'text',
+				reasoning: 'Let me think...',
+			}));
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/reconnect-reasoning' });
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const progress = session.progressObs?.get() ?? [];
+			const thinking = progress.find(p => p.kind === 'thinking');
+			assert.ok(thinking, 'Should have thinking progress from reasoning');
+			const markdown = progress.find(p => p.kind === 'markdownContent') as IChatMarkdownContent;
+			assert.ok(markdown);
+			assert.strictEqual(markdown.content.value, 'text');
 		});
 	});
 
