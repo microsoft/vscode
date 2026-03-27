@@ -155,7 +155,7 @@ async function runMigrations(db: Database, migrations: readonly ISessionDatabase
 export class SessionDatabase implements ISessionDatabase {
 
 	private _dbPromise: Promise<Database> | undefined;
-	private _closed: Promise<void> | undefined;
+	private _closed: Promise<void> | true | undefined;
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
 	constructor(
@@ -294,7 +294,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	async close() {
-		await (this._closed ??= this._dbPromise?.then(db => db.close()).catch(() => { }));
+		await (this._closed ??= this._dbPromise?.then(db => db.close()).catch(() => { }) || true);
 	}
 
 	dispose(): void {
