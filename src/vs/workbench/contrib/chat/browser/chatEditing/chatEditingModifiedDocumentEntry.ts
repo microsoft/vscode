@@ -6,13 +6,14 @@
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { TextEdit as EditorTextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
-import { Location, TextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
@@ -31,9 +32,9 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { ITextFileService, isTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
-import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
@@ -48,8 +49,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	readonly initialContent: string;
 
-	private readonly originalModel: ITextModel;
-	private readonly modifiedModel: ITextModel;
+	readonly originalModel: ITextModel;
+	readonly modifiedModel: ITextModel;
 
 	private readonly _docFileEditorModel: IResolvedTextEditorModel;
 
@@ -186,7 +187,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
 		return !!snapshot &&
-			this.modifiedURI.toString() === snapshot.resource.toString() &&
+			isEqual(this.modifiedURI, snapshot.resource) &&
 			this.modifiedModel.getLanguageId() === snapshot.languageId &&
 			this.originalModel.getValue() === snapshot.original &&
 			this.modifiedModel.getValue() === snapshot.current &&
@@ -209,10 +210,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this.modifiedModel.getValue();
 	}
 
-	public override hasModificationAt(location: Location): boolean {
-		return location.uri.toString() === this.modifiedModel.uri.toString() && this._textModelChangeService.hasHunkAt(location.range);
-	}
-
 	async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
 		await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
@@ -220,6 +217,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async resetToInitialContent() {
 		await this._textModelChangeService.resetDocumentValues(undefined, this.initialContent);
+	}
+
+	async resetEditTrackerToInitialContent() {
+		await this._textModelChangeService.resetDocumentValues(this.initialContent, undefined);
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {

@@ -17,3 +17,4 @@ build/lib/policies/policyData.jsonc @joshspicer @rebornix @joaomoreno @pwang347 
 # Ensure the API team is aware of changes to the vscode-dts file
 # this is only about the final API, not about proposed API changes
 src/vscode-dts/vscode.d.ts @jrieken @mjbvz @alexr00
+src/vs/workbench/services/extensions/common/extensionPoints.json @jrieken @mjbvz @alexr00

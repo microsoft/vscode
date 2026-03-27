@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../../common/editing/chatEditingService.js';
-import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IExportableChatData, IExportableRepoData, IInputModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
+import { IChatSessionContext, IChatSessionTiming } from '../../../common/chatService/chatService.js';
 
 export class MockChatModel extends Disposable implements IChatModel {
 	readonly onDidDispose = this._register(new Emitter<void>()).event;
@@ -49,6 +49,10 @@ export class MockChatModel extends Disposable implements IChatModel {
 		this.lastRequestObs = observableValue('lastRequest', undefined);
 	}
 
+	setContributedChatSession(session: IChatSessionContext | undefined): void {
+		throw new Error('Method not implemented.');
+	}
+
 	readonly hasRequests = false;
 	readonly lastRequest: IChatRequestModel | undefined;
 
@@ -61,6 +65,8 @@ export class MockChatModel extends Disposable implements IChatModel {
 	getRequests(): IChatRequestModel[] { return []; }
 	setCheckpoint(requestId: string | undefined): void { }
 	setRepoData(data: IExportableRepoData | undefined): void { this.repoData = data; }
+	readonly onDidChangePendingRequests: Event<void> = this._register(new Emitter<void>()).event;
+	getPendingRequests(): readonly IChatPendingRequest[] { return []; }
 	toExport(): IExportableChatData {
 		return {
 			initialLocation: this.initialLocation,

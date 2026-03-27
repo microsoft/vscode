@@ -23,11 +23,12 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IGalleryMcpServer, IInstallableMcpServer, IGalleryMcpServerConfiguration, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { ContributionEnablementState, IEnablementModel } from '../../chat/common/enablement.js';
 import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
@@ -62,6 +63,8 @@ export interface McpCollectionDefinition {
 	readonly scope: StorageScope;
 	/** Configuration target where configuration related to this server should be stored. */
 	readonly configTarget: ConfigurationTarget;
+	/** Root-level sandbox settings from the mcp config file. */
+	readonly sandbox?: IMcpSandboxConfiguration;
 
 	/** Resolves a server definition. If present, always called before a server starts. */
 	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
@@ -91,6 +94,7 @@ export const enum McpCollectionSortOrder {
 	Workspace = 100,
 	User = 200,
 	Extension = 300,
+	Plugin = 350,
 	Filesystem = 400,
 
 	RemoteBoost = -50,
@@ -111,7 +115,8 @@ export namespace McpCollectionDefinition {
 		return a.id === b.id
 			&& a.remoteAuthority === b.remoteAuthority
 			&& a.label === b.label
-			&& a.trustBehavior === b.trustBehavior;
+			&& a.trustBehavior === b.trustBehavior
+			&& objectsEqual(a.sandbox, b.sandbox);
 	}
 }
 
@@ -132,6 +137,8 @@ export interface McpServerDefinition {
 	readonly devMode?: IMcpDevModeConfig;
 	/** Static description of server tools/data, used to hydrate the cache. */
 	readonly staticMetadata?: McpServerStaticMetadata;
+	/** Indicates if the sandbox is enabled for this server. */
+	readonly sandboxEnabled?: boolean;
 
 
 	readonly presentation?: {
@@ -164,6 +171,7 @@ export namespace McpServerDefinition {
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
 		readonly staticMetadata?: McpServerStaticMetadata;
+		readonly sandboxEnabled?: boolean;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -177,6 +185,7 @@ export namespace McpServerDefinition {
 			cacheNonce: def.cacheNonce,
 			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
+			sandboxEnabled: def.sandboxEnabled,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
 	}
@@ -189,7 +198,9 @@ export namespace McpServerDefinition {
 			&& objectsEqual(a.launch, b.launch)
 			&& objectsEqual(a.presentation, b.presentation)
 			&& objectsEqual(a.variableReplacement, b.variableReplacement)
-			&& objectsEqual(a.devMode, b.devMode);
+			&& objectsEqual(a.devMode, b.devMode)
+			&& a.sandboxEnabled === b.sandboxEnabled;
+
 	}
 }
 
@@ -234,6 +245,9 @@ export namespace IAutostartResult {
 export interface IMcpService {
 	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
+
+	/** The enablement model for MCP servers. */
+	readonly enablementModel: IEnablementModel;
 
 	/** Resets the cached tools. */
 	resetCaches(): void;
@@ -319,6 +333,7 @@ export namespace McpServerTrust {
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
 	readonly definition: McpDefinitionReference;
+	readonly enablement: IObservable<ContributionEnablementState>;
 	readonly connection: IObservable<IMcpServerConnection | undefined>;
 	readonly connectionState: IObservable<McpConnectionState>;
 	readonly serverMetadata: IObservable<{
@@ -434,7 +449,7 @@ export const mcpPromptPrefix = (definition: McpDefinitionReference) =>
 export interface IMcpPromptMessage extends MCP.PromptMessage { }
 
 export interface IMcpToolCallContext {
-	chatSessionId?: string;
+	chatSessionResource: URI | undefined;
 	chatRequestId?: string;
 }
 
@@ -505,6 +520,7 @@ export interface McpServerTransportStdio {
 	readonly args: readonly string[];
 	readonly env: Record<string, string | number | null>;
 	readonly envFile: string | undefined;
+	readonly sandbox: IMcpSandboxConfiguration | undefined;
 }
 
 export interface McpServerTransportHTTPAuthentication {
@@ -537,7 +553,7 @@ export type McpServerLaunch =
 export namespace McpServerLaunch {
 	export type Serialized =
 		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; authentication?: McpServerTransportHTTPAuthentication }
-		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
+		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined; sandbox: IMcpSandboxConfiguration | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
 		return launch;
@@ -555,6 +571,7 @@ export namespace McpServerLaunch {
 					args: launch.args,
 					env: launch.env,
 					envFile: launch.envFile,
+					sandbox: launch.sandbox
 				};
 		}
 	}
@@ -570,10 +587,18 @@ export namespace McpServerLaunch {
  * stopped, and restarted. Once started and in a running state, it will
  * eventually build a {@link IMcpServerConnection.handler}.
  */
+export interface IMcpPotentialSandboxBlock {
+	readonly kind: 'network' | 'filesystem';
+	readonly message: string;
+	readonly host?: string;
+	readonly path?: string;
+}
+
 export interface IMcpServerConnection extends IDisposable {
 	readonly definition: McpServerDefinition;
 	readonly state: IObservable<McpConnectionState>;
 	readonly handler: IObservable<McpServerRequestHandler | undefined>;
+	readonly onPotentialSandboxBlock: Event<IMcpPotentialSandboxBlock>;
 
 	/**
 	 * Resolved launch definition. Might not match the `definition.launch` due to
@@ -722,6 +747,8 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 export const enum McpServerEnablementState {
 	Disabled,
 	DisabledByAccess,
+	DisabledProfile,
+	DisabledWorkspace,
 	Enabled,
 }
 

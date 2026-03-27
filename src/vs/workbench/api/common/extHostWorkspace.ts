@@ -189,6 +189,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
 	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
 
+	private readonly _onDidChangeWorkspaceTrustedFolders = new Emitter<void>();
+	readonly onDidChangeWorkspaceTrustedFolders: Event<void> = this._onDidChangeWorkspaceTrustedFolders.event;
+
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
 	private readonly _barrier: Barrier;
@@ -521,6 +524,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 				maxResults: options.maxResults,
 				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
+				ignoreGlobCase: options.caseInsensitive,
 				_reason: 'startFileSearch',
 				shouldGlobSearch: query.type === 'include' ? undefined : true,
 			};
@@ -594,6 +598,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 					fileEncoding: options.encoding,
 					maxResults: options.maxResults,
+					ignoreGlobCase: options.caseInsensitive,
 					previewOptions: options.previewOptions ? {
 						matchLines: options.previewOptions?.numMatchLines ?? 100,
 						charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
@@ -802,6 +807,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._trusted;
 	}
 
+	requestResourceTrust(options: vscode.ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._proxy.$requestResourceTrust(options);
+	}
+
 	requestWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		return this._proxy.$requestWorkspaceTrust(options);
 	}
@@ -811,6 +820,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			this._trusted = true;
 			this._onDidGrantWorkspaceTrust.fire();
 		}
+	}
+
+	$onDidChangeWorkspaceTrustedFolders(): void {
+		this._onDidChangeWorkspaceTrustedFolders.fire();
+	}
+
+	isResourceTrusted(resource: vscode.Uri): Promise<boolean> {
+		return this._proxy.$isResourceTrusted(resource);
 	}
 
 	// --- edit sessions ---

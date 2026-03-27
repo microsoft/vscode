@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -33,7 +35,7 @@ export function registerChatCopyActions() {
 		run(accessor: ServicesAccessor, context?: ChatTreeItem) {
 			const clipboardService = accessor.get(IClipboardService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
-			const widget = (context?.sessionResource && chatWidgetService.getWidgetBySessionResource(context.sessionResource)) || chatWidgetService.lastFocusedWidget;
+			const widget = ((isRequestVM(context) || isResponseVM(context)) && chatWidgetService.getWidgetBySessionResource(context.sessionResource)) || chatWidgetService.lastFocusedWidget;
 			if (widget) {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()
@@ -54,11 +56,20 @@ export function registerChatCopyActions() {
 				title: localize2('interactive.copyItem.label', "Copy"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				menu: {
-					id: MenuId.ChatContext,
-					when: ChatContextKeys.responseIsFiltered.negate(),
-					group: 'copy',
-				}
+				icon: Codicon.copy,
+				menu: [
+					{
+						id: MenuId.ChatContext,
+						when: ChatContextKeys.responseIsFiltered.negate(),
+						group: 'copy',
+					},
+					{
+						id: MenuId.ChatMessageFooter,
+						group: 'navigation',
+						order: 1,
+						when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate()),
+					}
+				]
 			});
 		}
 
@@ -81,6 +92,10 @@ export function registerChatCopyActions() {
 			const selectedText = nativeSelection?.toString();
 			if (widget && selectedText && selectedText.length > 0 && dom.isAncestor(dom.getActiveElement(), widget.domNode)) {
 				await clipboardService.writeText(selectedText);
+				return;
+			}
+
+			if (!isRequestVM(item) && !isResponseVM(item)) {
 				return;
 			}
 

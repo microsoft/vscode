@@ -385,3 +385,7 @@
 .codicon-settings-edit:hover {
 	cursor: pointer;
 }
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.invalid-key .setting-list-object-key {
+	color: var(--vscode-list-errorForeground);
+}

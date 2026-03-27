@@ -117,6 +117,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
+	@memoize
 	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
@@ -144,6 +145,26 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'extensions').fsPath;
+	}
+
+	@memoize
+	get agentPluginsPath(): string {
+		const cliAgentPluginsDir = this.args['agent-plugins-dir'];
+		if (cliAgentPluginsDir) {
+			return resolve(cliAgentPluginsDir);
+		}
+
+		const vscodeAgentPlugins = env['VSCODE_AGENT_PLUGINS'];
+		if (vscodeAgentPlugins) {
+			return vscodeAgentPlugins;
+		}
+
+		const vscodePortable = env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return join(vscodePortable, 'agent-plugins');
+		}
+
+		return joinPath(this.userHome, this.productService.dataFolderName, 'agent-plugins').fsPath;
 	}
 
 	@memoize
@@ -252,10 +273,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
+	}
+
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
+	}
+
+	get exportDefaultKeybindings(): string | undefined {
+		return this.args['export-default-keybindings'];
 	}
 
 	get continueOn(): string | undefined {

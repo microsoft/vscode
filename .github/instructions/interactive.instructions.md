@@ -1,6 +1,5 @@
 ---
-applyTo: '**/interactive/**'
-description: Architecture documentation for VS Code interactive window component
+description: Architecture documentation for VS Code interactive window component. Use when working in `src/vs/workbench/contrib/interactive`
 ---
 
 # Interactive Window
