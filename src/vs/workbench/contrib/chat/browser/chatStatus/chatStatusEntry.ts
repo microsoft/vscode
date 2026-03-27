@@ -154,7 +154,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 					text = `$(copilot) ${signIn}`;
 					ariaLabel = signIn;
 				} else {
-					const signedOut = localize('notSignedIn', "Signed Out");
+					const signedOut = localize('notSignedIn', "Signed out");
 					text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOut}`;
 					ariaLabel = signedOut;
 					kind = 'prominent';

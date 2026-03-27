@@ -9,7 +9,6 @@ import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecuted
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import Severity from '../../../../../base/common/severity.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -23,6 +22,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../p
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -382,6 +382,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						id: MenuId.TitleBarAdjacentCenter,
 						order: 0, // same position as the update button
 						when: ContextKeyExpr.and(
+							IsWebContext.negate(),
 							ContextKeyExpr.has(`config.${ChatConfiguration.SignInTitleBarEnabled}`),
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
@@ -598,10 +599,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSignInTitleBarEntry(actionViewItemService: IActionViewItemService): void {
-		if (isWeb) {
-			return; // Electron only
-		}
-
 		this._register(actionViewItemService.register(
 			MenuId.TitleBarAdjacentCenter,
 			SIGN_IN_TITLE_BAR_ACTION_ID,
@@ -826,9 +823,11 @@ export function refreshTokens(commandService: ICommandService): void {
 
 /**
  * Custom action view item that renders a "Sign In" button
- * reusing the update indicator's prominent styling.
+ * in the title bar with prominent button styling.
  */
 class SignInTitleBarEntry extends BaseActionViewItem {
+
+	private label: HTMLElement | undefined;
 
 	constructor(
 		action: IAction,
@@ -840,10 +839,26 @@ class SignInTitleBarEntry extends BaseActionViewItem {
 	public override render(container: HTMLElement) {
 		super.render(container);
 
+		container.setAttribute('role', 'button');
 		container.setAttribute('aria-label', this.action.label);
 
 		const content = dom.append(container, dom.$('.update-indicator.prominent'));
-		const label = dom.append(content, dom.$('.indicator-label'));
-		label.textContent = this.action.label;
+		this.label = dom.append(content, dom.$('.indicator-label'));
+		this.label.textContent = this.action.label;
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			this.label.textContent = this.action.label;
+		}
+		if (this.element) {
+			this.element.setAttribute('aria-label', this.action.label);
+		}
+	}
+
+	protected override updateEnabled(): void {
+		if (this.element) {
+			this.element.classList.toggle('disabled', !this.action.enabled);
+		}
 	}
 }
