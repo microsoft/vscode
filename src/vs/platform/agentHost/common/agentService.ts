@@ -8,7 +8,7 @@ import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oa
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
 import { AttachmentType, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
@@ -452,6 +452,12 @@ export interface IAgentService {
 	 * or reading files from the remote filesystem).
 	 */
 	fetchContent(uri: URI): Promise<IFetchContentResult>;
+
+	/**
+	 * Write content to a file on the agent host's filesystem.
+	 * Used for undo/redo operations on file edits.
+	 */
+	writeFile(params: IWriteFileParams): Promise<IWriteFileResult>;
 }
 
 /**
