@@ -21,7 +21,9 @@ export class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
-	readonly onDidCreateModel = Event.None;
+
+	private readonly _onDidCreateModel = new Emitter<IChatModel>();
+	readonly onDidCreateModel = this._onDidCreateModel.event;
 
 	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
@@ -54,6 +56,7 @@ export class MockChatService implements IChatService {
 		this.sessions.set(session.sessionResource, session);
 		// Update the chatModels observable
 		this._chatModels.set([...this.sessions.values()], undefined);
+		this._onDidCreateModel.fire(session);
 	}
 
 	removeSession(sessionResource: URI): void {
@@ -192,21 +195,10 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-
-	private onChange?: (sessionResource: URI) => void;
-
 	registerChatModelChangeListeners(chatSessionType: string, onChange: (sessionResource: URI) => void): IDisposable {
-		// Store the emitter so tests can trigger it
-		this.onChange = onChange;
 		return {
-			dispose: () => {
-				this.onChange = undefined;
-			}
+			dispose: () => { }
 		};
 	}
 
-	// Helper method for tests to trigger progress events
-	triggerProgressEvent(sessionResource: URI): void {
-		this.onChange?.(sessionResource);
-	}
 }

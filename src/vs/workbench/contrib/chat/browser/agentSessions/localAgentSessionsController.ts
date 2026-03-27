@@ -17,7 +17,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { convertLegacyChatSessionTiming, IChatDetail, IChatService, IChatSessionTiming, ResponseModelState } from '../../common/chatService/chatService.js';
 import { chatModelToChatDetail } from '../../common/chatService/chatServiceImpl.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatModel, IChatModel } from '../../common/model/chatModel.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getInProgressSessionDescription } from '../chatSessions/chatSessionDescription.js';
 
@@ -32,6 +32,8 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 
 	private readonly _modelListeners = this._register(new DisposableResourceMap());
 
+	private _isDisposed = false;
+
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -41,6 +43,11 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 		this._register(this.chatSessionsService.registerChatSessionItemController(this.chatSessionType, this));
 
 		this.registerListeners();
+	}
+
+	override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	private _items = new ResourceMap<LocalChatSessionItem>();
@@ -58,17 +65,17 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private registerListeners(): void {
-		const tryAddModelListeners = async (model: IChatModel) => {
+		const addModelListeners = async (model: IChatModel) => {
 			if (getChatSessionType(model.sessionResource) !== this.chatSessionType) {
 				return;
 			}
 
-			const onChange = () => {
-				this.tryUpdateLiveSessionItem(model);
-			};
-
 			await this.refresh(CancellationToken.None);
-			onChange();
+			if (this._isDisposed) {
+				return;
+			}
+
+			this.tryUpdateLiveSessionItem(model);
 
 			const requestChangeListener = model.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelRequestChangeListener', last.response.onDidChange));
 			const modelChangeListener = observableSignalFromEvent('chatSessions.modelChangeListener', model.onDidChange);
@@ -76,13 +83,13 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 				requestChangeListener.read(reader)?.read(reader);
 				modelChangeListener.read(reader);
 
-				onChange();
+				this.tryUpdateLiveSessionItem(model);
 			}));
 		};
 
-		this._register(this.chatService.onDidCreateModel(model => tryAddModelListeners(model)));
+		this._register(this.chatService.onDidCreateModel(model => addModelListeners(model)));
 		for (const model of this.chatService.chatModels.get()) {
-			tryAddModelListeners(model);
+			addModelListeners(model);
 		}
 
 		this._register(this.chatService.onDidDisposeSession(e => {
@@ -98,10 +105,6 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
-		if (!(model instanceof ChatModel)) {
-			return;
-		}
-
 		const existing = this._items.get(model.sessionResource);
 		if (!existing) {
 			return;

@@ -1871,7 +1871,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 }
 
-export async function chatModelToChatDetail(model: ChatModel): Promise<IChatDetail> {
+export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDetail> {
 	const title = model.title || localize('newChat', "New Chat");
 	return {
 		sessionResource: model.sessionResource,

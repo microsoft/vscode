@@ -366,15 +366,9 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
 		this._proxy = proxy;
 		this._handle = handle;
-
-		this._register(chatService.registerChatModelChangeListeners(chatSessionType, (sessionResource) => {
-			const item = this._items.get(sessionResource);
-			if (item) {
-				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
-			}
-		}));
 	}
 
 	private readonly _items = new ResourceMap<IChatSessionItem>();

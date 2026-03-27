@@ -1392,6 +1392,7 @@ export interface IChatModel extends IDisposable {
 	readonly sessionId: string;
 	/** Milliseconds timestamp this chat model was created. */
 	readonly timestamp: number;
+	readonly lastMessageDate: number;
 	readonly timing: IChatSessionTiming;
 	readonly sessionResource: URI;
 	readonly initialLocation: ChatAgentLocation;
