@@ -134,15 +134,14 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			this.layoutService.mainContainer,
 		));
 
-		// When chat setup completes (observables flip), persist completion and dismiss the overlay
+		// When chat setup completes (observables flip), persist completion but
+		// let the walkthrough show its success page — don't dismiss yet.
 		this.overlayRef.value.add(autorun(reader => {
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
 			if (!this._needsChatSetup()) {
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				this.overlayRef.clear();
-				this.watchEntitlementState();
 			}
 		}));
 

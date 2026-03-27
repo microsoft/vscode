@@ -147,8 +147,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		await new Promise(resolve => setTimeout(resolve, 200));
 
 		// Swap title and subtitle in-place
-		titleEl.textContent = localize('walkthrough.settingUp', "Setting up\u2026");
-		subtitleEl.textContent = localize('walkthrough.poweredBy', "Sessions is powered by GitHub Copilot");
+		titleEl.textContent = localize('walkthrough.settingUp', "Signing in\u2026");
+		subtitleEl.textContent = localize('walkthrough.poweredBy', "Complete authorization in your browser.");
 
 		// Replace provider buttons with progress bar
 		const heroText = providerRow.parentElement!;
@@ -164,8 +164,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			});
 
 			if (success) {
-				// Update title
-				titleEl.textContent = localize('walkthrough.signingIn', "Signing you in\u2026");
+				// Update title and subtitle for the finishing phase
+				titleEl.textContent = localize('walkthrough.signingIn', "Finishing setup\u2026");
+				subtitleEl.textContent = localize('walkthrough.finishingSubtitle', "Getting everything ready for you.");
 
 				this.logService.info('[sessions walkthrough] Restarting extension host after setup');
 				const stopped = await this.extensionService.stopExtensionHosts(
