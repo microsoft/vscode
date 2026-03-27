@@ -526,7 +526,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const truncatedCommand = normalizedCommand.length > 80
 				? normalizedCommand.substring(0, 77) + '...'
 				: normalizedCommand;
-			const invocationMessage = partialInput.isBackground
+			const isBackground = partialInput.isBackground || this._configurationService.getValue(TerminalChatAgentToolsSettingId.ForceBackgroundMode) === true;
+			const invocationMessage = isBackground
 				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", truncatedCommand))
 				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
 			return { invocationMessage };
