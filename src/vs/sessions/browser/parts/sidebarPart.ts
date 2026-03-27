@@ -210,9 +210,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 		}));
 
-		// Update badge on session changes (deferred to avoid service unavailability)
-		const updateBadge = (svc: IAgentSessionsService) => {
-			const unread = countUnreadSessions(svc.model.sessions);
+		// Update badge on session changes
+		const agentSessionsService = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
+		const updateBadge = () => {
+			const unread = countUnreadSessions(agentSessionsService.model.sessions);
 			badge.textContent = unread > 0 ? `${unread}` : '';
 			badge.style.display = unread > 0 ? '' : 'none';
 			widget.setAttribute('aria-label', unread > 0
@@ -220,16 +221,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				: localize('hideSidebar', "Hide Side Bar"));
 		};
 
-		setTimeout(() => {
-			try {
-				const svc = this.instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
-				updateBadge(svc);
-				widgetDisposables.add(svc.model.onDidChangeSessions(() => updateBadge(svc)));
-			} catch {
-				// Service not yet available
-				badge.style.display = 'none';
-			}
-		}, 0);
+		updateBadge();
+		widgetDisposables.add(agentSessionsService.model.onDidChangeSessions(() => updateBadge()));
 	}
 
 	private createFooter(parent: HTMLElement): void {

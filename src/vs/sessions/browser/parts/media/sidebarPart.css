@@ -98,6 +98,11 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.agent-sessions-workbench .part.sidebar .session-status-toggle:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .agent-sessions-workbench .part.sidebar .session-status-toggle .codicon {
 	font-size: 16px;
 }

@@ -114,6 +114,11 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count .codicon {
 	font-size: 16px;
 }
