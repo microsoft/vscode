@@ -267,6 +267,8 @@ suite('Workbench - TerminalInstance', () => {
 			instance._layoutSettingsChanged = false;
 
 			let ptyDimensions: unknown[] | undefined;
+			// Record what is sent to setDimensions so this test can verify xterm render columns and
+			// PTY columns are intentionally different.
 			instance._processManager.setDimensions = async (...args: unknown[]) => {
 				ptyDimensions = args;
 			};
@@ -308,6 +310,8 @@ suite('Workbench - TerminalInstance', () => {
 				_xtermReadyPromise: Promise<unknown>;
 			};
 			await instance._xtermReadyPromise;
+			// Call the private startup path directly so this test can assert the initial cols/rows
+			// used when the process is created.
 			const createProcess = (instance as unknown as Record<string, unknown>)['_createProcess'] as (this: typeof instance) => Promise<void>;
 			await createProcess.call(instance);
 

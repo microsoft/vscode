@@ -551,6 +551,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			if (!this.raw.element) {
 				return;
 			}
+			// Run once more on the next animation frame. This catches DOM/layout changes that are
+			// applied right after resize or zoom events.
 			this._updateViewportRightOffset();
 			this.forceRefresh();
 			this._onDidRequestRefreshDimensions.fire();
@@ -567,6 +569,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!dom.isHTMLElement(viewportElement)) {
 			return;
 		}
+		// Shift the viewport by the scrollbar width so text and selection end at the same visual edge.
 		viewportElement.style.right = `${this.viewportRightOffset}px`;
 	}
 
@@ -578,6 +581,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this._selectionGapAnimationFrame !== undefined) {
 			window.cancelAnimationFrame(this._selectionGapAnimationFrame);
 		}
+		// Many events can fire quickly; do one measurement per frame to avoid redundant work and to
+		// use up-to-date layout values.
 		this._selectionGapAnimationFrame = window.requestAnimationFrame(() => {
 			this._selectionGapAnimationFrame = undefined;
 			try {
@@ -587,6 +592,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		});
 	}
 
+	// Computes the selection-to-adjacent-UI gap in physical pixels to catch alignment regressions.
 	private _computeSelectionGapPhysical(_reason: string): number | undefined {
 		if (!this.raw.element || !this.raw.hasSelection()) {
 			return undefined;
@@ -628,6 +634,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const rightmostSelectedCol = selectionRange.end.y > selectionRange.start.y
 			? this.raw.cols
 			: clamp(selectionRange.end.x, 1, this.raw.cols);
+		// If no DOM range is available for the selection, estimate the right edge from selected
+		// columns and the measured cell width.
 		const fallbackRightCssPx = screenElement.getBoundingClientRect().left + (rightmostSelectedCol * cellWidth);
 		return { rightCssPx: fallbackRightCssPx, source: 'selection-range-fallback', selectionRange };
 	}

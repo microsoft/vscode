@@ -278,6 +278,7 @@
 	pointer-events: none;
 }
 
+/* Always show the scrollbar lane so the terminal's right edge stays consistent across zoom and DPI changes. */
 .xterm.always-show-scrollbar .xterm-scrollable-element > .xterm-scrollbar {
 	display: block !important;
 	opacity: 1 !important;

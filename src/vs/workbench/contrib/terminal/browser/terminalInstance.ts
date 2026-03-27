@@ -743,6 +743,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _toXtermCols(cols: number): number {
+		// xterm renders one extra column on the right to hide tiny visual gaps caused by pixel rounding.
 		return Math.max(cols + 1, 2);
 	}
 
@@ -799,6 +800,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const disableShellIntegrationReporting = (this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
 		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, this._resource, Terminal, {
+			// xterm gets one extra render column for visual alignment; the PTY keeps base columns.
 			cols: this._toXtermCols(this._cols || Constants.DefaultCols),
 			rows: this._rows,
 			xtermColorProvider: this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this._targetRef),
@@ -2028,6 +2030,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
 		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
 		const cellWidth = rawXterm.dimensions?.css.cell.width;
+		// Subtract that extra render column before reporting pixel width to the PTY so process sizing
+		// stays based on the real terminal columns.
 		const adjustedPixelWidth = pixelWidth && cellWidth ? Math.max(0, pixelWidth - cellWidth) : pixelWidth;
 		const roundedPixelWidth = adjustedPixelWidth ? Math.round(adjustedPixelWidth) : undefined;
 		const roundedPixelHeight = pixelHeight ? Math.round(pixelHeight) : undefined;

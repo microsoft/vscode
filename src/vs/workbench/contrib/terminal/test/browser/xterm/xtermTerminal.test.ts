@@ -110,6 +110,8 @@ suite('XtermTerminal', () => {
 	});
 
 	test('should compute selection gapPhysical <= 0 for selected text', async () => {
+		// Create a small split-view-like DOM so the gap calculation can find the terminal's
+		// neighboring pane on the right.
 		const paneBody = document.createElement('div');
 		paneBody.className = 'pane-body integrated-terminal';
 		const splitView = document.createElement('div');
@@ -127,6 +129,8 @@ suite('XtermTerminal', () => {
 			xterm.raw.select(0, 0, 8);
 
 			const xtermWithInternals = xterm as unknown as Record<string, unknown>;
+			// Call the internal gap helper directly so this test can check the regression condition
+			// with a focused assertion.
 			const computeSelectionGapPhysical = xtermWithInternals['_computeSelectionGapPhysical'] as (this: XtermTerminal, reason: string) => number | undefined;
 			const gapPhysical = computeSelectionGapPhysical.call(xterm, 'testSelectionGapAssertion');
 
