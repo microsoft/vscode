@@ -34,9 +34,9 @@
 	display: flex;
 	align-items: stretch;
 	gap: 4px;
-	padding: 6px 0;
+	padding: 6px 0 0 0;
 	border-top: 1px solid var(--vscode-panel-border, transparent);
-	margin: 0 12px 12px 12px;
+	margin: 0 10px 2px 10px;
 	flex-shrink: 0;
 }
 
@@ -49,7 +49,7 @@
 	content: '';
 	position: absolute;
 	top: 0;
-	left: 12px;
+	left: 10px;
 	right: 0;
 	height: 1px;
 	background-color: var(--vscode-panel-border, transparent);

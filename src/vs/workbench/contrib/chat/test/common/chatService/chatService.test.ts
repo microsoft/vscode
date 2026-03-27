@@ -952,8 +952,10 @@ function toSnapshotExportData(model: IChatModel) {
 	return {
 		...exp,
 		requests: exp.requests.map(r => {
+			// Destructure properties after `vote` so we can insert `voteDownReason` in the correct position for snapshot compat
+			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, ...rest } = r;
 			return {
-				...r,
+				...rest,
 				modelState: {
 					...r.modelState,
 					completedAt: undefined
@@ -961,6 +963,12 @@ function toSnapshotExportData(model: IChatModel) {
 				timestamp: undefined,
 				requestId: undefined, // id contains a random part
 				responseId: undefined, // id contains a random part
+				voteDownReason: undefined, // removed from model, kept for snapshot compat
+				slashCommand,
+				usedContext,
+				contentReferences,
+				codeCitations,
+				timeSpentWaiting,
 			};
 		})
 	};

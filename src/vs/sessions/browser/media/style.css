@@ -24,7 +24,7 @@
 }
 
 .agent-sessions-workbench .part.chatbar {
-	margin: 0 12px 2px 12px;
+	margin: 0 10px 0px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -36,7 +36,7 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 0 12px 2px 0;
+	margin: 0 10px 0px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -44,7 +44,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 12px 14px 12px;
+	margin: 0 10px 10px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -71,16 +71,16 @@
 .agent-sessions-workbench .interactive-session .interactive-item-container {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 16px;
-	padding-right: 16px;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 16px;
-	padding-right: 16px;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
 	box-sizing: border-box;
 }
 
@@ -106,7 +106,7 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 16px 16px 16px !important;
+	padding: 4px 10px 10px 10px !important;
 	box-sizing: border-box;
 }
 
@@ -153,14 +153,17 @@
  * Subtle appear animation when parts transition from display:none → visible
  * (via split-view-view .visible class).
  *
- * Animated properties: opacity, margin, border-color, background.
+ * Auxiliary bar, panel, and chat bar animate their container via opacity,
+ * margin, border-color, and background. The sidebar reveal animation applies
+ * only to `.part.sidebar > .content`, using opacity + transform so the
+ * sidebar container, header, and footer stay visually fixed.
+ *
  * Opacity transiently creates a stacking context while it animates from 0 to 1
  * over 250ms — once settled at opacity: 1, no additional stacking context is
- * introduced by this animation. Margin shifts are purely visual within the
- * grid-allocated space.
+ * introduced by this animation. Margin and transform shifts are purely visual
+ * within the grid-allocated space.
  */
 
-.agent-sessions-workbench .part.sidebar,
 .agent-sessions-workbench .part.auxiliarybar,
 .agent-sessions-workbench .part.panel,
 .agent-sessions-workbench .part.chatbar {
@@ -173,8 +176,7 @@
 		background 250ms ease-out;
 }
 
-/* Sidebar & auxiliary bar also transition margin-left */
-.agent-sessions-workbench .part.sidebar,
+/* Auxiliary bar also transitions horizontal margin */
 .agent-sessions-workbench .part.auxiliarybar {
 	transition:
 		opacity 250ms ease-out,
@@ -183,9 +185,14 @@
 		background 250ms ease-out;
 }
 
+.agent-sessions-workbench .part.sidebar > .content {
+	transition:
+		opacity 250ms ease-out,
+		transform 250ms ease-out;
+}
+
 @starting-style {
 	/* Shared starting values */
-	.agent-sessions-workbench .part.sidebar,
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
@@ -200,33 +207,35 @@
 		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
 	}
 
-	/* Per-part margin shifts — each part settles into its resting margin */
-	/* Sidebar (left): slides in from 6px left → margin: 0 */
-	.agent-sessions-workbench .part.sidebar {
-		margin-left: -6px;
+	.agent-sessions-workbench .part.sidebar > .content {
+		opacity: 0;
+		transform: translateX(-6px);
 	}
 
-	/* Panel (bottom): slides down from 6px above → margin: 0 16px 18px 16px */
+	/* Panel (bottom): slides down from 6px above → margin: 0 10px 10px 10px */
 	.agent-sessions-workbench .part.panel {
-		margin: 6px 16px 18px 16px;
+		margin: 6px 16px 16px 16px;
 	}
 
-	/* Auxiliary bar (right): slides in from 6px right → margin: 0 16px 2px 0 */
+	/* Auxiliary bar (right): slides in from 6px right → margin: 0 10px 0px 0 */
 	.agent-sessions-workbench .part.auxiliarybar {
-		margin: 0 16px 2px 6px;
+		margin: 0 16px 0px 6px;
 	}
 
-	/* Chat bar (center-bottom): slides up from 6px below → margin: 0 16px 2px 16px */
+	/* Chat bar (center-bottom): slides up from 6px below → margin: 0 10px 0px 10px */
 	.agent-sessions-workbench .part.chatbar {
-		margin: 6px 16px 2px 16px;
+		margin: 6px 16px 0px 16px;
 	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.agent-sessions-workbench .part.sidebar,
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
 	.agent-sessions-workbench .part.chatbar {
+		transition: none;
+	}
+
+	.agent-sessions-workbench .part.sidebar > .content {
 		transition: none;
 	}
 }

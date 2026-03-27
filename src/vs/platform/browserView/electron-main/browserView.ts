@@ -169,6 +169,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			for (const url of favicons) {
 				if (!this._faviconRequestCache.has(url)) {
 					this._faviconRequestCache.set(url, (async () => {
+						if (url.startsWith('data:image/')) {
+							return url;
+						}
 						const response = await webContents.session.fetch(url, {
 							cache: 'force-cache'
 						});
@@ -176,6 +179,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 							throw new Error(`Failed to fetch favicon: ${response.status} ${response.statusText}`);
 						}
 						const type = await response.headers.get('content-type');
+						if (!type?.startsWith('image/')) {
+							throw new Error(`Favicon is not an image: ${type}`);
+						}
 						const buffer = await response.arrayBuffer();
 
 						return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
