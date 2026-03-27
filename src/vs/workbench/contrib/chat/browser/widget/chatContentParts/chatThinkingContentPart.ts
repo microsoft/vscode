@@ -690,17 +690,21 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			labelElement.appendChild(restSpan);
 		}
 
-		// Show aggregated diff stats from edit pills
+		// Show aggregated diff stats from edit pills (only when there are actual changes)
 		if (this.diffStatsByPartId.size > 0) {
 			const { added, removed } = this._aggregatedDiff;
-			const diffContainer = $('span.chat-thinking-title-diff');
-			diffContainer.appendChild($('span.label-added', {}, `+${added}`));
-			diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
-			labelElement.appendChild(diffContainer);
+			if (added > 0 || removed > 0) {
+				const diffContainer = $('span.chat-thinking-title-diff');
+				diffContainer.appendChild($('span.label-added', {}, `+${added}`));
+				diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
+				labelElement.appendChild(diffContainer);
 
-			const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
-			const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
-			this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+				const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
+				const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
+				this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+			} else {
+				this._collapseButton.element.ariaLabel = title;
+			}
 		} else {
 			this._collapseButton.element.ariaLabel = title;
 		}
@@ -939,6 +943,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
 		if (this.toolInvocationCount === 1 && this.hookCount === 0 && this.currentThinkingValue.trim() === '') {
 			// If singleItemInfo wasn't set (item was lazy/deferred), materialize it now
+			let materializedFromLazy: ILazyToolItem | undefined;
 			if (!this.singleItemInfo) {
 				const lazyItem = this.lazyItems.find(item => item.kind === 'tool' && item.originalParent);
 				if (lazyItem && lazyItem.kind === 'tool') {
@@ -950,6 +955,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 						originalNextSibling: this.domNode,
 						toolInvocation
 					};
+					materializedFromLazy = lazyItem;
 					if (result.disposable) {
 						const toolCallId = toolInvocation?.toolCallId;
 						if (toolCallId) {
@@ -964,6 +970,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const toolIsComplete = !this.singleItemInfo?.toolInvocation || IChatToolInvocation.isComplete(this.singleItemInfo.toolInvocation);
 			if (toolIsComplete && this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
 				return;
+			}
+			// If we materialized a lazy item but could not restore it (e.g. markdownContent
+			// with multiple edit pills), append it to the thinking wrapper so it's visible.
+			if (materializedFromLazy && materializedFromLazy.lazy.hasValue) {
+				const result = materializedFromLazy.lazy.value;
+				this.appendItemToDOM(result.domNode, materializedFromLazy.toolInvocationId, materializedFromLazy.toolInvocationOrMarkdown, materializedFromLazy.originalParent);
 			}
 		}
 
