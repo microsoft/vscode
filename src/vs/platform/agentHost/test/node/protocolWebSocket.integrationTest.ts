@@ -933,7 +933,7 @@ suite('Protocol WebSocket E2E', function () {
 		dispatchTurnStarted(client, sessionUri, 'turn-autoapprove', 'write-file', 1);
 
 		// The write should be auto-approved — we should see tool_start, tool_complete, and turn_complete
-		// but NOT a toolCallReady (pending confirmation).
+		// but NOT a pending-confirmation toolCallReady (one without `confirmed`).
 		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
 		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
@@ -971,6 +971,7 @@ suite('Protocol WebSocket E2E', function () {
 				turnId: 'turn-deny',
 				toolCallId: 'tc-write-env-1',
 				approved: true,
+				confirmed: 'user-action',
 			},
 		});
 

@@ -160,7 +160,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				// based on the built-in default patterns.
 				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
 					if (this._shouldAutoApproveEdit(e.permissionPath)) {
-						this._logService.info(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
+						this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
 						agent.respondToPermissionRequest(e.toolCallId, true);
 						return;
 					}
