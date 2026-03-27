@@ -28,7 +28,6 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/co
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
@@ -1098,13 +1097,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(key, session);
 		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
-		// Wait for the committed session (real URI) to appear. The agent host
-		// keeps the untitled URI during the first turn, then fires
-		// onDidCommitChatSessionItem which swaps URIs. We detect the committed
-		// session as a new agent session of the same type that wasn't in the
-		// cache before.
-		const existingSessions = new ResourceSet([...this._sessionCache.values()].map(s => s.resource));
-		const committedSession = await this._waitForCommittedSession(session.target, existingSessions);
+		// Wait for the session to be committed (URI swapped from untitled to
+		// real). The agent host fires onDidCommitSession after the first turn.
+		const committedResource = await this._waitForCommittedSession(session.resource);
+
+		// Build a real adapter from the committed agent session
+		const agentSession = this.agentSessionsService.getSession(committedResource);
+		if (!agentSession) {
+			throw new Error(`[DefaultCopilotProvider] Committed agent session not found for ${committedResource}`);
+		}
+		const committedSession = new AgentSessionAdapter(agentSession, this.id);
 
 		// Replace the temporary session with the committed adapter in the cache
 		this._sessionCache.delete(key);
@@ -1116,35 +1118,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
-	 * Waits for a committed agent session (with a real, non-untitled URI) to
-	 * appear in the cache. The agent host keeps the untitled URI during the
-	 * first turn and fires onDidCommitChatSessionItem afterwards, which
-	 * triggers a session list update with the real URI.
+	 * Waits for the committed (real) URI for a session by listening to the
+	 * {@link IChatSessionsService.onDidCommitSession} event.
 	 */
-	private async _waitForCommittedSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<AgentSessionAdapter> {
-		const found = this._findNewAdapterInCache(target, existingSessions);
-		if (found) {
-			return found;
-		}
-		return new Promise<AgentSessionAdapter>(resolve => {
-			const listener = this.agentSessionsService.model.onDidChangeSessions(() => {
-				this._refreshSessionCache();
-				const found = this._findNewAdapterInCache(target, existingSessions);
-				if (found) {
+	private _waitForCommittedSession(untitledResource: URI): Promise<URI> {
+		return new Promise<URI>(resolve => {
+			const listener = this.chatSessionsService.onDidCommitSession(e => {
+				if (e.original.toString() === untitledResource.toString()) {
 					listener.dispose();
-					resolve(found);
+					resolve(e.committed);
 				}
 			});
 		});
-	}
-
-	private _findNewAdapterInCache(target: AgentSessionTarget, existingSessions: ResourceSet): AgentSessionAdapter | undefined {
-		for (const session of this._sessionCache.values()) {
-			if (session instanceof AgentSessionAdapter && session.sessionType === target && !existingSessions.has(session.resource)) {
-				return session;
-			}
-		}
-		return undefined;
 	}
 
 	// -- Private --
