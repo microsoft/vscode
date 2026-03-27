@@ -396,26 +396,39 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win, cancellationId);
 		await this.finishOverlay(debuggers, targetSessionId);
 
-		const zoomFactor = simpleBrowserWebview.getZoomFactor();
+		const targetZoomFactor = this.getTargetZoomFactor(locator);
+		const windowZoomFactor = simpleBrowserWebview.getZoomFactor();
+
+		// Convert rect from VS Code CSS pixel space to page CSS pixel space
+		// so that rect and nodeData.bounds are in the same coordinate system.
+		const zoomRatio = windowZoomFactor / targetZoomFactor;
+		const pageRect = {
+			x: rect.x * zoomRatio,
+			y: rect.y * zoomRatio,
+			width: rect.width * zoomRatio,
+			height: rect.height * zoomRatio
+		};
+
 		const absoluteBounds = {
-			x: rect.x + nodeData.bounds.x,
-			y: rect.y + nodeData.bounds.y,
+			x: pageRect.x + nodeData.bounds.x,
+			y: pageRect.y + nodeData.bounds.y,
 			width: nodeData.bounds.width,
 			height: nodeData.bounds.height
 		};
 
 		const clippedBounds = {
-			x: Math.max(absoluteBounds.x, rect.x),
-			y: Math.max(absoluteBounds.y, rect.y),
-			width: Math.max(0, Math.min(absoluteBounds.x + absoluteBounds.width, rect.x + rect.width) - Math.max(absoluteBounds.x, rect.x)),
-			height: Math.max(0, Math.min(absoluteBounds.y + absoluteBounds.height, rect.y + rect.height) - Math.max(absoluteBounds.y, rect.y))
+			x: Math.max(absoluteBounds.x, pageRect.x),
+			y: Math.max(absoluteBounds.y, pageRect.y),
+			width: Math.max(0, Math.min(absoluteBounds.x + absoluteBounds.width, pageRect.x + pageRect.width) - Math.max(absoluteBounds.x, pageRect.x)),
+			height: Math.max(0, Math.min(absoluteBounds.y + absoluteBounds.height, pageRect.y + pageRect.height) - Math.max(absoluteBounds.y, pageRect.y))
 		};
 
+		// Convert from page CSS pixels to DIP/screen coordinates for screenshot capture
 		const scaledBounds = {
-			x: clippedBounds.x * zoomFactor,
-			y: clippedBounds.y * zoomFactor,
-			width: clippedBounds.width * zoomFactor,
-			height: clippedBounds.height * zoomFactor
+			x: clippedBounds.x * targetZoomFactor,
+			y: clippedBounds.y * targetZoomFactor,
+			width: clippedBounds.width * targetZoomFactor,
+			height: clippedBounds.height * targetZoomFactor
 		};
 
 		return {
@@ -508,29 +521,42 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 				return undefined;
 			}
 
-			const zoomFactor = simpleBrowserWebview.getZoomFactor();
+			const targetZoomFactor = this.getTargetZoomFactor(locator);
+			const windowZoomFactor = simpleBrowserWebview.getZoomFactor();
+
+			// Convert rect from VS Code CSS pixel space to page CSS pixel space
+			// so that rect and focusedData.bounds are in the same coordinate system.
+			const zoomRatio = windowZoomFactor / targetZoomFactor;
+			const pageRect = {
+				x: rect.x * zoomRatio,
+				y: rect.y * zoomRatio,
+				width: rect.width * zoomRatio,
+				height: rect.height * zoomRatio
+			};
+
 			const absoluteBounds = {
-				x: rect.x + focusedData.bounds.x,
-				y: rect.y + focusedData.bounds.y,
+				x: pageRect.x + focusedData.bounds.x,
+				y: pageRect.y + focusedData.bounds.y,
 				width: focusedData.bounds.width,
 				height: focusedData.bounds.height
 			};
 
 			const clippedBounds = {
-				x: Math.max(absoluteBounds.x, rect.x),
-				y: Math.max(absoluteBounds.y, rect.y),
-				width: Math.max(0, Math.min(absoluteBounds.x + absoluteBounds.width, rect.x + rect.width) - Math.max(absoluteBounds.x, rect.x)),
-				height: Math.max(0, Math.min(absoluteBounds.y + absoluteBounds.height, rect.y + rect.height) - Math.max(absoluteBounds.y, rect.y))
+				x: Math.max(absoluteBounds.x, pageRect.x),
+				y: Math.max(absoluteBounds.y, pageRect.y),
+				width: Math.max(0, Math.min(absoluteBounds.x + absoluteBounds.width, pageRect.x + pageRect.width) - Math.max(absoluteBounds.x, pageRect.x)),
+				height: Math.max(0, Math.min(absoluteBounds.y + absoluteBounds.height, pageRect.y + pageRect.height) - Math.max(absoluteBounds.y, pageRect.y))
 			};
 
+			// Convert from page CSS pixels to DIP/screen coordinates for screenshot capture
 			return {
 				outerHTML: focusedData.outerHTML,
 				computedStyle: focusedData.computedStyle,
 				bounds: {
-					x: clippedBounds.x * zoomFactor,
-					y: clippedBounds.y * zoomFactor,
-					width: clippedBounds.width * zoomFactor,
-					height: clippedBounds.height * zoomFactor
+					x: clippedBounds.x * targetZoomFactor,
+					y: clippedBounds.y * targetZoomFactor,
+					width: clippedBounds.width * targetZoomFactor,
+					height: clippedBounds.height * targetZoomFactor
 				},
 				ancestors: focusedData.ancestors,
 				attributes: focusedData.attributes,
@@ -763,6 +789,36 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		return '\n' + lines.join('\n');
+	}
+
+	/**
+	 * Get the zoom factor from the Electron webContents that hosts the browser page,
+	 * rather than from the VS Code window itself. This ensures the correct zoom is used
+	 * when the browser view or webview has a zoom level different from VS Code.
+	 */
+	private getTargetZoomFactor(locator: IBrowserTargetLocator): number {
+		if (locator.browserViewId) {
+			const browserView = this.browserViewMainService.tryGetBrowserView(locator.browserViewId);
+			if (browserView) {
+				return browserView.webContents.getZoomFactor();
+			}
+		}
+
+		if (locator.webviewId) {
+			const allWebContents = webContents.getAllWebContents();
+			for (const wc of allWebContents) {
+				try {
+					const url = new URL(wc.getURL());
+					if (url.searchParams.get('id') === locator.webviewId) {
+						return wc.getZoomFactor();
+					}
+				} catch {
+					// ignore invalid URLs
+				}
+			}
+		}
+
+		return 1;
 	}
 
 	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
