@@ -634,7 +634,7 @@ registerAction2(class AddChatAction extends Action2 {
 		super({
 			id: 'agentSession.addChat',
 			title: localize2('addChat', "Add Chat"),
-			icon: Codicon.plus,
+			icon: Codicon.newSession,
 			menu: [{
 				id: Menus.CommandCenter,
 				order: 102,
