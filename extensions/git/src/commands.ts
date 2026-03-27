@@ -2330,7 +2330,8 @@ export class CommandCenter {
 
 	private getDiscardUntrackedChangesDialogDetails(resources: Resource[]): [string, string, string] {
 		const config = workspace.getConfiguration('git');
-		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
+		const enableTrash = workspace.getConfiguration('files').get<boolean>('enableTrash', true);
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && enableTrash && !isRemote && !isLinuxSnap;
 
 		const messageWarning = !discardUntrackedChangesToTrash
 			? resources.length === 1

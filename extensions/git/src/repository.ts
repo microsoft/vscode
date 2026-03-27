@@ -1512,7 +1512,8 @@ export class Repository implements Disposable {
 
 	async clean(resources: Uri[]): Promise<void> {
 		const config = workspace.getConfiguration('git');
-		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && !isRemote && !isLinuxSnap;
+		const enableTrash = workspace.getConfiguration('files').get<boolean>('enableTrash', true);
+		const discardUntrackedChangesToTrash = config.get<boolean>('discardUntrackedChangesToTrash', true) && enableTrash && !isRemote && !isLinuxSnap;
 
 		await this.run(
 			Operation.Clean(!this.optimisticUpdateEnabled()),
