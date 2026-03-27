@@ -54,31 +54,23 @@
 		}
 	}
 
-	.monaco-list-row .session-pinned-indicator {
-		display: none;
-		height: 16px;
-		align-items: center;
-		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
-		pointer-events: none;
-
-		&.visible {
-			display: flex;
-		}
-	}
-
 	.monaco-list-row:hover,
 	.monaco-list-row.focused:not(.selected) {
-		.session-pinned-indicator {
-			display: none;
-		}
-
 		.session-title-toolbar {
 			display: block;
 		}
 
 		.session-title {
 			margin-right: 8px;
+		}
+	}
+
+	/* Show toolbar persistently for pinned sessions, but only the pinned action */
+	.monaco-list-row:not(:hover):not(.focused):has(.pinned) .session-title-toolbar {
+		display: block;
+
+		.action-item:not(:has(.codicon-pinned)) {
+			display: none;
 		}
 	}
 }

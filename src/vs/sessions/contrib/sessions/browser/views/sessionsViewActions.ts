@@ -384,7 +384,7 @@ registerAction2(class PinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
@@ -419,7 +419,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
