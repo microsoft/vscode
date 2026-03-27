@@ -68,7 +68,6 @@ export class CopilotCLISession extends Disposable implements IChatData {
 
 	// -- IChatData fields --
 
-	resource: URI;
 	readonly chatId: string;
 	readonly providerId: string;
 	readonly sessionType: string;
@@ -157,14 +156,13 @@ export class CopilotCLISession extends Disposable implements IChatData {
 	}
 
 	constructor(
-		resource: URI,
+		readonly resource: URI,
 		readonly sessionWorkspace: ISessionWorkspace,
 		providerId: string,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
-		this.resource = resource;
 		this.chatId = `${providerId}:${resource.toString()}`;
 		this.providerId = providerId;
 		this.sessionType = AgentSessionProviders.Background;
@@ -289,10 +287,6 @@ export class CopilotCLISession extends Disposable implements IChatData {
 		this._status.set(status, undefined);
 	}
 
-	setResource(uri: URI): void {
-		this.resource = uri;
-	}
-
 	setMode(mode: IChatMode | undefined): void {
 		if (this._mode?.id !== mode?.id) {
 			this._mode = mode;
@@ -336,7 +330,6 @@ export class RemoteNewSession extends Disposable implements IChatData {
 
 	// -- IChatData fields --
 
-	resource: URI;
 	readonly chatId: string;
 	readonly providerId: string;
 	readonly sessionType: string;
@@ -403,7 +396,7 @@ export class RemoteNewSession extends Disposable implements IChatData {
 	private readonly _whenClauseKeys = new Set<string>();
 
 	constructor(
-		resource: URI,
+		readonly resource: URI,
 		readonly sessionWorkspace: ISessionWorkspace,
 		readonly target: AgentSessionTarget,
 		providerId: string,
@@ -411,7 +404,6 @@ export class RemoteNewSession extends Disposable implements IChatData {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.resource = resource;
 		this.chatId = `${providerId}:${resource.toString()}`;
 		this.providerId = providerId;
 		this.sessionType = target;
@@ -459,10 +451,6 @@ export class RemoteNewSession extends Disposable implements IChatData {
 
 	setStatus(status: SessionStatus): void {
 		this._status.set(status, undefined);
-	}
-
-	setResource(uri: URI): void {
-		this.resource = uri;
 	}
 
 	setMode(_mode: IChatMode | undefined): void {
@@ -1105,27 +1093,21 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// Add the new session to the sessions model immediately so it appears in the sessions list
 		session.setTitle(query);
 		session.setStatus(SessionStatus.InProgress);
-		const untitledKey = session.resource.toString();
-		this._sessionCache.set(untitledKey, session);
+		const key = session.resource.toString();
+		this._sessionCache.set(key, session);
 		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
 		// Wait for the session to be committed (URI swapped from untitled to
 		// real). The agent host fires onDidCommitSession after the first turn.
 		const committedResource = await this._waitForCommittedSession(session.resource);
 
-		// Update the temp session in-place: re-key it in the cache with the
-		// committed resource so the sessions list sees an in-place update (no
-		// remove+add flicker). _refreshSessionCache will then replace the temp
-		// with the real AgentSessionAdapter and fire changed: [adapter].
-		this._sessionCache.delete(untitledKey);
-		session.setResource(committedResource);
-		const committedKey = committedResource.toString();
-		this._sessionCache.set(committedKey, session);
-		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
-
-		// Wait for _refreshSessionCache to replace the temp with the real adapter
+		// Wait for the committed session to appear in the cache (populated by _refreshSessionCache)
 		const committedSession = await this._waitForSessionInCache(committedResource);
 
+		// Replace the temporary session with the committed adapter in the cache.
+		// No event is fired here — the management service handles the transition
+		// via the return value of sendRequest.
+		this._sessionCache.delete(key);
 		this._currentNewSession = undefined;
 
 		return committedSession;
@@ -1149,8 +1131,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/**
 	 * Waits for an {@link AgentSessionAdapter} with the given resource to appear
 	 * in the session cache (populated by {@link _refreshSessionCache}).
-	 * Checks both `added` and `changed` events since _refreshSessionCache fires
-	 * `changed` when it replaces the temp session with the real adapter.
 	 */
 	private _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
 		const key = resource.toString();
@@ -1160,7 +1140,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 		return new Promise<AgentSessionAdapter>(resolve => {
 			const listener = this.onDidChangeSessions(e => {
-				const found = [...e.added, ...e.changed].find(s => s.resource.toString() === key);
+				const found = e.added.find(s => s.resource.toString() === key);
 				if (found instanceof AgentSessionAdapter) {
 					listener.dispose();
 					resolve(found);
@@ -1251,14 +1231,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (existing instanceof AgentSessionAdapter) {
 				existing.update(session);
 				changed.push(existing);
-			} else if (existing) {
-				// The temp session was re-keyed to this committed resource.
-				// Replace it with the real adapter and fire changed (not added)
-				// so the sessions list sees an in-place update.
-				const adapter = new AgentSessionAdapter(session, this.id);
-				this._sessionCache.set(key, adapter);
-				changed.push(adapter);
-			} else {
+			} else if (!existing) {
 				const adapter = new AgentSessionAdapter(session, this.id);
 				this._sessionCache.set(key, adapter);
 				added.push(adapter);
