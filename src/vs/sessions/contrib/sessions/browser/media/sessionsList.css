@@ -9,7 +9,7 @@
 	min-height: 0;
 
 	.pane-body & .monaco-scrollable-element {
-		padding: 0 8px;
+		padding: 0 10px;
 	}
 
 	.monaco-list-row {
