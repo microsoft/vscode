@@ -384,6 +384,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			invocationMessage,
 			toolInput,
 			confirmationTitle,
+			permissionKind: request.kind,
+			permissionPath: typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined),
 		});
 
 		const approved = await deferred.p;

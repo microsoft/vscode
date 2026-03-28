@@ -28,7 +28,6 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/co
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
@@ -78,6 +77,9 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _title = observableValue(this, '');
 	readonly title: IObservable<string> = this._title;
 
+	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
+	readonly description: IObservable<string | undefined>;
+
 	private readonly _updatedAt = observableValue(this, new Date());
 	readonly updatedAt: IObservable<Date> = this._updatedAt;
 
@@ -96,8 +98,6 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _isolationModeObservable = observableValue<string | undefined>(this, 'worktree');
 	readonly isolationModeObservable: IObservable<string | undefined> = this._isolationModeObservable;
 
-	readonly changes: IObservable<readonly IChatSessionFileChange[]> = observableValue<readonly IChatSessionFileChange[]>(this, []);
-
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
 
@@ -107,9 +107,11 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _loading = observableValue(this, true);
 	readonly loading: IObservable<boolean> = this._loading;
 
+	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
+	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
-	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly pullRequest: IObservable<ISessionPullRequest | undefined> = observableValue(this, undefined);
 
@@ -184,6 +186,12 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 
 		// Resolve git repository asynchronously
 		this._resolveGitRepository();
+
+		this._description = observableValue(this, undefined);
+		this.description = this._description;
+
+		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
+		this.changes = this._changes;
 	}
 
 	private async _resolveGitRepository(): Promise<void> {
@@ -280,6 +288,14 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 		this._permissionLevel.set(level, undefined);
 	}
 
+	setTitle(title: string): void {
+		this._title.set(title, undefined);
+	}
+
+	setStatus(status: SessionStatus): void {
+		this._status.set(status, undefined);
+	}
+
 	setMode(mode: IChatMode | undefined): void {
 		if (this._mode?.id !== mode?.id) {
 			this._mode = mode;
@@ -297,8 +313,14 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
-	update(session: ISessionData): void {
+	update(agentSession: IAgentSession): void {
+		const session = new AgentSessionAdapter(agentSession, this.providerId);
 		this._workspaceData.set(session.workspace.get(), undefined);
+		this._title.set(session.title.get(), undefined);
+		this._status.set(session.status.get(), undefined);
+		this._updatedAt.set(session.updatedAt.get(), undefined);
+		this._changes.set(session.changes.get(), undefined);
+		this._description.set(session.description.get(), undefined);
 	}
 }
 
@@ -438,6 +460,14 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 		this._modelId = modelId;
 	}
 
+	setTitle(title: string): void {
+		this._title.set(title, undefined);
+	}
+
+	setStatus(status: SessionStatus): void {
+		this._status.set(status, undefined);
+	}
+
 	setMode(_mode: IChatMode | undefined): void {
 		// Intentionally a no-op: remote sessions do not support client-side mode selection.
 	}
@@ -533,7 +563,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 		return group.items.find(i => i.default === true) ?? group.items[0];
 	}
 
-	update(session: ISessionData): void { }
+	update(_session: IAgentSession): void { }
 }
 
 /**
@@ -819,8 +849,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISessionData; readonly to: ISessionData }>());
+	readonly onDidReplaceSession: Event<{ readonly from: ISessionData; readonly to: ISessionData }> = this._onDidReplaceSession.event;
+
 	/** Cache of adapted sessions, keyed by resource URI string. */
-	private readonly _sessionCache = new Map<string, AgentSessionAdapter>();
+	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession>();
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
@@ -1073,32 +1106,78 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			modelRef.dispose();
 		}
 
-		const existingSessions = new ResourceSet([...this._sessionCache.values()].map(s => s.resource));
-
 		// Send request
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
-		// Wait for the agent session to appear
-		const createdSession = await this._waitForNewAgentSession(session.target, existingSessions);
-		this._currentNewSession?.dispose();
-		this._currentNewSession = undefined;
-		return createdSession;
+		// Add the new session to the sessions model immediately so it appears in the sessions list
+		session.setTitle(localize('new session', "New Session"));
+		session.setStatus(SessionStatus.InProgress);
+		const key = session.resource.toString();
+		this._sessionCache.set(key, session);
+		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+
+		try {
+
+			// Wait for the session to be committed (URI swapped from untitled to real)
+			const committedResource = await this._waitForCommittedSession(session.resource);
+
+			// Wait for _refreshSessionCache to populate the committed adapter
+			const committedSession = await this._waitForSessionInCache(committedResource);
+
+			// Remove the temp from the cache (the adapter now owns the committed key)
+			this._sessionCache.delete(key);
+			this._currentNewSession = undefined;
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+
+			// Notify listeners that the temp session was replaced by the committed one
+			this._onDidReplaceSession.fire({ from: session, to: committedSession });
+
+			return committedSession;
+		} catch (error) {
+			// Clean up temp session on error
+			this._sessionCache.delete(key);
+			this._currentNewSession = undefined;
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+			throw error;
+		}
 	}
 
-	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<ISessionData> {
-		const found = [...this._sessionCache.values()].find(s => s.sessionType === target && !existingSessions.has(s.resource));
-		if (found) {
-			return found;
-		}
-		return new Promise<ISessionData>(resolve => {
-			const listener = this.onDidChangeSessions((e) => {
-				const s = e.added.find(s => s.sessionType === target && !existingSessions.has(s.resource));
-				if (s) {
+	/**
+	 * Waits for the committed (real) URI for a session by listening to the
+	 * {@link IChatSessionsService.onDidCommitSession} event.
+	 */
+	private _waitForCommittedSession(untitledResource: URI): Promise<URI> {
+		return new Promise<URI>(resolve => {
+			const listener = this.chatSessionsService.onDidCommitSession(e => {
+				if (e.original.toString() === untitledResource.toString()) {
 					listener.dispose();
-					resolve(s);
+					resolve(e.committed);
+				}
+			});
+		});
+	}
+
+	/**
+	 * Waits for an {@link AgentSessionAdapter} with the given resource to appear
+	 * in the session cache (populated by {@link _refreshSessionCache}).
+	 */
+	private _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
+		const key = resource.toString();
+		const existing = this._sessionCache.get(key);
+		if (existing instanceof AgentSessionAdapter) {
+			return Promise.resolve(existing);
+		}
+		return new Promise<AgentSessionAdapter>(resolve => {
+			const listener = this.onDidChangeSessions(e => {
+				const found = e.added.find(s => s.resource.toString() === key);
+				if (found instanceof AgentSessionAdapter) {
+					listener.dispose();
+					resolve(found);
 				}
 			});
 		});
@@ -1174,11 +1253,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const changed: ISessionData[] = [];
 
 		for (const session of this.agentSessionsService.model.sessions) {
-			if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
-				this._currentNewSession.update(new AgentSessionAdapter(session, this.id));
-				continue;
-			}
-
 			if (session.providerType !== AgentSessionProviders.Background
 				&& session.providerType !== AgentSessionProviders.Cloud) {
 				continue;
@@ -1200,7 +1274,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const removed: ISessionData[] = [];
 		for (const [key, adapter] of this._sessionCache) {
-			if (!currentKeys.has(key)) {
+			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
 				this._sessionCache.delete(key);
 				removed.push(adapter);
 			}
