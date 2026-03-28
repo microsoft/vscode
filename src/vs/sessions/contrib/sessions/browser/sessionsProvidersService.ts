@@ -45,6 +45,15 @@ export interface ISessionsProvidersService {
 	getSession(chatId: string): ISessionData | undefined;
 	/** Fires when sessions change across any provider. */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+	/**
+	 * Fires when a temporary (untitled) session is atomically replaced by a
+	 * committed session. Forwarded from providers that implement
+	 * {@link ISessionsProvider.onDidReplaceSession}.
+	 *
+	 * @internal This is an implementation detail of the Copilot Chat sessions
+	 * provider. Do not consume this event outside of {@link ISessionsManagementService}.
+	 */
+	readonly onDidReplaceSession: Event<{ readonly from: ISessionData; readonly to: ISessionData }>;
 
 	// -- Session Actions (routed to the correct provider via sessionId) --
 
@@ -80,6 +89,9 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISessionData; readonly to: ISessionData }>());
+	readonly onDidReplaceSession: Event<{ readonly from: ISessionData; readonly to: ISessionData }> = this._onDidReplaceSession.event;
+
 	// -- Provider Registry --
 
 	registerProvider(provider: ISessionsProvider): IDisposable {
@@ -93,6 +105,13 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		disposables.add(provider.onDidChangeSessions(e => {
 			this._onDidChangeSessions.fire(e);
 		}));
+
+		// Forward replace session events if the provider supports them
+		if (provider.onDidReplaceSession) {
+			disposables.add(provider.onDidReplaceSession(e => {
+				this._onDidReplaceSession.fire(e);
+			}));
+		}
 
 		this._providers.set(provider.id, { provider, disposables });
 		this._onDidChangeProviders.fire();
