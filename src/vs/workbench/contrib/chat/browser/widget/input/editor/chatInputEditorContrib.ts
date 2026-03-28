@@ -48,6 +48,14 @@ function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
 	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
 }
 
+function isDeletableToken(p: IParsedChatRequestPart): boolean {
+	return (
+		p instanceof ChatRequestAgentPart
+		|| p instanceof ChatRequestAgentSubcommandPart
+		|| p instanceof ChatRequestToolPart
+	);
+}
+
 function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart[], part: IParsedChatRequestPart): boolean {
 	const partIdx = parsedRequest.indexOf(part);
 	if (parsedRequest.length > partIdx + 2) {
@@ -477,7 +485,7 @@ class ChatTokenDeleter extends Disposable {
 				const previousParsedValue = parser.parseChatRequestWithReferences(getDynamicVariablesForWidget(this.widget), getSelectedToolAndToolSetsForWidget(this.widget), previousInputValue, this.widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind, attachmentCapabilities });
 
 				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
-				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);
+				const deletableTokens = previousParsedValue.parts.filter(isDeletableToken);
 				deletableTokens.forEach(token => {
 					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
 					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math
