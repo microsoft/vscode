@@ -39,9 +39,8 @@ import { ChatSendResult, IChatService } from '../../common/chatService/chatServi
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { Iterable } from '../../../../../base/common/iterator.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
-import { IGitService } from '../../../git/common/gitService.js';
+import { ISCMService } from '../../../scm/common/scm.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -166,11 +165,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IGitService gitService: IGitService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@ISCMService scmService: ISCMService,
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, gitService, chatWidgetService, location),
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, scmService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
 			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
 		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -190,15 +188,12 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}];
 	}
 
-	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, gitService: IGitService, chatWidgetService: IChatWidgetService, location: ActionLocation): IActionWidgetDropdownActionProvider {
+	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, scmService: ISCMService, location: ActionLocation): IActionWidgetDropdownActionProvider {
 		return {
 			getActions: () => {
 				const actions: IActionWidgetDropdownAction[] = [];
 				const contributions = chatSessionsService.getAllChatSessionContributions();
-				const widget = chatWidgetService.lastFocusedWidget;
-				const hasGitRepo = widget?.viewModel?.model.repoData
-					? true
-					: !Iterable.isEmpty(gitService.repositories);
+				const hasGitRepo = scmService.repositoryCount > 0;
 
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
