@@ -265,7 +265,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._register(this.sessionsProvidersService.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 
 		// When a provider replaces a temp session with a committed one, update the active session
-		this._register(this.sessionsProvidersService.onDidReplaceSession(e => this.setActiveSession(this._chatToSession(e.to))));
+		this._register(this.sessionsProvidersService.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
 
 		// Restore or auto-select active provider
 		this._initActiveProvider();
@@ -341,6 +341,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return sessions;
+	}
+
+	private onDidReplaceSession(from: IChatData, to: IChatData): void {
+		if (this._activeSession.get()?.sessionId === this._chatToSession(from).sessionId) {
+			this.setActiveSession(this._chatToSession(to));
+		}
 	}
 
 	private onDidChangeSessionsFromSessionsProviders(e: IChatChangeEvent): void {

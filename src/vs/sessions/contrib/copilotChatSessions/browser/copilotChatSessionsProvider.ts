@@ -77,6 +77,9 @@ export class CopilotCLISession extends Disposable implements IChatData {
 	private readonly _title = observableValue(this, '');
 	readonly title: IObservable<string> = this._title;
 
+	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
+	readonly description: IObservable<string | undefined>;
+
 	private readonly _updatedAt = observableValue(this, new Date());
 	readonly updatedAt: IObservable<Date> = this._updatedAt;
 
@@ -95,8 +98,6 @@ export class CopilotCLISession extends Disposable implements IChatData {
 	private readonly _isolationModeObservable = observableValue<string | undefined>(this, 'worktree');
 	readonly isolationModeObservable: IObservable<string | undefined> = this._isolationModeObservable;
 
-	readonly changes: IObservable<readonly IChatSessionFileChange[]> = observableValue<readonly IChatSessionFileChange[]>(this, []);
-
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
 
@@ -106,9 +107,11 @@ export class CopilotCLISession extends Disposable implements IChatData {
 	private readonly _loading = observableValue(this, true);
 	readonly loading: IObservable<boolean> = this._loading;
 
+	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
+	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
-	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly pullRequest: IObservable<ISessionPullRequest | undefined> = observableValue(this, undefined);
 
@@ -183,6 +186,12 @@ export class CopilotCLISession extends Disposable implements IChatData {
 
 		// Resolve git repository asynchronously
 		this._resolveGitRepository();
+
+		this._description = observableValue(this, undefined);
+		this.description = this._description;
+
+		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
+		this.changes = this._changes;
 	}
 
 	private async _resolveGitRepository(): Promise<void> {
@@ -304,8 +313,14 @@ export class CopilotCLISession extends Disposable implements IChatData {
 		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
-	update(_session: IAgentSession): void {
-		// No-op: title and status are managed by setTitle/setStatus during send flow
+	update(agentSession: IAgentSession): void {
+		const session = new AgentSessionAdapter(agentSession, this.providerId);
+		this._workspaceData.set(session.workspace.get(), undefined);
+		this._title.set(session.title.get(), undefined);
+		this._status.set(session.status.get(), undefined);
+		this._updatedAt.set(session.updatedAt.get(), undefined);
+		this._changes.set(session.changes.get(), undefined);
+		this._description.set(session.description.get(), undefined);
 	}
 }
 
@@ -1251,7 +1266,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const removed: IChatData[] = [];
 		for (const [key, adapter] of this._sessionCache) {
-			if (!currentKeys.has(key)) {
+			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
 				this._sessionCache.delete(key);
 				removed.push(adapter);
 			}
