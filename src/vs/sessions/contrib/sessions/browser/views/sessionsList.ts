@@ -15,7 +15,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReader, autorun } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { localize } from '../../../../../nls.js';
@@ -235,9 +235,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
-			template.iconContainer.classList.toggle('session-icon-active', sessionStatus === SessionStatus.InProgress);
-			template.iconContainer.classList.toggle('session-icon-error', sessionStatus === SessionStatus.Error);
-			template.iconContainer.classList.toggle('session-icon-unread', !isRead && !isArchived && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput && sessionStatus !== SessionStatus.Error);
 		}));
 
 		// Title — reactive
@@ -416,19 +413,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
 		switch (status) {
-			case SessionStatus.InProgress: return Codicon.sessionInProgress;
-			case SessionStatus.NeedsInput: return Codicon.circleFilled;
-			case SessionStatus.Error: return Codicon.error;
+			case SessionStatus.InProgress: return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
+			case SessionStatus.NeedsInput: return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
 				if (pullRequestIcon) {
 					return pullRequestIcon;
 				}
 
 				if (!isRead && !isArchived) {
-					return Codicon.circleFilled;
+					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
-				// Status-only: show small dot for read sessions
-				return Codicon.circleSmallFilled;
+				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 	}
 
