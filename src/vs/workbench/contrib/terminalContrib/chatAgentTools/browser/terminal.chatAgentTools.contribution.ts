@@ -33,6 +33,7 @@ import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
+import { isNumber } from '../../../../../base/common/types.js';
 
 // #region Services
 
@@ -49,10 +50,10 @@ class ShellIntegrationTimeoutMigrationContribution extends Disposable implements
 		super();
 		const deprecated = configurationService.inspect<number>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
 		const target = configurationService.inspect<number>(TerminalSettingId.ShellIntegrationTimeout);
-		if (deprecated.userValue !== undefined && target.userValue === undefined) {
+		if (deprecated.userValue !== undefined && target.userValue === undefined && isNumber(deprecated.userValue)) {
 			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecated.userValue, ConfigurationTarget.USER);
 		}
-		if (deprecated.workspaceValue !== undefined && target.workspaceValue === undefined) {
+		if (deprecated.workspaceValue !== undefined && target.workspaceValue === undefined && isNumber(deprecated.workspaceValue)) {
 			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecated.workspaceValue, ConfigurationTarget.WORKSPACE);
 		}
 	}
