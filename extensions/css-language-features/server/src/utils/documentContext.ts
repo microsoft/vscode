@@ -8,6 +8,11 @@ import { endsWith, startsWith } from '../utils/strings';
 import { WorkspaceFolder } from 'vscode-languageserver';
 import { Utils, URI } from 'vscode-uri';
 
+function isBareModuleSpecifier(ref: string): boolean {
+	// A bare module specifier doesn't start with '.', '..', '/', '~', or a protocol
+	return !/^(\.\.?\/|\/|~|[a-z][a-z0-9+\-.]*:)/i.test(ref);
+}
+
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
 	function getRootFolder(): string | undefined {
 		for (const folder of workspaceFolders) {
@@ -28,6 +33,15 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 				const folderUri = getRootFolder();
 				if (folderUri) {
 					return folderUri + ref.substring(1);
+				}
+			}
+			// For bare module specifiers (e.g., "some-module/style.css"),
+			// resolve against node_modules in the workspace root as a
+			// fallback, similar to how bundlers like Vite resolve imports.
+			if (isBareModuleSpecifier(ref)) {
+				const folderUri = getRootFolder();
+				if (folderUri) {
+					return Utils.resolvePath(URI.parse(folderUri), 'node_modules', ref).toString(true);
 				}
 			}
 			const baseUri = URI.parse(base);

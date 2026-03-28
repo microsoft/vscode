@@ -97,4 +97,24 @@ suite('Links', () => {
 			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
 		);
 	});
+
+	test('bare module specifier resolving without tilde', async function () {
+
+		const testUri = getTestResource('about.css');
+		const folders = [{ name: 'x', uri: getTestResource('') }];
+
+		await assertLinks('@import "foo/hello.html|"',
+			[{ offset: 9, value: '"foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
+		);
+	});
+
+	test('bare module specifier resolving from subfolder', async function () {
+
+		const testUri = getTestResource('subdir/about.css');
+		const folders = [{ name: 'x', uri: getTestResource('') }];
+
+		await assertLinks('@import "foo/hello.html|"',
+			[{ offset: 9, value: '"foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
+		);
+	});
 });
