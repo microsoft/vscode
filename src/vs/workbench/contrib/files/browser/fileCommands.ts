@@ -706,12 +706,17 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IEditorService);
 		const dialogService = accessor.get(IFileDialogService);
 		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 
 		const createFileLocalized = nls.localize('newFileCommand.saveLabel', "Create File");
-		const defaultFileUri = joinPath(await dialogService.defaultFilePath(), args?.fileName ?? 'Untitled.txt');
+		const defaultFilePath = await dialogService.defaultFilePath();
+		const providedFileUri = args?.fileName ? joinPath(defaultFilePath, args.fileName) : undefined;
+		const useProvidedFileUri = !!providedFileUri && uriIdentityService.extUri.isEqualOrParent(providedFileUri, defaultFilePath);
+		const defaultFileUri = useProvidedFileUri ? providedFileUri : joinPath(defaultFilePath, 'Untitled.txt');
 
-		// If a fileName is provided in args (from quick pick), use it directly without showing dialog
-		const saveUri = args?.fileName
+		// If a trusted fileName is provided in args (from quick pick), use it directly without showing dialog.
+		const saveUri = useProvidedFileUri
 			? defaultFileUri
 			: await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
 
@@ -719,7 +724,12 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await fileService.createFile(saveUri, undefined, { overwrite: true });
+		if (useProvidedFileUri && await fileService.exists(saveUri)) {
+			notificationService.warn(nls.localize('newFileCommand.fileExists', "File '{0}' already exists.", args?.fileName ?? basename(saveUri)));
+			return;
+		}
+
+		await fileService.createFile(saveUri, undefined, { overwrite: !useProvidedFileUri });
 
 		await editorService.openEditor({
 			resource: saveUri,
