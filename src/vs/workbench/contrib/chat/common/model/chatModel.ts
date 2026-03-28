@@ -1377,6 +1377,7 @@ export interface IChatModel extends IDisposable {
 	readonly sessionId: string;
 	/** Milliseconds timestamp this chat model was created. */
 	readonly timestamp: number;
+	readonly lastMessageDate: number;
 	readonly timing: IChatSessionTiming;
 	readonly sessionResource: URI;
 	readonly initialLocation: ChatAgentLocation;
@@ -1887,7 +1888,7 @@ class InputModel implements IInputModel {
 
 		return {
 			contrib: value.contrib,
-			attachments: persistableAttachments,
+			attachments: persistableAttachments.map(IChatRequestVariableEntry.toExport),
 			mode: value.mode,
 			selectedModel: value.selectedModel ? {
 				identifier: value.selectedModel.identifier,
@@ -2179,7 +2180,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		// Initialize input model from serialized data (undefined for new chats)
 		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
 		this.inputModel = new InputModel(serializedInputState && {
-			attachments: serializedInputState.attachments,
+			attachments: (serializedInputState.attachments ?? []).map(IChatRequestVariableEntry.fromExport),
 			mode: serializedInputState.mode,
 			selectedModel: serializedInputState.selectedModel && {
 				identifier: serializedInputState.selectedModel.identifier,

@@ -17,7 +17,7 @@ import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/co
 import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { Queue } from '../../../../base/common/async.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { ISessionData } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../sessions/common/sessionData.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -39,7 +39,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}));
 	}
 
-	private async updateWorkspaceFoldersForSession(session: ISessionData | undefined): Promise<void> {
+	private async updateWorkspaceFoldersForSession(session: ISession | undefined): Promise<void> {
 		await this.manageTrustWorkspaceForSession(session);
 		const activeSessionFolderData = this.getActiveSessionFolderData(session);
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
@@ -63,7 +63,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		await this.workspaceEditingService.updateFolders(0, 1, [activeSessionFolderData], true);
 	}
 
-	private getActiveSessionFolderData(session: ISessionData | undefined): IWorkspaceFolderCreationData | undefined {
+	private getActiveSessionFolderData(session: ISession | undefined): IWorkspaceFolderCreationData | undefined {
 		if (!session) {
 			return undefined;
 		}
@@ -102,7 +102,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		return undefined;
 	}
 
-	private async manageTrustWorkspaceForSession(session: ISessionData | undefined): Promise<void> {
+	private async manageTrustWorkspaceForSession(session: ISession | undefined): Promise<void> {
 		if (session?.sessionType !== AgentSessionProviders.Background) {
 			return;
 		}

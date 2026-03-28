@@ -18,17 +18,16 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChatData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, ISessionPullRequest } from '../../sessions/common/sessionData.js';
+import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, ISessionPullRequest } from '../../sessions/common/sessionData.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename } from '../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionsBrowseAction, IChatChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsBrowseAction, ISessionChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { ResourceSet } from '../../../../base/common/map.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
@@ -52,7 +51,7 @@ const AGENT_OPTION_ID = 'agent';
  * Provider-specific observable fields on new Copilot sessions.
  * Used by pickers and contributions that need to read/write provider-internal state.
  */
-export interface ICopilotNewSessionData extends IChatData {
+export interface ICopilotNewSessionData extends ISessionData {
 	readonly permissionLevel: IObservable<ChatPermissionLevel>;
 	readonly branchObservable: IObservable<string | undefined>;
 	readonly isolationModeObservable: IObservable<string | undefined>;
@@ -60,16 +59,16 @@ export interface ICopilotNewSessionData extends IChatData {
 
 /**
  * Local new session for Background agent sessions.
- * Implements {@link IChatData} (session facade) and provides
+ * Implements {@link ISessionData} (session facade) and provides
  * pre-send configuration methods for the new-session flow.
  */
-export class CopilotCLISession extends Disposable implements IChatData {
+export class CopilotCLISession extends Disposable implements ISessionData {
 
 	static readonly COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
 
-	// -- IChatData fields --
+	// -- ISessionData fields --
 
-	readonly chatId: string;
+	readonly id: string;
 	readonly providerId: string;
 	readonly sessionType: string;
 	readonly icon: ThemeIcon;
@@ -77,6 +76,9 @@ export class CopilotCLISession extends Disposable implements IChatData {
 
 	private readonly _title = observableValue(this, '');
 	readonly title: IObservable<string> = this._title;
+
+	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
+	readonly description: IObservable<string | undefined>;
 
 	private readonly _updatedAt = observableValue(this, new Date());
 	readonly updatedAt: IObservable<Date> = this._updatedAt;
@@ -96,8 +98,6 @@ export class CopilotCLISession extends Disposable implements IChatData {
 	private readonly _isolationModeObservable = observableValue<string | undefined>(this, 'worktree');
 	readonly isolationModeObservable: IObservable<string | undefined> = this._isolationModeObservable;
 
-	readonly changes: IObservable<readonly IChatSessionFileChange[]> = observableValue<readonly IChatSessionFileChange[]>(this, []);
-
 	private readonly _modelIdObservable = observableValue<string | undefined>(this, undefined);
 	readonly modelId: IObservable<string | undefined> = this._modelIdObservable;
 
@@ -107,9 +107,11 @@ export class CopilotCLISession extends Disposable implements IChatData {
 	private readonly _loading = observableValue(this, true);
 	readonly loading: IObservable<boolean> = this._loading;
 
+	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
+	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
-	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly pullRequest: IObservable<ISessionPullRequest | undefined> = observableValue(this, undefined);
 
@@ -164,7 +166,7 @@ export class CopilotCLISession extends Disposable implements IChatData {
 		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
-		this.chatId = `${providerId}:${resource.toString()}`;
+		this.id = `${providerId}:${resource.toString()}`;
 		this.providerId = providerId;
 		this.sessionType = AgentSessionProviders.Background;
 		this.icon = CopilotCLISessionType.icon;
@@ -176,7 +178,7 @@ export class CopilotCLISession extends Disposable implements IChatData {
 			this.setOption(REPOSITORY_OPTION_ID, repoUri.fsPath);
 		}
 
-		// Set IChatData workspace observable
+		// Set ISessionData workspace observable
 		this._workspaceData.set(sessionWorkspace, undefined);
 
 		this._isolationMode = 'worktree';
@@ -184,6 +186,12 @@ export class CopilotCLISession extends Disposable implements IChatData {
 
 		// Resolve git repository asynchronously
 		this._resolveGitRepository();
+
+		this._description = observableValue(this, undefined);
+		this.description = this._description;
+
+		this._changes = observableValue<readonly IChatSessionFileChange[]>(this, []);
+		this.changes = this._changes;
 	}
 
 	private async _resolveGitRepository(): Promise<void> {
@@ -280,6 +288,14 @@ export class CopilotCLISession extends Disposable implements IChatData {
 		this._permissionLevel.set(level, undefined);
 	}
 
+	setTitle(title: string): void {
+		this._title.set(title, undefined);
+	}
+
+	setStatus(status: SessionStatus): void {
+		this._status.set(status, undefined);
+	}
+
 	setMode(mode: IChatMode | undefined): void {
 		if (this._mode?.id !== mode?.id) {
 			this._mode = mode;
@@ -297,8 +313,14 @@ export class CopilotCLISession extends Disposable implements IChatData {
 		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
-	update(session: IChatData): void {
+	update(agentSession: IAgentSession): void {
+		const session = new AgentSessionAdapter(agentSession, this.providerId);
 		this._workspaceData.set(session.workspace.get(), undefined);
+		this._title.set(session.title.get(), undefined);
+		this._status.set(session.status.get(), undefined);
+		this._updatedAt.set(session.updatedAt.get(), undefined);
+		this._changes.set(session.changes.get(), undefined);
+		this._description.set(session.description.get(), undefined);
 	}
 }
 
@@ -316,14 +338,14 @@ function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): bool
 
 /**
  * Remote new session for Cloud agent sessions.
- * Implements {@link IChatData} (session facade) and provides
+ * Implements {@link ISessionData} (session facade) and provides
  * pre-send configuration methods for the new-session flow.
  */
-export class RemoteNewSession extends Disposable implements IChatData {
+export class RemoteNewSession extends Disposable implements ISessionData {
 
-	// -- IChatData fields --
+	// -- ISessionData fields --
 
-	readonly chatId: string;
+	readonly id: string;
 	readonly providerId: string;
 	readonly sessionType: string;
 	readonly icon: ThemeIcon;
@@ -397,7 +419,7 @@ export class RemoteNewSession extends Disposable implements IChatData {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.chatId = `${providerId}:${resource.toString()}`;
+		this.id = `${providerId}:${resource.toString()}`;
 		this.providerId = providerId;
 		this.sessionType = target;
 		this.icon = CopilotCloudSessionType.icon;
@@ -436,6 +458,14 @@ export class RemoteNewSession extends Disposable implements IChatData {
 
 	setModelId(modelId: string | undefined): void {
 		this._modelId = modelId;
+	}
+
+	setTitle(title: string): void {
+		this._title.set(title, undefined);
+	}
+
+	setStatus(status: SessionStatus): void {
+		this._status.set(status, undefined);
 	}
 
 	setMode(_mode: IChatMode | undefined): void {
@@ -533,7 +563,7 @@ export class RemoteNewSession extends Disposable implements IChatData {
 		return group.items.find(i => i.default === true) ?? group.items[0];
 	}
 
-	update(session: IChatData): void { }
+	update(_session: IAgentSession): void { }
 }
 
 /**
@@ -553,11 +583,11 @@ function toSessionStatus(status: ChatSessionStatus): SessionStatus {
 }
 
 /**
- * Adapts an existing {@link IAgentSession} from the chat layer into the new {@link IChatData} facade.
+ * Adapts an existing {@link IAgentSession} from the chat layer into the new {@link ISessionData} facade.
  */
-class AgentSessionAdapter implements IChatData {
+class AgentSessionAdapter implements ISessionData {
 
-	readonly chatId: string;
+	readonly id: string;
 	readonly resource: URI;
 	readonly providerId: string;
 	readonly sessionType: string;
@@ -602,7 +632,7 @@ class AgentSessionAdapter implements IChatData {
 		session: IAgentSession,
 		providerId: string,
 	) {
-		this.chatId = `${providerId}:${session.resource.toString()}`;
+		this.id = `${providerId}:${session.resource.toString()}`;
 		this.resource = session.resource;
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
@@ -816,11 +846,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly icon = Codicon.copilot;
 	readonly sessionTypes: readonly ISessionType[] = [CopilotCLISessionType, CopilotCloudSessionType];
 
-	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
-	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
+
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISessionData; readonly to: ISessionData }>());
+	readonly onDidReplaceSession: Event<{ readonly from: ISessionData; readonly to: ISessionData }> = this._onDidReplaceSession.event;
 
 	/** Cache of adapted sessions, keyed by resource URI string. */
-	private readonly _sessionCache = new Map<string, AgentSessionAdapter>();
+	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession>();
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
@@ -862,7 +895,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Sessions --
 
-	getSessionTypes(session: IChatData): ISessionType[] {
+	getSessionTypes(session: ISessionData): ISessionType[] {
 		if (session instanceof CopilotCLISession) {
 			return [CopilotCLISessionType];
 		}
@@ -872,7 +905,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return [];
 	}
 
-	getSessions(): IChatData[] {
+	getSessions(): ISessionData[] {
 		this._ensureSessionCache();
 		return Array.from(this._sessionCache.values());
 	}
@@ -881,7 +914,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private _currentNewSession: (CopilotCLISession | RemoteNewSession) | undefined;
 
-	createNewSession(workspace: ISessionWorkspace): IChatData {
+	getUntitledSession(): ISessionData | undefined {
+		return this._currentNewSession;
+	}
+
+	createNewSession(workspace: ISessionWorkspace): ISessionData {
 		const workspaceUri = workspace.repositories[0]?.uri;
 		if (!workspaceUri) {
 			throw new Error('Workspace has no repository URI');
@@ -905,7 +942,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return session;
 	}
 
-	createNewSessionFrom(chatId: string): IChatData {
+	createNewSessionFrom(chatId: string): ISessionData {
 		const chat = this._findChatSession(chatId);
 		if (!chat) {
 			throw new Error(`Session '${chatId}' not found`);
@@ -938,12 +975,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return session;
 	}
 
-	setSessionType(chatId: string, type: ISessionType): IChatData {
+	setSessionType(chatId: string, type: ISessionType): ISessionData {
 		throw new Error('Session type cannot be changed');
 	}
 
 	setModel(chatId: string, modelId: string): void {
-		if (this._currentNewSession?.chatId === chatId) {
+		if (this._currentNewSession?.id === chatId) {
 			this._currentNewSession.setModelId(modelId);
 		}
 	}
@@ -967,15 +1004,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	async deleteSession(chatId: string): Promise<void> {
 		const agentSession = this._findAgentSession(chatId);
 		if (agentSession) {
-			await this.chatService.removeHistoryEntry(agentSession.resource);
-			this._refreshSessionCache();
+			if (agentSession.providerType === CopilotCLISessionType.id) {
+				this.commandService.executeCommand('github.copilot.cli.sessions.delete', { resource: agentSession.resource });
+			} else {
+				await this.chatService.removeHistoryEntry(agentSession.resource);
+				this._refreshSessionCache();
+			}
 		}
 	}
 
 	async renameSession(chatId: string, title: string): Promise<void> {
 		const agentSession = this._findAgentSession(chatId);
 		if (agentSession) {
-			this.chatService.setChatSessionTitle(agentSession.resource, title);
+			if (agentSession.providerType === CopilotCLISessionType.id) {
+				this.commandService.executeCommand('github.copilot.cli.sessions.setTitle', { resource: agentSession.resource }, title);
+			} else {
+				this.chatService.setChatSessionTitle(agentSession.resource, title);
+			}
 		}
 	}
 
@@ -988,9 +1033,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Send --
 
-	async sendRequest(chatId: string, options: ISendRequestOptions): Promise<IChatData> {
+	async sendRequest(chatId: string, options: ISendRequestOptions): Promise<ISessionData> {
 		const session = this._currentNewSession;
-		if (!session || session.chatId !== chatId) {
+		if (!session || session.id !== chatId) {
 			throw new Error(`Session '${chatId}' not found or not a new session`);
 		}
 
@@ -1061,32 +1106,78 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			modelRef.dispose();
 		}
 
-		const existingSessions = new ResourceSet([...this._sessionCache.values()].map(s => s.resource));
-
 		// Send request
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
-		// Wait for the agent session to appear
-		const createdSession = await this._waitForNewAgentSession(session.target, existingSessions);
-		this._currentNewSession?.dispose();
-		this._currentNewSession = undefined;
-		return createdSession;
+		// Add the new session to the sessions model immediately so it appears in the sessions list
+		session.setTitle(localize('new session', "New Session"));
+		session.setStatus(SessionStatus.InProgress);
+		const key = session.resource.toString();
+		this._sessionCache.set(key, session);
+		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
+
+		try {
+
+			// Wait for the session to be committed (URI swapped from untitled to real)
+			const committedResource = await this._waitForCommittedSession(session.resource);
+
+			// Wait for _refreshSessionCache to populate the committed adapter
+			const committedSession = await this._waitForSessionInCache(committedResource);
+
+			// Remove the temp from the cache (the adapter now owns the committed key)
+			this._sessionCache.delete(key);
+			this._currentNewSession = undefined;
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+
+			// Notify listeners that the temp session was replaced by the committed one
+			this._onDidReplaceSession.fire({ from: session, to: committedSession });
+
+			return committedSession;
+		} catch (error) {
+			// Clean up temp session on error
+			this._sessionCache.delete(key);
+			this._currentNewSession = undefined;
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+			throw error;
+		}
 	}
 
-	private async _waitForNewAgentSession(target: AgentSessionTarget, existingSessions: ResourceSet): Promise<IChatData> {
-		const found = [...this._sessionCache.values()].find(s => s.sessionType === target && !existingSessions.has(s.resource));
-		if (found) {
-			return found;
-		}
-		return new Promise<IChatData>(resolve => {
-			const listener = this.onDidChangeSessions((e) => {
-				const s = e.added.find(s => s.sessionType === target && !existingSessions.has(s.resource));
-				if (s) {
+	/**
+	 * Waits for the committed (real) URI for a session by listening to the
+	 * {@link IChatSessionsService.onDidCommitSession} event.
+	 */
+	private _waitForCommittedSession(untitledResource: URI): Promise<URI> {
+		return new Promise<URI>(resolve => {
+			const listener = this.chatSessionsService.onDidCommitSession(e => {
+				if (e.original.toString() === untitledResource.toString()) {
 					listener.dispose();
-					resolve(s);
+					resolve(e.committed);
+				}
+			});
+		});
+	}
+
+	/**
+	 * Waits for an {@link AgentSessionAdapter} with the given resource to appear
+	 * in the session cache (populated by {@link _refreshSessionCache}).
+	 */
+	private _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
+		const key = resource.toString();
+		const existing = this._sessionCache.get(key);
+		if (existing instanceof AgentSessionAdapter) {
+			return Promise.resolve(existing);
+		}
+		return new Promise<AgentSessionAdapter>(resolve => {
+			const listener = this.onDidChangeSessions(e => {
+				const found = e.added.find(s => s.resource.toString() === key);
+				if (found instanceof AgentSessionAdapter) {
+					listener.dispose();
+					resolve(found);
 				}
 			});
 		});
@@ -1158,15 +1249,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private _refreshSessionCache(): void {
 		const currentKeys = new Set<string>();
-		const added: IChatData[] = [];
-		const changed: IChatData[] = [];
+		const added: ISessionData[] = [];
+		const changed: ISessionData[] = [];
 
 		for (const session of this.agentSessionsService.model.sessions) {
-			if (session.resource.toString() === this._currentNewSession?.resource.toString()) {
-				this._currentNewSession.update(new AgentSessionAdapter(session, this.id));
-				continue;
-			}
-
 			if (session.providerType !== AgentSessionProviders.Background
 				&& session.providerType !== AgentSessionProviders.Cloud) {
 				continue;
@@ -1186,9 +1272,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			}
 		}
 
-		const removed: IChatData[] = [];
+		const removed: ISessionData[] = [];
 		for (const [key, adapter] of this._sessionCache) {
-			if (!currentKeys.has(key)) {
+			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
 				this._sessionCache.delete(key);
 				removed.push(adapter);
 			}
@@ -1199,7 +1285,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	private _findChatSession(chatId: string): IChatData | undefined {
+	private _findChatSession(chatId: string): ISessionData | undefined {
 		return this._sessionCache.get(this._localIdFromchatId(chatId));
 	}
 

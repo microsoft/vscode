@@ -18,7 +18,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -2101,8 +2101,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
+
+
+			await testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
+			await testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
 
 			// With parent search disabled, should not find parent files
 			let promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
@@ -2115,6 +2117,7 @@ suite('PromptsService', () => {
 
 			// With parent search enabled, should find parent files
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+			fireConfigChange(testConfigService, PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS);
 
 			promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 			agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
@@ -2181,6 +2184,8 @@ suite('PromptsService', () => {
 
 			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+			fireConfigChange(testConfigService, PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS);
+
 
 			// Mark the parent repo root as untrusted
 			workspaceTrustService.getUriTrustInfo = (uri: URI) => {
@@ -3992,3 +3997,9 @@ suite('PromptsService', () => {
 		});
 	});
 });
+
+function fireConfigChange(configService: TestConfigurationService, ...key: string[]): void {
+	configService.onDidChangeConfigurationEmitter.fire({
+		affectsConfiguration: (k: string) => key.includes(k),
+	} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
+}

@@ -5,10 +5,9 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
@@ -34,6 +33,7 @@ import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
+import { isNumber } from '../../../../../base/common/types.js';
 
 // #region Services
 
@@ -48,13 +48,13 @@ class ShellIntegrationTimeoutMigrationContribution extends Disposable implements
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		const deprecatedSettingValue = configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
-		if (!isNumber(deprecatedSettingValue)) {
-			return;
+		const deprecated = configurationService.inspect<number>(TerminalChatAgentToolsSettingId.ShellIntegrationTimeout);
+		const target = configurationService.inspect<number>(TerminalSettingId.ShellIntegrationTimeout);
+		if (deprecated.userValue !== undefined && target.userValue === undefined && isNumber(deprecated.userValue)) {
+			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecated.userValue, ConfigurationTarget.USER);
 		}
-		const newSettingValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
-		if (!isNumber(newSettingValue)) {
-			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecatedSettingValue);
+		if (deprecated.workspaceValue !== undefined && target.workspaceValue === undefined && isNumber(deprecated.workspaceValue)) {
+			configurationService.updateValue(TerminalSettingId.ShellIntegrationTimeout, deprecated.workspaceValue, ConfigurationTarget.WORKSPACE);
 		}
 	}
 }

@@ -207,6 +207,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._sendRequest('fetchContent', { uri: uri.toString() });
 	}
 
+	async writeFile(params: ICommandMap['writeFile']['params']): Promise<ICommandMap['writeFile']['result']> {
+		return this._sendRequest('writeFile', params);
+	}
+
 	private _handleMessage(msg: IProtocolMessage): void {
 		if (isJsonRpcResponse(msg)) {
 			const pending = this._pendingRequests.get(msg.id);

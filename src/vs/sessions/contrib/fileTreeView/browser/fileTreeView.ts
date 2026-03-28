@@ -43,7 +43,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionData, GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
+import { ISession, GITHUB_REMOTE_FILE_SCHEME } from '../../sessions/common/sessionData.js';
 import { getGitHubRemoteFileDisplayName } from './githubFileSystemProvider.js';
 import { basename } from '../../../../base/common/path.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -236,10 +236,10 @@ export class FileTreeViewPane extends ViewPane {
 
 	/**
 	 * Determines the root URI for the file tree based on the active session type.
-	 * Tries multiple data sources: ISessionData workspace, agent session model metadata,
+	 * Tries multiple data sources: ISession workspace, agent session model metadata,
 	 * and file change URIs as a last resort.
 	 */
-	private resolveTreeRoot(activeSession: ISessionData | undefined): URI | undefined {
+	private resolveTreeRoot(activeSession: ISession | undefined): URI | undefined {
 		if (!activeSession) {
 			return undefined;
 		}

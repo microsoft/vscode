@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionStateManager } from './sessionStateManager.js';
@@ -171,15 +171,18 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
 		}
-		this._stateManager.removeSession(session.toString());
-		this._sessionDataService.deleteSessionData(session);
+		this._stateManager.deleteSession(session.toString());
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
 
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
-		const snapshot = this._stateManager.getSnapshot(resource.toString());
+		let snapshot = this._stateManager.getSnapshot(resource.toString());
+		if (!snapshot) {
+			await this.restoreSession(resource);
+			snapshot = this._stateManager.getSnapshot(resource.toString());
+		}
 		if (!snapshot) {
 			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
 		}
@@ -212,6 +215,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async fetchContent(uri: URI): Promise<IFetchContentResult> {
 		return this._sideEffects.handleFetchContent(uri.toString());
+	}
+
+	async writeFile(params: IWriteFileParams): Promise<IWriteFileResult> {
+		return this._sideEffects.handleWriteFile(params);
 	}
 
 	async shutdown(): Promise<void> {
