@@ -30,7 +30,7 @@ import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionStatus } from '../common/sessionData.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './views/sessionsViewActions.js';
+import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
