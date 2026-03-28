@@ -80,7 +80,7 @@ Override the default Mocha timeout for long-running tests.
 
 ### Integration tests
 
-Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead.
+Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details on filtering and running specific integration test files.
 
 ### Compilation requirement
 

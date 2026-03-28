@@ -130,6 +130,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
+		`- NEVER run Start-Sleep or similar wait commands. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} or ${TerminalToolId.GetTerminalOutput} instead`,
 	);
 
 	return parts.join('\n');
@@ -200,7 +201,8 @@ Best Practices:
 - Quote variables: "$var" instead of $var to handle spaces
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
-- Avoid printing credentials unless absolutely required`);
+- Avoid printing credentials unless absolutely required
+- NEVER run sleep or similar wait commands in a terminal. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} or ${TerminalToolId.GetTerminalOutput} instead`);
 
 	return parts.join('');
 }
@@ -294,7 +296,7 @@ export async function createRunInTerminalToolData(
 				},
 				isBackground: {
 					type: 'boolean',
-					description: `Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using ${TerminalToolId.GetTerminalOutput}.`
+					description: `Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using ${TerminalToolId.GetTerminalOutput}. If unsure whether a command will be long-running, prefer isBackground=true.`
 				},
 				timeout: {
 					type: 'number',
@@ -316,7 +318,6 @@ export async function createRunInTerminalToolData(
 				'explanation',
 				'goal',
 				'isBackground',
-				'timeout',
 			]
 		}
 	};
@@ -1247,7 +1248,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
-			resultText.push(`Note: Command timed out after ${timeoutValue}ms. Output collected so far is shown below and the command may still be running in terminal ID ${termId}.\n\n`);
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms and was moved to the background. The command may still be running in terminal ID ${termId}. Use ${TerminalToolId.AwaitTerminal} to wait for it to complete or ${TerminalToolId.GetTerminalOutput} to check its current output. Do NOT use sleep or manual polling to wait.\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
