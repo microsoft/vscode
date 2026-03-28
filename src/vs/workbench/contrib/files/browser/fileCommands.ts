@@ -710,7 +710,10 @@ CommandsRegistry.registerCommand({
 		const createFileLocalized = nls.localize('newFileCommand.saveLabel', "Create File");
 		const defaultFileUri = joinPath(await dialogService.defaultFilePath(), args?.fileName ?? 'Untitled.txt');
 
-		const saveUri = await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
+		// If a fileName is provided in args (from quick pick), use it directly without showing dialog
+		const saveUri = args?.fileName
+			? defaultFileUri
+			: await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
 
 		if (!saveUri) {
 			return;
