@@ -23,7 +23,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	AgentSandboxEnabled = 'chat.agent.sandbox',
 	AgentSandboxNetworkAllowedDomains = 'chat.agent.sandbox.network.allowedDomains',
 	AgentSandboxNetworkDeniedDomains = 'chat.agent.sandbox.network.deniedDomains',
-	AgentSandboxNetworkAllowTrustedDomains = 'chat.agent.sandbox.network.allowTrustedDomains',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.linuxFileSystem',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.macFileSystem',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
@@ -38,7 +37,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	DeprecatedTerminalSandboxNetwork = 'chat.tools.terminal.sandbox.network',
 	DeprecatedTerminalSandboxNetworkAllowedDomains = 'chat.tools.terminal.sandbox.network.allowedDomains',
 	DeprecatedTerminalSandboxNetworkDeniedDomains = 'chat.tools.terminal.sandbox.network.deniedDomains',
-	DeprecatedTerminalSandboxNetworkAllowTrustedDomains = 'chat.tools.terminal.sandbox.network.allowTrustedDomains',
 	DeprecatedTerminalSandboxLinuxFileSystem = 'chat.tools.terminal.sandbox.linuxFileSystem',
 	DeprecatedTerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
@@ -556,13 +554,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		tags: ['preview'],
 		restricted: true,
 	},
-	[TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains]: {
-		markdownDescription: localize('terminalSandbox.networkSetting.allowTrustedDomains', "Note: this setting is applicable only when {0} is enabled. When enabled, the Trusted Domains list is included in the allowed domains for network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
-		type: 'boolean',
-		default: false,
-		tags: ['preview'],
-		restricted: true,
-	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem]: {
 		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
@@ -666,10 +657,9 @@ terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTe
 	deprecated: true,
 	markdownDeprecationMessage: localize(
 		'terminalSandboxNetwork.deprecated',
-		'This setting has been split into {0}, {1}, and {2}.',
+		'This setting has been split into {0} and {1}.',
 		`\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains}#\``,
 		`\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains}#\``,
-		`\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains}#\``,
 	),
 };
 
@@ -691,12 +681,6 @@ terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTe
 	items: { type: 'string' },
 	deprecated: true,
 	markdownDeprecationMessage: localize('terminalSandboxNetworkDeniedDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowTrustedDomains] = {
-	type: 'boolean',
-	deprecated: true,
-	markdownDeprecationMessage: localize('terminalSandboxNetworkAllowTrustedDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains}#\``),
 };
 
 terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxLinuxFileSystem] = {

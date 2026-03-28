@@ -739,16 +739,13 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		}
 	}, {
 		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
-		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[]; allowTrustedDomains?: boolean }, valueAccessor) => {
+		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[] }, valueAccessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
 				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
 			}
 			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
 				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
-			}
-			if (value?.allowTrustedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowTrustedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowTrustedDomains, { value: value.allowTrustedDomains }]);
 			}
 			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetwork, { value: undefined }]);
 			return configurationKeyValuePairs;
@@ -774,15 +771,11 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			return configurationKeyValuePairs;
 		}
 	}, {
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowTrustedDomains,
-		migrateFn: (value: boolean, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowTrustedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowTrustedDomains, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowTrustedDomains, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
+		key: 'chat.agent.sandbox.network.allowTrustedDomains',
+		migrateFn: () => [['chat.agent.sandbox.network.allowTrustedDomains', { value: undefined }]]
+	}, {
+		key: 'chat.tools.terminal.sandbox.network.allowTrustedDomains',
+		migrateFn: () => [['chat.tools.terminal.sandbox.network.allowTrustedDomains', { value: undefined }]]
 	}, {
 		key: TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem,
 		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {

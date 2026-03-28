@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual, ok } from 'assert';
+import { deepStrictEqual, strictEqual, ok } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -15,7 +15,6 @@ import { IEnvironmentService } from '../../../../../../platform/environment/comm
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
-import { ITrustedDomainService } from '../../../../url/common/trustedDomainService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
@@ -27,12 +26,11 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFolde
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 
-suite('TerminalSandboxService - allowTrustedDomains', () => {
+suite('TerminalSandboxService - network domains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
-	let trustedDomainService: MockTrustedDomainService;
 	let fileService: MockFileService;
 	let lifecycleService: TestLifecycleService;
 	let workspaceContextService: MockWorkspaceContextService;
@@ -41,16 +39,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	let createdFolders: string[];
 	let deletedFolders: string[];
 	const windowId = 7;
-
-	class MockTrustedDomainService implements ITrustedDomainService {
-		_serviceBrand: undefined;
-		private _onDidChangeTrustedDomains = new Emitter<void>();
-		readonly onDidChangeTrustedDomains: Event<void> = this._onDidChangeTrustedDomains.event;
-		trustedDomains: string[] = [];
-		isValid(_resource: URI): boolean {
-			return true;
-		}
-	}
 
 	class MockFileService {
 		async createFile(uri: URI, content: VSBuffer): Promise<any> {
@@ -154,7 +142,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		deletedFolders = [];
 		instantiationService = workbenchInstantiationService({}, store);
 		configurationService = new TestConfigurationService();
-		trustedDomainService = new MockTrustedDomainService();
 		fileService = new MockFileService();
 		lifecycleService = store.add(new TestLifecycleService());
 		workspaceContextService = new MockWorkspaceContextService();
@@ -169,7 +156,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, false);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
@@ -182,19 +168,20 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IProductService, productService);
 		instantiationService.stub(IRemoteAgentService, new MockRemoteAgentService());
-		instantiationService.stub(ITrustedDomainService, trustedDomainService);
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(ILifecycleService, lifecycleService);
 	});
 
-	test('should filter out sole wildcard (*) from trusted domains', async () => {
-		// Setup: Enable allowTrustedDomains and add * to trusted domains
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, true);
-		trustedDomainService.trustedDomains = ['*'];
+	test('should preserve configured network domains', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com', '*.github.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, ['blocked.example.com']);
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		deepStrictEqual(sandboxService.getResolvedNetworkDomains(), {
+			allowedDomains: ['example.com', '*.github.com'],
+			deniedDomains: ['blocked.example.com']
+		});
+
 		const configPath = await sandboxService.getSandboxConfigPath();
 
 		ok(configPath, 'Config path should be defined');
@@ -202,124 +189,10 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		ok(configContent, 'Config file should be created');
 
 		const config = JSON.parse(configContent);
-		strictEqual(config.network.allowedDomains.length, 0, 'Sole wildcard * should be filtered out');
-	});
-
-	test('should allow wildcards with domains like *.github.com', async () => {
-		// Setup: Enable allowTrustedDomains and add *.github.com
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, true);
-		trustedDomainService.trustedDomains = ['*.github.com'];
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const configPath = await sandboxService.getSandboxConfigPath();
-
-		ok(configPath, 'Config path should be defined');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created');
-
-		const config = JSON.parse(configContent);
-		strictEqual(config.network.allowedDomains.length, 1, 'Wildcard domain should be included');
-		strictEqual(config.network.allowedDomains[0], '*.github.com', 'Wildcard domain should match');
-	});
-
-	test('should combine trusted domains with configured allowedDomains, filtering out *', async () => {
-		// Setup: Enable allowTrustedDomains with multiple domains including *
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, true);
-		trustedDomainService.trustedDomains = ['*', '*.github.com', 'microsoft.com'];
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const configPath = await sandboxService.getSandboxConfigPath();
-
-		ok(configPath, 'Config path should be defined');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created');
-
-		const config = JSON.parse(configContent);
-		strictEqual(config.network.allowedDomains.length, 3, 'Should have 3 domains (excluding *)');
-		ok(config.network.allowedDomains.includes('example.com'), 'Should include configured domain');
-		ok(config.network.allowedDomains.includes('*.github.com'), 'Should include wildcard domain');
-		ok(config.network.allowedDomains.includes('microsoft.com'), 'Should include microsoft.com');
-		ok(!config.network.allowedDomains.includes('*'), 'Should not include sole wildcard');
-	});
-
-	test('should not include trusted domains when allowTrustedDomains is false', async () => {
-		// Setup: Disable allowTrustedDomains
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, false);
-		trustedDomainService.trustedDomains = ['*', '*.github.com'];
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const configPath = await sandboxService.getSandboxConfigPath();
-
-		ok(configPath, 'Config path should be defined');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created');
-
-		const config = JSON.parse(configContent);
-		strictEqual(config.network.allowedDomains.length, 1, 'Should only have configured domain');
-		strictEqual(config.network.allowedDomains[0], 'example.com', 'Should only include example.com');
-	});
-
-	test('should deduplicate domains when combining sources', async () => {
-		// Setup: Same domain in both sources
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['github.com', '*.github.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, true);
-		trustedDomainService.trustedDomains = ['*.github.com', 'github.com'];
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const configPath = await sandboxService.getSandboxConfigPath();
-
-		ok(configPath, 'Config path should be defined');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created');
-
-		const config = JSON.parse(configContent);
-		strictEqual(config.network.allowedDomains.length, 2, 'Should have 2 unique domains');
-		ok(config.network.allowedDomains.includes('github.com'), 'Should include github.com');
-		ok(config.network.allowedDomains.includes('*.github.com'), 'Should include *.github.com');
-	});
-
-	test('should handle empty trusted domains list', async () => {
-		// Setup: Empty trusted domains
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, true);
-		trustedDomainService.trustedDomains = [];
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const configPath = await sandboxService.getSandboxConfigPath();
-
-		ok(configPath, 'Config path should be defined');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created');
-
-		const config = JSON.parse(configContent);
-		strictEqual(config.network.allowedDomains.length, 1, 'Should have only configured domain');
-		strictEqual(config.network.allowedDomains[0], 'example.com', 'Should only include example.com');
-	});
-
-	test('should handle only * in trusted domains', async () => {
-		// Setup: Only * in trusted domains (edge case)
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowTrustedDomains, true);
-		trustedDomainService.trustedDomains = ['*'];
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const configPath = await sandboxService.getSandboxConfigPath();
-
-		ok(configPath, 'Config path should be defined');
-		const configContent = createdFiles.get(configPath);
-		ok(configContent, 'Config file should be created');
-
-		const config = JSON.parse(configContent);
-		strictEqual(config.network.allowedDomains.length, 0, 'Should have no domains (* filtered out)');
+		deepStrictEqual(config.network, {
+			allowedDomains: ['example.com', '*.github.com'],
+			deniedDomains: ['blocked.example.com']
+		});
 	});
 
 	test('should refresh allowWrite paths when workspace folders change', async () => {
