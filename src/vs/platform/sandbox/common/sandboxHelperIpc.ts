@@ -33,7 +33,7 @@ export class SandboxHelperChannelClient implements ISandboxHelperService {
 
 	constructor(private readonly channel: IChannel) { }
 
-	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
-		return this.channel.call<ISandboxDependencyStatus | undefined>('checkSandboxDependencies');
+	checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
+		return this.channel.call<ISandboxDependencyStatus>('checkSandboxDependencies');
 	}
 }

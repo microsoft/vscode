@@ -278,21 +278,20 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			return false;
 		}
 
-		const sandboxDependencyStatus = !forceRefresh && this._sandboxDependencyStatus?.bubblewrapInstalled && this._sandboxDependencyStatus.socatInstalled
+		const cachedSandboxDependencyStatus = !forceRefresh && this._sandboxDependencyStatus?.bubblewrapInstalled && this._sandboxDependencyStatus.socatInstalled
 			? this._sandboxDependencyStatus
-			: await this._sandboxHelperService.checkSandboxDependencies();
+			: undefined;
+		const sandboxDependencyStatus = cachedSandboxDependencyStatus ?? await this._sandboxHelperService.checkSandboxDependencies();
 		this._sandboxDependencyStatus = sandboxDependencyStatus;
 
-		const { bubblewrapInstalled, socatInstalled } = sandboxDependencyStatus;
-
-		if (!bubblewrapInstalled) {
+		if (!sandboxDependencyStatus.bubblewrapInstalled) {
 			this._logService.warn('TerminalSandboxService: bubblewrap (bwrap) is not installed');
 		}
-		if (!socatInstalled) {
+		if (!sandboxDependencyStatus.socatInstalled) {
 			this._logService.warn('TerminalSandboxService: socat is not installed');
 		}
 
-		return bubblewrapInstalled && socatInstalled;
+		return sandboxDependencyStatus.bubblewrapInstalled && sandboxDependencyStatus.socatInstalled;
 	}
 
 	public async getMissingSandboxDependencies(): Promise<string[]> {
