@@ -13,15 +13,15 @@ suite('SandboxHelper', () => {
 	test('reports when both dependencies are installed', async () => {
 		const status = await SandboxHelperService.checkSandboxDependenciesWith(async command => command === 'bwrap' || command === 'socat' ? `/usr/bin/${command}` : undefined);
 
-		strictEqual(status.bubblewrapInstalled, true);
-		strictEqual(status.socatInstalled, true);
+		strictEqual(status?.bubblewrapInstalled, true);
+		strictEqual(status?.socatInstalled, true);
 	});
 
 	test('reports missing dependencies independently', async () => {
 		const status = await SandboxHelperService.checkSandboxDependenciesWith(async command => command === 'socat' ? '/usr/bin/socat' : undefined);
 
-		strictEqual(status.bubblewrapInstalled, false);
-		strictEqual(status.socatInstalled, true);
+		strictEqual(status?.bubblewrapInstalled, false);
+		strictEqual(status?.socatInstalled, true);
 	});
 
 	test('skips dependency checks on non-linux platforms', async () => {
@@ -32,7 +32,7 @@ suite('SandboxHelper', () => {
 		}, false);
 
 		strictEqual(callCount, 0);
-		strictEqual(status.bubblewrapInstalled, true);
-		strictEqual(status.socatInstalled, true);
+		strictEqual(status?.bubblewrapInstalled, true);
+		strictEqual(status?.socatInstalled, true);
 	});
 });
