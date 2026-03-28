@@ -168,6 +168,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	 * Wire a live connection to this provider, enabling session operations and folder browsing.
 	 */
 	setConnection(connection: IAgentConnection, defaultDirectory?: string): void {
+		if (this._connection === connection && this._defaultDirectory === defaultDirectory) {
+			return;
+		}
+
 		this._connectionListeners.clear();
 		this._connection = connection;
 		this._defaultDirectory = defaultDirectory;
@@ -187,11 +191,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			}
 		}));
 
-		// Refresh sessions with the new connection
-		if (this._cacheInitialized) {
-			const cts = new CancellationTokenSource();
-			this._refreshSessions(cts.token).finally(() => cts.dispose());
-		}
+		// Always refresh sessions when a connection is (re)established
+		const cts = new CancellationTokenSource();
+		this._cacheInitialized = true;
+		this._refreshSessions(cts.token).finally(() => cts.dispose());
 	}
 
 	/**
