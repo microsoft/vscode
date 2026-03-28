@@ -72,6 +72,10 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	}
 
 	class MockRemoteAgentService {
+		getConnection() {
+			return null;
+		}
+
 		async getEnvironment(): Promise<IRemoteAgentEnvironment> {
 			// Return a Linux environment to ensure tests pass on Windows
 			// (sandbox is not supported on Windows)
