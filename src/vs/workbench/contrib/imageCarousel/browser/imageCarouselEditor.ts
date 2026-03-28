@@ -167,7 +167,7 @@ export class ImageCarouselEditor extends EditorPane {
 
 		// ARIA: set up slideshow container for screen readers
 		elements.root.setAttribute('role', 'group');
-		elements.root.setAttribute('aria-label', localize('imageCarousel.ariaLabel', "Image carousel"));
+		elements.root.setAttribute('aria-label', localize('imageCarousel.ariaLabel', "Images Preview"));
 		elements.captionSeparator.setAttribute('aria-hidden', 'true');
 		elements.ariaStatus.setAttribute('aria-live', 'polite');
 		elements.ariaStatus.setAttribute('aria-atomic', 'true');
@@ -449,25 +449,25 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			this._elements.captionText.style.display = 'none';
 			this._elements.captionSeparator.style.display = 'none';
 		}
-		this._elements.counter.textContent = localize('imageCarousel.counter', "{0} / {1}", this._currentIndex + 1, this._flatImages.length);
+		this._elements.counter.textContent = localize('imageCarousel.counter', "{0} / {1}", navigationIndex + 1, this._flatImages.length);
 
 		// Announce to screen readers with full context (position + caption/name)
 		const itemKind = isVideo
 			? localize('imageCarousel.kindVideo', "Video")
 			: localize('imageCarousel.kindImage', "Image");
 		this._elements.ariaStatus.textContent = currentImage.caption
-			? localize('imageCarousel.statusWithCaption', "{0} {1} of {2}: {3}", itemKind, this._currentIndex + 1, this._flatImages.length, currentImage.caption)
-			: localize('imageCarousel.statusWithName', "{0} {1} of {2}: {3}", itemKind, this._currentIndex + 1, this._flatImages.length, currentImage.name);
+			? localize('imageCarousel.statusWithCaption', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.caption)
+			: localize('imageCarousel.statusWithName', "{0} {1} of {2}: {3}", itemKind, navigationIndex + 1, this._flatImages.length, currentImage.name);
 
 		// Update button states
-		this._elements.prevBtn.disabled = this._currentIndex === 0;
-		this._elements.nextBtn.disabled = this._currentIndex === this._flatImages.length - 1;
+		this._elements.prevBtn.disabled = navigationIndex === 0;
+		this._elements.nextBtn.disabled = navigationIndex === this._flatImages.length - 1;
 
 		// Update thumbnail selection — only toggle active class and
 		// call getBoundingClientRect on the active thumbnail to avoid
 		// layout thrashing across all thumbnails on every navigation.
 		for (let i = 0; i < this._thumbnailElements.length; i++) {
-			const isActive = i === this._currentIndex;
+			const isActive = i === navigationIndex;
 			const thumbnail = this._thumbnailElements[i];
 			thumbnail.classList.toggle('active', isActive);
 			if (isActive) {
@@ -481,7 +481,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		// Using scrollIntoView with 'nearest' avoids forced layout from
 		// getBoundingClientRect + scrollLeft and is handled efficiently by
 		// the browser's scroll machinery.
-		const activeThumbnail = this._thumbnailElements[this._currentIndex];
+		const activeThumbnail = this._thumbnailElements[navigationIndex];
 		if (activeThumbnail) {
 			activeThumbnail.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 		}
