@@ -21,7 +21,7 @@ import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatS
 import { IChatData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, ISessionPullRequest } from '../../sessions/common/sessionData.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename } from '../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionsBrowseAction, IChatChangeEvent, IChatReplaceSessionEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsBrowseAction, IChatChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -304,12 +304,8 @@ export class CopilotCLISession extends Disposable implements IChatData {
 		this.chatSessionsService.setSessionOption(this.resource, optionId, value);
 	}
 
-	update(session: IChatData): void {
-		this._workspaceData.set(session.workspace.get(), undefined);
-	}
-
-	updateWorkspace(workspace: ISessionWorkspace | undefined): void {
-		this._workspaceData.set(workspace, undefined);
+	update(_session: IAgentSession): void {
+		// No-op: title and status are managed by setTitle/setStatus during send flow
 	}
 }
 
@@ -552,11 +548,7 @@ export class RemoteNewSession extends Disposable implements IChatData {
 		return group.items.find(i => i.default === true) ?? group.items[0];
 	}
 
-	update(session: IChatData): void { }
-
-	updateWorkspace(workspace: ISessionWorkspace | undefined): void {
-		this._workspaceData.set(workspace, undefined);
-	}
+	update(_session: IAgentSession): void { }
 }
 
 /**
@@ -763,73 +755,69 @@ class AgentSessionAdapter implements IChatData {
 	}
 
 	private _buildWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
-		return buildAgentSessionWorkspace(session);
-	}
-}
+		const [repoUri, worktreeUri, branchName, baseBranchName, baseBranchProtected] = this._extractRepositoryFromMetadata(session);
 
-function buildAgentSessionWorkspace(session: IAgentSession): ISessionWorkspace | undefined {
-	const [repoUri, worktreeUri, branchName, baseBranchName, baseBranchProtected] = extractAgentSessionRepository(session);
+		const repository: ISessionRepository = {
+			uri: repoUri ?? URI.parse('unknown://'),
+			workingDirectory: worktreeUri,
+			detail: branchName,
+			baseBranchName,
+			baseBranchProtected,
+		};
 
-	const repository: ISessionRepository = {
-		uri: repoUri ?? URI.parse('unknown://'),
-		workingDirectory: worktreeUri,
-		detail: branchName,
-		baseBranchName,
-		baseBranchProtected,
-	};
-
-	return {
-		label: getRepositoryName(session) ?? basename(repository.uri),
-		icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
-		repositories: [repository],
-		requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
-	};
-}
-
-/**
- * Extract repository/worktree information from session metadata.
- * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
- */
-function extractAgentSessionRepository(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, string | undefined, boolean | undefined] {
-	const metadata = session.metadata;
-	if (!metadata) {
-		return [undefined, undefined, undefined, undefined, undefined];
+		return {
+			label: getRepositoryName(session) ?? basename(repository.uri),
+			icon: repoUri?.scheme === GITHUB_REMOTE_FILE_SCHEME ? Codicon.repo : Codicon.folder,
+			repositories: [repository],
+			requiresWorkspaceTrust: session.providerType !== AgentSessionProviders.Cloud,
+		};
 	}
 
-	if (session.providerType === AgentSessionProviders.Cloud) {
-		const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
-		const repositoryUri = URI.from({
-			scheme: GITHUB_REMOTE_FILE_SCHEME,
-			authority: 'github',
-			path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
-		});
-		return [repositoryUri, undefined, undefined, undefined, undefined];
+	/**
+	 * Extract repository/worktree information from session metadata.
+	 * Mirrors the logic in sessionsManagementService.getRepositoryFromMetadata().
+	 */
+	private _extractRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, string | undefined, boolean | undefined] {
+		const metadata = session.metadata;
+		if (!metadata) {
+			return [undefined, undefined, undefined, undefined, undefined];
+		}
+
+		if (session.providerType === AgentSessionProviders.Cloud) {
+			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
+			const repositoryUri = URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
+			});
+			return [repositoryUri, undefined, undefined, undefined, undefined];
+		}
+
+		// Background/CLI sessions: check workingDirectoryPath first
+		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			return [URI.file(workingDirectoryPath), undefined, undefined, undefined, undefined];
+		}
+
+		// Fall back to repositoryPath + worktreePath
+		const repositoryPath = metadata?.repositoryPath as string | undefined;
+		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
+
+		const worktreePath = metadata?.worktreePath as string | undefined;
+		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
+
+		const worktreeBranchName = metadata?.branchName as string | undefined;
+		const worktreeBaseBranchName = metadata?.baseBranchName as string | undefined;
+		const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
+
+		return [
+			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
+			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
+			worktreeBranchName,
+			worktreeBaseBranchName,
+			worktreeBaseBranchProtected,
+		];
 	}
-
-	// Background/CLI sessions: check workingDirectoryPath first
-	const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
-	if (workingDirectoryPath) {
-		return [URI.file(workingDirectoryPath), undefined, undefined, undefined, undefined];
-	}
-
-	// Fall back to repositoryPath + worktreePath
-	const repositoryPath = metadata?.repositoryPath as string | undefined;
-	const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
-
-	const worktreePath = metadata?.worktreePath as string | undefined;
-	const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
-
-	const worktreeBranchName = metadata?.branchName as string | undefined;
-	const worktreeBaseBranchName = metadata?.baseBranchName as string | undefined;
-	const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
-
-	return [
-		URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-		URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
-		worktreeBranchName,
-		worktreeBaseBranchName,
-		worktreeBaseBranchProtected,
-	];
 }
 
 /**
@@ -846,11 +834,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
 	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
-	private readonly _onDidReplaceSession = this._register(new Emitter<IChatReplaceSessionEvent>());
-	readonly onDidReplaceSession: Event<IChatReplaceSessionEvent> = this._onDidReplaceSession.event;
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: IChatData; readonly to: IChatData }>());
+	readonly onDidReplaceSession: Event<{ readonly from: IChatData; readonly to: IChatData }> = this._onDidReplaceSession.event;
 
 	/** Cache of adapted sessions, keyed by resource URI string. */
-	private readonly _sessionCache = new Map<string, IChatData>();
+	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession>();
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
@@ -1106,26 +1094,34 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		// Add the new session to the sessions model immediately so it appears in the sessions list
-		session.setTitle(query);
+		session.setTitle(localize('new session', "New Session"));
 		session.setStatus(SessionStatus.InProgress);
 		const key = session.resource.toString();
 		this._sessionCache.set(key, session);
 		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
-		// Wait for the session to be committed (URI swapped from untitled to real)
-		const committedResource = await this._waitForCommittedSession(session.resource);
+		try {
 
-		// Wait for _refreshSessionCache to populate the committed adapter
-		const committedSession = await this._waitForSessionInCache(committedResource);
+			// Wait for the session to be committed (URI swapped from untitled to real)
+			const committedResource = await this._waitForCommittedSession(session.resource);
 
-		// Remove the temp from the cache (the adapter now owns the committed key)
-		this._sessionCache.delete(key);
-		this._currentNewSession = undefined;
+			// Wait for _refreshSessionCache to populate the committed adapter
+			const committedSession = await this._waitForSessionInCache(committedResource);
 
-		// Notify listeners that the temp session was replaced by the committed one
-		this._onDidReplaceSession.fire({ from: session, to: committedSession });
+			// Remove the temp from the cache (the adapter now owns the committed key)
+			this._sessionCache.delete(key);
+			this._currentNewSession = undefined;
 
-		return committedSession;
+			// Notify listeners that the temp session was replaced by the committed one
+			this._onDidReplaceSession.fire({ from: session, to: committedSession });
+
+			return committedSession;
+		} catch (error) {
+			// Clean up temp session on error
+			this._sessionCache.delete(key);
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			throw error;
+		}
 	}
 
 	/**
@@ -1243,13 +1239,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			currentKeys.add(key);
 
 			const existing = this._sessionCache.get(key);
-			if (existing instanceof AgentSessionAdapter) {
+			if (existing) {
 				existing.update(session);
 				changed.push(existing);
-			} else if (existing instanceof CopilotCLISession || existing instanceof RemoteNewSession) {
-				existing.updateWorkspace(buildAgentSessionWorkspace(session));
-				changed.push(existing);
-			} else if (!existing) {
+			} else {
 				const adapter = new AgentSessionAdapter(session, this.id);
 				this._sessionCache.set(key, adapter);
 				added.push(adapter);
@@ -1257,10 +1250,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		const removed: IChatData[] = [];
-		for (const [key, cachedSession] of this._sessionCache) {
-			if (!currentKeys.has(key) && cachedSession !== this._currentNewSession) {
+		for (const [key, adapter] of this._sessionCache) {
+			if (!currentKeys.has(key)) {
 				this._sessionCache.delete(key);
-				removed.push(cachedSession);
+				removed.push(adapter);
 			}
 		}
 

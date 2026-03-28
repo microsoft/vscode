@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IChatData, ISessionWorkspace } from '../common/sessionData.js';
-import { IChatChangeEvent, IChatReplaceSessionEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
+import { IChatChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
@@ -53,7 +53,7 @@ export interface ISessionsProvidersService {
 	 * @internal This is an implementation detail of the Copilot Chat sessions
 	 * provider. Do not consume this event outside of {@link ISessionsManagementService}.
 	 */
-	readonly onDidReplaceSession: Event<IChatReplaceSessionEvent>;
+	readonly onDidReplaceSession: Event<{ readonly from: IChatData; readonly to: IChatData }>;
 
 	// -- Session Actions (routed to the correct provider via sessionId) --
 
@@ -87,8 +87,8 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	private readonly _onDidChangeSessions = this._register(new Emitter<IChatChangeEvent>());
 	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
-	private readonly _onDidReplaceSession = this._register(new Emitter<IChatReplaceSessionEvent>());
-	readonly onDidReplaceSession: Event<IChatReplaceSessionEvent> = this._onDidReplaceSession.event;
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: IChatData; readonly to: IChatData }>());
+	readonly onDidReplaceSession: Event<{ readonly from: IChatData; readonly to: IChatData }> = this._onDidReplaceSession.event;
 
 	// -- Provider Registry --
 
