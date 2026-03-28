@@ -130,7 +130,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} instead`,
+		`- NEVER run Start-Sleep or similar wait commands in a foreground terminal. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} instead`,
 	);
 
 	return parts.join('\n');
@@ -202,7 +202,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} instead`);
+- NEVER run sleep or similar wait commands in a foreground terminal. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} instead`);
 
 	return parts.join('');
 }
@@ -318,7 +318,6 @@ export async function createRunInTerminalToolData(
 				'explanation',
 				'goal',
 				'isBackground',
-				'timeout'
 			]
 		}
 	};
@@ -363,6 +362,12 @@ export interface IActiveTerminalExecution {
 	 * The terminal instance associated with this execution.
 	 */
 	readonly instance: ITerminalInstance;
+
+	/**
+	 * The terminal tool session ID used to identify this execution for
+	 * continue-in-background events.
+	 */
+	readonly terminalToolSessionId: string | undefined;
 
 	/**
 	 * Gets the current output from the terminal.
@@ -981,7 +986,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				termId,
 				toolTerminal,
 				commandDetection!,
-				args.isBackground
+				args.isBackground,
+				terminalToolSessionId
 			);
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
@@ -1249,7 +1255,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
-			resultText.push(`Note: Command timed out after ${timeoutValue}ms. Output collected so far is shown below and the command may still be running in terminal ID ${termId}.\n\n`);
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms and was moved to the background. The command may still be running in terminal ID ${termId}. Use ${TerminalToolId.AwaitTerminal} to wait for it to complete or ${TerminalToolId.GetTerminalOutput} to check its current output. Do NOT use sleep or manual polling to wait.\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
@@ -1628,6 +1634,7 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 		toolTerminal: IToolTerminal,
 		commandDetection: ICommandDetectionCapability,
 		isBackground: boolean,
+		readonly terminalToolSessionId: string | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
