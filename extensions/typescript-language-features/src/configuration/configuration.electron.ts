@@ -31,29 +31,30 @@ export function resolveNodeExecutableFromPath(
 	isExecutableFile: IsExecutableFile = defaultIsExecutableFile,
 	platform: NodeJS.Platform = process.platform,
 ): string | null {
+	const pathLib = platform === 'win32' ? path.win32 : path.posix;
 	const pathValue = getCaseInsensitiveEnvValue(env, 'PATH');
 	if (!pathValue) {
 		return null;
 	}
 
-	const searchPaths = pathValue.split(path.delimiter).filter(Boolean);
+	const searchPaths = pathValue.split(pathLib.delimiter).filter(Boolean);
 	const windowsExecutableSuffixes = platform === 'win32'
 		? (getCaseInsensitiveEnvValue(env, 'PATHEXT') || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)
 		: [];
 
 	for (const pathEntry of searchPaths) {
-		const baseDir = path.isAbsolute(pathEntry) ? pathEntry : path.join(cwd, pathEntry);
+		const baseDir = pathLib.isAbsolute(pathEntry) ? pathEntry : pathLib.join(cwd, pathEntry);
 
 		if (platform === 'win32') {
 			for (const ext of windowsExecutableSuffixes) {
-				const candidate = path.join(baseDir, `node${ext}`);
+				const candidate = pathLib.join(baseDir, `node${ext}`);
 				if (isExecutableFile(candidate)) {
 					return candidate;
 				}
 			}
 		}
 
-		const candidate = path.join(baseDir, 'node');
+		const candidate = pathLib.join(baseDir, 'node');
 		if (isExecutableFile(candidate)) {
 			return candidate;
 		}
