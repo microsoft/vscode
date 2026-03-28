@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { ITerminalSandboxService } from '../../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../common/terminalSandboxService.js';
 import type { ICommandLineRewriter, ICommandLineRewriterOptions, ICommandLineRewriterResult } from './commandLineRewriter.js';
 
 export class CommandLineSandboxRewriter extends Disposable implements ICommandLineRewriter {
@@ -16,7 +16,7 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
 		const sandboxPrereqs = await this._sandboxService.checkForSandboxingPrereqs();
-		if (!sandboxPrereqs.enabled) {
+		if (!sandboxPrereqs.enabled || sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Config) {
 			return undefined;
 		}
 

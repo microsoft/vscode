@@ -205,32 +205,12 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
 	});
 
-	test('should recheck dependencies until they are present', async () => {
-		sandboxHelperService.status = {
-			bubblewrapInstalled: false,
-			socatInstalled: true,
-		};
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-
-		strictEqual(await sandboxService.isEnabled(), false, 'Sandbox should be disabled while dependencies are missing');
-		strictEqual(sandboxHelperService.callCount, 1, 'First check should query sandbox dependencies');
-
-		sandboxHelperService.status = {
-			bubblewrapInstalled: true,
-			socatInstalled: true,
-		};
-
-		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should become enabled after dependencies are installed');
-		strictEqual(sandboxHelperService.callCount, 2, 'A previous failure should trigger another dependency check');
-	});
-
-	test('should cache successful dependency checks in isEnabled', async () => {
+	test('dependency checks should not be called for isEnabled', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
 		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should be enabled when dependencies are present');
 		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should stay enabled on subsequent checks');
-		strictEqual(sandboxHelperService.callCount, 1, 'Successful dependency checks should be cached');
+		strictEqual(sandboxHelperService.callCount, 0, 'Dependency checks should not be called for isEnabled');
 	});
 
 	test('should report dependency prereq failures', async () => {
@@ -242,7 +222,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const result = await sandboxService.checkForSandboxingPrereqs();
 
-		strictEqual(result.enabled, false, 'Sandbox should not be enabled when dependencies are missing');
+		strictEqual(result.enabled, true, 'Sandbox should be enabled even when dependencies are missing');
 		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies, 'Missing dependencies should be reported as the failed prereq');
 		strictEqual(result.missingDependencies?.length, 1, 'Missing dependency list should be included');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should be reported');

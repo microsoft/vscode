@@ -238,7 +238,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const sandboxConfigPath = await this.getSandboxConfigPath(forceRefresh);
 		if (!sandboxConfigPath) {
 			return {
-				enabled: false,
+				enabled: true,
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Config,
 			};
