@@ -11,7 +11,8 @@ import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, Ob
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IReader, autorun } from '../../../../../base/common/observable.js';
@@ -133,7 +134,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
 	readonly iconContainer: HTMLElement;
-	readonly title: HTMLElement;
+	readonly title: HighlightedLabel;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly detailsRow: HTMLElement;
 	readonly approvalRow: HTMLElement;
@@ -177,7 +178,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const iconContainer = DOM.append(container, $('.session-icon'));
 		const mainCol = DOM.append(container, $('.session-main'));
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
-		const title = DOM.append(titleRow, $('.session-title'));
+		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, $('.session-title'))));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		const detailsRow = DOM.append(mainCol, $('.session-details-row'));
 
@@ -200,10 +201,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (isSessionSection(element) || isSessionShowMore(element)) {
 			return;
 		}
-		this.renderSession(element, template);
+		this.renderSession(element, template, createMatches(node.filterData));
 	}
 
-	private renderSession(element: ISession, template: ISessionItemTemplate): void {
+	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
 
 		// Toolbar context
@@ -243,7 +244,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Title — reactive
 		template.elementDisposables.add(autorun(reader => {
 			const titleText = element.title.read(reader);
-			template.title.textContent = titleText;
+			template.title.set(titleText, matches);
 		}));
 
 		// Details row — reactive: badge · diff stats · time
