@@ -745,6 +745,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 			// Re-send queued requests from the original session on the committed session
 			this._resendPendingRequests(originalResource, modifiedResource);
+
+			// Notify listeners that the session has been committed
+			this._chatSessionsService.fireSessionCommitted(originalResource, modifiedResource);
 		} finally {
 			originalModel?.dispose();
 		}
