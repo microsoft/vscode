@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -83,6 +84,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(INotificationService, { error: () => { } });
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
@@ -99,15 +101,13 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	});
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
-		connectionInfo: {
-			address: overrides?.address ?? 'localhost:4321',
-			name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
-			clientId: 'test-client',
-		},
-		connection,
+		address: overrides?.address ?? 'localhost:4321',
+		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
 	};
 
-	return disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, config));
+	const provider = disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, config));
+	provider.setConnection(connection);
+	return provider;
 }
 
 function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; workingDirectory?: string }): void {
