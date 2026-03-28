@@ -21,6 +21,7 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
@@ -34,7 +35,7 @@ import { IChatService, type IChatTerminalToolInvocationData } from '../../../../
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
-import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -78,7 +79,9 @@ suite('RunInTerminalTool', () => {
 	let chatServiceDisposeEmitter: Emitter<{ sessionResources: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
 	let sandboxEnabled: boolean;
+	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
+	let createdTerminalInstance: ITerminalInstance;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -94,6 +97,36 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		sandboxEnabled = false;
+		sandboxPrereqResult = {
+			enabled: false,
+			sandboxConfigPath: undefined,
+			failedCheck: undefined,
+		};
+
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const onDisposedEmitter = new Emitter<ITerminalInstance>();
+		const onDidAddCapabilityEmitter = new Emitter<{ id: TerminalCapability }>();
+		const onDidInputDataEmitter = new Emitter<string>();
+		createdTerminalInstance = {
+			sendText: async (_text: string) => {
+				// Simulate successful command completion after sendText
+				queueMicrotask(() => commandFinishedEmitter.fire({ exitCode: 0 }));
+			},
+			focus: () => { },
+			capabilities: {
+				get: (cap: TerminalCapability) => {
+					if (cap === TerminalCapability.CommandDetection) {
+						return {
+							onCommandFinished: commandFinishedEmitter.event,
+						};
+					}
+					return undefined;
+				},
+				onDidAddCapability: onDidAddCapabilityEmitter.event,
+			},
+			onDidInputData: onDidInputDataEmitter.event,
+			onDisposed: onDisposedEmitter.event,
+		} as unknown as ITerminalInstance;
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
@@ -123,10 +156,18 @@ suite('RunInTerminalTool', () => {
 			isEnabled: async () => sandboxEnabled,
 			wrapCommand: (command: string, requestUnsandboxedExecution?: boolean) => requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
+			checkForSandboxingPrereqs: async () => sandboxPrereqResult,
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			getOS: async () => OperatingSystem.Linux,
 			getResolvedNetworkDomains: () => ({ allowedDomains: [], deniedDomains: [] }),
+			getMissingSandboxDependencies: async () => [],
+			installMissingSandboxDependencies: async (missingDependencies, _sessionResource, _token, options) => {
+				const terminal = await options.createTerminal();
+				await options.focusTerminal(terminal);
+				await terminal.sendText(`sudo apt install -y ${missingDependencies.join(' ')}`, true);
+				return { exitCode: 0 };
+			},
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
@@ -140,7 +181,10 @@ suite('RunInTerminalTool', () => {
 			},
 		});
 		instantiationService.stub(ITerminalService, {
+			createTerminal: async () => createdTerminalInstance,
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
+			revealTerminal: async () => { },
+			setActiveInstance: () => { },
 			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
@@ -252,11 +296,39 @@ suite('RunInTerminalTool', () => {
 			ok(!propertiesBefore?.['requestUnsandboxedExecution'], 'Expected no requestUnsandboxedExecution before enabling sandbox');
 
 			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
 
 			const toolDataAfter = await instantiationService.invokeFunction(createRunInTerminalToolData);
 			const propertiesAfter = toolDataAfter.inputSchema?.properties as Record<string, object> | undefined;
 			ok(propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution after enabling sandbox');
 			ok(toolDataAfter.modelDescription?.includes('Sandboxing:'), 'Expected sandbox instructions in description after enabling sandbox');
+		});
+
+		test('should show confirmation to install missing sandbox dependencies when prereq check fails', async () => {
+			sandboxEnabled = false;
+			sandboxPrereqResult = {
+				enabled: false,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+				missingDependencies: ['bubblewrap'],
+			};
+
+			const result = await executeToolTest({
+				command: 'echo hello',
+				explanation: 'Print hello',
+				goal: 'Print hello'
+			});
+
+			// The tool should return confirmation messages for the user
+			ok(result, 'Expected prepared invocation to be defined');
+			ok(result?.confirmationMessages, 'Expected confirmationMessages when deps are missing');
+			ok(result?.confirmationMessages?.customButtons?.length === 2, 'Expected two custom buttons');
+			// missingDependencies should be in toolSpecificData so invoke can handle it
+			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
 		});
 
 		test('should include allowed and denied network domains in model description', async () => {
@@ -286,8 +358,12 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should use sandbox labels when command is sandbox wrapped', async () => {
-			terminalSandboxService.isEnabled = async () => true;
-			terminalSandboxService.getSandboxConfigPath = async () => '/tmp/vscode-sandbox-settings.json';
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
 			terminalSandboxService.wrapCommand = (command: string) => `sandbox-runtime ${command}`;
 
 			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
@@ -540,6 +616,11 @@ suite('RunInTerminalTool', () => {
 	suite('sandbox bypass requests', () => {
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {
 			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
 			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
 
 			const result = await executeToolTest({
@@ -1949,10 +2030,13 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			isEnabled: async () => sandboxEnabled,
 			wrapCommand: (command: string) => `sandbox:${command}`,
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
+			checkForSandboxingPrereqs: async () => ({ enabled: sandboxEnabled, sandboxConfigPath: sandboxEnabled ? '/tmp/sandbox.json' : undefined, failedCheck: undefined }),
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			getOS: async () => OperatingSystem.Linux,
 			getResolvedNetworkDomains: () => ({ allowedDomains: [], deniedDomains: [] }),
+			getMissingSandboxDependencies: async () => [],
+			installMissingSandboxDependencies: async () => ({ exitCode: 0 }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 

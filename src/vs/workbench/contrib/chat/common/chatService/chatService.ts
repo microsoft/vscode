@@ -559,6 +559,8 @@ export interface IChatTerminalToolInvocationData {
 	/** Whether the user chose to continue in background for this tool invocation */
 	didContinueInBackground?: boolean;
 	autoApproveInfo?: IMarkdownString;
+	/** Names of missing sandbox dependencies that the user may choose to install */
+	missingSandboxDependencies?: string[];
 }
 
 /**

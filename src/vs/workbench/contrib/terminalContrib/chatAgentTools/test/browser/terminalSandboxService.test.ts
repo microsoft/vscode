@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
-import { TerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -26,6 +26,7 @@ import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/commo
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
 
 suite('TerminalSandboxService - allowTrustedDomains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +38,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	let lifecycleService: TestLifecycleService;
 	let workspaceContextService: MockWorkspaceContextService;
 	let productService: IProductService;
+	let sandboxHelperService: MockSandboxHelperService;
 	let createdFiles: Map<string, string>;
 	let createdFolders: string[];
 	let deletedFolders: string[];
@@ -70,6 +72,10 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	}
 
 	class MockRemoteAgentService {
+		getConnection() {
+			return null;
+		}
+
 		async getEnvironment(): Promise<IRemoteAgentEnvironment> {
 			// Return a Linux environment to ensure tests pass on Windows
 			// (sandbox is not supported on Windows)
@@ -148,6 +154,20 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		}
 	}
 
+	class MockSandboxHelperService implements ISandboxHelperService {
+		_serviceBrand: undefined;
+		callCount = 0;
+		status: ISandboxDependencyStatus = {
+			bubblewrapInstalled: true,
+			socatInstalled: true,
+		};
+
+		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
+			this.callCount++;
+			return Promise.resolve(this.status);
+		}
+	}
+
 	setup(() => {
 		createdFiles = new Map();
 		createdFolders = [];
@@ -158,6 +178,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		fileService = new MockFileService();
 		lifecycleService = store.add(new TestLifecycleService());
 		workspaceContextService = new MockWorkspaceContextService();
+		sandboxHelperService = new MockSandboxHelperService();
 		productService = {
 			...TestProductService,
 			dataFolderName: '.test-data',
@@ -185,6 +206,41 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		instantiationService.stub(ITrustedDomainService, trustedDomainService);
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(ILifecycleService, lifecycleService);
+		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
+	});
+
+	test('dependency checks should not be called for isEnabled', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should be enabled when dependencies are present');
+		strictEqual(await sandboxService.isEnabled(), true, 'Sandbox should stay enabled on subsequent checks');
+		strictEqual(sandboxHelperService.callCount, 0, 'Dependency checks should not be called for isEnabled');
+	});
+
+	test('should report dependency prereq failures', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: false,
+			socatInstalled: true,
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const result = await sandboxService.checkForSandboxingPrereqs();
+
+		strictEqual(result.enabled, true, 'Sandbox should be enabled even when dependencies are missing');
+		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies, 'Missing dependencies should be reported as the failed prereq');
+		strictEqual(result.missingDependencies?.length, 1, 'Missing dependency list should be included');
+		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should be reported');
+		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
+	});
+
+	test('should report successful sandbox prereq checks', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const result = await sandboxService.checkForSandboxingPrereqs();
+
+		strictEqual(result.enabled, true, 'Sandbox should be enabled when prereqs pass');
+		strictEqual(result.failedCheck, undefined, 'No failed check should be reported when prereqs pass');
+		strictEqual(result.missingDependencies, undefined, 'Missing dependencies should be omitted when prereqs pass');
+		ok(result.sandboxConfigPath, 'Sandbox config path should be returned when prereqs pass');
 	});
 
 	test('should filter out sole wildcard (*) from trusted domains', async () => {
