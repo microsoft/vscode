@@ -374,6 +374,10 @@
 
 		.agent-session-section-label {
 			flex: 1;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 
 		.agent-session-section-count {
@@ -395,8 +399,7 @@
 		}
 	}
 
-	.monaco-list-row:hover .agent-session-section .agent-session-section-count,
-	.monaco-list-row.focused:not(.selected) .agent-session-section .agent-session-section-count {
+	.monaco-list-row:hover .agent-session-section .agent-session-section-count {
 		display: none;
 	}
 

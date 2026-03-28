@@ -13,6 +13,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CopilotCLISession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -60,16 +61,18 @@ export class NewChatPermissionPicker extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		// Write permission level to the active session data when it changes
 		this._register(this.onDidChangeLevel(level => {
-			const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-			if (!(chat instanceof CopilotCLISession)) {
+			const session = this.sessionsManagementService.activeSession.get();
+			const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
+			if (!(providerSession instanceof CopilotCLISession)) {
 				throw new Error('NewChatPermissionPicker requires a CopilotCLISession');
 			}
-			chat.setPermissionLevel(level);
+			providerSession.setPermissionLevel(level);
 		}));
 	}
 
@@ -163,11 +166,11 @@ export class NewChatPermissionPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
 			item: {
-				label: localize('permissions.learnMore', "Learn More about Permissions"),
+				label: localize('permissions.learnMore', "Learn more about permissions"),
 				icon: Codicon.blank,
 				checked: false,
 			},
-			label: localize('permissions.learnMore', "Learn More about Permissions"),
+			label: localize('permissions.learnMore', "Learn more about permissions"),
 			hideIcon: false,
 			disabled: false,
 		});

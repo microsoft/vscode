@@ -32,7 +32,6 @@
 	gap: 6px;
 	overflow: hidden;
 	color: var(--vscode-foreground);
-	padding-left: 8px;
 }
 
 .ci-status-widget-title-label {
@@ -131,7 +130,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 4px 8px;
+	padding: 4px 0;
 	height: 100%;
 	width: 100%;
 	box-sizing: border-box;
