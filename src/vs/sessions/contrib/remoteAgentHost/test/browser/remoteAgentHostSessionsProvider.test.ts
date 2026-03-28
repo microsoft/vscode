@@ -175,7 +175,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const uri = URI.parse('vscode-agent-host://auth/home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
-		assert.strictEqual(ws.label, 'project');
+		assert.strictEqual(ws.label, 'project [Test Host]');
 		assert.strictEqual(ws.repositories.length, 1);
 		assert.strictEqual(ws.repositories[0].uri.toString(), uri.toString());
 	});
@@ -376,7 +376,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace, 'Workspace should be populated');
-		assert.strictEqual(workspace!.label, 'myrepo');
+		assert.strictEqual(workspace!.label, 'myrepo [Test Host]');
 	});
 
 	test('session adapter without working directory has no workspace', async () => {
