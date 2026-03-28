@@ -15,6 +15,10 @@ const options = {
 	timeout: 60000
 };
 
+if (process.env.MOCHA_GREP) {
+	options.grep = process.env.MOCHA_GREP;
+}
+
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 	options.reporter = 'mocha-multi-reporters';
 	options.reporterOptions = {
