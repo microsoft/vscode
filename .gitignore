@@ -28,6 +28,7 @@ vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/
+src/vs/workbench/contrib/update/browser/update.test.contribution.ts
 dist
 .playwright-cli
 .claude/

@@ -6,7 +6,7 @@
 import '../../../../platform/update/common/update.config.contribution.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
@@ -32,7 +32,10 @@ workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Resto
 workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
 workbench.registerWorkbenchContribution(UpdateStatusBarContribution, LifecyclePhase.Restored);
-workbench.registerWorkbenchContribution(UpdateTitleBarContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(UpdateTitleBarContribution.ID, UpdateTitleBarContribution, WorkbenchPhase.AfterRestored);
+
+// Dev-only: test commands for simulating update states (gitignored)
+import(/* @vite-ignore */ `${'./update.test.contribution.js'}`).catch(() => { });
 
 // Release notes
 
