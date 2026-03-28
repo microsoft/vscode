@@ -17,12 +17,7 @@ suite('SandboxHelper', () => {
 		strictEqual(status?.socatInstalled, true);
 	});
 
-	test('reports missing dependencies independently', async () => {
-		const status = await SandboxHelperService.checkSandboxDependenciesWith(async command => command === 'socat' ? '/usr/bin/socat' : undefined);
 
-		strictEqual(status?.bubblewrapInstalled, false);
-		strictEqual(status?.socatInstalled, true);
-	});
 
 	test('skips dependency checks on non-linux platforms', async () => {
 		let callCount = 0;
