@@ -119,12 +119,7 @@
 			justify-content: center;
 		}
 
-		&.session-icon-active > .codicon {
-			color: var(--vscode-textLink-foreground);
-		}
-
 		&.session-icon-pulse > .codicon {
-			color: var(--vscode-list-warningForeground);
 			animation: session-needs-input-pulse 2s ease-in-out infinite;
 		}
 
@@ -132,19 +127,6 @@
 			&.session-icon-pulse > .codicon {
 				animation: none;
 			}
-		}
-
-		&.session-icon-unread > .codicon {
-			color: var(--vscode-textLink-foreground);
-		}
-
-		&.session-icon-error > .codicon {
-			color: var(--vscode-errorForeground);
-		}
-
-		/* Small dot for read sessions — subtle indicator */
-		> .codicon.codicon-circle-small-filled {
-			color: var(--vscode-agentSessionReadIndicator-foreground);
 		}
 	}
 
