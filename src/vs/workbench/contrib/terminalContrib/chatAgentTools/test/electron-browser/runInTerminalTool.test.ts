@@ -663,6 +663,11 @@ suite('RunInTerminalTool', () => {
 	suite('sandbox bypass requests', () => {
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {
 			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
 			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
 
 			const result = await executeToolTest({
