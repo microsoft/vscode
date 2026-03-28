@@ -603,11 +603,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Delegate to the provider. The temp session appears in the list immediately
 		// via the provider's added event. sendRequest resolves with the committed session
 		// once the first turn completes and the session is persisted.
-		// The active session is updated via onDidReplaceSession before this resolves.
 		const newChat = await provider.sendRequest(chat.chatId, options);
 
-		// Add the committed chat to the session's group
+		// Add the committed chat to the session's group and set it as active
 		this._groupModel.addChat(newChat.chatId, newChat.chatId);
+		this.setActiveSession(this._chatToSession(newChat));
 	}
 
 	openNewSessionView(): void {
