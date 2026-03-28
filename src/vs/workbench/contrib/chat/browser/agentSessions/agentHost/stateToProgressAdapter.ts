@@ -36,7 +36,7 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		// Request
-		history.push({ type: 'request', prompt: turn.userMessage.text, participant: participantId });
+		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId });
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
@@ -339,7 +339,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ITool
  * converts them to {@link IToolCallFileEdit} data for routing through
  * the editing session's external edits pipeline.
  */
-function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
+export function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -366,7 +366,7 @@ function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
  * Extracts the file path from a tool call's input parameters.
  * Edit tools store the file path in JSON parameters as `path`.
  */
-function getFilePathFromToolInput(tc: IToolCallState): string | undefined {
+export function getFilePathFromToolInput(tc: IToolCallState): string | undefined {
 	if (tc.status !== ToolCallStatus.Completed || !tc.toolInput) {
 		return undefined;
 	}

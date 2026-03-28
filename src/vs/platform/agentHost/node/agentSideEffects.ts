@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
-import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, IWriteFileParams, IWriteFileResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	PendingMessageKind,
 	ResponsePartKind,
@@ -484,8 +485,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			pendingTools: Map<string, IAgentToolStartEvent>;
 		} | undefined;
 
-		let turnCounter = 0;
-
 		const finalizeTurn = (turn: NonNullable<typeof currentTurn>, state: TurnState): void => {
 			turns.push({
 				id: turn.id,
@@ -496,8 +495,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			});
 		};
 
-		const startTurn = (text: string): NonNullable<typeof currentTurn> => ({
-			id: `restored-${turnCounter++}`,
+		const startTurn = (id: string, text: string): NonNullable<typeof currentTurn> => ({
+			id,
 			userMessage: { text },
 			responseParts: [],
 			pendingTools: new Map(),
@@ -510,10 +509,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				if (currentTurn) {
 					finalizeTurn(currentTurn, TurnState.Cancelled);
 				}
-				currentTurn = startTurn(msg.content);
+				currentTurn = startTurn(msg.messageId, msg.content);
 			} else if (msg.type === 'message' && msg.role === 'assistant') {
 				if (!currentTurn) {
-					currentTurn = startTurn('');
+					currentTurn = startTurn(msg.messageId, '');
 				}
 
 				if (msg.content) {
@@ -625,6 +624,33 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			};
 		} catch (_e) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
+		}
+	}
+
+	async handleWriteFile(params: IWriteFileParams): Promise<IWriteFileResult> {
+		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		let content: VSBuffer;
+		if (params.encoding === ContentEncoding.Base64) {
+			content = decodeBase64(params.data);
+		} else {
+			content = VSBuffer.fromString(params.data);
+		}
+		try {
+			if (params.createOnly) {
+				await this._fileService.createFile(fileUri, content, { overwrite: false });
+			} else {
+				await this._fileService.writeFile(fileUri, content);
+			}
+			return {};
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.FileExists) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
 		}
 	}
 

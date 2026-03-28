@@ -12,7 +12,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from '../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { SessionStateManager } from './sessionStateManager.js';
@@ -215,6 +215,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async fetchContent(uri: URI): Promise<IFetchContentResult> {
 		return this._sideEffects.handleFetchContent(uri.toString());
+	}
+
+	async writeFile(params: IWriteFileParams): Promise<IWriteFileResult> {
+		return this._sideEffects.handleWriteFile(params);
 	}
 
 	async shutdown(): Promise<void> {
