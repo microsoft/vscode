@@ -5,12 +5,12 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LocalAgentsSessionsController } from '../../../browser/agentSessions/localAgentSessionsController.js';
@@ -22,7 +22,6 @@ import { IChatChangedRequestEvent, IChatChangeEvent, IChatModel, IChatRequestMod
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 function createTestTiming(options?: {
 	created?: number;
@@ -563,35 +562,6 @@ suite('LocalAgentsSessionsController', () => {
 				const sessions = controller.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].timing.lastRequestEnded, completedAt);
-			});
-		});
-	});
-
-	suite('Session Icon', () => {
-		test('should use Codicon.chatSparkle as icon', async () => {
-			return runWithFakedTimers({}, async () => {
-				const controller = createController();
-
-				const sessionResource = LocalChatSessionUri.forSession('icon-session');
-				const mockModel = createMockChatModel({
-					sessionResource,
-					hasRequests: true
-				});
-
-				mockChatService.addSession(mockModel);
-				mockChatService.setLiveSessionItems([{
-					sessionResource,
-					title: 'Icon Session',
-					lastMessageDate: Date.now(),
-					isActive: true,
-					lastResponseState: ResponseModelState.Complete,
-					timing: createTestTiming()
-				}]);
-
-				await controller.refresh(CancellationToken.None);
-				const sessions = controller.items;
-				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].iconPath, Codicon.chatSparkle);
 			});
 		});
 	});

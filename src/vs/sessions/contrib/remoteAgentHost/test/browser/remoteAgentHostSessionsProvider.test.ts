@@ -20,7 +20,7 @@ import { IChatService, type ChatSendResult } from '../../../../../workbench/cont
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionStatus } from '../../../sessions/common/sessionData.js';
-import { IChatChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../../sessions/browser/sessionTypes.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 
@@ -194,8 +194,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('onDidChangeSessions fires when session added notification arrives', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'notif-1', { title: 'Notif Session' });
 
@@ -206,8 +206,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('accepts session notifications from any agent provider', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'other-sess', { provider: 'other-agent', title: 'Other Session' });
 
@@ -219,8 +219,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection);
 		fireSessionAdded(connection, 'to-remove', { title: 'Removed' });
 
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'to-remove');
 
@@ -230,8 +230,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('duplicate session added notification is ignored', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
@@ -241,8 +241,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('removing non-existent session is no-op', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'does-not-exist');
 
@@ -254,8 +254,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		fireSessionAdded(connection, 'cross-prov', { provider: 'other-agent', title: 'Cross Provider' });
 		assert.strictEqual(provider.getSessions().length, 1);
 
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'cross-prov', 'other-agent');
 
@@ -271,8 +271,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		connection.addSession(createSession('list-2', { summary: 'Second' }));
 
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		provider.getSessions();
 		await new Promise(resolve => setTimeout(resolve, 50));
@@ -325,7 +325,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'To Delete');
 		assert.ok(target, 'Session should exist');
 
-		await provider.deleteSession(target!.chatId);
+		await provider.deleteSession(target!.id);
 
 		assert.strictEqual(connection.disposedSessions.length, 1);
 		// The disposed URI must be a backend agent session URI (copilot://del-sess),
@@ -347,7 +347,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(target, 'Session should exist');
 
 		assert.strictEqual(target!.isRead.get(), true);
-		provider.setRead(target!.chatId, false);
+		provider.setRead(target!.id, false);
 		assert.strictEqual(target!.isRead.get(), false);
 	});
 
@@ -417,8 +417,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Update on connection side
 		connection.addSession(createSession('turn-sess', { summary: 'After', modifiedTime: 5000 }));
 
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
 			action: {

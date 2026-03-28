@@ -30,15 +30,15 @@
 	align-items: center;
 	justify-content: center;
 	flex: 1;
-	padding: 20px;
+	padding: 32px;
 	text-align: center;
 	gap: 8px;
 }
 
 .changes-view-body .changes-welcome-icon.codicon {
-	font-size: 48px !important;
+	font-size: 32px !important;
 	color: var(--vscode-descriptionForeground);
-	opacity: 0.6;
+	opacity: 0.4;
 }
 
 .changes-view-body .changes-welcome-message {
@@ -74,6 +74,10 @@
 	font-size: 12px;
 	align-items: center;
 
+	> span {
+		margin-left: 2px;
+	}
+
 	> .codicon {
 		font-size: 10px !important;
 		padding-left: 4px;
@@ -87,8 +91,8 @@
 	font-size: 11px;
 	padding: 2px 0;
 	border-radius: 4px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	color: var(--vscode-descriptionForeground);
 	line-height: 1;
 	font-weight: 600;
 	min-width: 16px;
@@ -179,7 +183,7 @@
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button.secondary.monaco-text-button.codicon {
-	padding: 4px 8px;
+	padding: 4px 6px;
 	font-size: 16px !important;
 }
 

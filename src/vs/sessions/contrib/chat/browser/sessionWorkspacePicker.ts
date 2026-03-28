@@ -381,7 +381,7 @@ export class WorkspacePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 		const workspace = this._selectedWorkspace?.workspace;
-		const label = workspace ? workspace.label : localize('pickWorkspace', "a workspace");
+		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
 		const icon = workspace ? workspace.icon : Codicon.project;
 
 		dom.append(this._triggerElement, renderIcon(icon));

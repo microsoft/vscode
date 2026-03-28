@@ -82,7 +82,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, MAX_IMAGES_PER_REQUEST, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
 import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
@@ -2562,6 +2562,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 			this._indexOfLastOpenedContext = -1;
+		}
+
+		// Mark images that exceed the per-request limit so they render with a warning
+		const imageAttachments = attachments.filter(([, a]) => isImageVariableEntry(a));
+		if (imageAttachments.length > MAX_IMAGES_PER_REQUEST) {
+			const excessCount = imageAttachments.length - MAX_IMAGES_PER_REQUEST;
+			for (let i = 0; i < excessCount; i++) {
+				const attachment = imageAttachments[i][1];
+				if (attachment.omittedState === OmittedState.NotOmitted || attachment.omittedState === OmittedState.ImageLimitExceeded) {
+					attachment.omittedState = OmittedState.ImageLimitExceeded;
+				}
+			}
+			for (let i = excessCount; i < imageAttachments.length; i++) {
+				if (imageAttachments[i][1].omittedState === OmittedState.ImageLimitExceeded) {
+					imageAttachments[i][1].omittedState = OmittedState.NotOmitted;
+				}
+			}
+		} else {
+			for (const [, a] of imageAttachments) {
+				if (a.omittedState === OmittedState.ImageLimitExceeded) {
+					a.omittedState = OmittedState.NotOmitted;
+				}
+			}
 		}
 
 
