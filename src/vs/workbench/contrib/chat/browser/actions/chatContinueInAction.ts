@@ -235,7 +235,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			enabled,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
-			description: enabled ? `@${contrib.name}` : localize('chat.cloudRequiresGit', "Requires a Git repository"),
+			description: `@${contrib.name}`,
 			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
 			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
