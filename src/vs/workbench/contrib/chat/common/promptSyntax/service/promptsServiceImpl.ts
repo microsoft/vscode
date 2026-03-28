@@ -101,12 +101,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly internalCustomizations: ChatInternalCustomizations;
 
 	/**
-	 * Cached custom agents. Caching only happens if the `onDidChangeCustomAgents` event is used.
+	 * Cached custom agents.
 	 */
 	private readonly cachedCustomAgents: CachedPromise<readonly ICustomAgent[]>;
 
 	/**
-	 * Cached slash commands. Caching only happens if the `onDidChangeSlashCommands` event is used.
+	 * Cached slash commands.
 	 */
 	private readonly cachedSlashCommands: CachedPromise<readonly IChatPromptSlashCommand[]>;
 
@@ -116,9 +116,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly cachedHooks: CachedPromise<IConfiguredHooksInfo | undefined>;
 
 	/**
-	 * Cached skills. Caching only happens if the `onDidChangeSkills` event is used.
+	 * Cached skills.
 	 */
 	private readonly cachedSkills: CachedPromise<IAgentSkill[]>;
+
+	/**
+	 * Cached instructions.
+	 */
+	private readonly cachedInstructions: CachedPromise<readonly IPromptPath[]>;
 
 	/**
 	 * Cache for parsed prompt files keyed by URI.
@@ -231,7 +236,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.cachedSkills = this._register(new CachedPromise(
 			(token) => this.computeAgentSkills(token),
-			() => Event.any(this.getFileLocatorEvent(PromptsType.skill), Event.filter(modelChangeEvent, e => e.promptType === PromptsType.skill), this._onDidContributedWhenChange.event, this._onDidPluginPromptFilesChange.event)
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.skill),
+				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.skill),
+				this._onDidContributedWhenChange.event,
+				this._onDidPluginPromptFilesChange.event)
 		));
 
 		this.cachedHooks = this._register(new CachedPromise(
@@ -244,9 +253,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 			)
 		));
 
-		// Hack: Subscribe to activate caching (CachedPromise only caches when onDidChange has listeners)
-		this._register(this.cachedSkills.onDidChange(() => { }));
-		this._register(this.cachedHooks.onDidChange(() => { }));
+		this.cachedInstructions = this._register(new CachedPromise(
+			(token) => this.computeInstructionFiles(token),
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.instructions),
+				this._onDidContributedWhenChange.event,
+				this._onDidChangeInstructions.event,
+				this._onDidPluginPromptFilesChange.event,
+			)
+		));
 
 		this._register(this.watchPluginPromptFilesForType(
 			PromptsType.prompt,
@@ -587,7 +602,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Emitter for slash commands change events.
 	 */
 	public get onDidChangeSlashCommands(): Event<void> {
-		return this.cachedSlashCommands.onDidChange;
+		return this.cachedSlashCommands.onDidChangePromise;
 	}
 
 	public async getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]> {
@@ -684,16 +699,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Emitter for custom agents change events.
 	 */
 	public get onDidChangeCustomAgents(): Event<void> {
-		return this.cachedCustomAgents.onDidChange;
+		return this.cachedCustomAgents.onDidChangePromise;
 	}
 
 	public get onDidChangeInstructions(): Event<void> {
-		return Event.any(
-			this.getFileLocatorEvent(PromptsType.instructions),
-			this._onDidContributedWhenChange.event,
-			this._onDidChangeInstructions.event,
-			this._onDidPluginPromptFilesChange.event,
-		);
+		return this.cachedInstructions.onDidChangePromise;
 	}
 
 	public async getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]> {
@@ -1099,7 +1109,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public get onDidChangeSkills(): Event<void> {
-		return this.cachedSkills.onDidChange;
+		return this.cachedSkills.onDidChangePromise;
 	}
 
 	public async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
@@ -1259,7 +1269,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]> {
 		const sw = StopWatch.create();
-		const result = await this.listPromptFiles(PromptsType.instructions, token);
+		const result = await this.cachedInstructions.get(token);
 		if (sessionResource) {
 			const elapsed = sw.elapsed();
 			void this.getInstructionsDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
@@ -1276,6 +1286,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			});
 		}
 		return result;
+	}
+
+	private async computeInstructionFiles(token: CancellationToken): Promise<readonly IPromptPath[]> {
+		return await this.listPromptFiles(PromptsType.instructions, token);
 	}
 
 	private async computeHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined> {
@@ -1715,21 +1729,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 class CachedPromise<T> extends Disposable {
 	private cachedPromise: Promise<T> | undefined = undefined;
-	private onDidUpdatePromiseEmitter: Emitter<void> | undefined = undefined;
+	private readonly onDidUpdatePromiseEmitter: Emitter<void>;
 
 	constructor(private readonly computeFn: (token: CancellationToken) => Promise<T>, private readonly getEvent: () => Event<void>, private readonly delay: number = 0) {
 		super();
+		this.onDidUpdatePromiseEmitter = this._register(new Emitter<void>());
+		const delayer = this._register(new Delayer<void>(this.delay));
+		this._register(this.getEvent()(() => {
+			this.cachedPromise = undefined;
+			delayer.trigger(() => this.onDidUpdatePromiseEmitter.fire());
+		}));
 	}
 
-	public get onDidChange(): Event<void> {
-		if (!this.onDidUpdatePromiseEmitter) {
-			const emitter = this.onDidUpdatePromiseEmitter = this._register(new Emitter<void>());
-			const delayer = this._register(new Delayer<void>(this.delay));
-			this._register(this.getEvent()(() => {
-				this.cachedPromise = undefined;
-				delayer.trigger(() => emitter.fire());
-			}));
-		}
+	public get onDidChangePromise(): Event<void> {
 		return this.onDidUpdatePromiseEmitter.event;
 	}
 
@@ -1737,13 +1749,14 @@ class CachedPromise<T> extends Disposable {
 		if (this.cachedPromise !== undefined) {
 			return this.cachedPromise;
 		}
-		const result = this.computeFn(token);
-		if (!this.onDidUpdatePromiseEmitter) {
-			return result; // only cache if there is an event listener
-		}
-		this.cachedPromise = result;
-		this.onDidUpdatePromiseEmitter.fire();
-		return result;
+		const promise = this.computeFn(token).catch(err => {
+			if (this.cachedPromise === promise) {
+				this.cachedPromise = undefined;
+			}
+			throw err;
+		});
+		this.cachedPromise = promise;
+		return promise;
 	}
 
 	public refresh(): void {
@@ -1774,19 +1787,28 @@ class ModelChangeTracker extends Disposable {
 			if (promptType !== undefined) {
 				this.listeners.set(model.uri, model.onDidChangeContent(() => this.onDidPromptModelChange.fire({ uri: model.uri, promptType })));
 			}
+			return promptType;
 		};
 		const onRemove = (languageId: string, uri: URI) => {
 			const promptType = getPromptsTypeForLanguageId(languageId);
 			if (promptType !== undefined) {
 				this.listeners.get(uri)?.dispose();
 				this.listeners.delete(uri);
-				this.onDidPromptModelChange.fire({ uri, promptType });
 			}
+			return promptType;
 		};
 		this._register(modelService.onModelAdded(model => onAdd(model)));
 		this._register(modelService.onModelLanguageChanged(e => {
-			onRemove(e.oldLanguageId, e.model.uri);
-			onAdd(e.model);
+			const removedPromptType = onRemove(e.oldLanguageId, e.model.uri);
+			const addedPromptType = onAdd(e.model);
+			if (removedPromptType !== addedPromptType) {
+				if (removedPromptType) {
+					this.onDidPromptModelChange.fire({ uri: e.model.uri, promptType: removedPromptType });
+				}
+				if (addedPromptType) {
+					this.onDidPromptModelChange.fire({ uri: e.model.uri, promptType: addedPromptType });
+				}
+			}
 		}));
 		this._register(modelService.onModelRemoved(model => onRemove(model.getLanguageId(), model.uri)));
 	}
