@@ -74,6 +74,10 @@
 	font-size: 12px;
 	align-items: center;
 
+	> span {
+		margin-left: 2px;
+	}
+
 	> .codicon {
 		font-size: 10px !important;
 		padding-left: 4px;

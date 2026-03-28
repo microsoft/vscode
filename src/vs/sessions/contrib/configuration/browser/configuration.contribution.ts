@@ -45,6 +45,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 			'plaintext': true,
 		},
 		'github.copilot.chat.claudeCode.enabled': true,
+		'github.copilot.chat.cli.autoCommit.enabled': false,
 		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.cli.isolationOption.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,

@@ -14,12 +14,13 @@ import { autorun, observableSignalFromEvent } from '../../../../../base/common/o
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { convertLegacyChatSessionTiming, IChatDetail, IChatService, IChatSessionTiming, ResponseModelState } from '../../common/chatService/chatService.js';
+import { convertLegacyChatSessionTiming, IChatDetail, IChatService, IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { chatModelToChatDetail } from '../../common/chatService/chatServiceImpl.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getInProgressSessionDescription } from '../chatSessions/chatSessionDescription.js';
+import { chatResponseStateToSessionStatus, getSessionStatusForModel } from '../chatSessions/chatSessions.contribution.js';
 
 export class LocalAgentsSessionsController extends Disposable implements IChatSessionItemController, IWorkbenchContribution {
 
@@ -199,42 +200,5 @@ class LocalChatSessionItem implements IChatSessionItem {
 			&& this.timing.lastRequestStarted === other.timing.lastRequestStarted
 			&& this.timing.lastRequestEnded === other.timing.lastRequestEnded
 			&& equals(this.changes, other.changes);
-	}
-}
-
-function getSessionStatusForModel(model: IChatModel): ChatSessionStatus | undefined {
-	if (model.requestInProgress.get()) {
-		return ChatSessionStatus.InProgress;
-	}
-
-	const lastRequest = model.getRequests().at(-1);
-	if (lastRequest?.response) {
-		if (lastRequest.response.state === ResponseModelState.NeedsInput) {
-			return ChatSessionStatus.NeedsInput;
-		} else if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
-			return ChatSessionStatus.Completed;
-		} else if (lastRequest.response.result?.errorDetails) {
-			return ChatSessionStatus.Failed;
-		} else if (lastRequest.response.isComplete) {
-			return ChatSessionStatus.Completed;
-		} else {
-			return ChatSessionStatus.InProgress;
-		}
-	}
-
-	return undefined;
-}
-
-function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessionStatus {
-	switch (state) {
-		case ResponseModelState.Cancelled:
-		case ResponseModelState.Complete:
-			return ChatSessionStatus.Completed;
-		case ResponseModelState.Failed:
-			return ChatSessionStatus.Failed;
-		case ResponseModelState.Pending:
-			return ChatSessionStatus.InProgress;
-		case ResponseModelState.NeedsInput:
-			return ChatSessionStatus.NeedsInput;
 	}
 }

@@ -294,6 +294,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Forward session change events from providers and update active session
 		this._register(this.sessionsProvidersService.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 
+		// When a provider replaces a temp session with a committed one, update the active session
+		this._register(this.sessionsProvidersService.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
+
 		// Restore or auto-select active provider
 		this._initActiveProvider();
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
@@ -368,6 +371,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 		return sessions;
+	}
+
+	private onDidReplaceSession(from: ISessionData, to: ISessionData): void {
+		if (this._activeSession.get()?.sessionId === this._chatToSession(from).sessionId) {
+			this.setActiveSession(this._chatToSession(to));
+		}
 	}
 
 	private onDidChangeSessionsFromSessionsProviders(e: ISessionChangeEvent): void {
@@ -627,12 +636,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			throw new Error(`Sessions provider '${chat.providerId}' not found`);
 		}
 
-		// Delegate to the provider
+		// Delegate to the provider. The temp session appears in the list immediately
+		// via the provider's added event. sendRequest resolves with the committed session
+		// once the first turn completes and the session is persisted.
 		const newChat = await provider.sendRequest(chat.chatId, options);
 
 		// Set the new agent session as active
 		if (newChat) {
-			// Add the new chat to the session's group
+			// Add the committed chat to the session's group and set it as active
 			this._groupModel.addChat(newChat.id, newChat.id);
 			this.setActiveSession(this._chatToSession(newChat));
 		}

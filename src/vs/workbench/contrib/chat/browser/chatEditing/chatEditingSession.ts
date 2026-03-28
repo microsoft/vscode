@@ -145,6 +145,7 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
+	readonly supportsKeepUndo = false;
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _timeline: IChatEditingCheckpointTimeline;
 

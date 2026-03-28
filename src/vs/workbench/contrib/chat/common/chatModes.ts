@@ -452,7 +452,7 @@ export class CustomChatMode implements IChatMode {
 
 type IChatModeSourceData =
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
-	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.internal }
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user }
 	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
@@ -466,7 +466,7 @@ function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (data.storage === PromptsStorage.plugin) {
 		return isUriComponents(data.pluginUri);
 	}
-	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user || data.storage === PromptsStorage.internal;
+	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
 }
 
 function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSourceData | undefined {
@@ -491,9 +491,6 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 	}
 	if (data.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
-	}
-	if (data.storage === PromptsStorage.internal) {
-		return { storage: PromptsStorage.internal };
 	}
 	return { storage: data.storage };
 }

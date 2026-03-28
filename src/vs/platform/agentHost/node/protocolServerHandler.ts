@@ -25,6 +25,8 @@ import {
 	type IJsonRpcResponse,
 	type IReconnectParams,
 	type IStateSnapshot,
+	type IWriteFileParams,
+	type IWriteFileResult,
 } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, type ISessionSummary, type URI } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -313,6 +315,9 @@ export class ProtocolServerHandler extends Disposable {
 			this._sideEffectHandler.handleDisposeSession(params.session);
 			return null;
 		},
+		writeFile: async (_client, params) => {
+			return this._sideEffectHandler.handleWriteFile(params);
+		},
 		listSessions: async () => {
 			const items = await this._sideEffectHandler.handleListSessions();
 			return { items };
@@ -452,6 +457,7 @@ export interface IProtocolSideEffectHandler {
 	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
 	handleFetchContent(uri: URI): Promise<IFetchContentResult>;
+	handleWriteFile(params: IWriteFileParams): Promise<IWriteFileResult>;
 	/** Returns the server's default browsing directory, if available. */
 	getDefaultDirectory?(): URI;
 	/** Refresh models from all providers (VS Code extension method). */
