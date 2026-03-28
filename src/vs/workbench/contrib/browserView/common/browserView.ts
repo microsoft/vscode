@@ -606,8 +606,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			}
 
 			await this.playwrightService.startTrackingPage(this.id);
+			this._setSharedWithAgent(true);
 		} else {
 			await this.playwrightService.stopTrackingPage(this.id);
+			this._setSharedWithAgent(false);
 		}
 	}
 
