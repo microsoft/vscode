@@ -9,6 +9,7 @@ import { CharCode } from './charCode.js';
 import { isEqualOrParent } from './extpath.js';
 import { LRUCache } from './map.js';
 import { basename, extname, posix, sep } from './path.js';
+import { isLinux } from './platform.js';
 import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } from './strings.js';
 
 export interface IRelativePattern {
@@ -354,7 +355,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		...options,
 		equals: ignoreCase ? equalsIgnoreCase : (a: string, b: string) => a === b,
 		endsWith: ignoreCase ? endsWithIgnoreCase : (str: string, candidate: string) => str.endsWith(candidate),
-		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, ignoreCase)
+		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, options.ignoreCase ?? !isLinux /* preserve old behaviour for when option is not adopted */)
 	};
 
 	// Check cache
