@@ -364,12 +364,6 @@ export interface IActiveTerminalExecution {
 	readonly instance: ITerminalInstance;
 
 	/**
-	 * The terminal tool session ID used to identify this execution for
-	 * continue-in-background events.
-	 */
-	readonly terminalToolSessionId: string | undefined;
-
-	/**
 	 * Gets the current output from the terminal.
 	 */
 	getOutput(): string;
@@ -986,8 +980,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				termId,
 				toolTerminal,
 				commandDetection!,
-				args.isBackground,
-				terminalToolSessionId
+				args.isBackground
 			);
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
@@ -1634,7 +1627,6 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 		toolTerminal: IToolTerminal,
 		commandDetection: ICommandDetectionCapability,
 		isBackground: boolean,
-		readonly terminalToolSessionId: string | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
