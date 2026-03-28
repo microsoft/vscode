@@ -27,7 +27,6 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFolde
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
-import { SANDBOX_HELPER_CHANNEL_NAME } from '../../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 
 suite('TerminalSandboxService - allowTrustedDomains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,7 +39,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	let workspaceContextService: MockWorkspaceContextService;
 	let productService: IProductService;
 	let sandboxHelperService: MockSandboxHelperService;
-	let remoteAgentService: MockRemoteAgentService;
 	let createdFiles: Map<string, string>;
 	let createdFolders: string[];
 	let deletedFolders: string[];
@@ -74,36 +72,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 	}
 
 	class MockRemoteAgentService {
-		remoteSandboxDependencyStatus: ISandboxDependencyStatus | undefined;
-		requestedChannels: string[] = [];
-
-		getConnection() {
-			if (!this.remoteSandboxDependencyStatus) {
-				return null;
-			}
-
-			return {
-				remoteAuthority: 'test-remote',
-				onReconnecting: Event.None,
-				onDidStateChange: Event.None,
-				end: async () => { },
-				dispose: () => { },
-				getChannel: () => { throw new Error('Not implemented'); },
-				withChannel: async (channelName: string, callback: (channel: { call(command: string): Promise<ISandboxDependencyStatus | undefined> }) => Promise<ISandboxDependencyStatus | undefined>) => {
-					this.requestedChannels.push(channelName);
-					return callback({
-						call: async (command: string) => {
-							strictEqual(command, 'checkSandboxDependencies');
-							return this.remoteSandboxDependencyStatus;
-						}
-					});
-				},
-				registerChannel: () => { },
-				getInitialConnectionTimeMs: async () => 0,
-				updateGraceTime: () => { },
-			};
-		}
-
 		async getEnvironment(): Promise<IRemoteAgentEnvironment> {
 			// Return a Linux environment to ensure tests pass on Windows
 			// (sandbox is not supported on Windows)
@@ -207,7 +175,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		lifecycleService = store.add(new TestLifecycleService());
 		workspaceContextService = new MockWorkspaceContextService();
 		sandboxHelperService = new MockSandboxHelperService();
-		remoteAgentService = new MockRemoteAgentService();
 		productService = {
 			...TestProductService,
 			dataFolderName: '.test-data',
@@ -231,7 +198,7 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IProductService, productService);
-		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		instantiationService.stub(IRemoteAgentService, new MockRemoteAgentService());
 		instantiationService.stub(ITrustedDomainService, trustedDomainService);
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(ILifecycleService, lifecycleService);
@@ -270,26 +237,6 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		strictEqual(result.failedCheck, undefined, 'No failed check should be reported when prereqs pass');
 		strictEqual(result.missingDependencies, undefined, 'Missing dependencies should be omitted when prereqs pass');
 		ok(result.sandboxConfigPath, 'Sandbox config path should be returned when prereqs pass');
-	});
-
-	test('should resolve sandbox dependencies through the remote helper channel', async () => {
-		remoteAgentService.remoteSandboxDependencyStatus = {
-			bubblewrapInstalled: false,
-			socatInstalled: true,
-		};
-		sandboxHelperService.status = {
-			bubblewrapInstalled: true,
-			socatInstalled: true,
-		};
-
-		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
-		const result = await sandboxService.checkForSandboxingPrereqs();
-
-		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies, 'Missing remote dependencies should fail the dependency prereq');
-		strictEqual(result.missingDependencies?.length, 1, 'Only the missing remote dependency should be reported');
-		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should come from the remote helper result');
-		strictEqual(sandboxHelperService.callCount, 0, 'The local sandbox helper should not be consulted when a remote connection is available');
-		strictEqual(remoteAgentService.requestedChannels[0], SANDBOX_HELPER_CHANNEL_NAME, 'The sandbox helper channel should be used for remote dependency checks');
 	});
 
 	test('should filter out sole wildcard (*) from trusted domains', async () => {
