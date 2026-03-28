@@ -2291,7 +2291,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.refreshChatSessionPickers();
 						},
 						hasGitRepository: () => {
-							return this.scmService.repositoryCount > 0;
+							const folders = this.workspaceContextService.getWorkspace().folders;
+							if (folders.length === 0) {
+								return false;
+							}
+							for (const repo of this.scmService.repositories) {
+								if (repo.provider.rootUri && this.workspaceContextService.getWorkspaceFolder(repo.provider.rootUri)) {
+									return true;
+								}
+							}
+							return false;
 						},
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
@@ -2393,7 +2402,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.refreshChatSessionPickers();
 						},
 						hasGitRepository: () => {
-							return this.scmService.repositoryCount > 0;
+							const folders = this.workspaceContextService.getWorkspace().folders;
+							if (folders.length === 0) {
+								return false;
+							}
+							for (const repo of this.scmService.repositories) {
+								if (repo.provider.rootUri && this.workspaceContextService.getWorkspaceFolder(repo.provider.rootUri)) {
+									return true;
+								}
+							}
+							return false;
 						},
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
