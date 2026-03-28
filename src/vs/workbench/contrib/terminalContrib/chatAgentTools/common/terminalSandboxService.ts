@@ -320,8 +320,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const installCommand = `sudo apt install -y ${depsList}`;
 		const instance = await options.createTerminal();
 
-		await options.focusTerminal(instance);
-
 		// Wait for the install command to finish so the chat can proceed automatically.
 		let installCommandSent = false;
 		const completionPromise = new Promise<number | undefined>(resolve => {
