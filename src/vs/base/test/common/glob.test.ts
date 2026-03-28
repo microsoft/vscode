@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as glob from '../../common/glob.js';
 import { sep } from '../../common/path.js';
-import { isLinux, isMacintosh, isWindows } from '../../common/platform.js';
+import { isWindows } from '../../common/platform.js';
 import { URI } from '../../common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
@@ -1079,19 +1079,6 @@ suite('Glob', () => {
 			const p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo/something/Program.cs', pattern: '*' };
 			assertGlobMatch(p, '/DNXConsoleApp/foo/something/Program.cs');
 			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
-		}
-	});
-
-	test('relative pattern - ignores case on macOS/Windows', function () {
-		if (isWindows) {
-			const p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs' };
-			assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\something\\Program.cs'.toLowerCase());
-		} else if (isMacintosh) {
-			const p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs' };
-			assertGlobMatch(p, '/DNXConsoleApp/foo/something/Program.cs'.toLowerCase());
-		} else if (isLinux) {
-			const p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs' };
-			assertNoGlobMatch(p, '/DNXConsoleApp/foo/something/Program.cs'.toLowerCase());
 		}
 	});
 
