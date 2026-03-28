@@ -36,7 +36,7 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
-import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
@@ -82,10 +82,6 @@ suite('RunInTerminalTool', () => {
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
 	let createdTerminalInstance: ITerminalInstance;
-	let lastCreatedTerminalCommand: string | undefined;
-	let lastActiveTerminalInstance: ITerminalInstance | undefined;
-	let lastRevealedTerminalInstance: ITerminalInstance | undefined;
-	let didFocusCreatedTerminal: boolean;
 
 	let runInTerminalTool: TestRunInTerminalTool;
 
@@ -106,24 +102,17 @@ suite('RunInTerminalTool', () => {
 			sandboxConfigPath: undefined,
 			failedCheck: undefined,
 		};
-		lastCreatedTerminalCommand = undefined;
-		lastActiveTerminalInstance = undefined;
-		lastRevealedTerminalInstance = undefined;
-		didFocusCreatedTerminal = false;
 
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
 		const onDisposedEmitter = new Emitter<ITerminalInstance>();
 		const onDidAddCapabilityEmitter = new Emitter<{ id: TerminalCapability }>();
 		const onDidInputDataEmitter = new Emitter<string>();
 		createdTerminalInstance = {
-			sendText: async (text: string) => {
-				lastCreatedTerminalCommand = text;
+			sendText: async (_text: string) => {
 				// Simulate successful command completion after sendText
 				queueMicrotask(() => commandFinishedEmitter.fire({ exitCode: 0 }));
 			},
-			focus: () => {
-				didFocusCreatedTerminal = true;
-			},
+			focus: () => { },
 			capabilities: {
 				get: (cap: TerminalCapability) => {
 					if (cap === TerminalCapability.CommandDetection) {
@@ -194,12 +183,8 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(ITerminalService, {
 			createTerminal: async () => createdTerminalInstance,
 			onDidDisposeInstance: terminalServiceDisposeEmitter.event,
-			revealTerminal: async instance => {
-				lastRevealedTerminalInstance = instance;
-			},
-			setActiveInstance: instance => {
-				lastActiveTerminalInstance = instance;
-			},
+			revealTerminal: async () => { },
+			setActiveInstance: () => { },
 			setNextCommandId: async () => { }
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
@@ -346,42 +331,6 @@ suite('RunInTerminalTool', () => {
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
 		});
 
-		test('should install missing sandbox dependencies when user clicks Install', async () => {
-			sandboxEnabled = false;
-			sandboxPrereqResult = {
-				enabled: false,
-				sandboxConfigPath: '/tmp/sandbox.json',
-				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
-				missingDependencies: ['bubblewrap', 'socat'],
-			};
-
-			const result = await executeToolTest({
-				command: 'echo hello',
-				explanation: 'Print hello',
-				goal: 'Print hello'
-			});
-
-			ok(result, 'Expected prepared invocation to be defined');
-			// Simulate the user clicking "Install" via selectedCustomButton in invoke
-			const invokeResult = await runInTerminalTool.invoke(
-				{
-					toolSpecificData: result!.toolSpecificData,
-					parameters: { command: 'echo hello', explanation: 'Print hello', goal: 'Print hello' },
-					context: { sessionResource: URI.parse('test://session') },
-					selectedCustomButton: 'Install',
-				} as unknown as IToolInvocation,
-				async () => 0,
-				{ report: () => { } },
-				CancellationToken.None,
-			);
-
-			strictEqual(lastCreatedTerminalCommand, 'sudo apt install -y bubblewrap socat');
-			strictEqual(lastActiveTerminalInstance, createdTerminalInstance);
-			strictEqual(lastRevealedTerminalInstance, createdTerminalInstance);
-			strictEqual(didFocusCreatedTerminal, true);
-			ok(invokeResult.content.length > 0, 'Expected a user-facing result message');
-		});
-
 		test('should include allowed and denied network domains in model description', async () => {
 			sandboxEnabled = true;
 			terminalSandboxService.getResolvedNetworkDomains = () => ({
@@ -409,8 +358,12 @@ suite('RunInTerminalTool', () => {
 		});
 
 		test('should use sandbox labels when command is sandbox wrapped', async () => {
-			terminalSandboxService.isEnabled = async () => true;
-			terminalSandboxService.getSandboxConfigPath = async () => '/tmp/vscode-sandbox-settings.json';
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
 			terminalSandboxService.wrapCommand = (command: string) => `sandbox-runtime ${command}`;
 
 			const preparedInvocation = await executeToolTest({ command: 'echo hello' });

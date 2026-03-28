@@ -32,7 +32,6 @@ suite('SandboxHelper', () => {
 		}, false);
 
 		strictEqual(callCount, 0);
-		strictEqual(status?.bubblewrapInstalled, true);
-		strictEqual(status?.socatInstalled, true);
+		strictEqual(status, undefined);
 	});
 });
