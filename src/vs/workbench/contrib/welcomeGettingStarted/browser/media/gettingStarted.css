@@ -897,6 +897,16 @@
 	margin-right: 9px;
 }
 
+/* Don't show focus outline on mouse click. Instead only show outline on keyboard focus. */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon:focus {
+	outline: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .codicon:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 0;
+}
+
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox.codicon:not(.checked)::before {
 	opacity: 0;

@@ -34,8 +34,7 @@ export class SessionTypePicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session) {
-				const chat = session.activeChat.read(reader);
-				this._sessionTypes = this.sessionsProvidersService.getSessionTypes(chat);
+				this._sessionTypes = this.sessionsProvidersService.getSessionTypesForProvider(session.providerId);
 				this._sessionType = session.sessionType;
 			} else {
 				this._sessionTypes = [];

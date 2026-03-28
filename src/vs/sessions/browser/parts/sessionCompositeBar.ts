@@ -19,10 +19,10 @@ import { IQuickInputService } from '../../../platform/quickinput/common/quickInp
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../contrib/sessions/browser/sessionsManagementService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IChatData } from '../../contrib/sessions/common/sessionData.js';
+import { IChat } from '../../contrib/sessions/common/sessionData.js';
 
 interface ISessionTab {
-	readonly chat: IChatData;
+	readonly chat: IChat;
 	readonly element: HTMLElement;
 }
 
@@ -83,7 +83,7 @@ export class SessionCompositeBar extends Disposable {
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
 	}
 
-	private _rebuildTabs(chats: readonly IChatData[], activeChatId: string, mainChatId?: string): void {
+	private _rebuildTabs(chats: readonly IChat[], activeChatId: string, mainChatId?: string): void {
 		this._tabDisposables.clear();
 		this._tabs.length = 0;
 		reset(this._tabsContainer);
@@ -96,7 +96,7 @@ export class SessionCompositeBar extends Disposable {
 		this._updateVisibility();
 	}
 
-	private _createTab(chat: IChatData, isMainChat: boolean): void {
+	private _createTab(chat: IChat, isMainChat: boolean): void {
 		const tab = $('.session-composite-bar-tab');
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
@@ -152,7 +152,7 @@ export class SessionCompositeBar extends Disposable {
 		this._tabs.push({ chat: chat, element: tab });
 	}
 
-	private _onTabClicked(chat: IChatData): void {
+	private _onTabClicked(chat: IChat): void {
 		this._sessionsManagementService.openChat(chat.resource);
 	}
 
