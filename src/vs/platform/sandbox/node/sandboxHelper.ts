@@ -12,12 +12,9 @@ type FindCommand = (command: string) => Promise<string | undefined>;
 export class SandboxHelperService implements ISandboxHelperService {
 	declare readonly _serviceBrand: undefined;
 
-	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux): Promise<ISandboxDependencyStatus> {
+	static async checkSandboxDependenciesWith(findCommand: FindCommand, linux: boolean = isLinux): Promise<ISandboxDependencyStatus | undefined> {
 		if (!linux) {
-			return {
-				bubblewrapInstalled: true,
-				socatInstalled: true,
-			};
+			return undefined;
 		}
 
 		const [bubblewrapPath, socatPath] = await Promise.all([
@@ -31,7 +28,7 @@ export class SandboxHelperService implements ISandboxHelperService {
 		};
 	}
 
-	checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
+	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
 		return SandboxHelperService.checkSandboxDependenciesWith(findExecutable);
 	}
 }

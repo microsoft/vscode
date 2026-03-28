@@ -14,5 +14,5 @@ export interface ISandboxDependencyStatus {
 
 export interface ISandboxHelperService {
 	readonly _serviceBrand: undefined;
-	checkSandboxDependencies(): Promise<ISandboxDependencyStatus>;
+	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined>;
 }
