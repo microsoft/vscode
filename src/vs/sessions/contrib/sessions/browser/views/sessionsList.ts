@@ -37,6 +37,9 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Separator } from '../../../../../base/common/actions.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 
 const $ = DOM.$;
 
@@ -153,7 +156,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14;
 
 	static getApprovalRowHeight(label: string): number {
-		const lineCount = Math.min(label.split(/\\r?\\n/).length, SessionItemRenderer.APPROVAL_ROW_MAX_LINES);
+		const lineCount = Math.min(label.split(/\r?\n/).length, SessionItemRenderer.APPROVAL_ROW_MAX_LINES);
 		return lineCount * SessionItemRenderer._APPROVAL_ROW_LINE_HEIGHT + SessionItemRenderer._APPROVAL_ROW_OVERHEAD;
 	}
 
@@ -166,6 +169,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
+		private readonly hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -396,6 +400,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 				template.approvalLabel.textContent = '';
 				buttonStore.add(this.markdownRendererService.render(labelContent, {}, template.approvalLabel));
+
+				// Hover with full content as a code block
+				const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
+				buttonStore.add(this.hoverService.setupDelayedHover(template.approvalLabel, {
+					content: fullContent,
+					style: HoverStyle.Pointer,
+					position: { hoverPosition: HoverPosition.BELOW },
+				}));
 
 				template.approvalButtonContainer.textContent = '';
 				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
@@ -668,12 +680,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
+		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const sessionRenderer = new SessionItemRenderer(
 			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
 			markdownRendererService,
+			hoverService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
