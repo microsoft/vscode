@@ -1665,7 +1665,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 2, 'Should find 2 skills');
 
@@ -1756,7 +1756,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 0, 'Should not find any skills in non-skill locations');
 		});
@@ -1842,7 +1842,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 1, 'Should find only 1 skill (from enabled folder)');
 			assert.ok(result[0].uri.path.includes('.claude/skills'), 'Should only find skill from .claude/skills');
@@ -1878,7 +1878,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 1, 'Should find 1 skill from tilde-expanded path');
 			assert.ok(result[0].uri.path.includes('/home/user/my-custom-skills'), 'Path should be expanded from tilde');
@@ -2431,7 +2431,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results when agent skills are enabled');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 5, 'Should find 5 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
@@ -2507,7 +2507,7 @@ suite('PromptsService', () => {
 
 			// Should return both skills - the malformed one uses folder name as fallback
 			assert.ok(allResult, 'Should return results even with parsing errors');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills');
 
 			const validSkill = result.find(s => s.name === 'Valid Skill');
@@ -2534,7 +2534,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results array');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 0, 'Should find no skills');
 		});
 
@@ -2569,7 +2569,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
 			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
@@ -2602,7 +2602,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			assert.strictEqual(result[0].name, 'Skill with XML tags', 'XML tags should be removed from name');
 			assert.strictEqual(result[0].description, 'Description with HTML and other tags', 'XML tags should be removed from description');
@@ -2639,7 +2639,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			// XML tags are removed first, then truncation happens
 			assert.ok(!result[0].name.includes('<'), 'Name should not contain XML tags');
@@ -2698,7 +2698,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (duplicate skipped)');
 
 			const duplicateSkill = result.find(s => s.name === 'Duplicate Skill');
@@ -2747,7 +2747,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill (duplicates resolved by priority)');
 			assert.strictEqual(result[0].description, 'Workspace version - highest priority', 'Workspace should win over user');
 			assert.strictEqual(result[0].storage, PromptsStorage.local);
@@ -2791,7 +2791,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find both skills');
 
 			const mismatchedSkill = result.find(s => s.name === 'wrong-folder-name');
@@ -2837,7 +2837,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find both skills');
 
 			const noNameSkill = result.find(s => s.name === 'no-name-skill');
@@ -2899,7 +2899,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (workspace + extension)');
 
 			const workspaceSkill = result.find(s => s.name === 'Workspace Skill');
@@ -2962,7 +2962,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (local + contributed)');
 
 			const localSkill = result.find(s => s.name === 'Local Skill');
@@ -2976,7 +2976,7 @@ suite('PromptsService', () => {
 			registered.dispose();
 
 			// After disposal, only local skill should remain
-			const resultAfterDispose = (await service.findAgentSkills(CancellationToken.None))?.filter(s => s.storage !== PromptsStorage.internal);
+			const resultAfterDispose = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(resultAfterDispose?.length, 1, 'Should find 1 skill after disposal');
 			assert.strictEqual(resultAfterDispose?.[0].name, 'Local Skill');
 		});
@@ -3650,7 +3650,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const slashCommands = (await service.getPromptSlashCommands(CancellationToken.None)).filter(c => c.promptPath.storage !== PromptsStorage.internal);
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
 
 			// All commands should be present in the raw list
 			assert.strictEqual(slashCommands.length, 4, 'Should find all 4 commands');

@@ -51,7 +51,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/c
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../enablement.js';
 import { assertNever } from '../../../../../../base/common/assert.js';
-import { ChatInternalCustomizations } from '../internalCustomizations/internalCustomizations.js';
 
 /**
  * Error thrown when a skill file is missing the required name attribute.
@@ -94,11 +93,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Prompt files locator utility.
 	 */
 	private readonly fileLocator: PromptFilesLocator;
-
-	/**
-	 * Built-in internal customizations (skills, instructions, etc.).
-	 */
-	private readonly internalCustomizations: ChatInternalCustomizations;
 
 	/**
 	 * Cached custom agents.
@@ -194,9 +188,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		super();
 
 		this.fileLocator = this.createPromptFilesLocator();
-
-		// Register the internal readonly customizations
-		this.internalCustomizations = this._register(new ChatInternalCustomizations(this.fileService));
 
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.cachedParsedPromptFromModels.delete(model.uri);
@@ -380,7 +371,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this._pluginPromptFilesByType.get(type) ?? [],
 		]);
 
-		return [...prompts.flat(), ...this.internalCustomizations.getPromptPaths(type)];
+		return prompts.flat();
 	}
 
 	/**
@@ -518,8 +509,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
 			case PromptsStorage.plugin:
 				return this._pluginPromptFilesByType.get(type) ?? [];
-			case PromptsStorage.internal:
-				return this.internalCustomizations.getPromptPaths(type);
 			default:
 				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
 		}
@@ -673,14 +662,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private asChatPromptSlashCommand(parsedPromptFile: ParsedPromptFile, promptPath: IPromptPath): IChatPromptSlashCommand {
 		let name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
 		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
-		const internalSkill = this.internalCustomizations.getInternalSkillByUri(promptPath.uri);
 		return {
 			name: name,
 			description: parsedPromptFile?.header?.description ?? promptPath.description,
 			argumentHint: parsedPromptFile?.header?.argumentHint,
 			parsedPromptFile,
 			promptPath,
-			when: internalSkill?.when,
+			when: undefined,
 		};
 	}
 
@@ -917,7 +905,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return localize('extension.with.id', 'Extension: {0}', promptPath.extension.displayName ?? promptPath.extension.id);
 			}
 			case PromptsStorage.plugin: return localize('plugin.capitalized', 'Plugin');
-			case PromptsStorage.internal: return localize('internal.builtIn', 'Built-in');
 			default: assertNever(promptPath, 'Unknown prompt storage type');
 		}
 	}
@@ -1146,7 +1133,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const file of files) {
 			if (file.status === 'loaded' && file.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.description, file.uri);
-				const internalSkill = this.internalCustomizations.getInternalSkillByUri(file.uri);
 				result.push({
 					uri: file.uri,
 					storage: file.storage,
@@ -1154,7 +1140,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					description: sanitizedDescription,
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
-					when: internalSkill?.when,
+					when: undefined,
 					pluginUri: file.pluginUri,
 					extension: file.extension,
 				});
@@ -1446,12 +1432,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			storage: p.storage,
 			source: PromptFileSource.Plugin,
 			pluginUri: p.pluginUri,
-		})), ...this.internalCustomizations.getSkills()
-			.map(s => ({
-				fileUri: s.uri,
-				storage: s.storage,
-				source: PromptFileSource.Internal,
-			})));
+		})));
 
 		const getPriority = (skill: IResolvedPromptFile | IExtensionPromptPath): number => {
 			if (skill.storage === PromptsStorage.local) {
@@ -1832,10 +1813,6 @@ namespace IAgentSource {
 			return {
 				storage: PromptsStorage.plugin,
 				pluginUri: promptPath.pluginUri
-			};
-		} else if (promptPath.storage === PromptsStorage.internal) {
-			return {
-				storage: PromptsStorage.internal
 			};
 		} else {
 			return {
