@@ -32,6 +32,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ChatElicitationRequestPart } from '../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../chat/common/chatService/chatService.js';
+import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -278,10 +279,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			return false;
 		}
 
-		const cachedSandboxDependencyStatus = !forceRefresh && this._sandboxDependencyStatus?.bubblewrapInstalled && this._sandboxDependencyStatus.socatInstalled
-			? this._sandboxDependencyStatus
-			: undefined;
-		const sandboxDependencyStatus = cachedSandboxDependencyStatus ?? await this._sandboxHelperService.checkSandboxDependencies();
+		const sandboxDependencyStatus = await this._resolveSandboxDependencyStatus(forceRefresh);
 		this._sandboxDependencyStatus = sandboxDependencyStatus;
 
 		if (sandboxDependencyStatus && !sandboxDependencyStatus.bubblewrapInstalled) {
@@ -301,7 +299,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 
 		if (!this._sandboxDependencyStatus || !this._sandboxDependencyStatus.bubblewrapInstalled || !this._sandboxDependencyStatus.socatInstalled) {
-			this._sandboxDependencyStatus = await this._sandboxHelperService.checkSandboxDependencies();
+			this._sandboxDependencyStatus = await this._resolveSandboxDependencyStatus(true);
 		}
 
 		const missing: string[] = [];
@@ -575,4 +573,21 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
 		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? [])])];
 	}
+
+	private async _resolveSandboxDependencyStatus(forceRefresh = false): Promise<ISandboxDependencyStatus | undefined> {
+		if (!forceRefresh && this._sandboxDependencyStatus) {
+			return this._sandboxDependencyStatus;
+		}
+
+		const connection = this._remoteAgentService.getConnection();
+		if (connection) {
+			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
+				const sandboxHelper = new SandboxHelperChannelClient(channel);
+				return sandboxHelper.checkSandboxDependencies();
+			});
+		}
+
+		return this._sandboxHelperService.checkSandboxDependencies();
+	}
+
 }
