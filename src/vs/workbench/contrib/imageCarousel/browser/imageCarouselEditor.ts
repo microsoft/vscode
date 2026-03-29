@@ -310,16 +310,54 @@ export class ImageCarouselEditor extends EditorPane {
 				} else {
 					const img = document.createElement('img');
 					img.className = 'thumbnail-image';
-					this._loadBlobUrl(image).then(url => {
-						img.src = url;
-					}, () => {
-						btn.classList.add('broken');
-					});
 					img.alt = image.name;
-					this._contentDisposables.add(addDisposableListener(img, 'error', () => {
-						btn.classList.add('broken');
+					const thumbnailDisposables = this._contentDisposables.add(new DisposableStore());
+
+					const markBroken = () => {
+						if (thumbnailDisposables.isDisposed) {
+							return;
+						}
+
+						if (!btn.classList.contains('broken')) {
+							btn.classList.add('broken');
+							img.removeAttribute('src');
+							img.alt = '';
+							img.remove();
+							const fallback = h('span.codicon.codicon-warning.thumbnail-broken-icon');
+							fallback.root.setAttribute('aria-hidden', 'true');
+							btn.appendChild(fallback.root);
+						}
+					};
+
+					this._loadBlobUrl(image).then(url => {
+						if (thumbnailDisposables.isDisposed) {
+							return;
+						}
+
+						if (url) {
+							const preloader = new Image();
+							thumbnailDisposables.add(addDisposableListener(preloader, 'load', () => {
+								if (btn.classList.contains('broken')) {
+									return;
+								}
+								img.src = url;
+								if (!img.parentElement) {
+									btn.appendChild(img);
+								}
+							}));
+							thumbnailDisposables.add(addDisposableListener(preloader, 'error', () => {
+								markBroken();
+							}));
+							preloader.src = url;
+						} else {
+							markBroken();
+						}
+					}, () => {
+						markBroken();
+					});
+					thumbnailDisposables.add(addDisposableListener(img, 'error', () => {
+						markBroken();
 					}));
-					btn.appendChild(img);
 				}
 
 				this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
