@@ -104,7 +104,8 @@ const enum Constants {
 
 	DefaultCols = 80,
 	DefaultRows = 30,
-	MaxCanvasWidth = 16384
+	// Conservative upper bound to avoid exceeding typical GPU/browser max texture/canvas widths.
+	MaxCanvasWidth = 8192
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
