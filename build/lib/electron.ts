@@ -80,11 +80,12 @@ function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuff
 /**
  * Generate several `DarwinDocumentType`s with unique names and a shared icon.
  * @param types A map of file type names to their associated file extensions.
- * @param icon A darwin icon resource to use. For example, `'HTML'` would refer to `resources/darwin/html.icns`
+ * @param icon Basename of a darwin icon resource under `resources/darwin/` (without `.icns`). The value is
+ * lowercased before building the path so builds succeed on case-sensitive filesystems (see #129665).
  *
  * Examples:
  * ```
- * darwinBundleDocumentTypes({ 'C header file': 'h', 'C source code': 'c' },'c')
+ * darwinBundleDocumentTypes({ 'C header file': 'h', 'C source code': 'c' }, 'c')
  * darwinBundleDocumentTypes({ 'React source code': ['jsx', 'tsx'] }, 'react')
  * ```
  */
@@ -96,7 +97,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 			role: 'Editor',
 			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 			extensions: Array.isArray(extensions) ? extensions : [extensions],
-			iconFile: 'resources/darwin/' + icon + '.icns'
+			iconFile: 'resources/darwin/' + icon.toLowerCase() + '.icns'
 		};
 	});
 }
