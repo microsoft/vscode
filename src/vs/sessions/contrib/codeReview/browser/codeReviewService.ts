@@ -667,6 +667,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
 
 		const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
+		const workspace = session?.workspace.get();
 
 		// Watch the PR model's review threads and map to local state
 		data.disposables.add(autorun(reader => {
@@ -682,7 +683,6 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				if (converted?.has(threadId)) {
 					continue;
 				}
-				const workspace = session?.workspace.get();
 				const baseUri = workspace?.repositories[0]?.workingDirectory ?? workspace?.repositories[0]?.uri;
 				if (!baseUri) {
 					continue;
