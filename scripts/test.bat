@@ -18,9 +18,13 @@ if "%VSCODE_SKIP_PRELAUNCH%"=="" (
 	if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 )
 
+:: Rewrite bare file paths (e.g. src\vs\foo.test.ts) into --run <file> arguments
+set "ARGS="
+for %%a in (%*) do call :processarg %%a
+
 :: Run tests
 set ELECTRON_ENABLE_LOGGING=1
-%CODE% .\test\unit\electron\index.js --crash-reporter-directory=%~dp0\..\.build\crashes %*
+%CODE% .\test\unit\electron\index.js --crash-reporter-directory=%~dp0\..\.build\crashes %ARGS%
 
 popd
 
@@ -32,3 +36,16 @@ echo errorlevel: %errorlevel%
 if %errorlevel% == 255 set errorlevel=0
 
 exit /b %errorlevel%
+
+:processarg
+set "ARG=%~1"
+if "%ARG:~-3%"==".ts" if not "%ARG:~0,1%"=="-" (
+	set "ARGS=%ARGS% --run %1"
+	goto :eof
+)
+if "%ARG:~-3%"==".js" if not "%ARG:~0,1%"=="-" (
+	set "ARGS=%ARGS% --run %1"
+	goto :eof
+)
+set "ARGS=%ARGS% %1"
+goto :eof

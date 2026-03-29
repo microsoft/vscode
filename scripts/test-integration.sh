@@ -44,7 +44,12 @@ while [[ $# -gt 0 ]]; do
 			shift 2
 			;;
 		*)
-			EXTRA_ARGS+=("$1")
+			if [[ "$1" != -* && ("$1" == *.ts || "$1" == *.js) ]]; then
+				RUN_FILE="$1"
+				EXTRA_ARGS+=(--run "$1")
+			else
+				EXTRA_ARGS+=("$1")
+			fi
 			shift
 			;;
 	esac
@@ -69,6 +74,8 @@ if $HELP; then
 	echo "--suite selects which extension host test suites to run."
 	echo "Node.js integration tests are skipped when this option is used."
 	echo ""
+	echo "Bare .ts/.js file paths are automatically converted to --run arguments."
+	echo ""
 	echo "Options:"
 	echo "  --run <file>                  run tests from a specific file (src/ path)"
 	echo "  --runGlob, --glob <pattern>   select test files by path glob (e.g. '**/editor/**/*.integrationTest.js')"
@@ -84,6 +91,7 @@ if $HELP; then
 	echo ""
 	echo "Examples:"
 	echo "  $0                                         # run all integration tests"
+	echo "  $0 src/vs/editor/test/browser/controller.integrationTest.ts"
 	echo "  $0 --run src/vs/editor/test/browser/controller.integrationTest.ts"
 	echo "  $0 --grep 'some test name'"
 	echo "  $0 --runGlob '**/editor/**/*.integrationTest.js'"

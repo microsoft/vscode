@@ -25,7 +25,19 @@ When run **with `--suite`**, only the matching extension host test suites are ru
 
 ## Options
 
-### `--run <file>` - Run tests from a specific file
+### Bare file paths - Run tests from specific files
+
+Pass source file paths directly as positional arguments. Both `test-integration.sh` and `test-integration.bat` automatically convert them to `--run` arguments.
+
+```bash
+./scripts/test-integration.sh src/vs/workbench/services/search/test/browser/search.integrationTest.ts
+```
+
+```bat
+.\scripts\test-integration.bat src\vs\workbench\services\search\test\browser\search.integrationTest.ts
+```
+
+### `--run <file>` - Run tests from a specific file (explicit form)
 
 Accepts a **source file path** (starting with `src/`). Works identically to `scripts/test.sh --run`.
 
@@ -86,6 +98,9 @@ All other options (e.g. `--timeout`, `--coverage`, `--reporter`) are forwarded t
 ./scripts/test-integration.sh
 
 # Run a single integration test file
+./scripts/test-integration.sh src/vs/workbench/services/search/test/browser/search.integrationTest.ts
+
+# Run a single integration test file (explicit form)
 ./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts
 
 # Run integration tests matching a grep pattern

@@ -21,6 +21,16 @@ fi
 
 VSCODECRASHDIR=$ROOT/.build/crashes
 
+# Rewrite bare file paths (e.g. src/vs/foo.test.ts) into --run <file> arguments
+ARGS=()
+for arg in "$@"; do
+	if [[ "$arg" != -* && ("$arg" == *.ts || "$arg" == *.js) ]]; then
+		ARGS+=(--run "$arg")
+	else
+		ARGS+=("$arg")
+	fi
+done
+
 # Node modules
 test -d node_modules || npm i
 
@@ -34,10 +44,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
 		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
+		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "${ARGS[@]}"
 else
 	cd $ROOT ; \
 		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "$@"
+		test/unit/electron/index.js --crash-reporter-directory=$VSCODECRASHDIR "${ARGS[@]}"
 fi
