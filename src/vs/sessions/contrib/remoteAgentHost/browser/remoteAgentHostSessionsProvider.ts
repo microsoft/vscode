@@ -248,7 +248,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// -- Sessions --
 
-	getSessionTypes(_chat: ISessionData): ISessionType[] {
+	getSessionTypes(_chatId: string): ISessionType[] {
 		return [...this.sessionTypes];
 	}
 

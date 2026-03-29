@@ -12,7 +12,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionType } from '../../sessions/browser/sessionsProvider.js';
 
 export class SessionTypePicker extends Disposable {
@@ -26,7 +25,6 @@ export class SessionTypePicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
@@ -34,7 +32,7 @@ export class SessionTypePicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session) {
-				this._sessionTypes = this.sessionsProvidersService.getSessionTypesForProvider(session.providerId);
+				this._sessionTypes = this.sessionsManagementService.getSessionTypes(session);
 				this._sessionType = session.sessionType;
 			} else {
 				this._sessionTypes = [];
