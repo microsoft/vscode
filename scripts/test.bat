@@ -20,7 +20,7 @@ if "%VSCODE_SKIP_PRELAUNCH%"=="" (
 
 :: Rewrite bare file paths (e.g. src\vs\foo.test.ts) into --run <file> arguments
 set "ARGS="
-for %%a in (%*) do call :processarg %%a
+call :rewriteargs %*
 
 :: Run tests
 set ELECTRON_ENABLE_LOGGING=1
@@ -36,6 +36,29 @@ echo errorlevel: %errorlevel%
 if %errorlevel% == 255 set errorlevel=0
 
 exit /b %errorlevel%
+
+:rewriteargs
+if "%~1"=="" goto :eof
+:: Skip rewriting the value of flags that take an argument
+if /i "%~1"=="--run" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--runGlob" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--glob" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--runGrep" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--grep" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="-g" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="-f" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--reporter" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--reporter-options" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--waitServer" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--timeout" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--crash-reporter-directory" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--tfs" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--coveragePath" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--coverageFormats" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+if /i "%~1"=="--testSplit" (set "ARGS=%ARGS% %1 %2"& shift & shift & goto rewriteargs)
+call :processarg %1
+shift
+goto rewriteargs
 
 :processarg
 set "ARG=%~1"

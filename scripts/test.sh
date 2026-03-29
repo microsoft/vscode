@@ -23,8 +23,15 @@ VSCODECRASHDIR=$ROOT/.build/crashes
 
 # Rewrite bare file paths (e.g. src/vs/foo.test.ts) into --run <file> arguments
 ARGS=()
+SKIP_NEXT=false
 for arg in "$@"; do
-	if [[ "$arg" != -* && ("$arg" == *.ts || "$arg" == *.js) ]]; then
+	if $SKIP_NEXT; then
+		ARGS+=("$arg")
+		SKIP_NEXT=false
+	elif [[ "$arg" == --run || "$arg" == --runGlob || "$arg" == --glob || "$arg" == --runGrep || "$arg" == --grep || "$arg" == -g || "$arg" == -f || "$arg" == --reporter || "$arg" == --reporter-options || "$arg" == --waitServer || "$arg" == --timeout || "$arg" == --crash-reporter-directory || "$arg" == --tfs || "$arg" == --coveragePath || "$arg" == --coverageFormats || "$arg" == --testSplit ]]; then
+		ARGS+=("$arg")
+		SKIP_NEXT=true
+	elif [[ "$arg" != -* && ("$arg" == *.ts || "$arg" == *.js) ]]; then
 		ARGS+=(--run "$arg")
 	else
 		ARGS+=("$arg")

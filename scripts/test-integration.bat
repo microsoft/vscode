@@ -321,9 +321,8 @@ for %%p in (%_filter%) do (
 exit /b 1
 
 :end
-endlocal
-
-exit /b 0
+set "EXIT_CODE=%ERRORLEVEL%"
+endlocal & exit /b %EXIT_CODE%
 
 :: Subroutine: check whether arg is a bare .ts/.js file path
 :check_bare_path
