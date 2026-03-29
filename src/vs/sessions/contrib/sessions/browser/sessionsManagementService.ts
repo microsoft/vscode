@@ -157,12 +157,6 @@ export interface ISessionsManagementService {
 	setSessionType(chat: IChat, type: ISessionType): Promise<void>;
 
 	/**
-	 * Derive a GitHub context (owner, repo, prNumber) from an active session.
-	 * Returns `undefined` if the session is not associated with a GitHub repository.
-	 */
-	getGitHubContext(session: ISession): IGitHubSessionContext | undefined;
-
-	/**
 	 * Derive a GitHub context from a session resource URI.
 	 * Looks up the agent session internally and resolves repository info.
 	 */
@@ -682,7 +676,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._activeSession.set(session, undefined);
 	}
 
-	getGitHubContext(session: ISession): IGitHubSessionContext | undefined {
+	private getGitHubContext(session: ISession): IGitHubSessionContext | undefined {
 		// 1. Try parsing a github-remote-file URI (Cloud sessions)
 		const repoUri = session.workspace.get()?.repositories[0]?.uri;
 		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
