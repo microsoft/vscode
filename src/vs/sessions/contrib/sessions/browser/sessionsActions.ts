@@ -12,7 +12,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
-import { ISessionData } from '../common/sessionData.js';
+import { ISession } from '../common/sessionData.js';
 
 // -- Show Sessions Picker --
 
@@ -36,10 +36,10 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			.filter(s => !s.isArchived.get())
 			.sort((a, b) => b.updatedAt.get().getTime() - a.updatedAt.get().getTime());
 
-		const activeResource = sessionsManagementService.activeSession.get()?.resource;
+		const activeSessionId = sessionsManagementService.activeSession.get()?.sessionId;
 
 		interface ISessionPickItem extends IQuickPickItem {
-			session?: ISessionData;
+			session?: ISession;
 		}
 
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
@@ -67,7 +67,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 					description: parts.join(' \u00B7 '),
 					iconClass: ThemeIcon.asClassName(session.icon),
 					session,
-					picked: activeResource !== undefined && session.resource.toString() === activeResource.toString(),
+					picked: activeSessionId !== undefined && session.sessionId === activeSessionId,
 				});
 			}
 		}
