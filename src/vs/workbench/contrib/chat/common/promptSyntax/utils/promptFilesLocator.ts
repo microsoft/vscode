@@ -111,8 +111,7 @@ export class PromptFilesLocator {
 	private async findParentRepoFolders(folderUri: URI, userHome: URI, seen: ResourceSet, logger?: Logger): Promise<URI[]> {
 		const candidates: URI[] = [];
 		let current = folderUri;
-		let parent = dirname(current);
-		do {
+		while (true) {
 			try {
 				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
 				if (isRepoRoot) {
@@ -129,9 +128,15 @@ export class PromptFilesLocator {
 				return []; // if we can't access the folder, return an empty list to avoid treating it as a non-repository when we might just have a permission issue
 			}
 			candidates.push(current);
+			const parent = dirname(current);
+			// Stop walking up when we reach a filesystem root (fixed-point
+			// of dirname, e.g. '/' or a Windows drive root like 'D:\'),
+			// the user home directory, or an already-seen folder.
+			if (isEqual(current, parent) || current.path === '/' || isEqual(userHome, parent) || seen.has(parent)) {
+				break;
+			}
 			current = parent;
-			parent = dirname(current);
-		} while (!seen.has(current) && current.path !== '/' && !isEqual(current, parent) && !isEqual(userHome, current));
+		}
 		// no repo found
 		logger?.logInfo(`No repository root found for folder ${folderUri.toString()}.`);
 		return [];
