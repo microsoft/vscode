@@ -391,7 +391,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, currentWidth: number): IDisposableReference<CodeBlockPart> {
-		const key = `${data.element.id}/${data.codeBlockIndex}`;
+		const key = CodeBlockPart.poolKey(data.element.id, data.codeBlockIndex);
 		const ref = this.editorPool.get(key);
 		this.allRefs.push(ref);
 		ref.object.render(data, currentWidth);

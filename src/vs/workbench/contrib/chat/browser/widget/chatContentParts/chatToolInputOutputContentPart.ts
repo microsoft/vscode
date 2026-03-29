@@ -230,7 +230,8 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.context.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, part.codeBlockIndex);
+		const editorReference = this._register(this.context.editorPool.get(key));
 		editorReference.object.render(data, this.context.currentWidth.get() || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
