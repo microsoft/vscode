@@ -13,7 +13,7 @@ import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
@@ -72,6 +72,7 @@ import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 
 const $ = dom.$;
 
@@ -1061,27 +1062,33 @@ export class ChangesViewPane extends ViewPane {
 			// Re-layout when collapse state changes so the card height adjusts
 			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutSplitView()));
 
-			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean) => {
+			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus?: boolean, pinned?: boolean, includeSidebar = true) => {
 				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
+
 				const currentIndex = items.indexOf(item);
 
-				const navigation = {
+				const sidebar = includeSidebar ? {
+					render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
+						return this.renderSidebarList(container as HTMLElement, onDidLayout, items, openFileItem);
+					}
+				} : undefined;
+
+				const navigation = items.length > 1 ? {
 					total: items.length,
 					current: currentIndex,
 					navigate: (index: number) => {
-						const target = items[index];
-						if (target) {
-							openFileItem(target, items, false);
+						if (index >= 0 && index < items.length) {
+							openFileItem(items[index], items, false, undefined, undefined, includeSidebar);
 						}
 					}
-				};
+				} : undefined;
 
 				const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 				if (isDeletion && originalUri) {
 					this.editorService.openEditor({
 						resource: originalUri,
-						options: { modal: { navigation } }
+						options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 					}, group);
 					return;
 				}
@@ -1090,14 +1097,14 @@ export class ChangesViewPane extends ViewPane {
 					this.editorService.openEditor({
 						original: { resource: originalUri },
 						modified: { resource: modifiedFileUri },
-						options: { modal: { navigation } }
+						options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 					}, group);
 					return;
 				}
 
 				this.editorService.openEditor({
 					resource: modifiedFileUri,
-					options: { modal: { navigation } }
+					options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 				}, group);
 			};
 
@@ -1228,6 +1235,87 @@ export class ChangesViewPane extends ViewPane {
 	override focus(): void {
 		super.focus();
 		this.tree?.domFocus();
+	}
+
+	private renderSidebarList(
+		container: HTMLElement,
+		onDidLayout: Event<{ readonly height: number; readonly width: number }>,
+		items: IChangesFileItem[],
+		openFileItem: (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus?: boolean, pinned?: boolean, includeSidebar?: boolean) => void,
+	): IDisposable {
+		const disposables = new DisposableStore();
+
+		const labels = disposables.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: Event.None }));
+
+		const tree = disposables.add(this.instantiationService.createInstance(
+			WorkbenchCompressibleObjectTree<ChangesTreeElement>,
+			'ModalEditorSidebar',
+			container,
+			new ChangesTreeDelegate(),
+			[this.instantiationService.createInstance(ChangesTreeRenderer, labels, undefined /* no menu */, undefined /* no action runner */)],
+			{
+				alwaysConsumeMouseWheel: false,
+				multipleSelectionSupport: false,
+				accessibilityProvider: {
+					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri.path) : element.name,
+					getWidgetAriaLabel: () => localize('modalEditorSidebar', "Files"),
+				},
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri.path) : element.name,
+					getCompressedNodeKeyboardNavigationLabel: (elements: ChangesTreeElement[]) => elements.map(e => isChangesFileItem(e) ? basename(e.uri.path) : e.name).join('/'),
+				},
+				identityProvider: {
+					getId: (element: ChangesTreeElement) => element.uri.toString()
+				},
+				indent: 0,
+				compressionEnabled: false,
+				setRowLineHeight: false,
+				supportDynamicHeights: false,
+				twistieAdditionalCssClass: () => 'force-no-twistie',
+			}
+		));
+
+		tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
+
+		// Open file on selection. The `updatingSelection` guard relies on
+		// `tree.setFocus`/`setSelection` firing events synchronously.
+		let updatingSelection = false;
+		disposables.add(tree.onDidOpen(e => {
+			if (e.element && isChangesFileItem(e.element) && !updatingSelection) {
+				openFileItem(e.element, items, e.sideBySide, e.editorOptions.preserveFocus, e.editorOptions.pinned, false /* sidebar already rendered */);
+			}
+		}));
+
+		// Track active editor and highlight in sidebar
+		disposables.add(Event.runAndSubscribe(this.editorService.onDidActiveEditorChange, () => {
+			const activeEditor = this.editorService.activeEditor;
+			if (!activeEditor) {
+				return;
+			}
+
+			const primaryResource = EditorResourceAccessor.getCanonicalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			const secondaryResource = EditorResourceAccessor.getCanonicalUri(activeEditor, { supportSideBySide: SideBySideEditor.SECONDARY });
+
+			const index = items.findIndex(i =>
+				(primaryResource !== undefined && isEqual(i.uri, primaryResource)) ||
+				(secondaryResource !== undefined && i.originalUri !== undefined && isEqual(i.originalUri, secondaryResource))
+			);
+			if (index >= 0) {
+				updatingSelection = true;
+				try {
+					tree.setFocus([items[index]]);
+					tree.setSelection([items[index]]);
+					tree.reveal(items[index]);
+				} finally {
+					updatingSelection = false;
+				}
+			}
+		}));
+
+		// Layout on resize
+		disposables.add(onDidLayout(e => tree.layout(e.height, e.width)));
+
+		return disposables;
 	}
 
 	override dispose(): void {
