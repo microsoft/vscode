@@ -30,11 +30,11 @@ export class EditorPool extends Disposable {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
 			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
-		}));
+		}, { maxIdleSize: 2 }));
 	}
 
-	get(): IDisposableReference<CodeBlockPart> {
-		const codeBlock = this._pool.get();
+	get(key?: string): IDisposableReference<CodeBlockPart> {
+		const codeBlock = this._pool.get(key);
 		let stale = false;
 		return {
 			object: codeBlock,
@@ -42,7 +42,7 @@ export class EditorPool extends Disposable {
 			dispose: createSingleCallFunction(() => {
 				codeBlock.reset();
 				stale = true;
-				this._pool.release(codeBlock);
+				this._pool.release(codeBlock, key);
 			})
 		};
 	}
