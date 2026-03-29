@@ -15,7 +15,8 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { type IPendingMessage, type PolicyState } from '../../common/state/sessionState.js';
-import { CopilotAgentSession } from './copilotAgentSession.js';
+import { CopilotAgentSession, SessionWrapperFactory } from './copilotAgentSession.js';
+import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
@@ -179,12 +180,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model}` : ''}`);
 		const client = await this._ensureClient();
 
-		const agentSession = this._createAgentSession(config?.workingDirectory, config?.session ? AgentSession.id(config.session) : undefined);
-		await agentSession.initializeSession(client, {
-			model: config?.model,
-			sessionId: config?.session ? AgentSession.id(config.session) : undefined,
-			workingDirectory: config?.workingDirectory,
-		});
+		const factory: SessionWrapperFactory = async callbacks => {
+			const raw = await client.createSession({
+				model: config?.model,
+				sessionId: config?.session ? AgentSession.id(config.session) : undefined,
+				streaming: true,
+				workingDirectory: config?.workingDirectory,
+				onPermissionRequest: callbacks.onPermissionRequest,
+				hooks: callbacks.hooks,
+			});
+			return new CopilotSessionWrapper(raw);
+		};
+
+		const agentSession = this._createAgentSession(factory, config?.workingDirectory, config?.session ? AgentSession.id(config.session) : undefined);
+		await agentSession.initializeSession();
 
 		const session = agentSession.sessionUri;
 		this._logService.info(`[Copilot] Session created: ${session.toString()}`);
@@ -274,7 +283,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
 	 * to wire up the SDK session.
 	 */
-	private _createAgentSession(workingDirectory: string | undefined, sessionIdOverride?: string): CopilotAgentSession {
+	private _createAgentSession(wrapperFactory: SessionWrapperFactory, workingDirectory: string | undefined, sessionIdOverride?: string): CopilotAgentSession {
 		const rawId = sessionIdOverride ?? crypto.randomUUID();
 		const sessionUri = AgentSession.uri(this.id, rawId);
 
@@ -284,6 +293,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			rawId,
 			workingDirectory,
 			this._onDidSessionProgress,
+			wrapperFactory,
 		);
 
 		this._sessions.set(rawId, agentSession);
@@ -294,8 +304,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
-		const agentSession = this._createAgentSession(undefined, sessionId);
-		await agentSession.initializeSession(client, { resume: true });
+		const factory: SessionWrapperFactory = async callbacks => {
+			const raw = await client.resumeSession(sessionId, {
+				onPermissionRequest: callbacks.onPermissionRequest,
+				workingDirectory: undefined,
+				hooks: callbacks.hooks,
+			});
+			return new CopilotSessionWrapper(raw);
+		};
+
+		const agentSession = this._createAgentSession(factory, undefined, sessionId);
+		await agentSession.initializeSession();
 		return agentSession;
 	}
 

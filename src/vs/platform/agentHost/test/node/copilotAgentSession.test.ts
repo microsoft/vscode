@@ -4,122 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotSession, SessionEventPayload } from '@github/copilot-sdk';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
+import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService, ILogService } from '../../../log/common/log.js';
 import { IFileService } from '../../../files/common/files.js';
 import { AgentSession, IAgentProgressEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotAgentSession, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 
-// ---- Mock session wrapper ---------------------------------------------------
+// ---- Mock CopilotSession (SDK level) ----------------------------------------
 
 /**
- * A mock {@link CopilotSessionWrapper} that lets tests fire SDK events
- * directly via exposed emitters, without needing a real CopilotSession.
+ * Minimal mock of the SDK's {@link CopilotSession}. Implements `on()` to
+ * store typed handlers, and exposes `fire()` so tests can push events
+ * through the real {@link CopilotSessionWrapper} event pipeline.
  */
-class MockCopilotSessionWrapper extends Disposable {
+class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 
-	// Fake CopilotSession with minimal methods needed by CopilotAgentSession
-	readonly session = {
-		sessionId: 'test-session-1',
-		send: async () => { },
-		abort: async () => { },
-		setModel: async () => { },
-		getMessages: async () => [],
-		destroy: async () => { },
-		on: () => () => { },
-	} as unknown as CopilotSession;
+	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
 
-	// Emitters that tests can fire into — each matches the lazy event
-	// accessor pattern from the real CopilotSessionWrapper.
-	private readonly _messageDeltaEmitter = this._register(new Emitter<SessionEventPayload<'assistant.message_delta'>>());
-	private readonly _messageEmitter = this._register(new Emitter<SessionEventPayload<'assistant.message'>>());
-	private readonly _toolStartEmitter = this._register(new Emitter<SessionEventPayload<'tool.execution_start'>>());
-	private readonly _toolCompleteEmitter = this._register(new Emitter<SessionEventPayload<'tool.execution_complete'>>());
-	private readonly _turnStartEmitter = this._register(new Emitter<SessionEventPayload<'assistant.turn_start'>>());
-	private readonly _idleEmitter = this._register(new Emitter<SessionEventPayload<'session.idle'>>());
-	private readonly _errorEmitter = this._register(new Emitter<SessionEventPayload<'session.error'>>());
-	private readonly _usageEmitter = this._register(new Emitter<SessionEventPayload<'assistant.usage'>>());
-	private readonly _reasoningDeltaEmitter = this._register(new Emitter<SessionEventPayload<'assistant.reasoning_delta'>>());
-
-	get onMessageDelta(): Event<SessionEventPayload<'assistant.message_delta'>> { return this._messageDeltaEmitter.event; }
-	get onMessage(): Event<SessionEventPayload<'assistant.message'>> { return this._messageEmitter.event; }
-	get onToolStart(): Event<SessionEventPayload<'tool.execution_start'>> { return this._toolStartEmitter.event; }
-	get onToolComplete(): Event<SessionEventPayload<'tool.execution_complete'>> { return this._toolCompleteEmitter.event; }
-	get onTurnStart(): Event<SessionEventPayload<'assistant.turn_start'>> { return this._turnStartEmitter.event; }
-	get onIdle(): Event<SessionEventPayload<'session.idle'>> { return this._idleEmitter.event; }
-	get onSessionError(): Event<SessionEventPayload<'session.error'>> { return this._errorEmitter.event; }
-	get onUsage(): Event<SessionEventPayload<'assistant.usage'>> { return this._usageEmitter.event; }
-	get onReasoningDelta(): Event<SessionEventPayload<'assistant.reasoning_delta'>> { return this._reasoningDeltaEmitter.event; }
-
-	// no-op stubs for logging events — use cached emitters so repeated
-	// access returns the same Event and subscriptions are properly tracked.
-	private readonly _noop = this._register(new Emitter<any>()).event;
-	get onSessionStart() { return this._noop; }
-	get onSessionResume() { return this._noop; }
-	get onSessionInfo() { return this._noop; }
-	get onSessionModelChange() { return this._noop; }
-	get onSessionHandoff() { return this._noop; }
-	get onSessionTruncation() { return this._noop; }
-	get onSessionSnapshotRewind() { return this._noop; }
-	get onSessionShutdown() { return this._noop; }
-	get onSessionUsageInfo() { return this._noop; }
-	get onSessionCompactionStart() { return this._noop; }
-	get onSessionCompactionComplete() { return this._noop; }
-	get onUserMessage() { return this._noop; }
-	get onPendingMessagesModified() { return this._noop; }
-	get onIntent() { return this._noop; }
-	get onReasoning() { return this._noop; }
-	get onTurnEnd() { return this._noop; }
-	get onAbort() { return this._noop; }
-	get onToolUserRequested() { return this._noop; }
-	get onToolPartialResult() { return this._noop; }
-	get onToolProgress() { return this._noop; }
-	get onSkillInvoked() { return this._noop; }
-	get onSubagentStarted() { return this._noop; }
-	get onSubagentCompleted() { return this._noop; }
-	get onSubagentFailed() { return this._noop; }
-	get onSubagentSelected() { return this._noop; }
-	get onHookStart() { return this._noop; }
-	get onHookEnd() { return this._noop; }
-	get onSystemMessage() { return this._noop; }
-
-	// Fire helpers for tests
-	fireToolStart(data: SessionEventPayload<'tool.execution_start'>['data']): void {
-		this._toolStartEmitter.fire({ type: 'tool.execution_start', data } as SessionEventPayload<'tool.execution_start'>);
+	on<K extends SessionEventType>(eventType: K, handler: TypedSessionEventHandler<K>): () => void {
+		let set = this._handlers.get(eventType);
+		if (!set) {
+			set = new Set();
+			this._handlers.set(eventType, set);
+		}
+		set.add(handler as (event: SessionEvent) => void);
+		return () => { set.delete(handler as (event: SessionEvent) => void); };
 	}
 
-	fireToolComplete(data: SessionEventPayload<'tool.execution_complete'>['data']): void {
-		this._toolCompleteEmitter.fire({ type: 'tool.execution_complete', data } as SessionEventPayload<'tool.execution_complete'>);
+	/** Push an event through to all registered handlers of the given type. */
+	fire<K extends SessionEventType>(type: K, data: SessionEventPayload<K>['data']): void {
+		const event = { type, data, id: 'evt-1', timestamp: new Date().toISOString(), parentId: null } as SessionEventPayload<K>;
+		const set = this._handlers.get(type);
+		if (set) {
+			for (const handler of set) {
+				handler(event);
+			}
+		}
 	}
 
-	fireTurnStart(data: SessionEventPayload<'assistant.turn_start'>['data']): void {
-		this._turnStartEmitter.fire({ type: 'assistant.turn_start', data } as SessionEventPayload<'assistant.turn_start'>);
-	}
-
-	fireIdle(): void {
-		this._idleEmitter.fire({ type: 'session.idle', data: {} } as SessionEventPayload<'session.idle'>);
-	}
-
-	fireMessage(data: SessionEventPayload<'assistant.message'>['data']): void {
-		this._messageEmitter.fire({ type: 'assistant.message', data } as SessionEventPayload<'assistant.message'>);
-	}
-
-	fireMessageDelta(data: SessionEventPayload<'assistant.message_delta'>['data']): void {
-		this._messageDeltaEmitter.fire({ type: 'assistant.message_delta', data } as SessionEventPayload<'assistant.message_delta'>);
-	}
-
-	fireError(data: SessionEventPayload<'session.error'>['data']): void {
-		this._errorEmitter.fire({ type: 'session.error', data } as SessionEventPayload<'session.error'>);
-	}
+	// Stubs for methods the wrapper / session class calls
+	async send() { return ''; }
+	async abort() { }
+	async setModel() { }
+	async getMessages() { return []; }
+	async destroy() { }
 }
 
 // ---- Helpers ----------------------------------------------------------------
@@ -144,16 +81,19 @@ function createMockSessionDataService(): ISessionDataService {
 	};
 }
 
-function createAgentSession(disposables: DisposableStore, options?: { workingDirectory?: string }): {
+async function createAgentSession(disposables: DisposableStore, options?: { workingDirectory?: string }): Promise<{
 	session: CopilotAgentSession;
-	wrapper: MockCopilotSessionWrapper;
+	mockSession: MockCopilotSession;
 	progressEvents: IAgentProgressEvent[];
-} {
+}> {
 	const progressEmitter = disposables.add(new Emitter<IAgentProgressEvent>());
 	const progressEvents: IAgentProgressEvent[] = [];
 	disposables.add(progressEmitter.event(e => progressEvents.push(e)));
 
 	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
+	const mockSession = new MockCopilotSession();
+
+	const factory: SessionWrapperFactory = async () => new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
 
 	const services = new ServiceCollection();
 	services.set(ILogService, new NullLogService());
@@ -167,12 +107,12 @@ function createAgentSession(disposables: DisposableStore, options?: { workingDir
 		'test-session-1',
 		options?.workingDirectory,
 		progressEmitter,
+		factory,
 	));
 
-	const wrapper = new MockCopilotSessionWrapper();
-	session._initializeWithWrapper(wrapper as unknown as CopilotSessionWrapper);
+	await session.initializeSession();
 
-	return { session, wrapper, progressEvents };
+	return { session, mockSession, progressEvents };
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -189,7 +129,7 @@ suite('CopilotAgentSession', () => {
 	suite('permission handling', () => {
 
 		test('auto-approves read inside working directory', async () => {
-			const { session } = createAgentSession(disposables, { workingDirectory: '/workspace' });
+			const { session } = await createAgentSession(disposables, { workingDirectory: '/workspace' });
 			const result = await session.handlePermissionRequest({
 				kind: 'read',
 				path: '/workspace/src/file.ts',
@@ -199,7 +139,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('does not auto-approve read outside working directory', async () => {
-			const { session, progressEvents } = createAgentSession(disposables, { workingDirectory: '/workspace' });
+			const { session, progressEvents } = await createAgentSession(disposables, { workingDirectory: '/workspace' });
 
 			// Kick off permission request but don't await — it will block
 			const resultPromise = session.handlePermissionRequest({
@@ -219,13 +159,13 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('denies permission when no toolCallId', async () => {
-			const { session } = createAgentSession(disposables);
+			const { session } = await createAgentSession(disposables);
 			const result = await session.handlePermissionRequest({ kind: 'write' });
 			assert.strictEqual(result.kind, 'denied-interactively-by-user');
 		});
 
 		test('denied-interactively when user denies', async () => {
-			const { session, progressEvents } = createAgentSession(disposables);
+			const { session, progressEvents } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'shell',
 				toolCallId: 'tc-3',
@@ -238,7 +178,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('pending permissions are denied on dispose', async () => {
-			const { session } = createAgentSession(disposables);
+			const { session } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'write',
 				toolCallId: 'tc-4',
@@ -250,7 +190,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('pending permissions are denied on abort', async () => {
-			const { session } = createAgentSession(disposables);
+			const { session } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'write',
 				toolCallId: 'tc-5',
@@ -261,8 +201,8 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'denied-interactively-by-user');
 		});
 
-		test('respondToPermissionRequest returns false for unknown id', () => {
-			const { session } = createAgentSession(disposables);
+		test('respondToPermissionRequest returns false for unknown id', async () => {
+			const { session } = await createAgentSession(disposables);
 			assert.strictEqual(session.respondToPermissionRequest('unknown-id', true), false);
 		});
 	});
@@ -271,9 +211,9 @@ suite('CopilotAgentSession', () => {
 
 	suite('event mapping', () => {
 
-		test('tool_start event is mapped for non-hidden tools', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
-			wrapper.fireToolStart({
+		test('tool_start event is mapped for non-hidden tools', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-10',
 				toolName: 'bash',
 				arguments: { command: 'echo hello' },
@@ -287,9 +227,9 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('hidden tools are not emitted as tool_start', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
-			wrapper.fireToolStart({
+		test('hidden tools are not emitted as tool_start', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-11',
 				toolName: 'report_intent',
 			} as SessionEventPayload<'tool.execution_start'>['data']);
@@ -297,18 +237,18 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.length, 0);
 		});
 
-		test('tool_complete event produces past-tense message', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
+		test('tool_complete event produces past-tense message', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
 
 			// First fire tool_start so it's tracked
-			wrapper.fireToolStart({
+			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-12',
 				toolName: 'bash',
 				arguments: { command: 'ls' },
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// Then fire complete
-			wrapper.fireToolComplete({
+			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-12',
 				success: true,
 				result: { content: 'file1.ts\nfile2.ts' },
@@ -323,9 +263,9 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('tool_complete for untracked tool is ignored', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
-			wrapper.fireToolComplete({
+		test('tool_complete for untracked tool is ignored', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_complete', {
 				toolCallId: 'tc-untracked',
 				success: true,
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
@@ -333,17 +273,17 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(progressEvents.length, 0);
 		});
 
-		test('idle event is forwarded', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
-			wrapper.fireIdle();
+		test('idle event is forwarded', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
 			assert.strictEqual(progressEvents.length, 1);
 			assert.strictEqual(progressEvents[0].type, 'idle');
 		});
 
-		test('error event is forwarded', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
-			wrapper.fireError({
+		test('error event is forwarded', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('session.error', {
 				errorType: 'TestError',
 				message: 'something went wrong',
 				stack: 'Error: something went wrong',
@@ -357,9 +297,9 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('message delta is forwarded', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
-			wrapper.fireMessageDelta({
+		test('message delta is forwarded', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('assistant.message_delta', {
 				messageId: 'msg-1',
 				deltaContent: 'Hello ',
 			} as SessionEventPayload<'assistant.message_delta'>['data']);
@@ -371,9 +311,9 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('complete message with tool requests is forwarded', () => {
-			const { wrapper, progressEvents } = createAgentSession(disposables);
-			wrapper.fireMessage({
+		test('complete message with tool requests is forwarded', async () => {
+			const { mockSession, progressEvents } = await createAgentSession(disposables);
+			mockSession.fire('assistant.message', {
 				messageId: 'msg-2',
 				content: 'Let me help you.',
 				toolRequests: [{

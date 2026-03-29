@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import type { PermissionRequest, PermissionRequestResult } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -18,6 +18,23 @@ import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
+
+/**
+ * Factory function that produces a {@link CopilotSessionWrapper}.
+ * Called by {@link CopilotAgentSession.initializeSession} with the
+ * session's permission handler and edit-tracking hooks so the factory
+ * can wire them into the SDK session it creates.
+ *
+ * In production, the factory calls `CopilotClient.createSession()` or
+ * `resumeSession()`. In tests, it returns a mock wrapper directly.
+ */
+export type SessionWrapperFactory = (callbacks: {
+	readonly onPermissionRequest: (request: PermissionRequest) => Promise<PermissionRequestResult>;
+	readonly hooks: {
+		readonly onPreToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
+		readonly onPostToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
+	};
+}) => Promise<CopilotSessionWrapper>;
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -108,6 +125,7 @@ export class CopilotAgentSession extends Disposable {
 		rawSessionId: string,
 		workingDirectory: string | undefined,
 		private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>,
+		private readonly _wrapperFactory: SessionWrapperFactory,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService sessionDataService: ISessionDataService,
@@ -126,20 +144,15 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Creates (or resumes) the SDK session and wires up all event listeners.
-	 * Must be called exactly once after construction before using the session.
+	 * Creates (or resumes) the SDK session via the injected factory and
+	 * wires up all event listeners. Must be called exactly once after
+	 * construction before using the session.
 	 */
-	async initializeSession(client: CopilotClient, options: {
-		readonly model?: string;
-		readonly sessionId?: string;
-		readonly workingDirectory?: string;
-		readonly resume?: boolean;
-	}): Promise<void> {
-		let raw: CopilotSession;
-		const sdkOptions = {
-			onPermissionRequest: (request: { kind: string; toolCallId?: string;[key: string]: unknown }) => this.handlePermissionRequest(request),
+	async initializeSession(): Promise<void> {
+		this._wrapper = this._register(await this._wrapperFactory({
+			onPermissionRequest: request => this.handlePermissionRequest(request),
 			hooks: {
-				onPreToolUse: async (input: { toolName: string; toolArgs: unknown }) => {
+				onPreToolUse: async input => {
 					if (isEditTool(input.toolName)) {
 						const filePath = getEditFilePath(input.toolArgs);
 						if (filePath) {
@@ -147,7 +160,7 @@ export class CopilotAgentSession extends Disposable {
 						}
 					}
 				},
-				onPostToolUse: async (input: { toolName: string; toolArgs: unknown }) => {
+				onPostToolUse: async input => {
 					if (isEditTool(input.toolName)) {
 						const filePath = getEditFilePath(input.toolArgs);
 						if (filePath) {
@@ -156,34 +169,7 @@ export class CopilotAgentSession extends Disposable {
 					}
 				},
 			},
-		};
-
-		if (options.resume) {
-			raw = await client.resumeSession(this.sessionId, {
-				...sdkOptions,
-				workingDirectory: options.workingDirectory,
-			});
-		} else {
-			raw = await client.createSession({
-				model: options.model,
-				sessionId: options.sessionId,
-				streaming: true,
-				workingDirectory: options.workingDirectory,
-				...sdkOptions,
-			});
-		}
-
-		this._wrapper = this._register(new CopilotSessionWrapper(raw));
-		this._initializeWithWrapper(this._wrapper);
-	}
-
-	/**
-	 * Wires up event listeners on the given wrapper. Separated from
-	 * {@link initializeSession} so tests can supply a mock wrapper.
-	 */
-	_initializeWithWrapper(wrapper: CopilotSessionWrapper): void {
-		this._wrapper = wrapper;
-		this._register(wrapper);
+		}));
 		this._subscribeToEvents();
 		this._subscribeForLogging();
 	}
@@ -247,8 +233,8 @@ export class CopilotAgentSession extends Disposable {
 	 * side-effects layer to respond via {@link respondToPermissionRequest}.
 	 */
 	async handlePermissionRequest(
-		request: { kind: string; toolCallId?: string;[key: string]: unknown },
-	): Promise<{ kind: 'approved' | 'denied-interactively-by-user' }> {
+		request: PermissionRequest,
+	): Promise<PermissionRequestResult> {
 		this._logService.info(`[Copilot:${this.sessionId}] Permission request: kind=${request.kind}`);
 
 		// Auto-approve reads inside the working directory
