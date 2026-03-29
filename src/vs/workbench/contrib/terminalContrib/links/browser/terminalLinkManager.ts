@@ -160,7 +160,9 @@ export class TerminalLinkManager extends DisposableStore {
 			viewportRange: convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY),
 			cellDimensions,
 			terminalDimensions
-		}, oscHoverString ?? this._getLinkHoverString(text, text), undefined, (text) => this._openLinkHandlerTarget(text));
+		}, oscHoverString ?? this._getLinkHoverString(text, text), undefined, text => {
+			void this._openLinkHandlerTarget(text).catch(() => undefined);
+		});
 	}
 
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
