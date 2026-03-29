@@ -711,8 +711,15 @@ CommandsRegistry.registerCommand({
 
 		const createFileLocalized = nls.localize('newFileCommand.saveLabel', "Create File");
 		const defaultFilePath = await dialogService.defaultFilePath();
-		const providedFileUri = args?.fileName ? joinPath(defaultFilePath, args.fileName) : undefined;
+		const providedFileName = args?.fileName?.trim();
+		const providedFileUri = providedFileName ? joinPath(defaultFilePath, providedFileName) : undefined;
 		const useProvidedFileUri = !!providedFileUri && uriIdentityService.extUri.isEqualOrParent(providedFileUri, defaultFilePath);
+
+		if (providedFileName && !useProvidedFileUri) {
+			notificationService.warn(nls.localize('newFileCommand.invalidFileName', "Invalid file name '{0}'.", providedFileName));
+			return;
+		}
+
 		const defaultFileUri = useProvidedFileUri ? providedFileUri : joinPath(defaultFilePath, 'Untitled.txt');
 
 		// If a trusted fileName is provided in args (from quick pick), use it directly without showing dialog.
@@ -725,7 +732,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		if (useProvidedFileUri && await fileService.exists(saveUri)) {
-			notificationService.warn(nls.localize('newFileCommand.fileExists', "File '{0}' already exists.", args?.fileName ?? basename(saveUri)));
+			notificationService.warn(nls.localize('newFileCommand.fileExists', "File '{0}' already exists.", providedFileName ?? basename(saveUri)));
 			return;
 		}
 
