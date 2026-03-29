@@ -2795,6 +2795,19 @@ suite('PromptFilesLocator', () => {
 				'Should only return the workspace folder when no .git is found in any parent',
 			);
 		});
+
+		testT('terminates when workspace is on a Windows drive root with no .git', async () => {
+			// Regression: dirname of a Windows drive root (e.g. /d:/) is itself,
+			// so the walk-up loop must detect the fixed point and stop.
+			setWorkspaceFoldersForRoots(['d:/a/b']);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.path),
+				['/d:/a/b'],
+				'Should terminate and return only the workspace folder on a Windows drive root',
+			);
+		});
 	});
 });
 

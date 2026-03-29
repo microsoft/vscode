@@ -131,7 +131,7 @@ export class PromptFilesLocator {
 			candidates.push(current);
 			current = parent;
 			parent = dirname(current);
-		} while (!seen.has(current) && current.path !== '/' && !isEqual(userHome, current));
+		} while (!seen.has(current) && current.path !== '/' && !isEqual(current, parent) && !isEqual(userHome, current));
 		// no repo found
 		logger?.logInfo(`No repository root found for folder ${folderUri.toString()}.`);
 		return [];
