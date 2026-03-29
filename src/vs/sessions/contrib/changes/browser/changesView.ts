@@ -851,9 +851,9 @@ export class ChangesViewPane extends ViewPane {
 					return false;
 				}
 				const iconId = activeSessionPullRequest.icon?.id;
-				return iconId === undefined
-					|| iconId === Codicon.gitPullRequestDraft.id
-					|| iconId === Codicon.gitPullRequest.id;
+				return iconId !== undefined &&
+					(iconId === Codicon.gitPullRequestDraft.id ||
+						iconId === Codicon.gitPullRequest.id);
 			}));
 
 			this.renderDisposables.add(bindContextKey(hasIncomingChangesContextKey, this.scopedContextKeyService, reader => {
@@ -938,9 +938,8 @@ export class ChangesViewPane extends ViewPane {
 							}
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
 								const customLabel = outgoingChanges > 0
-									? localize('updatePRWithOutgoingChanges', 'Update Pull Request {0}↑', outgoingChanges)
-									: localize('updatePR', 'Update Pull Request');
-
+									? `${action.label} ${outgoingChanges}↑`
+									: action.label;
 								return { customLabel, showIcon: true, showLabel: true, isSecondary: false };
 							}
 							if (action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR') {
