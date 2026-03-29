@@ -294,7 +294,7 @@ class ChangesViewModel extends Disposable {
 
 		// Active session changes
 		this.sessionsChangedSignal = observableSignalFromEvent(this,
-			this.agentSessionsService.model.onDidChangeSessions);
+			this.sessionManagementService.onDidChangeSessions);
 
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
