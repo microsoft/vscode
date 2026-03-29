@@ -61,14 +61,6 @@ declare module 'vscode' {
 		 * when this provider is active.
 		 */
 		readonly unsupportedTypes?: readonly ChatSessionCustomizationType[];
-
-		/**
-		 * Workspace sub-paths that this provider recognizes for customization files.
-		 * When set, only workspace files under these paths are shown in the UI.
-		 * For example, `['.claude']` for Claude or `['.github', '.copilot']` for CLI.
-		 * When `undefined`, all workspace paths are shown.
-		 */
-		readonly workspaceSubpaths?: readonly string[];
 	}
 
 	/**
@@ -94,6 +86,27 @@ declare module 'vscode' {
 		 * Optional description of this customization.
 		 */
 		readonly description?: string;
+
+		/**
+		 * Optional group key for display grouping. Items sharing the same
+		 * `groupKey` are placed under a shared collapsible header in the
+		 * management UI.
+		 *
+		 * When omitted, items are grouped automatically by their storage
+		 * source (e.g. Workspace, User) based on the item's URI.
+		 */
+		readonly groupKey?: string;
+
+		/**
+		 * Optional inline badge text shown next to the item name
+		 * (e.g. a glob pattern like `src/vs/sessions/**`).
+		 */
+		readonly badge?: string;
+
+		/**
+		 * Optional tooltip text shown when hovering over the badge.
+		 */
+		readonly badgeTooltip?: string;
 	}
 
 	/**

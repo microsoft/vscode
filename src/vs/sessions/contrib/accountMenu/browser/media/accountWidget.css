@@ -52,6 +52,10 @@
 	overflow: hidden;
 }
 
+.account-widget-update:has(.account-widget-update-button.hidden) {
+	display: none;
+}
+
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button {
 	width: auto;
 	max-width: none;

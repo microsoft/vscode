@@ -24,7 +24,7 @@
 }
 
 .agent-sessions-workbench .part.chatbar {
-	margin: 0 12px 2px 12px;
+	margin: 0 10px 0px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -36,7 +36,7 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar {
-	margin: 0 12px 2px 0;
+	margin: 0 10px 0px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -44,7 +44,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: 0 12px 14px 12px;
+	margin: 0 10px 10px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: 8px;
@@ -71,16 +71,16 @@
 .agent-sessions-workbench .interactive-session .interactive-item-container {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 16px;
-	padding-right: 16px;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 16px;
-	padding-right: 16px;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
 	box-sizing: border-box;
 }
 
@@ -106,7 +106,7 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 16px 16px 16px !important;
+	padding: 4px 10px 10px 10px !important;
 	box-sizing: border-box;
 }
 
@@ -212,19 +212,19 @@
 		transform: translateX(-6px);
 	}
 
-	/* Panel (bottom): slides down from 6px above → margin: 0 16px 18px 16px */
+	/* Panel (bottom): slides down from 6px above → margin: 0 10px 10px 10px */
 	.agent-sessions-workbench .part.panel {
-		margin: 6px 16px 18px 16px;
+		margin: 6px 16px 16px 16px;
 	}
 
-	/* Auxiliary bar (right): slides in from 6px right → margin: 0 16px 2px 0 */
+	/* Auxiliary bar (right): slides in from 6px right → margin: 0 10px 0px 0 */
 	.agent-sessions-workbench .part.auxiliarybar {
-		margin: 0 16px 2px 6px;
+		margin: 0 16px 0px 6px;
 	}
 
-	/* Chat bar (center-bottom): slides up from 6px below → margin: 0 16px 2px 16px */
+	/* Chat bar (center-bottom): slides up from 6px below → margin: 0 10px 0px 10px */
 	.agent-sessions-workbench .part.chatbar {
-		margin: 6px 16px 2px 16px;
+		margin: 6px 16px 0px 16px;
 	}
 }
 
@@ -241,6 +241,11 @@
 }
 
 /* ---- Widget Customizations ---- */
+
+/* Action Widget */
+.agent-sessions-workbench .action-widget .monaco-list .monaco-list-row {
+	padding-right: 0;
+}
 
 /* Badge */
 .agent-sessions-workbench .badge > .badge-content {

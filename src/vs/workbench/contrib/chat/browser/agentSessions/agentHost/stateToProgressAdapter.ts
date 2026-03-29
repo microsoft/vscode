@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -37,7 +36,7 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		// Request
-		history.push({ type: 'request', prompt: turn.userMessage.text, participant: participantId });
+		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId });
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
@@ -46,12 +45,20 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content, { supportHtml: true }) });
 					}
 					break;
-				case ResponsePartKind.ToolCall:
-					parts.push(completedToolCallToSerialized(rp.toolCall as ICompletedToolCall));
+				case ResponsePartKind.ToolCall: {
+					const tc = rp.toolCall as ICompletedToolCall;
+					const fileEditParts = completedToolCallToEditParts(tc);
+					const serialized = completedToolCallToSerialized(tc);
+					if (fileEditParts.length > 0) {
+						serialized.presentation = ToolInvocationPresentation.Hidden;
+					}
+					parts.push(serialized);
+					parts.push(...fileEditParts);
 					break;
+				}
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
 						parts.push({ kind: 'thinking', value: rp.content });
@@ -161,6 +168,35 @@ function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocat
 		presentation: undefined,
 		toolSpecificData,
 	};
+}
+
+/**
+ * Builds edit-structure progress parts for a completed tool call that
+ * produced file edits. Returns an empty array if the tool call has no edits.
+ * These parts replay the undo stops and code-block UI when restoring history.
+ */
+function completedToolCallToEditParts(tc: ICompletedToolCall): IChatProgress[] {
+	if (tc.status !== ToolCallStatus.Completed) {
+		return [];
+	}
+	const fileEdits = getToolFileEdits(tc);
+	if (fileEdits.length === 0) {
+		return [];
+	}
+	const filePath = getFilePathFromToolInput(tc);
+	if (!filePath) {
+		return [];
+	}
+	const fileUri = URI.file(filePath);
+	const parts: IChatProgress[] = [];
+	for (const _edit of fileEdits) {
+		parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+		parts.push({ kind: 'codeblockUri', uri: fileUri, isEdit: true, undoStopId: tc.toolCallId });
+		parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: false, isExternalEdit: true });
+		parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: true, isExternalEdit: true });
+		parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+	}
+	return parts;
 }
 
 /**
@@ -303,7 +339,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ITool
  * converts them to {@link IToolCallFileEdit} data for routing through
  * the editing session's external edits pipeline.
  */
-function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
+export function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -319,7 +355,7 @@ function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
 				resource: URI.file(filePath),
 				beforeContentUri: URI.parse(edit.beforeURI),
 				afterContentUri: URI.parse(edit.afterURI),
-				undoStopId: generateUuid(),
+				undoStopId: tc.toolCallId,
 			});
 		}
 	}
@@ -330,7 +366,7 @@ function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
  * Extracts the file path from a tool call's input parameters.
  * Edit tools store the file path in JSON parameters as `path`.
  */
-function getFilePathFromToolInput(tc: IToolCallState): string | undefined {
+export function getFilePathFromToolInput(tc: IToolCallState): string | undefined {
 	if (tc.status !== ToolCallStatus.Completed || !tc.toolInput) {
 		return undefined;
 	}

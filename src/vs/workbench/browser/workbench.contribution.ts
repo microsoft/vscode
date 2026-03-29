@@ -359,11 +359,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
-				'default': 'some',
-				tags: ['experimental'],
-				experiment: {
-					mode: 'auto'
-				}
+				'default': 'some'
 			},
 			'workbench.editor.modalMinWidth': {
 				'type': 'number',

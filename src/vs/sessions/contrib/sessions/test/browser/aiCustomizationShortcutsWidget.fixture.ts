@@ -24,7 +24,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
 import { ISessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionData } from '../../common/sessionData.js';
+import { ISession } from '../../common/sessionData.js';
 import { Menus } from '../../../../browser/menus.js';
 
 // Ensure color registrations are loaded
@@ -201,7 +201,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidChangeLanguageModels = Event.None;
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-				override readonly activeSession = observableValue<ISessionData | undefined>('activeSession', undefined);
+				override readonly activeSession = observableValue<ISession | undefined>('activeSession', undefined);
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
