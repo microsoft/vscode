@@ -150,10 +150,6 @@ suite('CodeReviewService', () => {
 			return [...this._sessions.values()];
 		}
 
-		override getGitHubContextForSession(): undefined {
-			return undefined;
-		}
-
 		override resolveSessionFileUri(): undefined {
 			return undefined;
 		}

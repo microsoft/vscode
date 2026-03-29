@@ -595,9 +595,10 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	async resolvePRReviewThread(sessionResource: URI, threadId: string): Promise<void> {
-		const context = this._sessionsManagementService.getGitHubContextForSession(sessionResource);
-		if (context?.prNumber !== undefined) {
-			const prModel = this._gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		const gitHubInfo = session?.gitHubInfo.get();
+		if (gitHubInfo?.pullRequest) {
+			const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			try {
 				await prModel.resolveThread(threadId);
 			} catch (err) {
@@ -656,15 +657,16 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			return;
 		}
 
-		const context = this._sessionsManagementService.getGitHubContextForSession(sessionResource);
-		if (!context || context.prNumber === undefined) {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		const gitHubInfo = session?.gitHubInfo.get();
+		if (!gitHubInfo?.pullRequest) {
 			return;
 		}
 
 		data.initialized = true;
 		data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
 
-		const prModel = this._gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+		const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 
 		// Watch the PR model's review threads and map to local state
 		data.disposables.add(autorun(reader => {

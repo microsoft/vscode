@@ -707,8 +707,28 @@ class AgentSessionAdapter implements ISessionData {
 		}
 
 		const pullRequestUri = this._extractPullRequestUri(session);
-		const pullRequest = pullRequestUri ? { uri: pullRequestUri, icon: this._extractPullRequestStateIcon(session) } : undefined;
-		return { owner, repo, pullRequest };
+		if (!pullRequestUri) {
+			return { owner, repo };
+		}
+
+		const prNumber = this._extractPullRequestNumber(session, pullRequestUri);
+		if (prNumber === undefined) {
+			return { owner, repo };
+		}
+
+		return { owner, repo, pullRequest: { number: prNumber, uri: pullRequestUri, icon: this._extractPullRequestStateIcon(session) } };
+	}
+
+	private _extractPullRequestNumber(session: IAgentSession, pullRequestUri: URI): number | undefined {
+		const metadata = session.metadata;
+		if (typeof metadata?.pullRequestNumber === 'number') {
+			return metadata.pullRequestNumber as number;
+		}
+		const match = /\/pull\/(\d+)/.exec(pullRequestUri.path);
+		if (match) {
+			return parseInt(match[1], 10);
+		}
+		return undefined;
 	}
 
 	private _extractOwnerRepo(session: IAgentSession): { owner: string | undefined; repo: string | undefined } {

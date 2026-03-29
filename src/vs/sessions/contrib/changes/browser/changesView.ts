@@ -1113,11 +1113,11 @@ export class ChangesViewPane extends ViewPane {
 				if (!session) {
 					return undefined;
 				}
-				const context = this.sessionManagementService.getGitHubContextForSession(session.resource);
-				if (!context || context.prNumber === undefined) {
+				const gitHubInfo = session.gitHubInfo.read(reader);
+				if (!gitHubInfo?.pullRequest) {
 					return undefined;
 				}
-				const prModel = this.gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+				const prModel = this.gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 				const pr = prModel.pullRequest.read(reader);
 				if (!pr) {
 					return undefined;
@@ -1125,7 +1125,7 @@ export class ChangesViewPane extends ViewPane {
 				// Use the PR's headSha (commit SHA) rather than the branch
 				// name so CI checks can still be fetched after branch deletion
 				// (e.g. after the PR is merged).
-				const ciModel = this.gitHubService.getPullRequestCI(context.owner, context.repo, pr.headSha);
+				const ciModel = this.gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headSha);
 				ciModel.refresh();
 				ciModel.startPolling();
 				reader.store.add({ dispose: () => ciModel.stopPolling() });

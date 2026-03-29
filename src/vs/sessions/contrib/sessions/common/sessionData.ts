@@ -66,6 +66,8 @@ export interface IGitHubInfo {
 	readonly repo: string;
 	/** Pull request associated with this session, if any. */
 	readonly pullRequest?: {
+		/** Pull request number. */
+		readonly number: number;
 		/** URI of the pull request. */
 		readonly uri: URI;
 		/** Icon reflecting the PR state. */

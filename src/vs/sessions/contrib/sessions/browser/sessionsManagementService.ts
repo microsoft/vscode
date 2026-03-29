@@ -19,7 +19,6 @@ import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionType, ISendRequestOptions, ISessionChangeEvent } from './sessionsProvider.js';
 import { SessionsGroupModel } from './sessionsGroupModel.js';
 import { ISession, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, ISessionData, IChat, SessionStatus } from '../common/sessionData.js';
-import { IGitHubSessionContext } from '../../github/common/types.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
@@ -155,12 +154,6 @@ export interface ISessionsManagementService {
 	 * If the session is the active session, the active session data is updated.
 	 */
 	setSessionType(chat: IChat, type: ISessionType): Promise<void>;
-
-	/**
-	 * Derive a GitHub context from a session resource URI.
-	 * Looks up the agent session internally and resolves repository info.
-	 */
-	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined;
 
 	/**
 	 * Resolve a relative file path to a full URI based on the session's repository/worktree.
@@ -674,30 +667,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._activeSession.set(session, undefined);
-	}
-
-	private getGitHubContext(session: ISession): IGitHubSessionContext | undefined {
-		const info = session.gitHubInfo.get();
-		if (!info) {
-			return undefined;
-		}
-
-		let prNumber: number | undefined;
-		if (info.pullRequest) {
-			const match = /\/pull\/(\d+)/.exec(info.pullRequest.uri.path);
-			if (match) {
-				prNumber = parseInt(match[1], 10);
-			}
-		}
-		return { owner: info.owner, repo: info.repo, prNumber };
-	}
-
-	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
-		const sessionData = this.getSession(sessionResource);
-		if (sessionData) {
-			return this.getGitHubContext(sessionData);
-		}
-		return undefined;
 	}
 
 	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined {
