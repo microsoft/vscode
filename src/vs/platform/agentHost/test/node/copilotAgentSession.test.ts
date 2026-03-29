@@ -81,7 +81,7 @@ function createMockSessionDataService(): ISessionDataService {
 	};
 }
 
-async function createAgentSession(disposables: DisposableStore, options?: { workingDirectory?: string }): Promise<{
+async function createAgentSession(disposables: DisposableStore, options?: { workingDirectory?: URI }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
 	progressEvents: IAgentProgressEvent[];
@@ -129,7 +129,7 @@ suite('CopilotAgentSession', () => {
 	suite('permission handling', () => {
 
 		test('auto-approves read inside working directory', async () => {
-			const { session } = await createAgentSession(disposables, { workingDirectory: '/workspace' });
+			const { session } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
 			const result = await session.handlePermissionRequest({
 				kind: 'read',
 				path: '/workspace/src/file.ts',
@@ -139,7 +139,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('does not auto-approve read outside working directory', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables, { workingDirectory: '/workspace' });
+			const { session, progressEvents } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
 
 			// Kick off permission request but don't await — it will block
 			const resultPromise = session.handlePermissionRequest({

@@ -70,7 +70,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; workingDirectory?: string; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilot', id),
 		startTime: opts?.startTime ?? 1000,
@@ -364,7 +364,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Session data adapter -------
 
 	test('session adapter has correct workspace from working directory', async () => {
-		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: '/home/user/myrepo' }));
+		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo') }));
 
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();

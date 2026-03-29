@@ -220,14 +220,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	/**
 	 * Builds workspace metadata from a working directory path on the remote host.
 	 */
-	static buildWorkspace(workingDirectory: string, providerLabel: string, connectionAuthority: string): ISessionWorkspace {
-		const directoryUri = URI.file(workingDirectory);
-		const folderName = basename(directoryUri) || workingDirectory;
-		const uri = toAgentHostUri(directoryUri, connectionAuthority);
+	static buildWorkspace(workingDirectory: URI, providerLabel: string, _connectionAuthority: string): ISessionWorkspace {
+		const folderName = basename(workingDirectory) || workingDirectory.path;
 		return {
 			label: `${folderName} [${providerLabel}]`,
 			icon: Codicon.remote,
-			repositories: [{ uri, workingDirectory: undefined, detail: providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: false,
 		};
 	}
@@ -521,7 +519,9 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 
 		const provider = AgentSession.provider(sessionUri) ?? 'copilot';
-		const workingDir = typeof summary.workingDirectory === 'string' ? summary.workingDirectory : undefined;
+		const workingDir = typeof summary.workingDirectory === 'string'
+			? toAgentHostUri(URI.parse(summary.workingDirectory), this._connectionAuthority)
+			: undefined;
 		const meta: IAgentSessionMetadata = {
 			session: sessionUri,
 			startTime: summary.createdAt,
