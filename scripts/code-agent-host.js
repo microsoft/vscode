@@ -12,7 +12,7 @@ const minimist = require('minimist');
 async function main() {
 	const args = minimist(process.argv.slice(2), {
 		boolean: ['help', 'enable-mock-agent', 'quiet', 'without-connection-token'],
-		string: ['port', 'log', 'connection-token', 'connection-token-file'],
+		string: ['port', 'log', 'connection-token', 'connection-token-file', 'registry-url', 'github-token', 'host-name'],
 	});
 
 	if (args.help) {
@@ -53,6 +53,15 @@ async function main() {
 	}
 	if (args['without-connection-token']) {
 		serverArgs.push('--without-connection-token');
+	}
+	if (args['registry-url']) {
+		serverArgs.push('--registry-url', String(args['registry-url']));
+	}
+	if (args['github-token']) {
+		serverArgs.push('--github-token', String(args['github-token']));
+	}
+	if (args['host-name']) {
+		serverArgs.push('--host-name', String(args['host-name']));
 	}
 
 	const addr = await startServer(serverArgs);

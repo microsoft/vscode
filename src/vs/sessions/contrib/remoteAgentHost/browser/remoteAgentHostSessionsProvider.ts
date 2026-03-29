@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IChatData, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
 import { ISendRequestOptions, ISessionsBrowseAction, IChatChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
-import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionItem, IChatSessionItemController } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
@@ -34,6 +34,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	readonly onDidChangeSessions: Event<IChatChangeEvent> = this._onDidChangeSessions.event;
 
 	readonly browseActions: readonly ISessionsBrowseAction[];
+
+	private _listController: IChatSessionItemController | undefined;
 
 	constructor(
 		private readonly _address: string,
@@ -70,6 +72,14 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		};
 	}
 
+	setListController(controller: IChatSessionItemController): void {
+		this._listController = controller;
+		this._register(controller.onDidChangeChatSessionItems(() => {
+			const sessions = this.getSessions();
+			this._onDidChangeSessions.fire({ added: sessions, removed: [], changed: [] });
+		}));
+	}
+
 	// -- Sessions --
 
 	getSessionTypes(_chat: IChatData): ISessionType[] {
@@ -77,9 +87,46 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	}
 
 	getSessions(): IChatData[] {
-		// Sessions are managed by the existing AgentHostSessionListController
-		// This will be populated when the list controller is integrated
-		return [];
+		if (!this._listController) {
+			return [];
+		}
+		return this._listController.items.map(item => this._adaptItem(item));
+	}
+
+	private _adaptItem(item: IChatSessionItem): IChatData {
+		const sanitized = agentHostAuthority(this._address);
+		const resourceKey = item.resource.toString();
+		return {
+			chatId: `${this.id}:${resourceKey}`,
+			resource: item.resource,
+			providerId: this.id,
+			sessionType: this.sessionTypes[0]?.id ?? 'agenthost',
+			icon: Codicon.remote,
+			createdAt: item.timing?.created ? new Date(item.timing.created) : new Date(),
+			title: observableValue(`title-${resourceKey}`, item.label),
+			updatedAt: observableValue(`updatedAt-${resourceKey}`, item.timing?.lastRequestEnded ? new Date(item.timing.lastRequestEnded) : new Date()),
+			status: observableValue(`status-${resourceKey}`, SessionStatus.Ready),
+			workspace: observableValue(`workspace-${resourceKey}`, item.metadata?.['workingDirectoryPath'] ? {
+				label: String(item.metadata['workingDirectoryPath']).split('/').pop() || '',
+				icon: Codicon.remote,
+				repositories: [{
+					uri: agentHostUri(sanitized, String(item.metadata['workingDirectoryPath'])),
+					workingDirectory: undefined,
+					detail: this.label,
+					baseBranchProtected: undefined,
+				}],
+				requiresWorkspaceTrust: true,
+			} : undefined),
+			changes: observableValue(`changes-${resourceKey}`, []),
+			modelId: observableValue(`modelId-${resourceKey}`, undefined),
+			mode: observableValue(`mode-${resourceKey}`, undefined),
+			loading: observableValue(`loading-${resourceKey}`, false),
+			isArchived: observableValue(`isArchived-${resourceKey}`, false),
+			isRead: observableValue(`isRead-${resourceKey}`, true),
+			description: observableValue(`description-${resourceKey}`, undefined),
+			lastTurnEnd: observableValue(`lastTurnEnd-${resourceKey}`, item.timing?.lastRequestEnded ? new Date(item.timing.lastRequestEnded) : undefined),
+			pullRequest: observableValue(`pullRequest-${resourceKey}`, undefined),
+		};
 	}
 
 	// -- Session Lifecycle --

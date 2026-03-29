@@ -246,3 +246,207 @@
 .agent-sessions-workbench .badge > .badge-content {
 	border-radius: 4px !important;
 }
+
+/* ---- Mobile / Small Viewport ---- */
+
+/*
+ * On mobile, the sessions workbench becomes an app-like experience.
+ * The workbench JS detects viewports < 768px and toggles the `.mobile`
+ * class on the workbench container, then hides sidebar/panel/auxiliary
+ * in the grid so the chat bar owns the full viewport.
+ *
+ * When the user toggles the sidebar visible (removes `.nosidebar`), the
+ * sidebar renders as a full-screen CSS overlay on top of the chat.
+ */
+
+/* ---- Mobile: Chat bar → edge-to-edge ---- */
+
+.agent-sessions-workbench.mobile .part.chatbar {
+	margin: 0 !important;
+	border-radius: 0 !important;
+	border: none !important;
+}
+
+.agent-sessions-workbench.mobile .part.chatbar::before {
+	display: none !important;
+}
+
+/* ---- Mobile: Titlebar → compact app header ---- */
+
+.agent-sessions-workbench.mobile .part.titlebar {
+	padding: 0 8px !important;
+	min-height: 44px; /* iOS minimum touch target */
+}
+
+/* ---- Mobile: Sidebar → Full-screen overlay ---- */
+
+/*
+ * On mobile the sidebar is reparented into a `.mobile-sidebar-overlay`
+ * div — a direct child of the workbench container, outside the grid
+ * hierarchy. This avoids containment/overflow issues that prevent
+ * position:fixed from working inside the grid.
+ */
+.agent-sessions-workbench .mobile-sidebar-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100vw;
+	height: 100vh;
+	z-index: 200;
+	background: var(--vscode-sessionsSidebar-background);
+}
+
+.agent-sessions-workbench .mobile-sidebar-overlay > .part.sidebar {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+/* ---- Mobile: Sidebar title → app-like header ---- */
+
+.agent-sessions-workbench.mobile .part.sidebar > .composite.title {
+	padding: 12px 16px 8px 16px !important;
+	min-height: 48px;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench.mobile .part.sidebar > .composite.title .title-label h2 {
+	font-size: 22px !important;
+	font-weight: 700 !important;
+	letter-spacing: -0.02em;
+}
+
+/* ---- Mobile: Session list items → dividers + larger touch targets ---- */
+
+.agent-sessions-workbench.mobile .sessions-list-control .monaco-list-row {
+	border-radius: 0 !important;
+}
+
+.agent-sessions-workbench.mobile .sessions-list-control .pane-body .monaco-scrollable-element {
+	padding: 0 !important;
+}
+
+.agent-sessions-workbench.mobile .session-item {
+	padding: 12px 16px !important;
+	min-height: 56px;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border, var(--vscode-widget-border, #333)) 50%, transparent);
+}
+
+.agent-sessions-workbench.mobile .session-item .session-main {
+	padding-left: 10px !important;
+}
+
+.agent-sessions-workbench.mobile .session-item .session-title {
+	font-size: 14px !important;
+	font-weight: 500;
+	line-height: 20px !important;
+}
+
+.agent-sessions-workbench.mobile .session-item .session-title-row {
+	padding-bottom: 2px !important;
+}
+
+.agent-sessions-workbench.mobile .session-item .session-details-row {
+	font-size: 13px !important;
+	line-height: 18px !important;
+	max-height: 18px !important;
+	opacity: 0.7;
+}
+
+.agent-sessions-workbench.mobile .session-item .session-time {
+	font-size: 13px !important;
+}
+
+/* ---- Mobile: Section headers → clear visual break ---- */
+
+.agent-sessions-workbench.mobile .session-section {
+	font-size: 12px !important;
+	padding: 20px 16px 8px 16px !important;
+	letter-spacing: 0.05em;
+	opacity: 0.6;
+}
+
+/* ---- Mobile: Status icons → slightly larger ---- */
+
+.agent-sessions-workbench.mobile .session-item .session-icon > .codicon {
+	font-size: 14px !important;
+}
+
+/* ---- Mobile: Chat content → full-width ---- */
+
+.agent-sessions-workbench.mobile .interactive-session .interactive-item-container {
+	max-width: none !important;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
+}
+
+.agent-sessions-workbench.mobile .interactive-session > .chat-suggest-next-widget {
+	max-width: none !important;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
+}
+
+.agent-sessions-workbench.mobile .interactive-input-part {
+	max-width: none !important;
+	padding: 4px 12px 12px 12px !important;
+}
+
+/* Mobile chat input box — no rounding on outer container */
+.agent-sessions-workbench.mobile .interactive-session .chat-input-container {
+	border-radius: 12px !important;
+}
+
+/* Welcome content — smaller icon */
+.agent-sessions-workbench.mobile .chat-welcome-view .chat-feature-icon-container {
+	width: 60px !important;
+	height: 60px !important;
+}
+
+/* ---- Mobile: Sidebar footer → clean spacing ---- */
+
+.agent-sessions-workbench.mobile .part.sidebar > .sidebar-footer {
+	margin: 0 16px 16px 16px !important;
+	padding: 12px 0 !important;
+}
+
+/* ---- Mobile: Approval row → better touch affordance ---- */
+
+.agent-sessions-workbench.mobile .session-approval-row.visible {
+	margin-top: 8px !important;
+	padding: 8px 12px !important;
+}
+
+.agent-sessions-workbench.mobile .session-approval-row .session-approval-button .monaco-button {
+	padding: 6px 16px !important;
+	font-size: 13px !important;
+	min-height: 32px;
+}
+
+/* ---- Very small screens (< 480px) — phone-tight ---- */
+
+@media (max-width: 480px) {
+
+	.agent-sessions-workbench.mobile .interactive-session .interactive-item-container {
+		padding-left: 8px !important;
+		padding-right: 8px !important;
+	}
+
+	.agent-sessions-workbench.mobile .interactive-input-part {
+		padding: 6px 8px !important;
+	}
+
+	.agent-sessions-workbench.mobile .part.titlebar {
+		padding: 0 4px !important;
+	}
+
+	.agent-sessions-workbench.mobile .session-item {
+		padding: 10px 12px !important;
+	}
+
+	.agent-sessions-workbench.mobile .session-section {
+		padding: 16px 12px 6px 12px !important;
+	}
+
+	.agent-sessions-workbench.mobile .part.sidebar > .composite.title {
+		padding: 10px 12px 6px 12px !important;
+	}
+}

@@ -99,7 +99,8 @@ import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWeb
 import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryManifest.js';
 import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
-import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -119,7 +120,7 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostService, NullRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -132,6 +133,12 @@ import '../workbench/contrib/performance/browser/performance.web.contribution.js
 import '../workbench/contrib/preferences/browser/keyboardLayoutPicker.js';
 import '../workbench/contrib/debug/browser/extensionHostDebugService.js';
 import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
+
+// Web-specific host discovery from registry
+import './contrib/webHostDiscovery/browser/webHostDiscovery.contribution.js';
+
+// Remote agent host session provider — discovers agents and registers sessions
+import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
 import '../workbench/contrib/extensions/browser/extensions.web.contribution.js';
 import '../workbench/contrib/terminal/browser/terminal.web.contribution.js';

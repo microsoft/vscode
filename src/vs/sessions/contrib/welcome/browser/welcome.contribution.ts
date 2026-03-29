@@ -5,6 +5,7 @@
 
 import './media/welcomeOverlay.css';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -27,12 +28,16 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
 class SessionsWelcomeOverlay extends Disposable {
 
 	private readonly overlay: HTMLElement;
+	private readonly _onDidComplete = this._register(new Emitter<void>());
+	readonly onDidComplete = this._onDidComplete.event;
 
 	constructor(
 		container: HTMLElement,
@@ -40,6 +45,7 @@ class SessionsWelcomeOverlay extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService,
+		@IAuthenticationService _authenticationService: IAuthenticationService,
 	) {
 		super();
 
@@ -63,19 +69,23 @@ class SessionsWelcomeOverlay extends Disposable {
 		const actionButton = this._register(new Button(actionArea, { ...defaultButtonStyles }));
 		actionButton.label = localize('sessions.getStarted', "Get Started");
 
+		// Device code UI — hidden initially
+		const deviceCodeContainer = append(card, $('.sessions-welcome-device-code'));
+		deviceCodeContainer.style.display = 'none';
+
 		const spinnerContainer = append(actionArea, $('.sessions-welcome-spinner'));
 		spinnerContainer.style.display = 'none';
 
 		const errorContainer = append(actionArea, $('p.sessions-welcome-error'));
 		errorContainer.style.display = 'none';
 
-		this._register(actionButton.onDidClick(() => this._runSetup(actionButton, spinnerContainer, errorContainer)));
+		this._register(actionButton.onDidClick(() => this._runSetup(actionButton, spinnerContainer, errorContainer, deviceCodeContainer)));
 
 		// Focus the button so the overlay traps keyboard input
 		actionButton.focus();
 	}
 
-	private async _runSetup(button: Button, spinner: HTMLElement, error: HTMLElement): Promise<void> {
+	private async _runSetup(button: Button, spinner: HTMLElement, error: HTMLElement, deviceCodeContainer: HTMLElement): Promise<void> {
 		button.enabled = false;
 		error.style.display = 'none';
 
@@ -85,24 +95,131 @@ class SessionsWelcomeOverlay extends Disposable {
 		spinner.style.display = '';
 
 		try {
-			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
-				dialogIcon: Codicon.agent,
-				dialogTitle: this.chatEntitlementService.anonymous ?
-					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions"),
-			});
+			let success: boolean | undefined;
+
+			if (isWeb) {
+				// On web, use GitHub Device Code flow via sessions auth proxy.
+				// This avoids needing a client_secret which may be stale in dev.
+				try {
+					// Step 1: Request a device code
+					const codeResp = await fetch('/sessions/api/auth/device/code', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ scope: 'user:email' })
+					});
+					if (!codeResp.ok) {
+						throw new Error(`Device code request failed: ${codeResp.status}`);
+					}
+					const codeData = await codeResp.json() as {
+						device_code: string;
+						user_code: string;
+						verification_uri: string;
+						interval: number;
+						expires_in: number;
+					};
+
+					// Step 2: Show the user code and open GitHub verification URL
+					button.element.style.display = 'none';
+					spinner.style.display = 'none';
+					deviceCodeContainer.textContent = '';
+					deviceCodeContainer.style.display = '';
+
+					const instruction = append(deviceCodeContainer, $('p', undefined,
+						localize('sessions.deviceCode.instruction', "Enter this code on GitHub:")
+					));
+					instruction.style.marginBottom = '8px';
+
+					const codeDisplay = append(deviceCodeContainer, $('code.sessions-welcome-user-code'));
+					codeDisplay.textContent = codeData.user_code;
+					codeDisplay.style.cssText = 'font-size: 24px; font-weight: bold; letter-spacing: 4px; display: block; text-align: center; padding: 12px; margin: 8px 0; user-select: all; cursor: pointer;';
+
+					// Copy to clipboard on click
+					codeDisplay.addEventListener('click', () => {
+						navigator.clipboard?.writeText(codeData.user_code);
+					});
+
+					const linkButton = this._register(new Button(deviceCodeContainer, { ...defaultButtonStyles }));
+					linkButton.label = localize('sessions.deviceCode.openGithub', "Open GitHub");
+					this._register(linkButton.onDidClick(() => {
+						globalThis.open(codeData.verification_uri, '_blank');
+					}));
+
+					const waitingMsg = append(deviceCodeContainer, $('p.sessions-welcome-waiting'));
+					waitingMsg.style.cssText = 'margin-top: 12px; opacity: 0.7; text-align: center;';
+					waitingMsg.textContent = localize('sessions.deviceCode.waiting', "Waiting for authorization…");
+
+					// Step 3: Poll for token
+					const interval = Math.max((codeData.interval || 5) * 1000, 5000);
+					const deadline = Date.now() + (codeData.expires_in || 900) * 1000;
+					let token: string | undefined;
+
+					while (Date.now() < deadline) {
+						await new Promise<void>(r => setTimeout(r, interval));
+						const tokenResp = await fetch('/sessions/api/auth/device/token', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ device_code: codeData.device_code })
+						});
+						const tokenData = await tokenResp.json() as {
+							access_token?: string;
+							error?: string;
+						};
+
+						if (tokenData.access_token) {
+							token = tokenData.access_token;
+							break;
+						}
+						if (tokenData.error === 'expired_token' || tokenData.error === 'access_denied') {
+							throw new Error(tokenData.error);
+						}
+						// 'authorization_pending' or 'slow_down' — keep polling
+					}
+
+					if (token) {
+						// Hide device code UI, show completion spinner
+						deviceCodeContainer.style.display = 'none';
+						spinner.textContent = '';
+						spinner.appendChild(renderIcon(Codicon.loading));
+						append(spinner, $('span', undefined, localize('sessions.completing', "Completing setup…")));
+						spinner.style.display = '';
+
+						// Store token persistently for host discovery
+						globalThis.localStorage.setItem('sessions.github.token', token);
+						globalThis.localStorage.setItem('sessions.welcome.done', 'true');
+						success = true;
+					}
+				} catch (e) {
+					this.logService.error('[sessions welcome] Device code auth failed:', e);
+					throw e;
+				}
+			} else {
+				// On desktop, use the Copilot setup flow
+				success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
+					dialogIcon: Codicon.agent,
+					dialogTitle: this.chatEntitlementService.anonymous ?
+						localize('sessions.startUsingSessions', "Start using Sessions") :
+						localize('sessions.signinRequired', "Sign in to use Sessions"),
+				});
+			}
 
 			if (success) {
-				spinner.textContent = '';
-				spinner.appendChild(renderIcon(Codicon.loading));
-				append(spinner, $('span', undefined, localize('sessions.restarting', "Completing setup…")));
+				if (isWeb) {
+					// On web, just dismiss the overlay — no extension host restart needed
+					this.logService.info('[sessions welcome] Auth complete on web, dismissing overlay');
+					this._onDidComplete.fire();
+					this.dismiss();
+				} else {
+					spinner.textContent = '';
+					spinner.appendChild(renderIcon(Codicon.loading));
+					append(spinner, $('span', undefined, localize('sessions.restarting', "Completing setup…")));
 
-				this.logService.info('[sessions welcome] Restarting extension host after setup completion');
-				const stopped = await this.extensionService.stopExtensionHosts(
-					localize('sessionsWelcome.restart', "Completing sessions setup")
-				);
-				if (stopped) {
-					await this.extensionService.startExtensionHosts();
+					this.logService.info('[sessions welcome] Restarting extension host after setup completion');
+					const stopped = await this.extensionService.stopExtensionHosts(
+						localize('sessionsWelcome.restart', "Completing sessions setup")
+					);
+					if (stopped) {
+						await this.extensionService.startExtensionHosts();
+					}
 				}
 			} else {
 				button.enabled = true;
@@ -144,6 +261,15 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 
 		if (!this.productService.defaultChatAgent?.chatExtensionId) {
 			return;
+		}
+
+		// On web, skip the welcome overlay if we've already completed OAuth
+		// (the device code flow stores a marker in localStorage)
+		if (isWeb && typeof globalThis.localStorage !== 'undefined') {
+			const welcomeDone = globalThis.localStorage.getItem('sessions.welcome.done');
+			if (welcomeDone === 'true') {
+				return;
+			}
 		}
 
 		// Allow automated tests to skip the welcome overlay entirely.
@@ -232,6 +358,14 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			SessionsWelcomeOverlay,
 			this.layoutService.mainContainer,
 		));
+
+		// On web, the overlay fires onDidComplete when device code auth finishes
+		if (isWeb) {
+			this.overlayRef.value.add(overlay.onDidComplete(() => {
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				this.overlayRef.clear();
+			}));
+		}
 
 		// When setup completes (observables flip), dismiss and watch again
 		this.overlayRef.value.add(autorun(reader => {

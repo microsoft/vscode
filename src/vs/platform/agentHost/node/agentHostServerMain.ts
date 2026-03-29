@@ -57,6 +57,12 @@ interface IServerOptions {
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
 	readonly connectionToken: string | undefined;
+	/** URL of the host registry (e.g. https://vscode.dev/sessions/api/hosts) */
+	readonly registryUrl: string | undefined;
+	/** GitHub token for host registry authentication */
+	readonly githubToken: string | undefined;
+	/** Human-readable host name for registry */
+	readonly hostName: string | undefined;
 }
 
 function parseServerOptions(): IServerOptions {
@@ -107,7 +113,103 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, enableMockAgent, quiet, connectionToken };
+	// Registry options
+	const registryUrlIdx = argv.indexOf('--registry-url');
+	const registryUrl = registryUrlIdx >= 0 ? argv[registryUrlIdx + 1] : process.env['VSCODE_AGENT_HOST_REGISTRY_URL'];
+	const githubTokenIdx = argv.indexOf('--github-token');
+	const githubToken = githubTokenIdx >= 0 ? argv[githubTokenIdx + 1] : process.env['VSCODE_AGENT_HOST_GITHUB_TOKEN'];
+	const hostNameIdx = argv.indexOf('--host-name');
+	const hostName = hostNameIdx >= 0 ? argv[hostNameIdx + 1] : process.env['VSCODE_AGENT_HOST_NAME'];
+
+	return { port, enableMockAgent, quiet, connectionToken, registryUrl, githubToken, hostName };
+}
+
+//  Host Registry Registration
+
+function startHostRegistration(options: IServerOptions, tunnelUrl: string): { stop: () => void } {
+	if (!options.registryUrl || !options.githubToken) {
+		return { stop: () => { } };
+	}
+
+	const hostId = generateUuid();
+	// eslint-disable-next-line no-restricted-globals
+	const hostName = options.hostName || require('os').hostname();
+
+	let stopped = false;
+	// eslint-disable-next-line prefer-const
+	let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+
+	async function register(): Promise<void> {
+		try {
+			const resp = await fetch(`${options.registryUrl}/register`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${options.githubToken}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					hostId,
+					name: hostName,
+					tunnelUrl,
+					connectionToken: options.connectionToken,
+					agentProvider: 'copilot',
+					workspaces: [],
+					models: []
+				})
+			});
+			if (resp.ok) {
+				log(`Registered with host registry as "${hostName}" (${hostId})`);
+			} else {
+				log(`Host registry registration failed: ${resp.status}`);
+			}
+		} catch (err) {
+			log(`Host registry registration error: ${(err as Error).message}`);
+		}
+	}
+
+	async function heartbeat(): Promise<void> {
+		if (stopped) {
+			return;
+		}
+		try {
+			const resp = await fetch(`${options.registryUrl}/heartbeat`, {
+				method: 'POST',
+				headers: {
+					'Authorization': `Bearer ${options.githubToken}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ hostId })
+			});
+			if (resp.status === 404) {
+				// Host expired — re-register
+				await register();
+			}
+		} catch {
+			// Heartbeat failed — will retry on next interval
+		}
+	}
+
+	async function unregister(): Promise<void> {
+		stopped = true;
+		if (heartbeatTimer) {
+			clearInterval(heartbeatTimer);
+		}
+		try {
+			await fetch(`${options.registryUrl}/${hostId}`, {
+				method: 'DELETE',
+				headers: { 'Authorization': `Bearer ${options.githubToken}` }
+			});
+			log('Unregistered from host registry');
+		} catch {
+			// Best effort
+		}
+	}
+
+	// Register immediately, then heartbeat every 30s
+	register();
+	heartbeatTimer = setInterval(heartbeat, 30_000);
+
+	return { stop: unregister };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -210,15 +312,25 @@ async function main(): Promise<void> {
 	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, logService));
 
 	// Report ready
+	let registrationHandle: { stop: () => void } | undefined;
+
 	function reportReady(addr: string): void {
 		const listeningPort = addr.split(':').pop();
-		let wsUrl = `ws://${addr}`;
+		const cleanWsUrl = `ws://${addr}`;
+		let displayUrl = cleanWsUrl;
 		if (options.connectionToken) {
-			wsUrl += `?tkn=${options.connectionToken}`;
+			displayUrl += `?tkn=${options.connectionToken}`;
 		}
 		process.stdout.write(`READY:${listeningPort}\n`);
-		log(`WebSocket server listening on ${wsUrl}`);
-		logService.info(`[AgentHostServer] WebSocket server listening on ${wsUrl}`);
+		log(`WebSocket server listening on ${displayUrl}`);
+		logService.info(`[AgentHostServer] WebSocket server listening on ${displayUrl}`);
+
+		// Register with host registry if configured
+		// Pass the clean URL (without token in query) — the token is sent
+		// separately in the connectionToken field
+		if (options.registryUrl && options.githubToken) {
+			registrationHandle = startHostRegistration(options, cleanWsUrl);
+		}
 	}
 
 	const address = wsServer.address;
@@ -242,6 +354,7 @@ async function main(): Promise<void> {
 
 	function shutdown(): void {
 		logService.info('[AgentHostServer] Shutting down...');
+		registrationHandle?.stop();
 		disposables.dispose();
 		loggerService?.dispose();
 		process.exit(0);

@@ -83,7 +83,8 @@ enum LayoutClasses {
 	CHATBAR_HIDDEN = 'nochatbar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
-	MAXIMIZED = 'maximized'
+	MAXIMIZED = 'maximized',
+	MOBILE = 'mobile'
 }
 
 //#endregion
@@ -241,6 +242,24 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private mainWindowFullscreen = false;
 	private readonly maximized = new Set<number>();
+
+	/**
+	 * Mobile breakpoint: when the viewport is narrower than this, the
+	 * workbench switches to a mobile-optimised layout (sidebar as overlay,
+	 * panel/auxiliary bar hidden, chat bar edge-to-edge).
+	 */
+	private static readonly MOBILE_BREAKPOINT = 768;
+	private _isMobile = false;
+
+	/**
+	 * On mobile, the sidebar is reparented into this overlay div (a direct
+	 * child of mainContainer, outside the grid) so that `position: fixed`
+	 * is not blocked by the grid's `overflow: hidden` / `position: relative`
+	 * ancestors. We store a reference to the sidebar's original parent
+	 * (the split-view-view) so we can return it when leaving mobile mode.
+	 */
+	private mobileOverlay: HTMLElement | undefined;
+	private sidebarOriginalParent: HTMLElement | undefined;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -668,6 +687,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Initialize layout state (must be done before createWorkbenchLayout)
 		this._mainContainerDimension = getClientArea(this.parent, new Dimension(800, 600));
+
+		// Detect mobile viewport for CSS-only layout adjustments
+		this._isMobile = this._mainContainerDimension.width < Workbench.MOBILE_BREAKPOINT;
+		if (this._isMobile) {
+			this.mainContainer.classList.add(LayoutClasses.MOBILE);
+		}
 	}
 
 	private areAllGroupsEmpty(): boolean {
@@ -737,6 +762,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.mainWindowFullscreen;
 
+		// Create mobile overlay (direct child of mainContainer, outside the grid)
+		this.mobileOverlay = document.createElement('div');
+		this.mobileOverlay.classList.add('mobile-sidebar-overlay');
+		this.mobileOverlay.style.display = 'none';
+		this.mainContainer.appendChild(this.mobileOverlay);
+
 		// Listen for part visibility changes (for parts in grid)
 		for (const part of [titleBar, panelPart, sideBar, auxiliaryBarPart, chatBarPart]) {
 			this._register(part.onDidVisibilityChange(visible => {
@@ -805,7 +836,9 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			type: 'leaf',
 			data: { type: Parts.SIDEBAR_PART },
 			size: sideBarSize,
-			visible: this.partVisibility.sidebar
+			// On mobile, always hide the sidebar from the grid — it uses
+			// the mobile overlay instead. This gives the chat bar full width.
+			visible: this._isMobile ? false : this.partVisibility.sidebar
 		};
 
 		const auxiliaryBarNode: ISerializedLeafNode = {
@@ -870,10 +903,46 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		);
 		this.logService.trace(`Workbench#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
+		// Toggle mobile class for CSS-driven responsive layout
+		this._isMobile = this._mainContainerDimension.width < Workbench.MOBILE_BREAKPOINT;
+		this.mainContainer.classList.toggle(LayoutClasses.MOBILE, this._isMobile);
+
+		// Handle mobile ↔ desktop transitions and initial mobile setup
+		if (this.mobileOverlay) {
+			if (this._isMobile && this.partVisibility.sidebar && !this.sidebarOriginalParent) {
+				// Mobile with sidebar visible but not yet in overlay: reparent
+				const sidebarContainer = this.getPart(Parts.SIDEBAR_PART).getContainer();
+				if (sidebarContainer && sidebarContainer.parentElement !== this.mobileOverlay) {
+					this.sidebarOriginalParent = sidebarContainer.parentElement as HTMLElement;
+					this.mobileOverlay.appendChild(sidebarContainer);
+					this.mobileOverlay.style.display = '';
+				}
+			} else if (!this._isMobile && this.sidebarOriginalParent) {
+				// Leaving mobile: return sidebar to grid
+				const sidebarContainer = this.getPart(Parts.SIDEBAR_PART).getContainer();
+				if (sidebarContainer) {
+					this.sidebarOriginalParent.appendChild(sidebarContainer);
+					this.sidebarOriginalParent = undefined;
+				}
+				this.mobileOverlay.style.display = 'none';
+				// Restore sidebar visibility in the grid
+				this.workbenchGrid.setViewVisible(this.sideBarPartView, this.partVisibility.sidebar);
+			}
+		}
+
 		size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
 
 		// Layout the grid widget
 		this.workbenchGrid.layout(this._mainContainerDimension.width, this._mainContainerDimension.height);
+
+		// Layout sidebar at full viewport size when in mobile overlay
+		if (this._isMobile && this.mobileOverlay && this.mobileOverlay.style.display !== 'none') {
+			this.getPart(Parts.SIDEBAR_PART).layout(
+				this._mainContainerDimension.width,
+				this._mainContainerDimension.height,
+				0, 0
+			);
+		}
 
 		// Emit as event
 		this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
@@ -1054,11 +1123,39 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		this.partVisibility.sidebar = !hidden;
 		this.mainContainer.classList.toggle(LayoutClasses.SIDEBAR_HIDDEN, hidden);
 
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(
-			this.sideBarPartView,
-			!hidden,
-		);
+		// Mobile: reparent the sidebar into/out of the mobile overlay
+		if (this._isMobile && this.mobileOverlay) {
+			const sidebarContainer = this.getPart(Parts.SIDEBAR_PART).getContainer();
+			if (sidebarContainer) {
+				if (!hidden) {
+					// Show: move sidebar into the overlay (outside the grid)
+					this.sidebarOriginalParent = sidebarContainer.parentElement as HTMLElement;
+					this.mobileOverlay.appendChild(sidebarContainer);
+					this.mobileOverlay.style.display = '';
+					// Layout the sidebar at full viewport size
+					const part = this.getPart(Parts.SIDEBAR_PART);
+					part.layout(this._mainContainerDimension.width, this._mainContainerDimension.height, 0, 0);
+				} else {
+					// Hide: move sidebar back into the grid
+					if (this.sidebarOriginalParent) {
+						this.sidebarOriginalParent.appendChild(sidebarContainer);
+						this.sidebarOriginalParent = undefined;
+					}
+					this.mobileOverlay.style.display = 'none';
+				}
+			}
+			// On mobile, also hide the sidebar from the grid so the chat bar
+			// gets the full viewport width when the overlay is dismissed.
+			this.workbenchGrid.setViewVisible(this.sideBarPartView, false);
+		}
+
+		// Propagate to grid (desktop mode)
+		if (!this._isMobile) {
+			this.workbenchGrid.setViewVisible(
+				this.sideBarPartView,
+				!hidden,
+			);
+		}
 
 		// If sidebar becomes hidden, also hide the current active pane composite
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {

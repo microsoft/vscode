@@ -12,6 +12,7 @@ import { RemoteAgentConnectionStatusListener, RemoteMarkers } from './remote.js'
 import { RemoteStatusIndicator } from './remoteIndicator.js';
 import { AutomaticPortForwarding, ForwardedPortsView, PortRestore } from './remoteExplorer.js';
 import { InitialRemoteConnectionHealthContribution } from './remoteConnectionHealth.js';
+import { ShareAgentHostContribution } from './shareAgentHost.js';
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 registerWorkbenchContribution2(ShowCandidateContribution.ID, ShowCandidateContribution, WorkbenchPhase.BlockRestore);
@@ -23,3 +24,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(PortRestore, Lifecy
 workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteMarkers, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ShareAgentHostContribution.ID, ShareAgentHostContribution, WorkbenchPhase.AfterRestored);

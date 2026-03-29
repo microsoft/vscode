@@ -82,8 +82,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 	async refresh(_token: CancellationToken): Promise<void> {
 		try {
+			console.log('[AgentHostSessionListController] refresh called for provider:', this._provider);
 			const sessions = await this._connection.listSessions();
+			console.log('[AgentHostSessionListController] listSessions returned:', sessions.length, 'sessions');
 			const filtered = sessions.filter(s => AgentSession.provider(s.session) === this._provider);
+			console.log('[AgentHostSessionListController] filtered to', filtered.length, 'sessions for provider', this._provider);
 			const rawId = (s: typeof filtered[0]) => AgentSession.id(s.session);
 			this._items = filtered.map(s => ({
 				resource: URI.from({ scheme: this._sessionType, path: `/${rawId(s)}` }),
@@ -98,9 +101,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					lastRequestEnded: s.modifiedTime,
 				},
 			}));
-		} catch {
+		} catch (e) {
+			console.error('[AgentHostSessionListController] refresh failed:', e);
 			this._items = [];
 		}
+		console.log('[AgentHostSessionListController] firing delta with', this._items.length, 'items');
 		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
 	}
 

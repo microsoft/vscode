@@ -299,6 +299,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			AgentHostSessionListController, sessionType, agent.provider, loggedConnection, displayName));
 		agentStore.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
+		// Wire the list controller to the sessions provider so getSessions() returns data
+		sessionsProvider.setListController(listController);
+
 		// Session handler (unified)
 		const sessionHandler = agentStore.add(this._instantiationService.createInstance(
 			AgentHostSessionHandler, {
