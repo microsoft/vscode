@@ -101,6 +101,11 @@ export function setup(context: TestContext) {
 						return;
 					}
 
+					if (/Error getting authorization/.test(line)) {
+						context.log('Error during authentication, capturing screenshot');
+						await context.captureScreenshot(page);
+					}
+
 					const tunnelUrl = /Open this link in your browser (https?:\/\/[^\s]+)/.exec(line)?.[1];
 					if (tunnelUrl) {
 						await connectToTunnel(tunnelUrl, page, test, auth);
