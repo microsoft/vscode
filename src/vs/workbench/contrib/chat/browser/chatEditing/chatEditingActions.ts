@@ -807,27 +807,31 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		const symbol = args[0] as Location;
 
 		const modelReference = await textModelService.createModelReference(symbol.uri);
-		const textModel = modelReference.object.textEditorModel;
-		if (!textModel) {
-			return;
+		try {
+			const textModel = modelReference.object.textEditorModel;
+			if (!textModel) {
+				return;
+			}
+
+			const position = new Position(symbol.range.startLineNumber, symbol.range.startColumn);
+
+			const [references, definitions, implementations] = await Promise.all([
+				this.getReferences(position, textModel, languageFeaturesService),
+				this.getDefinitions(position, textModel, languageFeaturesService),
+				this.getImplementations(position, textModel, languageFeaturesService)
+			]);
+
+			// Sort the references, definitions and implementations by
+			// how important it is that they make it into the working set as it has limited size
+			const attachments = [];
+			for (const reference of [...definitions, ...implementations, ...references]) {
+				attachments.push(chatWidget.attachmentModel.asFileVariableEntry(reference.uri));
+			}
+
+			chatWidget.attachmentModel.addContext(...attachments);
+		} finally {
+			modelReference.dispose();
 		}
-
-		const position = new Position(symbol.range.startLineNumber, symbol.range.startColumn);
-
-		const [references, definitions, implementations] = await Promise.all([
-			this.getReferences(position, textModel, languageFeaturesService),
-			this.getDefinitions(position, textModel, languageFeaturesService),
-			this.getImplementations(position, textModel, languageFeaturesService)
-		]);
-
-		// Sort the references, definitions and implementations by
-		// how important it is that they make it into the working set as it has limited size
-		const attachments = [];
-		for (const reference of [...definitions, ...implementations, ...references]) {
-			attachments.push(chatWidget.attachmentModel.asFileVariableEntry(reference.uri));
-		}
-
-		chatWidget.attachmentModel.addContext(...attachments);
 	}
 
 	private async getReferences(position: Position, textModel: ITextModel, languageFeaturesService: ILanguageFeaturesService): Promise<Location[]> {
