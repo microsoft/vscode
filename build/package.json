@@ -72,6 +72,7 @@
     "test": "mocha --ui tdd '{lib,next}/**/*.test.ts'"
   },
   "optionalDependencies": {
+    "@esbuild/darwin-arm64": "^0.27.4",
     "tree-sitter-typescript": "^0.23.2",
     "vscode-gulp-watch": "^5.0.3"
   },
@@ -79,5 +80,8 @@
     "path-scurry": {
       "lru-cache": "11.2.1"
     }
+  },
+  "dependencies": {
+    "@vscode/policy-watcher": "^1.3.7"
   }
 }
