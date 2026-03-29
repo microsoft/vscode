@@ -11,7 +11,7 @@
 	- Launch a new VS Code instance with the `json-language-features` extension loaded
 - Open a `.json` file to activate the extension. The extension will start the JSON language server process.
 - Add `"json.trace.server": "verbose"` to the settings to observe the communication between client and server in the `JSON Language Server` output.
-- Debug the extension and the language server client by setting breakpoints in`json-language-features/client/`
+- Debug the extension and the language server client by setting breakpoints in `json-language-features/client/`
 - Debug the language server process by using `Attach to Node Process` command in the  VS Code window opened on `json-language-features`.
   - Pick the process that contains `jsonServerMain` in the command line. Hover over `code-insiders` resp `code` processes to see the full process command line.
   - Set breakpoints in `json-language-features/server/`
@@ -35,7 +35,7 @@ However, within this extension, you can run a development version of `vscode-jso
 
 #### Testing the development version of `vscode-json-languageservice`
 
-- Open both `vscode-json-languageservice` and this extension in two windows or with a single window with the[multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature.
+- Open both `vscode-json-languageservice` and this extension in two windows or with a single window with the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature.
 - Run `npm run watch` at `json-languagefeatures/server/` to recompile this extension with the linked version of `vscode-json-languageservice`
 - Make some changes in `vscode-json-languageservice`
 - Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-json-languageservice`. You can interactively test the language features.

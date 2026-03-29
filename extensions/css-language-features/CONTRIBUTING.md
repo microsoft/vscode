@@ -13,7 +13,7 @@
 	- Launch a new VS Code instance with the `css-language-features` extension loaded
 - Open a `.css` file to activate the extension. The extension will start the CSS language server process.
 - Add `"css.trace.server": "verbose"` to the settings to observe the communication between client and server in the `CSS Language Server` output.
-- Debug the extension and the language server client by setting breakpoints in`css-language-features/client/`
+- Debug the extension and the language server client by setting breakpoints in `css-language-features/client/`
 - Debug the language server process by using `Attach to Node Process` command in the  VS Code window opened on `css-language-features`.
   - Pick the process that contains `cssServerMain` in the command line. Hover over `code-insiders` resp `code` processes to see the full process command line.
   - Set breakpoints in `css-language-features/server/`
