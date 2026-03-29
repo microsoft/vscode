@@ -178,7 +178,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	}
 
 	// Only set the tabIndex on the element once it is about to get focused
-	// That way this element wont be a tab stop when it is not needed #106441
+	// That way this element won't be a tab stop when it is not needed #106441
 	focus(): void {
 		if (this.element) {
 			this.element.tabIndex = 0;
@@ -336,7 +336,7 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 
 	// Only set the tabIndex on the element once it is about to get focused
-	// That way this element wont be a tab stop when it is not needed #106441
+	// That way this element won't be a tab stop when it is not needed #106441
 	override focus(): void {
 		if (this.label) {
 			this.label.tabIndex = 0;
