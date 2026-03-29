@@ -29,14 +29,14 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
-import { PROMPT_LANGUAGE_ID, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, getCleanPromptName, getSkillFolderName, GITHUB_CONFIG_FOLDER, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import {
 	IWorkspaceInstructionFile,
 	PromptFilesLocator
 } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -283,6 +283,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 							type: PromptsType.hook,
 							name: getCanonicalPluginCommandId(plugin, hook.originalId),
 							pluginUri: plugin.uri,
+							source: PromptFileSource.Plugin,
 						});
 					}
 				}
@@ -312,6 +313,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						type,
 						name: getCanonicalPluginCommandId(plugin, item.name),
 						pluginUri: plugin.uri,
+						source: PromptFileSource.Plugin,
 					});
 				}
 			}
@@ -485,7 +487,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						storage: PromptsStorage.extension,
 						type,
 						extension: providerEntry.extension,
-						source: ExtensionAgentSourceType.provider,
+						source: PromptFileSource.ExtensionAPI,
 						name: file.name,
 						description: file.description,
 					} satisfies IExtensionPromptPath);
@@ -854,7 +856,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const msg = e instanceof Error ? e.message : String(e);
 				this.logger.error(`[registerContributedFile] Failed to make prompt file readonly: ${uri}`, msg);
 			}
-			return { uri, name, description, when, storage: PromptsStorage.extension, type, extension, source: ExtensionAgentSourceType.contribution } satisfies IExtensionPromptPath;
+			return { uri, name, description, when, storage: PromptsStorage.extension, type, extension, source: PromptFileSource.ExtensionContribution } satisfies IExtensionPromptPath;
 		})();
 		bucket.set(uri, entryPromise);
 		if (when) {
@@ -1126,10 +1128,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeAgentSkills(token: CancellationToken): Promise<IAgentSkill[]> {
-		const { files, skillsBySource } = await this.computeSkillDiscoveryInfo(token);
+		const files = await this.computeSkillDiscoveryInfo(token);
 
-		// Extract loaded skills
+		// Extract loaded skills and count by source for telemetry
 		const result: IAgentSkill[] = [];
+		const skillsBySource = new Map<PromptFileSource, number>();
 		for (const file of files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.promptPath.description, file.promptPath.uri);
@@ -1144,6 +1147,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 					pluginUri: file.promptPath.pluginUri,
 					extension: file.promptPath.extension,
 				});
+				const source = file.promptPath.source;
+				if (source) {
+					skillsBySource.set(source, (skillsBySource.get(source) || 0) + 1);
+				}
 			}
 		}
 
@@ -1277,46 +1284,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return { ...promptPath, name, description };
 	}
 
-	private toPromptPathFromResolvedPromptFile(file: IResolvedPromptFile, type: PromptsType): IPromptPath {
-		switch (file.storage) {
-			case PromptsStorage.extension:
-				if (!file.extension) {
-					throw new Error(`Resolved extension prompt file is missing extension metadata: ${file.fileUri.toString()}`);
-				}
-
-				return {
-					uri: file.fileUri,
-					storage: PromptsStorage.extension,
-					type,
-					extension: file.extension,
-					source: file.source === PromptFileSource.ExtensionContribution ? ExtensionAgentSourceType.contribution : ExtensionAgentSourceType.provider,
-				} satisfies IExtensionPromptPath;
-			case PromptsStorage.plugin:
-				if (!file.pluginUri) {
-					throw new Error(`Resolved plugin prompt file is missing plugin metadata: ${file.fileUri.toString()}`);
-				}
-
-				return {
-					uri: file.fileUri,
-					storage: PromptsStorage.plugin,
-					type,
-					pluginUri: file.pluginUri,
-				} satisfies IPluginPromptPath;
-			case PromptsStorage.local:
-				return {
-					uri: file.fileUri,
-					storage: PromptsStorage.local,
-					type,
-				} satisfies ILocalPromptPath;
-			case PromptsStorage.user:
-				return {
-					uri: file.fileUri,
-					storage: PromptsStorage.user,
-					type,
-				} satisfies IUserPromptPath;
-		}
-	}
-
 	private async computeInstructionFiles(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
 		return await this.getInstructionsDiscoveryInfo(token);
 	}
@@ -1439,42 +1406,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return { type: PromptsType.skill, files, sourceFolders };
 		}
 
-		const { files } = await this.computeSkillDiscoveryInfo(token);
+		const files = await this.computeSkillDiscoveryInfo(token);
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
 		return { type: PromptsType.skill, files, sourceFolders };
 	}
 
 	/**
 	 * Shared implementation for skill discovery used by both findAgentSkills and getSkillDiscoveryInfo.
-	 * Returns the discovery results and a map of skill counts by source type for telemetry.
+	 * Returns the discovery results.
 	 */
-	private async computeSkillDiscoveryInfo(token: CancellationToken): Promise<{
-		files: IPromptFileDiscoveryResult[];
-		skillsBySource: Map<PromptFileSource, number>;
-	}> {
+	private async computeSkillDiscoveryInfo(token: CancellationToken): Promise<IPromptFileDiscoveryResult[]> {
 		const files: IPromptFileDiscoveryResult[] = [];
-		const skillsBySource = new Map<PromptFileSource, number>();
 		const seenNames = new Set<string>();
 		const nameToUri = new Map<string, URI>();
 
 		// Collect all skills with their metadata for sorting
-		const allSkills: Array<IResolvedPromptFile> = [];
+		const allSkills: Array<IPromptPath> = [];
 		const discoveredSkills = await this.fileLocator.findAgentSkills(token);
 		const extensionSkills = await this.getExtensionPromptFiles(PromptsType.skill, token);
 		const pluginSkills = this._pluginPromptFilesByType.get(PromptsType.skill) ?? [];
-		allSkills.push(...discoveredSkills, ...extensionSkills.map((extPath) => ({
-			fileUri: extPath.uri,
-			storage: extPath.storage,
-			source: extPath.source === ExtensionAgentSourceType.contribution ? PromptFileSource.ExtensionContribution : PromptFileSource.ExtensionAPI,
-			extension: extPath.extension
-		})), ...pluginSkills.map((p) => ({
-			fileUri: p.uri,
-			storage: p.storage,
-			source: PromptFileSource.Plugin,
-			pluginUri: p.pluginUri,
-		})));
+		allSkills.push(...discoveredSkills, ...extensionSkills, ...pluginSkills);
 
-		const getPriority = (skill: IResolvedPromptFile | IExtensionPromptPath): number => {
+		const getPriority = (skill: IPromptPath): number => {
 			if (skill.storage === PromptsStorage.local) {
 				return 0; // workspace
 			}
@@ -1496,8 +1449,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
 
 		for (const skill of allSkills) {
-			const uri = skill.fileUri;
-			const promptPath = this.toPromptPathFromResolvedPromptFile(skill, PromptsType.skill);
+			const uri = skill.uri;
+			const promptPath = skill;
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
@@ -1528,9 +1481,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const userInvocable = parsedFile.header?.userInvocable !== false;
 
 				files.push({ status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, sanitizedName, description), disableModelInvocation, userInvocable });
-
-				// Track skill type
-				skillsBySource.set(skill.source, (skillsBySource.get(skill.source) || 0) + 1);
 			} catch (e) {
 				const msg = e instanceof Error ? e.message : String(e);
 				this.logger.error(`[computeSkillDiscoveryInfo] Failed to validate Agent skill file: ${uri}`, msg);
@@ -1543,7 +1493,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		return { files, skillsBySource };
+		return files;
 	}
 
 	private async getAgentDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {

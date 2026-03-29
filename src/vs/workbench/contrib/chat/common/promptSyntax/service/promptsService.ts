@@ -12,7 +12,7 @@ import { ContextKeyExpression } from '../../../../../../platform/contextkey/comm
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
-import { PromptsType, Target } from '../promptTypes.js';
+import { PromptFileSource, PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
@@ -78,14 +78,6 @@ export enum PromptsStorage {
 }
 
 /**
- * The type of source for extension agents.
- */
-export enum ExtensionAgentSourceType {
-	contribution = 'contribution',
-	provider = 'provider',
-}
-
-/**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
@@ -118,6 +110,11 @@ export interface IPromptPathBase {
 	 */
 	readonly pluginUri?: URI;
 
+	/**
+	 * The source that produced this prompt path.
+	 */
+	readonly source?: PromptFileSource;
+
 	readonly name?: string;
 
 	readonly description?: string;
@@ -126,7 +123,7 @@ export interface IPromptPathBase {
 export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
-	readonly source: ExtensionAgentSourceType;
+	readonly source: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
 	readonly name?: string;
 	readonly description?: string;
 	readonly when?: string;
@@ -146,12 +143,13 @@ export interface IUserPromptPath extends IPromptPathBase {
 export interface IPluginPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
+	readonly source: PromptFileSource.Plugin;
 }
 
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
-	readonly type: ExtensionAgentSourceType;
+	readonly type: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 } | {

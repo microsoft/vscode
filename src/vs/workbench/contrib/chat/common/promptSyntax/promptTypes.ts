@@ -123,3 +123,21 @@ export enum Target {
 	Claude = 'claude',
 	Undefined = 'undefined',
 }
+
+/**
+ * Tracks where prompt files originate from.
+ */
+export enum PromptFileSource {
+	GitHubWorkspace = 'github-workspace',
+	CopilotPersonal = 'copilot-personal',
+	ClaudePersonal = 'claude-personal',
+	ClaudeWorkspace = 'claude-workspace',
+	ClaudeWorkspaceLocal = 'claude-workspace-local',
+	AgentsWorkspace = 'agents-workspace',
+	AgentsPersonal = 'agents-personal',
+	ConfigWorkspace = 'config-workspace',
+	ConfigPersonal = 'config-personal',
+	ExtensionContribution = 'extension-contribution',
+	ExtensionAPI = 'extension-api',
+	Plugin = 'plugin',
+}
