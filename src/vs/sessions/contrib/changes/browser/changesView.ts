@@ -295,7 +295,7 @@ class ChangesViewModel extends Disposable {
 
 		// Active session changes
 		this.sessionsChangedSignal = observableSignalFromEvent(this,
-			this.agentSessionsService.model.onDidChangeSessions);
+			this.sessionManagementService.onDidChangeSessions);
 
 		// Active session resource
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
@@ -841,17 +841,17 @@ export class ChangesViewPane extends ViewPane {
 
 			this.renderDisposables.add(bindContextKey(hasPullRequestContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				const activeSessionPullRequest = activeSession?.pullRequest.read(reader);
-				return activeSessionPullRequest?.uri !== undefined;
+				const gitHubInfo = activeSession?.gitHubInfo.read(reader);
+				return gitHubInfo?.pullRequest?.uri !== undefined;
 			}));
 
 			this.renderDisposables.add(bindContextKey(hasOpenPullRequestContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				const activeSessionPullRequest = activeSession?.pullRequest.read(reader);
-				if (activeSessionPullRequest?.uri === undefined) {
+				const gitHubInfo = activeSession?.gitHubInfo.read(reader);
+				if (gitHubInfo?.pullRequest?.uri === undefined) {
 					return false;
 				}
-				const iconId = activeSessionPullRequest.icon?.id;
+				const iconId = gitHubInfo.pullRequest.icon?.id;
 				return iconId !== undefined &&
 					(iconId === Codicon.gitPullRequestDraft.id ||
 						iconId === Codicon.gitPullRequest.id);
@@ -1127,11 +1127,11 @@ export class ChangesViewPane extends ViewPane {
 				if (!session) {
 					return undefined;
 				}
-				const context = this.sessionManagementService.getGitHubContextForSession(session.resource);
-				if (!context || context.prNumber === undefined) {
+				const gitHubInfo = session.gitHubInfo.read(reader);
+				if (!gitHubInfo?.pullRequest) {
 					return undefined;
 				}
-				const prModel = this.gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+				const prModel = this.gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 				const pr = prModel.pullRequest.read(reader);
 				if (!pr) {
 					return undefined;
@@ -1139,7 +1139,7 @@ export class ChangesViewPane extends ViewPane {
 				// Use the PR's headSha (commit SHA) rather than the branch
 				// name so CI checks can still be fetched after branch deletion
 				// (e.g. after the PR is merged).
-				const ciModel = this.gitHubService.getPullRequestCI(context.owner, context.repo, pr.headSha);
+				const ciModel = this.gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headSha);
 				ciModel.refresh();
 				ciModel.startPolling();
 				reader.store.add({ dispose: () => ciModel.stopPolling() });

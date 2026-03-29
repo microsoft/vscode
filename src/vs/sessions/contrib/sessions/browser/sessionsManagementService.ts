@@ -12,14 +12,11 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { COPILOT_CLI_SESSION_TYPE } from './sessionTypes.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionType, ISendRequestOptions, ISessionChangeEvent } from './sessionsProvider.js';
 import { SessionsGroupModel } from './sessionsGroupModel.js';
-import { ISession, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, ISessionData, IChat, SessionStatus } from '../common/sessionData.js';
-import { IGitHubSessionContext } from '../../github/common/types.js';
+import { ISession, ISessionWorkspace, ISessionData, IChat, SessionStatus } from '../common/sessionData.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
@@ -134,11 +131,6 @@ export interface ISessionsManagementService {
 	openNewSessionView(): void;
 
 	/**
-	 * Returns the repository URI for the given session, if available.
-	 */
-	getSessionRepositoryUri(session: IAgentSession): URI | undefined;
-
-	/**
 	 * Create a new session for the given workspace.
 	 * Delegates to the provider identified by providerId.
 	 */
@@ -160,23 +152,6 @@ export interface ISessionsManagementService {
 	 * If the session is the active session, the active session data is updated.
 	 */
 	setSessionType(chat: IChat, type: ISessionType): Promise<void>;
-
-	/**
-	 * Derive a GitHub context (owner, repo, prNumber) from an active session.
-	 * Returns `undefined` if the session is not associated with a GitHub repository.
-	 */
-	getGitHubContext(session: ISession): IGitHubSessionContext | undefined;
-
-	/**
-	 * Derive a GitHub context from a session resource URI.
-	 * Looks up the agent session internally and resolves repository info.
-	 */
-	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined;
-
-	/**
-	 * Resolve a relative file path to a full URI based on the session's repository/worktree.
-	 */
-	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined;
 
 	// -- Session Actions --
 
@@ -216,7 +191,7 @@ function toChat(data: ISessionData): IChat {
 		isRead: data.isRead,
 		description: data.description,
 		lastTurnEnd: data.lastTurnEnd,
-		pullRequest: data.pullRequest,
+		gitHubInfo: data.gitHubInfo,
 	};
 }
 
@@ -271,7 +246,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -438,44 +412,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				return;
 			}
 		}
-	}
-
-	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, boolean | undefined] {
-		const metadata = session.metadata;
-		if (!metadata) {
-			return [undefined, undefined, undefined, undefined];
-		}
-
-		if (session.providerType === AgentSessionProviders.Cloud) {
-			//TODO: @osortega pass branch in metadata from extension
-			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
-			const repositoryUri = URI.from({
-				scheme: GITHUB_REMOTE_FILE_SCHEME,
-				authority: 'github',
-				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
-			});
-			return [repositoryUri, undefined, undefined, undefined];
-		}
-
-		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
-		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined, undefined, undefined];
-		}
-
-		const repositoryPath = metadata?.repositoryPath as string | undefined;
-		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
-
-		const worktreePath = metadata?.worktreePath as string | undefined;
-		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
-
-		const worktreeBranchName = metadata?.branchName as string | undefined;
-		const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
-
-		return [
-			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
-			worktreeBranchName,
-			worktreeBaseBranchProtected];
 	}
 
 	getSessions(): ISession[] {
@@ -672,18 +608,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.isNewChatSessionContext.set(true);
 	}
 
-	getSessionRepositoryUri(session: IAgentSession): URI | undefined {
-		const [repositoryUri] = this.getRepositoryFromMetadata(session);
-		return repositoryUri;
-	}
-
 	private setActiveSession(session: ISession | undefined): void {
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
-		this._isBackgroundProvider.set(session?.sessionType === AgentSessionProviders.Background);
+		this._isBackgroundProvider.set(session?.sessionType === COPILOT_CLI_SESSION_TYPE);
 
-		if (session && isAgentSession(session)) {
+		if (session && session.status.get() !== SessionStatus.Untitled) {
 			this.lastSelectedSession = session.resource;
 		}
 
@@ -694,97 +625,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._activeSession.set(session, undefined);
-	}
-
-	getGitHubContext(session: ISession): IGitHubSessionContext | undefined {
-		// 1. Try parsing a github-remote-file URI (Cloud sessions)
-		const repoUri = session.workspace.get()?.repositories[0]?.uri;
-		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = repoUri.path.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				const owner = decodeURIComponent(parts[0]);
-				const repo = decodeURIComponent(parts[1]);
-				const prNumber = this._parsePRNumberFromSession(session);
-				return { owner, repo, prNumber };
-			}
-		}
-
-		// 2. Try from agent session metadata (Background sessions)
-		const agentSession = this.agentSessionsService.model.getSession(session.resource);
-		if (agentSession?.metadata) {
-			const metadata = agentSession.metadata;
-
-			// owner + name fields
-			if (typeof metadata.owner === 'string' && typeof metadata.name === 'string') {
-				const prNumber = this._parsePRNumberFromSession(session);
-				return { owner: metadata.owner, repo: metadata.name, prNumber };
-			}
-
-			// repositoryNwo: "owner/repo"
-			if (typeof metadata.repositoryNwo === 'string') {
-				const parts = (metadata.repositoryNwo as string).split('/');
-				if (parts.length === 2) {
-					const prNumber = this._parsePRNumberFromSession(session);
-					return { owner: parts[0], repo: parts[1], prNumber };
-				}
-			}
-
-			// pullRequestUrl: "https://github.com/{owner}/{repo}/pull/{number}"
-			if (typeof metadata.pullRequestUrl === 'string') {
-				const match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
-				if (match) {
-					return { owner: match[1], repo: match[2], prNumber: parseInt(match[3], 10) };
-				}
-			}
-		}
-
-		return undefined;
-	}
-
-	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
-		// Try finding the ISession first (preferred path)
-		const sessionData = this.getSession(sessionResource);
-		if (sessionData) {
-			return this.getGitHubContext(sessionData);
-		}
-
-		// Fallback: construct context directly from agent session metadata
-		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
-		if (!agentSession) {
-			return undefined;
-		}
-		const [repository] = this.getRepositoryFromMetadata(agentSession);
-		if (repository && repository.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = repository.path.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				return { owner: decodeURIComponent(parts[0]), repo: decodeURIComponent(parts[1]), prNumber: undefined };
-			}
-		}
-		return undefined;
-	}
-
-	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined {
-		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
-		if (!agentSession) {
-			return undefined;
-		}
-		const [repository, worktree] = this.getRepositoryFromMetadata(agentSession);
-		const baseUri = worktree ?? repository;
-		if (!baseUri) {
-			return undefined;
-		}
-		return URI.joinPath(baseUri, relativePath);
-	}
-
-	private _parsePRNumberFromSession(session: ISession): number | undefined {
-		const prUri = session.pullRequest.get()?.uri;
-		if (prUri) {
-			const match = /\/pull\/(\d+)/.exec(prUri.path);
-			if (match) {
-				return parseInt(match[1], 10);
-			}
-		}
-		return undefined;
 	}
 
 	/**

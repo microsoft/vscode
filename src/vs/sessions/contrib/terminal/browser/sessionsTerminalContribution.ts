@@ -12,7 +12,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
@@ -26,6 +25,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
@@ -35,7 +35,7 @@ const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsT
  * (Cloud, Local, etc.) which have no local worktree, or when no path is available.
  */
 function getSessionCwd(session: ISession | undefined): URI | undefined {
-	if (session?.sessionType !== AgentSessionProviders.Background) {
+	if (session?.sessionType !== CopilotCLISessionType.id) {
 		return undefined;
 	}
 	const repo = session.workspace.get()?.repositories[0];
