@@ -1196,10 +1196,7 @@ export class ChangesViewPane extends ViewPane {
 
 		container.classList.add('chat-editing-session-list');
 
-		let sidebarTree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
-		const tree = this.createChangesTree(container, Event.None, disposables,
-			() => (sidebarTree?.getSelection() ?? []).filter(item => !!item && isChangesFileItem(item)));
-		sidebarTree = tree;
+		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
 
 		tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
 
