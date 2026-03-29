@@ -24,20 +24,6 @@ export function setup(context: TestContext) {
 		await testCliApp(entryPoint);
 	});
 
-	context.test('dev-tunnel-darwin-arm64', ['darwin', 'arm64', 'browser', 'github-account'], async () => {
-		const dir = await context.downloadAndUnpack('cli-darwin-arm64');
-		context.validateAllCodesignSignatures(dir);
-		const entryPoint = context.getCliEntryPoint(dir);
-		await testCliApp(entryPoint);
-	});
-
-	context.test('dev-tunnel-darwin-x64', ['darwin', 'x64', 'browser', 'github-account'], async () => {
-		const dir = await context.downloadAndUnpack('cli-darwin-x64');
-		context.validateAllCodesignSignatures(dir);
-		const entryPoint = context.getCliEntryPoint(dir);
-		await testCliApp(entryPoint);
-	});
-
 	context.test('dev-tunnel-linux-arm64', ['linux', 'arm64', 'browser', 'github-account'], async () => {
 		const dir = await context.downloadAndUnpack('cli-linux-arm64');
 		const entryPoint = context.getCliEntryPoint(dir);
@@ -57,6 +43,20 @@ export function setup(context: TestContext) {
 	});
 
 	*/
+
+	context.test('dev-tunnel-darwin-arm64', ['darwin', 'arm64', 'browser', 'github-account'], async () => {
+		const dir = await context.downloadAndUnpack('cli-darwin-arm64');
+		context.validateAllCodesignSignatures(dir);
+		const entryPoint = context.getCliEntryPoint(dir);
+		await testCliApp(entryPoint);
+	});
+
+	context.test('dev-tunnel-darwin-x64', ['darwin', 'x64', 'browser', 'github-account'], async () => {
+		const dir = await context.downloadAndUnpack('cli-darwin-x64');
+		context.validateAllCodesignSignatures(dir);
+		const entryPoint = context.getCliEntryPoint(dir);
+		await testCliApp(entryPoint);
+	});
 
 	context.test('dev-tunnel-win32-arm64', ['windows', 'arm64', 'browser', 'github-account'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-arm64');
