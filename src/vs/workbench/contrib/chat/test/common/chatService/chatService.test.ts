@@ -55,7 +55,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
@@ -426,7 +426,7 @@ suite('ChatService', () => {
 
 		let disposed = false;
 		testDisposables.add(testService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				if (resource.toString() === model.sessionResource.toString()) {
 					disposed = true;
 				}
@@ -865,6 +865,19 @@ suite('ChatService', () => {
 		assert.ok(lastThree[2].includes('queued-3'));
 	});
 
+	test('acquireOrLoadSession returns undefined when remote provider is not registered (fix for #301203)', async () => {
+		const unregisteredScheme = 'unregistered-provider';
+		const sessionResource = URI.from({ scheme: unregisteredScheme, path: '/orphaned-session' });
+
+		// Use a mock sessions service with NO content provider registered for the scheme
+		const mockSessionsService = new MockChatSessionsService();
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.strictEqual(ref, undefined, 'Should return undefined when no provider is registered');
+	});
+
 	test('sendRequest on untitled remote session propagates initialSessionOptions to new model', async () => {
 		const remoteScheme = 'remoteProvider';
 		const untitledResource = URI.from({ scheme: remoteScheme, path: '/untitled-test-session' });
@@ -924,7 +937,7 @@ suite('ChatService', () => {
 		assert.ok(newModel, 'New model should exist at the real resource');
 		assert.ok(newModel.contributedChatSession, 'New model should have contributedChatSession');
 		assert.deepStrictEqual(
-			newModel.contributedChatSession?.initialSessionOptions?.map(o => ({ optionId: o.optionId, value: o.value })),
+			ChatSessionOptionsMap.toStrValueArray(newModel.contributedChatSession?.initialSessionOptions),
 			[
 				{ optionId: 'model', value: 'claude-3.5-sonnet' },
 				{ optionId: 'repo', value: 'my-repo' },
@@ -939,8 +952,10 @@ function toSnapshotExportData(model: IChatModel) {
 	return {
 		...exp,
 		requests: exp.requests.map(r => {
+			// Destructure properties after `vote` so we can insert `voteDownReason` in the correct position for snapshot compat
+			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, ...rest } = r;
 			return {
-				...r,
+				...rest,
 				modelState: {
 					...r.modelState,
 					completedAt: undefined
@@ -948,6 +963,12 @@ function toSnapshotExportData(model: IChatModel) {
 				timestamp: undefined,
 				requestId: undefined, // id contains a random part
 				responseId: undefined, // id contains a random part
+				voteDownReason: undefined, // removed from model, kept for snapshot compat
+				slashCommand,
+				usedContext,
+				contentReferences,
+				codeCitations,
+				timeSpentWaiting,
 			};
 		})
 	};

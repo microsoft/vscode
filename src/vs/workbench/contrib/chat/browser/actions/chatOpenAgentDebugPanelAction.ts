@@ -14,6 +14,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -22,9 +23,11 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatDebugEditorOptions } from '../chatDebug/chatDebugTypes.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 /**
  * Registers the Open Agent Debug Logs and Show Agent Debug Logs actions.
@@ -60,7 +63,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 				title: localize2('chat.openAgentDebugPanelForSession.label', "Show Agent Debug Logs"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionHasDebugData),
+				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
@@ -71,6 +74,11 @@ export function registerChatOpenAgentDebugPanelAction() {
 					group: '2_settings',
 					order: 0,
 					when: ChatContextKeys.inChatEditor.negate()
+				}, {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					order: 0,
+					group: '4_logs'
 				}]
 			});
 		}
@@ -109,7 +117,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 			super({
 				id: 'workbench.action.chat.exportAgentDebugLog',
 				title: localize2('chat.exportAgentDebugLog.label', "Export Agent Debug Log..."),
-				icon: Codicon.desktopDownload,
+				icon: Codicon.chatExport,
 				f1: true,
 				category: Categories.Developer,
 				precondition: ChatContextKeys.enabled,
@@ -127,6 +135,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
 			const notificationService = accessor.get(INotificationService);
+			const openerService = accessor.get(IOpenerService);
 			const telemetryService = accessor.get(ITelemetryService);
 
 			const sessionResource = chatDebugService.activeSessionResource;
@@ -135,7 +144,11 @@ export function registerChatOpenAgentDebugPanelAction() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultDebugLogFileName);
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+			const rawIdentifier = localSessionId ?? (sessionResource.path.replace(/^\//, '') || sessionResource.authority);
+			const sessionIdentifier = rawIdentifier?.replace(/[/\\:*?"<>|.]+/g, '_').replace(/^_+|_+$/g, '');
+			const exportFileName = sessionIdentifier ? `agent-debug-log-${sessionIdentifier}.json` : defaultDebugLogFileName;
+			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), exportFileName);
 			const outputPath = await fileDialogService.showSaveDialog({ defaultUri, filters: debugLogFilters });
 			if (!outputPath) {
 				return;
@@ -152,6 +165,15 @@ export function registerChatOpenAgentDebugPanelAction() {
 			telemetryService.publicLog2<ChatDebugExportEvent, ChatDebugExportClassification>('chatDebugLogExported', {
 				fileSizeBytes: data.byteLength,
 			});
+
+			notificationService.prompt(
+				Severity.Info,
+				localize('chatDebugLog.exportSuccess', "Agent debug log exported successfully."),
+				[{
+					label: localize('chatDebugLog.openExportedFile', "Open File"),
+					run: () => openerService.open(outputPath)
+				}]
+			);
 		}
 	});
 
@@ -160,7 +182,7 @@ export function registerChatOpenAgentDebugPanelAction() {
 			super({
 				id: 'workbench.action.chat.importAgentDebugLog',
 				title: localize2('chat.importAgentDebugLog.label', "Import Agent Debug Log..."),
-				icon: Codicon.cloudUpload,
+				icon: Codicon.chatImport,
 				f1: true,
 				category: Categories.Developer,
 				precondition: ChatContextKeys.enabled,

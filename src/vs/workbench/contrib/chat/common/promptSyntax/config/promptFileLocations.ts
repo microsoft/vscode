@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { posix } from '../../../../../../base/common/path.js';
+import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from '../service/promptsService.js';
-
-const { basename, dirname } = posix;
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * File extension for the reusable prompt files.
@@ -34,6 +33,11 @@ export const AGENT_FILE_EXTENSION = '.agent.md';
  * Skill file name (case insensitive).
  */
 export const SKILL_FILENAME = 'SKILL.md';
+
+/**
+ * Regex for valid skill names: lowercase alphanumeric and hyphens only.
+ */
+export const VALID_SKILL_NAME_REGEX = /^[a-z0-9-]+$/;
 
 /**
  * AGENT file name
@@ -121,7 +125,6 @@ export enum PromptFileSource {
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
 	Plugin = 'plugin',
-	Internal = 'internal',
 }
 
 /**
@@ -160,6 +163,8 @@ export interface IResolvedPromptFile {
 	readonly fileUri: URI;
 	readonly source: PromptFileSource;
 	readonly storage: PromptsStorage;
+	readonly extension?: IExtensionDescription;
+	readonly pluginUri?: URI;
 }
 
 /**
@@ -217,7 +222,7 @@ export const DEFAULT_HOOK_FILE_PATHS: readonly IPromptSourceFolder[] = [
  * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
  */
 function isInAgentsFolder(fileUri: URI): boolean {
-	const dir = dirname(fileUri.path);
+	const dir = dirname(fileUri).path;
 	return dir.endsWith('/' + AGENTS_SOURCE_FOLDER) || dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER) || isInCopilotAgentsFolder(fileUri);
 }
 
@@ -225,7 +230,7 @@ function isInAgentsFolder(fileUri: URI): boolean {
  * Helper function to check if a file is directly in the .claude/agents/ folder.
  */
 export function isInClaudeAgentsFolder(fileUri: URI): boolean {
-	const dir = dirname(fileUri.path);
+	const dir = dirname(fileUri).path;
 	return dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER);
 }
 
@@ -233,7 +238,7 @@ export function isInClaudeAgentsFolder(fileUri: URI): boolean {
  * Helper function to check if a file is directly in the ~/.copilot/agents/ folder.
  */
 export function isInCopilotAgentsFolder(fileUri: URI): boolean {
-	const dir = dirname(fileUri.path);
+	const dir = dirname(fileUri).path;
 	return dir.endsWith(COPILOT_USER_AGENTS_SOURCE_FOLDER.substring(1));
 }
 
@@ -255,7 +260,7 @@ export function isInClaudeRulesFolder(fileUri: URI): boolean {
  * PromptsType.hook regardless of its location.
  */
 export function getPromptFileType(fileUri: URI): PromptsType | undefined {
-	const filename = basename(fileUri.path);
+	const filename = basename(fileUri);
 
 	if (filename.endsWith(PROMPT_FILE_EXTENSION)) {
 		return PromptsType.prompt;
@@ -335,12 +340,15 @@ export function getPromptFileDefaultLocations(type: PromptsType): readonly IProm
 	}
 }
 
+export function getSkillFolderName(fileUri: URI): string {
+	return basename(dirname(fileUri));
+}
 
 /**
  * Gets clean prompt name without file extension.
  */
 export function getCleanPromptName(fileUri: URI): string {
-	const fileName = basename(fileUri.path);
+	const fileName = basename(fileUri);
 
 	const extensions = [
 		PROMPT_FILE_EXTENSION,
@@ -351,33 +359,33 @@ export function getCleanPromptName(fileUri: URI): string {
 
 	for (const ext of extensions) {
 		if (fileName.endsWith(ext)) {
-			return basename(fileUri.path, ext);
+			return basename(fileUri, ext);
 		}
 	}
 
 	if (fileName === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
-		return basename(fileUri.path, '.md');
+		return basename(fileUri, '.md');
 	}
 
 	// For SKILL.md files (case insensitive), return 'SKILL'
 	if (fileName.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
-		return basename(fileUri.path, '.md');
+		return basename(fileUri, '.md');
 	}
 
 	// For .md files in .github/agents/ folder, treat them as agent files
 	// Exclude README.md to allow documentation files
 	if (fileName.endsWith('.md') && fileName !== 'README.md' && isInAgentsFolder(fileUri)) {
-		return basename(fileUri.path, '.md');
+		return basename(fileUri, '.md');
 	}
 
 	// For .md files in .claude/rules/ folder, treat them as instruction files
 	if (fileName.endsWith('.md') && fileName !== 'README.md' && isInClaudeRulesFolder(fileUri)) {
-		return basename(fileUri.path, '.md');
+		return basename(fileUri, '.md');
 	}
 
 	// because we now rely on the `prompt` language ID that can be explicitly
 	// set for any document in the editor, any file can be a "prompt" file, so
 	// to account for that, we return the full file name including the file
 	// extension for all other cases
-	return basename(fileUri.path);
+	return basename(fileUri);
 }

@@ -37,7 +37,7 @@ import { AICustomizationManagementEditor } from '../../../../workbench/contrib/c
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -53,6 +53,16 @@ export const AICustomizationIsEmptyContextKey = new RawContextKey<boolean>('aiCu
  * Context key for the current item's prompt type in context menus.
  */
 export const AICustomizationItemTypeContextKey = new RawContextKey<string>('aiCustomizationItemType', '');
+
+/**
+ * Context key indicating whether the current item is disabled.
+ */
+export const AICustomizationItemDisabledContextKey = new RawContextKey<boolean>('aiCustomizationItemDisabled', false);
+
+/**
+ * Context key for the current item's storage type in context menus.
+ */
+export const AICustomizationItemStorageContextKey = new RawContextKey<string>('aiCustomizationItemStorage', '');
 
 //#endregion
 
@@ -98,6 +108,7 @@ interface IAICustomizationFileItem {
 	readonly description?: string;
 	readonly storage: AICustomizationPromptsStorage;
 	readonly promptType: PromptsType;
+	readonly disabled: boolean;
 }
 
 /**
@@ -240,6 +251,9 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 
 		templateData.name.textContent = item.name;
 
+		// Apply disabled styling
+		templateData.container.classList.toggle('disabled', item.disabled);
+
 		// Set tooltip with name and description
 		const tooltip = item.description ? `${item.name} - ${item.description}` : item.name;
 		templateData.container.title = tooltip;
@@ -255,6 +269,8 @@ class AICustomizationFileRenderer implements ITreeRenderer<IAICustomizationFileI
 		// Create scoped context key service with item type for when-clause filtering
 		const overlay = this.contextKeyService.createOverlay([
 			[AICustomizationItemTypeContextKey.key, item.promptType],
+			[AICustomizationItemDisabledContextKey.key, item.disabled],
+			[AICustomizationItemStorageContextKey.key, item.storage],
 		]);
 
 		// Create menu and extract inline actions
@@ -513,13 +529,16 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 	 */
 	private async getFilesForStorageAndType(storage: AICustomizationPromptsStorage, promptType: PromptsType): Promise<IAICustomizationFileItem[]> {
 		const cached = this.cache.get(promptType);
+		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 
-		// For skills, use the cached skills data
+		// For skills, use the cached skills data and merge in disabled skills
 		if (promptType === PromptsType.skill) {
 			const skills = cached?.skills || [];
 			const filtered = skills.filter(skill => skill.storage === storage);
-			return filtered
+			const seenUris = new Set<string>();
+			const result: IAICustomizationFileItem[] = filtered
 				.map(skill => {
+					seenUris.add(skill.uri.toString());
 					// Use skill name from frontmatter, or fallback to parent folder name
 					const skillName = skill.name || basename(dirname(skill.uri)) || basename(skill.uri);
 					return {
@@ -530,8 +549,30 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 						description: skill.description,
 						storage: skill.storage,
 						promptType,
+						disabled: disabledUris.has(skill.uri),
 					};
 				});
+
+			// Include disabled skills not already in the enabled list
+			if (disabledUris.size > 0) {
+				const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
+				for (const file of allSkillFiles) {
+					if (file.storage === storage && !seenUris.has(file.uri.toString()) && disabledUris.has(file.uri)) {
+						result.push({
+							type: 'file' as const,
+							id: file.uri.toString(),
+							uri: file.uri,
+							name: file.name || basename(dirname(file.uri)) || basename(file.uri),
+							description: file.description,
+							storage: file.storage,
+							promptType,
+							disabled: true,
+						});
+					}
+				}
+			}
+
+			return result;
 		}
 
 		// Use cached files data (already fetched in getStorageGroups)
@@ -544,6 +585,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			description: item.description,
 			storage: item.storage,
 			promptType,
+			disabled: disabledUris.has(item.uri),
 		}));
 	}
 }
@@ -566,6 +608,8 @@ export class AICustomizationViewPane extends ViewPane {
 	// Context keys for controlling menu visibility and welcome content
 	private readonly isEmptyContextKey: IContextKey<boolean>;
 	private readonly itemTypeContextKey: IContextKey<string>;
+	private readonly itemDisabledContextKey: IContextKey<boolean>;
+	private readonly itemStorageContextKey: IContextKey<string>;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -590,6 +634,8 @@ export class AICustomizationViewPane extends ViewPane {
 		// Initialize context keys
 		this.isEmptyContextKey = AICustomizationIsEmptyContextKey.bindTo(contextKeyService);
 		this.itemTypeContextKey = AICustomizationItemTypeContextKey.bindTo(contextKeyService);
+		this.itemDisabledContextKey = AICustomizationItemDisabledContextKey.bindTo(contextKeyService);
+		this.itemStorageContextKey = AICustomizationItemStorageContextKey.bindTo(contextKeyService);
 
 		// Subscribe to prompt service events to refresh tree
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.refresh()));
@@ -648,10 +694,13 @@ export class AICustomizationViewPane extends ViewPane {
 						if (element.type === 'group') {
 							return element.label;
 						}
-						// For files, include description if available
-						return element.description
+						// For files, include description and disabled state
+						const nameAndDesc = element.description
 							? localize('fileAriaLabel', "{0}, {1}", element.name, element.description)
 							: element.name;
+						return element.disabled
+							? localize('fileAriaLabelDisabled', "{0}, disabled", nameAndDesc)
+							: nameAndDesc;
 					},
 					getWidgetAriaLabel: () => localize('aiCustomizationTree', "Chat Customization Items"),
 				},
@@ -674,7 +723,7 @@ export class AICustomizationViewPane extends ViewPane {
 				});
 			} else if (e.element && e.element.type === 'link') {
 				const input = AICustomizationManagementEditorInput.getOrCreate();
-				const editor = await this.editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				const editor = await this.editorService.openEditor(input, { pinned: true });
 				if (editor instanceof AICustomizationManagementEditor) {
 					editor.selectSectionById(e.element.section);
 				}
@@ -729,14 +778,17 @@ export class AICustomizationViewPane extends ViewPane {
 
 		const element = e.element;
 
-		// Set context key for the item type so menu items can use `when` clauses
+		// Set context keys for the item so menu items can use `when` clauses
 		this.itemTypeContextKey.set(element.promptType);
+		this.itemDisabledContextKey.set(element.disabled);
+		this.itemStorageContextKey.set(element.storage);
 
 		// Get menu actions from the menu service
 		const context = {
 			uri: element.uri.toString(),
 			name: element.name,
 			promptType: element.promptType,
+			disabled: element.disabled,
 		};
 		const menu = this.menuService.getMenuActions(AICustomizationItemMenuId, this.contextKeyService, { arg: context, shouldForwardArgs: true });
 		const { secondary } = getContextMenuActions(menu, 'inline');
@@ -748,8 +800,10 @@ export class AICustomizationViewPane extends ViewPane {
 				getActions: () => secondary,
 				getActionsContext: () => context,
 				onHide: () => {
-					// Clear the context key when menu closes
+					// Clear the context keys when menu closes
 					this.itemTypeContextKey.reset();
+					this.itemDisabledContextKey.reset();
+					this.itemStorageContextKey.reset();
 				},
 			});
 		}

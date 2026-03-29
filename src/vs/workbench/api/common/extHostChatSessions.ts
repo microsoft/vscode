@@ -18,11 +18,11 @@ import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, ISymbolVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
-import { IChatNewSessionRequest, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ChatSessionContentContextDto, ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
+import { ChatSessionContentContextDto, IChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionRequestHistoryItemDto, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape, IChatNewSessionRequestDto } from './extHost.protocol.js';
 import { ChatAgentResponseStream } from './extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
@@ -303,8 +303,6 @@ class ExtHostChatSession {
 }
 
 export class ExtHostChatSessions extends Disposable implements ExtHostChatSessionsShape {
-	private static _sessionHandlePool = 0;
-
 	private readonly _proxy: Proxied<MainThreadChatSessionsShape>;
 
 	private _itemControllerHandlePool = 0;
@@ -423,6 +421,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		let isDisposed = false;
 		let newChatSessionItemHandler: vscode.ChatSessionItemController['newChatSessionItemHandler'];
+		let forkHandler: vscode.ChatSessionItemController['forkHandler'];
 		const onDidChangeChatSessionItemStateEmitter = disposables.add(new Emitter<vscode.ChatSessionItem>());
 
 		const collection = new ChatSessionItemCollectionImpl(controllerHandle, this._proxy);
@@ -454,6 +453,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 			get newChatSessionItemHandler() { return newChatSessionItemHandler; },
 			set newChatSessionItemHandler(handler: vscode.ChatSessionItemController['newChatSessionItemHandler']) { newChatSessionItemHandler = handler; },
+			get forkHandler() { return forkHandler; },
+			set forkHandler(handler: vscode.ChatSessionItemController['forkHandler']) { forkHandler = handler; },
 			dispose: () => {
 				isDisposed = true;
 				disposables.dispose();
@@ -482,7 +483,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		if (provider.onDidChangeChatSessionOptions) {
 			disposables.add(provider.onDidChangeChatSessionOptions(evt => {
-				this._proxy.$onDidChangeChatSessionOptions(handle, evt.resource, evt.updates);
+				const updates: Record<string, string | IChatSessionProviderOptionItem> = Object.create(null);
+				for (const update of evt.updates) {
+					updates[update.optionId] = update.value;
+				}
+				this._proxy.$onDidChangeChatSessionOptions(handle, evt.resource, updates);
 			}));
 		}
 
@@ -499,7 +504,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		});
 	}
 
-	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<ChatSessionDto> {
+	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, context: ChatSessionContentContextDto, token: CancellationToken): Promise<IChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
 			throw new Error(`No provider for handle ${handle}`);
@@ -514,8 +519,9 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			throw new CancellationError();
 		}
 
+		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+
 		const sessionDisposables = new DisposableStore();
-		const sessionId = ExtHostChatSessions._sessionHandlePool++;
 		const id = sessionResource.toString();
 		const chatSession = new ExtHostChatSession(session, provider.extension, {
 			sessionResource,
@@ -545,11 +551,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 		const { capabilities } = provider;
 		return {
-			id: sessionId + '',
 			resource: URI.revive(sessionResource),
 			title: session.title,
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
+			hasForkHandler: !!controllerData?.controller.forkHandler || !!session.forkHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
 			options: session.options,
 			history: session.history.map(turn => {
@@ -562,7 +568,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	async $provideHandleOptionsChange(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>, token: CancellationToken): Promise<void> {
+	async $provideHandleOptionsChange(handle: number, sessionResourceComponents: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem | undefined>, token: CancellationToken): Promise<void> {
 		const sessionResource = URI.revive(sessionResourceComponents);
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {
@@ -576,11 +582,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const updatesToSend = updates.map(update => ({
-				optionId: update.optionId,
-				value: update.value === undefined ? undefined : (typeof update.value === 'string' ? update.value : update.value.id)
+			const updatesToSend = Object.entries(updates).map(([optionId, value]) => ({
+				optionId,
+				value: value === undefined ? undefined : (typeof value === 'string' ? value : value.id)
 			}));
-			await provider.provider.provideHandleOptionsChange(sessionResource, updatesToSend, token);
+			provider.provider.provideHandleOptionsChange(sessionResource, updatesToSend, token);
 		} catch (error) {
 			this._logService.error(`Error calling provideHandleOptionsChange for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}
@@ -640,13 +646,64 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return {};
 		}
 
-		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), [], new Map(), entry.sessionObj.extension, this._logService);
+		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), request.modelConfiguration, [], new Map(), entry.sessionObj.extension, this._logService);
 
 		const stream = entry.sessionObj.getActiveRequestStream(request);
 		await entry.sessionObj.session.requestHandler(chatRequest, { history, yieldRequested: false }, stream.apiObject, token);
 
 		// TODO: do we need to dispose the stream object?
 		return {};
+	}
+
+	async $forkChatSession(handle: number, sessionResourceComponents: UriComponents, request: IChatSessionRequestHistoryItemDto | undefined, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from>> {
+		const sessionResource = URI.revive(sessionResourceComponents);
+		const entry = this._extHostChatSessions.get(sessionResource);
+		if (!entry) {
+			throw new Error(`No chat session found for resource ${sessionResource.toString()}`);
+		}
+
+		const requestTurn = this.convertRequestDtoToRequestTurn(request);
+
+		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		if (controllerData?.controller.forkHandler) {
+			const item = await controllerData.controller.forkHandler(sessionResource, requestTurn, token);
+			return typeConvert.ChatSessionItem.from(item);
+		}
+
+		if (!entry.sessionObj.session.forkHandler) {
+			throw new Error(`No fork handler for session ${sessionResource.toString()}`);
+		}
+
+		const item = await entry.sessionObj.session.forkHandler(sessionResource, requestTurn, token);
+		return typeConvert.ChatSessionItem.from(item);
+	}
+
+	private convertRequestDtoToRequestTurn(request: IChatSessionRequestHistoryItemDto | undefined): extHostTypes.ChatRequestTurn | undefined {
+		if (!request) {
+			return undefined;
+		}
+
+		return new extHostTypes.ChatRequestTurn(
+			request.prompt,
+			request.command,
+			[],
+			request.participant,
+			[],
+			undefined,
+			request.id,
+			request.modelId,
+			typeConvert.ChatRequestModeInstructions.to(request.modeInstructions),
+		);
+	}
+
+	private getChatSessionItemController(chatSessionType: string) {
+		for (const controllerData of this._chatSessionItemControllers.values()) {
+			if (controllerData.chatSessionType === chatSessionType) {
+				return controllerData;
+			}
+		}
+
+		return undefined;
 	}
 
 	private async getModelForRequest(request: IChatAgentRequest, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
@@ -674,6 +731,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			command: turn.command,
 			variableData: variables.length > 0 ? { variables } : undefined,
 			modelId: turn.modelId,
+			modeInstructions: typeConvert.ChatRequestModeInstructions.from(turn.modeInstructions2),
 		};
 	}
 
@@ -775,7 +833,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		await controllerData.controller.refreshHandler(token);
 	}
 
-	async $newChatSessionItem(handle: number, request: IChatNewSessionRequest, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
+	async $newChatSessionItem(handle: number, request: IChatNewSessionRequestDto, token: CancellationToken): Promise<ReturnType<typeof typeConvert.ChatSessionItem.from> | undefined> {
 		const controllerData = this._chatSessionItemControllers.get(handle);
 		if (!controllerData) {
 			this._logService.warn(`No controller found for handle ${handle}`);
@@ -818,4 +876,5 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		item.archived = archived;
 		controllerData.onDidChangeChatSessionItemStateEmitter.fire(item);
 	}
+
 }

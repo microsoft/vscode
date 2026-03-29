@@ -14,7 +14,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
+import { getCleanPromptName, getSkillFolderName } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../newPromptFileActions.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID, GENERATE_AGENT_COMMAND_ID } from '../../actions/chatActions.js';
@@ -532,13 +532,6 @@ export class PromptFilePickers {
 			result.push(...sortByLabel(await Promise.all(plugins.map(p => this._createPromptPickItem(p, pluginButtons, getVisibility(p), token)))));
 		}
 
-		// Internal built-in files are read-only
-		const internals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.internal, token);
-		if (internals.length) {
-			const internalButtons: IQuickInputButton[] = [];
-			result.push({ type: 'separator', label: localize('separator.builtin', "Built-in") });
-			result.push(...sortByLabel(await Promise.all(internals.map(p => this._createPromptPickItem(p, internalButtons, getVisibility(p), token)))));
-		}
 		return result;
 	}
 
@@ -569,7 +562,7 @@ export class PromptFilePickers {
 
 	private async _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined, visibility: boolean | undefined, token: CancellationToken): Promise<IPromptPickerQuickPickItem> {
 		const parsedPromptFile = await this._promptsService.parseNew(promptFile.uri, token).catch(() => undefined);
-		let promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
+		let promptName = (parsedPromptFile?.header?.name ?? promptFile.name) || (promptFile.type === PromptsType.skill ? getSkillFolderName(promptFile.uri) : getCleanPromptName(promptFile.uri));
 		const promptDescription = parsedPromptFile?.header?.description ?? promptFile.description;
 
 		let tooltip: string | undefined;
@@ -586,9 +579,6 @@ export class PromptFilePickers {
 				break;
 			case PromptsStorage.plugin:
 				tooltip = promptFile.name;
-				break;
-			case PromptsStorage.internal:
-				tooltip = undefined;
 				break;
 			default:
 				assertNever(promptFile);

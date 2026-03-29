@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -21,19 +22,19 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ILanguageModelToolsService, isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
 import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 
 /**
  * Command ID that extensions can call to enable debug tools for the current
@@ -49,36 +50,8 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatContextPickService contextPickService: IChatContextPickService,
-		@IChatDebugService chatDebugService: IChatDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
-
-		// Bind at the global context key service level so the tools service can evaluate it.
-		// Widget-scoped keys are not reliably visible to singleton services during async request processing.
-		const hasDebugToolsKey = ChatContextKeys.chatSessionHasDebugTools.bindTo(contextKeyService);
-		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
-			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			hasDebugToolsKey.set(!!sessionResource && chatDebugService.hasAttachedDebugData(sessionResource));
-			languageModelToolsService.flushToolUpdates();
-		}));
-		this._store.add(chatDebugService.onDidAttachDebugData(sessionResource => {
-			const focusedSession = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
-			if (focusedSession && focusedSession.toString() === sessionResource.toString()) {
-				hasDebugToolsKey.set(true);
-				languageModelToolsService.flushToolUpdates();
-			}
-		}));
-
-		// Register a command that extensions can call to enable debug tools
-		// for the current session. This sets the context key AND flushes the
-		// tools service synchronously so the change is visible immediately.
-		this._store.add(CommandsRegistry.registerCommand(EnableChatDebugToolsCommandId, () => {
-			hasDebugToolsKey.set(true);
-			languageModelToolsService.flushToolUpdates();
-		}));
 
 		// ###############################################################################################
 		//
@@ -94,6 +67,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(DebugEventsSnapshotContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 	}
 }
 
@@ -348,5 +322,55 @@ class DebugEventsSnapshotContextValuePick implements IChatContextValueItem {
 			return undefined;
 		}
 		return createDebugEventsAttachment(sessionResource, this._chatDebugService);
+	}
+}
+
+class SessionReferenceContextPickerPick implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly icon = Codicon.comment;
+	readonly label = localize('chatContext.sessions', 'Sessions...');
+	readonly ordinal = -400;
+
+	constructor(
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return widget.location === ChatAgentLocation.Chat;
+	}
+
+	asPicker(widget: IChatWidget): IChatContextPicker {
+		const currentSessionResource = widget.viewModel?.sessionResource;
+		return {
+			placeholder: localize('chatContext.sessions.placeholder', 'Select a session'),
+			picks: (async () => {
+				const picks: IChatContextPickerPickItem[] = [];
+				const sessionProviderFilter = [AgentSessionProviders.Local, AgentSessionProviders.Background, AgentSessionProviders.Claude];
+				for await (const group of this._chatSessionsService.getChatSessionItems(sessionProviderFilter, CancellationToken.None)) {
+					const providerIcon = getAgentSessionProviderIcon(group.chatSessionType);
+					for (const item of group.items) {
+						if (currentSessionResource && item.resource.toString() === currentSessionResource.toString()) {
+							continue;
+						}
+						const sessionResource = item.resource;
+						const icon = item.iconPath ?? providerIcon;
+						picks.push({
+							label: item.label,
+							description: new Date(item.timing.lastRequestEnded ?? item.timing.created).toLocaleString(),
+							asAttachment: (): IChatRequestVariableEntry => ({
+								kind: 'sessionReference',
+								id: sessionResource.toString(),
+								name: item.label,
+								value: sessionResource,
+								icon,
+							})
+						});
+					}
+				}
+				picks.sort((a, b) => (b.description ?? '').localeCompare(a.description ?? ''));
+				return picks;
+			})()
+		};
 	}
 }

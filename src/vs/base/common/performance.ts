@@ -24,7 +24,14 @@ function _definePolyfillMarks(timeOrigin?: number) {
 		}
 		return result;
 	}
-	return { mark, getMarks };
+	function clearMarks(prefix: string) {
+		for (let i = _data.length - 2; i >= 0; i -= 2) {
+			if (typeof _data[i] === 'string' && (_data[i] as string).startsWith(prefix)) {
+				_data.splice(i, 2);
+			}
+		}
+	}
+	return { mark, getMarks, clearMarks };
 }
 
 declare const process: INodeProcess;
@@ -42,6 +49,7 @@ interface IPerformanceTiming {
 
 interface IPerformance {
 	mark(name: string, markOptions?: { startTime?: number }): void;
+	clearMarks(name?: string): void;
 	getEntriesByType(type: string): IPerformanceEntry[];
 	readonly timeOrigin: number;
 	readonly timing: IPerformanceTiming;
@@ -68,6 +76,17 @@ function _define() {
 			return {
 				mark(name: string, markOptions?: { startTime?: number }) {
 					performance.mark(name, markOptions);
+				},
+				clearMarks(prefix: string) {
+					const toRemove = new Set<string>();
+					for (const entry of performance.getEntriesByType('mark')) {
+						if (entry.name.startsWith(prefix)) {
+							toRemove.add(entry.name);
+						}
+					}
+					for (const name of toRemove) {
+						performance.clearMarks(name);
+					}
 				},
 				getMarks() {
 					let timeOrigin = performance.timeOrigin;
@@ -111,6 +130,11 @@ function _factory(sharedObj: any) {
 const perf = _factory(globalThis);
 
 export const mark: (name: string, markOptions?: { startTime?: number }) => void = perf.mark;
+
+/**
+ * Clears all marks whose name starts with the given prefix.
+ */
+export const clearMarks: (prefix: string) => void = perf.clearMarks;
 
 export interface PerformanceMark {
 	readonly name: string;

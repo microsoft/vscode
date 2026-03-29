@@ -10,7 +10,7 @@ import type { TestInstantiationService } from '../../../../../../platform/instan
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { CommandLineSandboxRewriter } from '../../browser/tools/commandLineRewriter/commandLineSandboxRewriter.js';
 import type { ICommandLineRewriterOptions } from '../../browser/tools/commandLineRewriter/commandLineRewriter.js';
-import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../common/terminalSandboxService.js';
 
 suite('CommandLineSandboxRewriter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,9 +22,11 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
-			promptToAllowWritePath: async () => false,
-			wrapWithSandbox: async (_runtimeConfig, command) => command,
-			wrapCommand: command => Promise.resolve(command),
+			wrapCommand: (command, _requestUnsandboxedExecution) => command,
+			getSandboxConfigPath: async () => '/tmp/sandbox.json',
+			checkForSandboxingPrereqs: async () => ({ enabled: false, sandboxConfigPath: undefined, failedCheck: TerminalSandboxPrerequisiteCheck.Config }),
+			getTempDir: () => undefined,
+			setNeedsForceUpdateConfigFile: () => { },
 			...overrides
 		});
 	};
@@ -45,13 +47,42 @@ suite('CommandLineSandboxRewriter', () => {
 		strictEqual(result, undefined);
 	});
 
-	test('wraps command when sandbox is enabled', async () => {
+	test('returns undefined when sandbox config is unavailable', async () => {
+		stubSandboxService({
+			wrapCommand: command => `wrapped:${command}`,
+			checkForSandboxingPrereqs: async () => ({ enabled: false, sandboxConfigPath: undefined, failedCheck: TerminalSandboxPrerequisiteCheck.Config }),
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
+		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
+		strictEqual(result, undefined);
+	});
+
+	test('returns undefined when sandbox dependencies are unavailable', async () => {
+		stubSandboxService({
+			checkForSandboxingPrereqs: async () => ({
+				enabled: false,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+				missingDependencies: ['bubblewrap'],
+			}),
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
+		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
+		strictEqual(result, undefined);
+	});
+
+	test('wraps command when sandbox is enabled and config exists', async () => {
 		const calls: string[] = [];
 		stubSandboxService({
-			isEnabled: async () => true,
-			wrapCommand: command => {
+			wrapCommand: (command, _requestUnsandboxedExecution) => {
 				calls.push('wrapCommand');
-				return Promise.resolve(`wrapped:${command}`);
+				return `wrapped:${command}`;
+			},
+			checkForSandboxingPrereqs: async () => {
+				calls.push('checkForSandboxingPrereqs');
+				return { enabled: true, sandboxConfigPath: '/tmp/sandbox.json', failedCheck: undefined };
 			},
 		});
 
@@ -59,6 +90,30 @@ suite('CommandLineSandboxRewriter', () => {
 		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
 		strictEqual(result?.rewritten, 'wrapped:echo hello');
 		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
-		deepStrictEqual(calls, ['wrapCommand']);
+		deepStrictEqual(calls, ['checkForSandboxingPrereqs', 'wrapCommand']);
+	});
+
+	test('wraps command and forwards sandbox bypass flag when explicitly requested', async () => {
+		const calls: string[] = [];
+		stubSandboxService({
+			wrapCommand: (command, requestUnsandboxedExecution) => {
+				calls.push(`wrap:${command}:${String(requestUnsandboxedExecution)}`);
+				return `wrapped:${command}`;
+			},
+			checkForSandboxingPrereqs: async () => {
+				calls.push('prereqs');
+				return { enabled: true, sandboxConfigPath: '/tmp/sandbox.json', failedCheck: undefined };
+			},
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
+		const result = await rewriter.rewrite({
+			...createRewriteOptions('echo hello'),
+			requestUnsandboxedExecution: true,
+		});
+
+		strictEqual(result?.rewritten, 'wrapped:echo hello');
+		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
+		deepStrictEqual(calls, ['prereqs', 'wrap:echo hello:true']);
 	});
 });

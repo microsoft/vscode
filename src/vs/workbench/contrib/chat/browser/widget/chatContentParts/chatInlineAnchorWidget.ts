@@ -55,7 +55,7 @@ import { getMediaMime } from '../../../../../../base/common/mime.js';
  * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
  * `chat.editorAssociations` setting. Returns undefined if no association matches.
  */
-function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
+export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
 	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
 	// Sort patterns by length (longer patterns are more specific)
 	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
@@ -280,14 +280,6 @@ export class InlineAnchorWidget extends Disposable {
 		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
 
-		// Apply link-style if configured
-		this.updateAppearance();
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
-				this.updateAppearance();
-			}
-		}));
-
 		// Drag and drop
 		if (this.data.kind !== 'symbol') {
 			element.draggable = true;
@@ -330,12 +322,6 @@ export class InlineAnchorWidget extends Disposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.element;
-	}
-
-	private updateAppearance(): void {
-		const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
-		const useLinkStyle = style === 'link';
-		this.element.classList.toggle('link-style', useLinkStyle);
 	}
 
 	private getCellIndex(location: URI) {

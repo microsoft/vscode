@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerMainProcessRemoteService } from '../../ipc/electron-browser/services.js';
-import { SandboxHelperChannelName } from '../common/sandboxHelperIpc.js';
 import { ISandboxHelperService } from '../common/sandboxHelperService.js';
 
-registerMainProcessRemoteService(ISandboxHelperService, SandboxHelperChannelName);
+registerMainProcessRemoteService(ISandboxHelperService, 'sandboxHelper');

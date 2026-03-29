@@ -11,7 +11,7 @@
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding: 0 10px;
+	padding-left: 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -61,6 +61,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	font-weight: 500;
 }
 
 /* Repository/folder label */
@@ -77,18 +78,50 @@
 	flex-shrink: 0;
 }
 
-/* Changes summary */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes {
+/* Provider label (shown for untitled sessions) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+/* Provider label (shown for untitled sessions) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+/* Session count widget (tasklist icon + unread count, left of pill) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count {
+	display: flex;
+	align-items: center;
 	gap: 3px;
+	flex-shrink: 0;
+	cursor: pointer;
+	padding: 0 4px;
+	height: 22px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	outline: none;
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-added {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-removed {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count .codicon {
+	font-size: 16px;
 }
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count-label {
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	line-height: 16px;
+}
+
