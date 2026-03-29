@@ -42,7 +42,7 @@ Next: **[Try it out!](#try-it)**
 
 2. After the codespace is up and running in your browser, press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd> and select **Ports: Focus on Ports View**.
 
-3. You should see **VNC web client (6080)** under in the list of ports. Select the line and click on the globe icon to open it in a browser tab.
+3. You should see **VNC web client (6080)** in the list of ports. Select the line and click on the globe icon to open it in a browser tab.
 
     > **Tip:** If you do not see the port, <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> or <kbd>F1</kbd>, select **Forward a Port** and enter port `6080`.
 
@@ -68,7 +68,7 @@ You may see improved VNC responsiveness when accessing a codespace from VS Code 
 
 3. After you have connected to the codespace, you can use a [VNC Viewer][def] to connect to `localhost:5901` and enter `vscode` as the password.
 
-    > **Tip:** You may also need change your VNC client's **Picture Quality** setting to **High** to get a full color desktop.
+    > **Tip:** You may also need to change your VNC client's **Picture Quality** setting to **High** to get a full color desktop.
 
 4. Anything you start in VS Code, or the integrated terminal, will appear here.
 
