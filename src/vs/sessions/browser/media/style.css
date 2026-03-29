@@ -95,7 +95,7 @@
 }
 
 /* Same fade overlay for the chat renderer inside an editor (e.g. floating aux window). */
-.agent-sessions-workbench .chat-editor-relative .monaco-scrollable-element > .shadow.top {
+.agent-sessions-workbench .chat-editor-relative .interactive-list .monaco-scrollable-element > .shadow.top {
 	height: 16px;
 	background: linear-gradient(to bottom, var(--vscode-editor-background), transparent);
 	box-shadow: none;
