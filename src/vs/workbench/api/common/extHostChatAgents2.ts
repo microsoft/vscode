@@ -672,7 +672,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			label: metadata.label,
 			iconId: metadata.iconId,
 			unsupportedTypes: metadata.unsupportedTypes?.map(t => typeConvert.ChatSessionCustomizationType.from(t)),
-			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
 		};
 
 		this._proxy.$registerChatSessionCustomizationProvider(handle, chatSessionType, metadataDto, extension.identifier);
@@ -710,6 +709,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				type: typeConvert.ChatSessionCustomizationType.from(item.type),
 				name: item.name,
 				description: item.description,
+				groupKey: item.groupKey,
+				badge: item.badge,
+				badgeTooltip: item.badgeTooltip,
 			}));
 		} catch (err) {
 			return undefined;
@@ -1038,7 +1040,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const feedback: vscode.ChatResultFeedback = {
 			result: ehResult,
 			kind,
-			unhelpfulReason: isProposedApiEnabled(agent.extension, 'chatParticipantAdditions') ? voteAction.reason : undefined,
 		};
 		agent.acceptFeedback(Object.freeze(feedback));
 	}

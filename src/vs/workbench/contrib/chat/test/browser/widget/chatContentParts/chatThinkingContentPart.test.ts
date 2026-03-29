@@ -1518,7 +1518,7 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(removedEl?.textContent, '-3');
 		});
 
-		test('should show +0 -0 when diff parts exist but have no changes', () => {
+		test('should not show diff stats when diff parts exist but have no changes', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
 
@@ -1548,8 +1548,8 @@ suite('ChatThinkingContentPart', () => {
 
 			const addedEl = part.domNode.querySelector('.label-added');
 			const removedEl = part.domNode.querySelector('.label-removed');
-			assert.strictEqual(addedEl?.textContent, '+0');
-			assert.strictEqual(removedEl?.textContent, '-0');
+			assert.strictEqual(addedEl, null);
+			assert.strictEqual(removedEl, null);
 		});
 
 		test('should include diff stats in aria-label', () => {

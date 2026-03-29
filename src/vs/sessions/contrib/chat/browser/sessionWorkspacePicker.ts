@@ -64,6 +64,8 @@ export class WorkspacePicker extends Disposable {
 
 	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection>());
 	readonly onDidSelectWorkspace: Event<IWorkspaceSelection> = this._onDidSelectWorkspace.event;
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 
 	private _selectedWorkspace: IWorkspaceSelection | undefined;
 
@@ -105,6 +107,7 @@ export class WorkspacePicker extends Disposable {
 				if (restored) {
 					this._selectedWorkspace = restored;
 					this._updateTriggerLabel();
+					this._onDidChangeSelection.fire();
 					this._onDidSelectWorkspace.fire(restored);
 				}
 			}
@@ -124,6 +127,8 @@ export class WorkspacePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.setAttribute('aria-haspopup', 'listbox');
+		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
@@ -164,10 +169,16 @@ export class WorkspacePicker extends Disposable {
 					this._selectProject(item.selection);
 				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				triggerElement.setAttribute('aria-expanded', 'false');
+				triggerElement.focus();
+			},
 		};
 
-		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false } : { reserveSubmenuSpace: false };
+		const listOptions = showFilter
+			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false }
+			: { reserveSubmenuSpace: false };
+		triggerElement.setAttribute('aria-expanded', 'true');
 
 		this.actionWidgetService.show<IWorkspacePickerItem>(
 			'workspacePicker',
@@ -197,12 +208,14 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selected project.
 	 */
 	clearSelection(): void {
+		this.actionWidgetService.hide();
 		this._selectedWorkspace = undefined;
 		// Clear checked state from all recents
 		const recents = this._getStoredRecentWorkspaces();
 		const updated = recents.map(p => ({ ...p, checked: false }));
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
 	}
 
 	/**
@@ -218,6 +231,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedWorkspace = selection;
 		this._persistSelectedWorkspace(selection);
 		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
 		if (fireEvent) {
 			this._onDidSelectWorkspace.fire(selection);
 		}
@@ -367,13 +381,13 @@ export class WorkspacePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 		const workspace = this._selectedWorkspace?.workspace;
-		const label = workspace ? workspace.label : localize('pickWorkspace', "Pick a Workspace");
+		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
 		const icon = workspace ? workspace.icon : Codicon.project;
 
 		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
 	private _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
@@ -521,8 +535,10 @@ export class WorkspacePicker extends Disposable {
 
 		// Clear current selection if it was the removed workspace
 		if (this._isSelectedWorkspace(selection)) {
+			this.actionWidgetService.hide();
 			this._selectedWorkspace = undefined;
 			this._updateTriggerLabel();
+			this._onDidChangeSelection.fire();
 		}
 	}
 

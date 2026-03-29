@@ -137,6 +137,12 @@ export interface IExternalCustomizationItem {
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
+	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
+	readonly groupKey?: string;
+	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
+	readonly badge?: string;
+	/** Tooltip shown when hovering the badge. */
+	readonly badgeTooltip?: string;
 }
 
 /**
@@ -433,7 +439,12 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	}
 
 	private _getAllHarnesses(): readonly IHarnessDescriptor[] {
-		return [...this._staticHarnesses, ...this._externalHarnesses];
+		// External harnesses override static ones with the same id
+		const externalIds = new Set(this._externalHarnesses.map(h => h.id));
+		return [
+			...this._staticHarnesses.filter(h => !externalIds.has(h.id)),
+			...this._externalHarnesses,
+		];
 	}
 
 	private _refreshAvailableHarnesses(): void {
@@ -449,10 +460,11 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 				if (idx >= 0) {
 					this._externalHarnesses.splice(idx, 1);
 					this._refreshAvailableHarnesses();
-					// If the removed harness was active, fall back to the first available
+					// If the removed harness was active, only fall back when no
+					// remaining harness (e.g. a restored static one) shares the id.
 					if (this._activeHarness.get() === descriptor.id) {
 						const all = this._getAllHarnesses();
-						if (all.length > 0) {
+						if (!all.some(h => h.id === descriptor.id) && all.length > 0) {
 							this._activeHarness.set(all[0].id, undefined);
 						}
 					}

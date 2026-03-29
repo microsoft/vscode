@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { ITerminalSandboxService } from '../../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../common/terminalSandboxService.js';
 import type { ICommandLineRewriter, ICommandLineRewriterOptions, ICommandLineRewriterResult } from './commandLineRewriter.js';
 
 export class CommandLineSandboxRewriter extends Disposable implements ICommandLineRewriter {
@@ -15,22 +15,12 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 	}
 
 	async rewrite(options: ICommandLineRewriterOptions): Promise<ICommandLineRewriterResult | undefined> {
-		if (options.requestUnsandboxedExecution) {
+		const sandboxPrereqs = await this._sandboxService.checkForSandboxingPrereqs();
+		if (!sandboxPrereqs.enabled || sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Config) {
 			return undefined;
 		}
 
-		if (!(await this._sandboxService.isEnabled())) {
-			return undefined;
-		}
-
-		// Ensure sandbox config is initialized before wrapping
-		const sandboxConfigPath = await this._sandboxService.getSandboxConfigPath();
-		if (!sandboxConfigPath) {
-			// If no sandbox config is available, run without sandboxing
-			return undefined;
-		}
-
-		const wrappedCommand = this._sandboxService.wrapCommand(options.commandLine);
+		const wrappedCommand = this._sandboxService.wrapCommand(options.commandLine, options.requestUnsandboxedExecution);
 		return {
 			rewritten: wrappedCommand,
 			reasoning: 'Wrapped command for sandbox execution',
