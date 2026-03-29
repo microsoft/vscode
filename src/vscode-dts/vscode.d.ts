@@ -12252,7 +12252,7 @@ declare module 'vscode' {
 		 * @param element The element from which the provider gets children. Can be `undefined`.
 		 * @returns Children of `element` or root if no element is passed.
 		 */
-		getChildren(element?: T): ProviderResult<T[]>;
+		getChildren(element?: T): ProviderResult<readonly T[]>;
 
 		/**
 		 * Optional method to return the parent of `element`.
