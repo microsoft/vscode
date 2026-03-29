@@ -895,7 +895,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Sessions --
 
-	getSessionTypes(session: ISessionData): ISessionType[] {
+	getSessionTypes(chatId: string): ISessionType[] {
+		const session = this._currentNewSession?.id === chatId ? this._currentNewSession : this._findChatSession(chatId);
+		if (!session) {
+			return [];
+		}
 		if (session instanceof CopilotCLISession) {
 			return [CopilotCLISessionType];
 		}
@@ -1130,7 +1134,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// Remove the temp from the cache (the adapter now owns the committed key)
 			this._sessionCache.delete(key);
 			this._currentNewSession = undefined;
-			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 			session.dispose();
 
 			// Notify listeners that the temp session was replaced by the committed one
