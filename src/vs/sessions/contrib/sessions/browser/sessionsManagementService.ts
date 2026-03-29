@@ -77,6 +77,11 @@ export interface ISessionsManagementService {
 	/**
 	 * Get all session types from all registered providers.
 	 */
+	getSessionTypes(session: ISession): ISessionType[];
+
+	/**
+	 * Get all session types from all registered providers.
+	 */
 	getAllSessionTypes(): ISessionType[];
 
 	/**
@@ -350,6 +355,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private onDidReplaceSession(from: ISessionData, to: ISessionData): void {
 		if (this._activeSession.get()?.sessionId === this._chatToSession(from).sessionId) {
 			this.setActiveSession(this._chatToSession(to));
+			this.onDidChangeSessionsFromSessionsProviders({
+				added: [],
+				removed: [from],
+				changed: [to],
+			});
 		}
 	}
 
@@ -401,10 +411,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				}
 				return;
 			}
-			if (updated) {
-				this.setActiveSession(this._chatToSession(updated));
-				return;
-			}
 		}
 	}
 
@@ -453,6 +459,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	getSession(resource: URI): ISession | undefined {
 		const sessionData = this._getSessionData(resource);
 		return sessionData ? this._chatToSession(sessionData) : undefined;
+	}
+
+	getSessionTypes(session: ISession): ISessionType[] {
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
+		if (!provider) {
+			return [];
+		}
+		return provider.getSessionTypes(session.activeChat.get().chatId);
 	}
 
 	getAllSessionTypes(): ISessionType[] {

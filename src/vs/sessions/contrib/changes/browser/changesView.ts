@@ -107,6 +107,7 @@ const enum IsolationMode {
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.BranchChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const isolationModeContextKey = new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace);
+const hasPullRequestContextKey = new RawContextKey<boolean>('sessions.hasPullRequest', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
 const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
@@ -837,15 +838,22 @@ export class ChangesViewPane extends ViewPane {
 				return activeSession?.workspace.read(reader)?.repositories[0]?.baseBranchProtected === true;
 			}));
 
+			this.renderDisposables.add(bindContextKey(hasPullRequestContextKey, this.scopedContextKeyService, reader => {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				const activeSessionPullRequest = activeSession?.pullRequest.read(reader);
+				return activeSessionPullRequest?.uri !== undefined;
+			}));
+
 			this.renderDisposables.add(bindContextKey(hasOpenPullRequestContextKey, this.scopedContextKeyService, reader => {
-				this.viewModel.sessionsChangedSignal.read(reader);
-				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
-				if (!sessionResource) {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				const activeSessionPullRequest = activeSession?.pullRequest.read(reader);
+				if (activeSessionPullRequest?.uri === undefined) {
 					return false;
 				}
-
-				const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
-				return metadata?.pullRequestUrl !== undefined;
+				const iconId = activeSessionPullRequest.icon?.id;
+				return iconId !== undefined &&
+					(iconId === Codicon.gitPullRequestDraft.id ||
+						iconId === Codicon.gitPullRequest.id);
 			}));
 
 			this.renderDisposables.add(bindContextKey(hasIncomingChangesContextKey, this.scopedContextKeyService, reader => {
@@ -930,9 +938,8 @@ export class ChangesViewPane extends ViewPane {
 							}
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
 								const customLabel = outgoingChanges > 0
-									? localize('updatePRWithOutgoingChanges', 'Update Pull Request {0}↑', outgoingChanges)
-									: localize('updatePR', 'Update Pull Request');
-
+									? `${action.label} ${outgoingChanges}↑`
+									: action.label;
 								return { customLabel, showIcon: true, showLabel: true, isSecondary: false };
 							}
 							if (action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR') {

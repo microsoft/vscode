@@ -340,19 +340,14 @@ export type PromptFileSkipReason =
  * Result of discovering a single prompt file.
  */
 export interface IPromptFileDiscoveryResult {
-	readonly uri: URI;
-	readonly storage: PromptsStorage;
 	readonly status: 'loaded' | 'skipped';
-	readonly name?: string;
 	readonly skipReason?: PromptFileSkipReason;
 	/** Error message if parse-error */
 	readonly errorMessage?: string;
 	/** For duplicates, the URI of the file that took precedence */
 	readonly duplicateOf?: URI;
-	/** Extension ID if from extension */
-	readonly extension?: IExtensionDescription;
-	/** Uri of the plugin, if from a plugin */
-	readonly pluginUri?: URI;
+	/** Prompt path for the discovered file. */
+	readonly promptPath: IPromptPath;
 	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
 	readonly userInvocable?: boolean;
 	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */

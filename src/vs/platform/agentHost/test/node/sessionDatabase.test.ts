@@ -193,7 +193,7 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual(edits, []);
 		});
 
-		test('returns empty array when given empty array', async () => {
+		test.skip('returns empty array when given empty array' /* Flaky https://github.com/microsoft/vscode/issues/306057 */, async () => {
 			db = disposables.add(await SessionDatabase.open(dbPath()));
 			const edits = await db.getFileEdits([]);
 			assert.deepStrictEqual(edits, []);

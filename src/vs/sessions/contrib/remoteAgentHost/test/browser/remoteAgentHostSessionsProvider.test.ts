@@ -447,7 +447,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			requiresWorkspaceTrust: false,
 		};
 		const session = provider.createNewSession(workspace);
-		const types = provider.getSessionTypes(session);
+		const types = provider.getSessionTypes(session.id);
 
 		assert.strictEqual(types.length, 1);
 	});
