@@ -723,4 +723,67 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.steeringMessage, undefined);
 		});
 	});
+
+	// ---- Edit auto-approve patterns -----------------------------------------
+
+	suite('edit auto-approve patterns', () => {
+
+		test('auto-approves regular files with default patterns', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			// Fire tool_start so the tool call exists in the state
+			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-1', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
+
+			// Fire tool_ready with write permission for a regular .ts file
+			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
+
+			// The agent should have been auto-responded to with approved=true
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-1');
+			assert.ok(permCall, 'should auto-approve regular files with default patterns');
+			assert.strictEqual(permCall!.approved, true);
+
+			// The tool call should NOT be in PendingConfirmation state (it was auto-approved)
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tcPart = state?.activeTurn?.responseParts.find(
+				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-1'
+			) as IToolCallResponsePart | undefined;
+			assert.ok(tcPart);
+			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.Running);
+		});
+
+		test('default patterns block .env files', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-2', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
+			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-2', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env' });
+
+			// Should NOT have auto-responded
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-2');
+			assert.ok(!permCall, 'should not auto-approve .env files with default patterns');
+
+			// The tool call should be in PendingConfirmation state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tcPart = state?.activeTurn?.responseParts.find(
+				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-2'
+			) as IToolCallResponsePart | undefined;
+			assert.ok(tcPart);
+			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.PendingConfirmation);
+		});
+
+		test('default patterns block .git files', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			startTurn('turn-1');
+
+			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-3', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
+			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-3', invocationMessage: 'Write .git/config', permissionKind: 'write', permissionPath: '/workspace/.git/config' });
+
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-3');
+			assert.ok(!permCall, 'should not auto-approve .git files with default patterns');
+		});
+	});
 });

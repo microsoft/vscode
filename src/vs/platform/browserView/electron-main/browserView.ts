@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
 import { IElementData } from '../../browserElements/common/browserElements.js';
-import { getElementData, getFocusedElementData } from './browserViewElementInspector.js';
+import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -37,7 +37,8 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
-	private _debugger: BrowserViewDebugger;
+	private readonly _debugger: BrowserViewDebugger;
+	private readonly _inspector: BrowserViewElementInspector;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
 
@@ -153,6 +154,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		this._debugger = new BrowserViewDebugger(this, this.logService);
+		this._inspector = this._register(new BrowserViewElementInspector(this));
 
 		this.setupEventListeners();
 	}
@@ -484,14 +486,14 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * @param token Cancellation token to abort the inspection.
 	 */
 	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
-		return getElementData(this, token);
+		return this._inspector.getElementData(token);
 	}
 
 	/**
 	 * Get element data for the currently focused element.
 	 */
 	async getFocusedElementData(): Promise<IElementData | undefined> {
-		return getFocusedElementData(this);
+		return this._inspector.getFocusedElementData();
 	}
 
 	/**

@@ -63,7 +63,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { GitDiffChange, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { CIStatusWidget } from './ciStatusWidget.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
@@ -222,6 +222,36 @@ function buildTreeChildren(items: IChangesFileItem[]): IObjectTreeElement<Change
 	return convert(root);
 }
 
+function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChangesFileItem[] {
+	return changes.map(change => {
+		const isDeletion = change.modifiedUri === undefined;
+		const isAddition = change.originalUri === undefined;
+		const uri = change.modifiedUri ?? change.uri;
+		const fileUri = isDeletion
+			? uri
+			: modifiedRef
+				? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref: modifiedRef }) })
+				: uri;
+		const originalUri = isAddition
+			? change.originalUri
+			: originalRef
+				? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: originalRef }) })
+				: change.originalUri;
+		return {
+			type: 'file',
+			uri: fileUri,
+			originalUri,
+			state: ModifiedFileEntryState.Accepted,
+			isDeletion,
+			changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
+			linesAdded: change.insertions,
+			linesRemoved: change.deletions,
+			reviewCommentCount: 0,
+			agentFeedbackCount: 0,
+		} satisfies IChangesFileItem;
+	});
+}
+
 // --- View Model
 
 class ChangesViewModel extends Disposable {
@@ -289,7 +319,8 @@ class ChangesViewModel extends Disposable {
 
 		// Active session isolation mode
 		this.activeSessionIsolationModeObs = derived(reader => {
-			return activeSessionRepositoryObs.read(reader)?.workingDirectory === undefined
+			const activeSessionRepository = activeSessionRepositoryObs.read(reader);
+			return activeSessionRepository?.workingDirectory === undefined
 				? IsolationMode.Workspace
 				: IsolationMode.Worktree;
 		});
@@ -301,7 +332,8 @@ class ChangesViewModel extends Disposable {
 				return constObservable(undefined);
 			}
 
-			const workingDirectory = activeSessionRepositoryObs.read(reader)?.workingDirectory;
+			const activeSessionRepository = activeSessionRepositoryObs.read(reader);
+			const workingDirectory = activeSessionRepository?.workingDirectory ?? activeSessionRepository?.uri;
 			if (!workingDirectory) {
 				return constObservable(undefined);
 			}
@@ -683,46 +715,49 @@ export class ChangesViewPane extends ViewPane {
 			});
 		});
 
-		const headCommitObs = derived(reader => {
+		const allChangesObs = derived(reader => {
 			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			return repository?.state.read(reader)?.HEAD?.commit;
+			const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(reader);
+			const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
+
+			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
+				return constObservable(undefined);
+			}
+
+			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+			return new ObservablePromise(diffPromise).resolvedValue;
 		});
 
 		const lastTurnChangesObs = derived(reader => {
 			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			const headCommit = headCommitObs.read(reader);
+			const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
 
-			if (!repository || !headCommit) {
+			if (!repository || !lastCheckpointRef) {
 				return constObservable(undefined);
 			}
 
-			const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
-
-			const diffPromise = lastCheckpointRef
-				? repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef)
-				: repository.diffBetweenWithStats(`${headCommit}^`, headCommit);
-
+			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
 			return new ObservablePromise(diffPromise).resolvedValue;
 		});
 
-		const isLoadingLastTurnObs = derived(reader => {
+		const isLoadingChangesObs = derived(reader => {
 			const versionMode = this.viewModel.versionModeObs.read(reader);
-			if (versionMode !== ChangesVersionMode.LastTurn) {
+			if (versionMode !== ChangesVersionMode.AllChanges && versionMode !== ChangesVersionMode.LastTurn) {
 				return false;
 			}
 
-			const headCommit = headCommitObs.read(reader);
 			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			if (!repository || !headCommit) {
+			if (!repository) {
 				return false;
 			}
 
-			const result = lastTurnChangesObs.read(reader).read(reader);
-			return result === undefined;
+			const allChangesResult = allChangesObs.read(reader).read(reader);
+			const lastTurnChangesResult = lastTurnChangesObs.read(reader).read(reader);
+			return allChangesResult === undefined || lastTurnChangesResult === undefined;
 		});
 
 		this.renderDisposables.add(autorun(reader => {
-			const isLoading = isLoadingLastTurnObs.read(reader);
+			const isLoading = isLoadingChangesObs.read(reader);
 			if (isLoading) {
 				this.changesProgressBar.infinite().show(200);
 			} else {
@@ -732,54 +767,21 @@ export class ChangesViewPane extends ViewPane {
 
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
-			const headCommit = headCommitObs.read(reader);
-			const sessionFiles = sessionFilesObs.read(reader);
 			const versionMode = this.viewModel.versionModeObs.read(reader);
 
-			let sourceEntries: IChangesFileItem[];
-			if (versionMode === ChangesVersionMode.LastTurn) {
-				const lastTurnDiffChanges = lastTurnChangesObs.read(reader).read(reader);
+			const sourceEntries: IChangesFileItem[] = [];
+			if (versionMode === ChangesVersionMode.BranchChanges) {
+				const sessionFiles = sessionFilesObs.read(reader);
+				sourceEntries.push(...sessionFiles);
+			} else if (versionMode === ChangesVersionMode.AllChanges) {
+				const allChanges = allChangesObs.read(reader).read(reader) ?? [];
+				const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(reader);
 				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
-
-				const diffChanges = lastTurnDiffChanges ?? [];
-
-				const ref = lastCheckpointRef
-					? lastCheckpointRef
-					: headCommit;
-
-				const parentRef = lastCheckpointRef
-					? `${lastCheckpointRef}^`
-					: headCommit ? `${headCommit}^` : undefined;
-
-				sourceEntries = diffChanges.map(change => {
-					const isDeletion = change.modifiedUri === undefined;
-					const isAddition = change.originalUri === undefined;
-					const uri = change.modifiedUri ?? change.uri;
-					const fileUri = isDeletion
-						? uri
-						: ref
-							? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref }) })
-							: uri;
-					const originalUri = isAddition
-						? change.originalUri
-						: parentRef
-							? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: parentRef }) })
-							: change.originalUri;
-					return {
-						type: 'file',
-						uri: fileUri,
-						originalUri,
-						state: ModifiedFileEntryState.Accepted,
-						isDeletion,
-						changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
-						linesAdded: change.insertions,
-						linesRemoved: change.deletions,
-						reviewCommentCount: 0,
-						agentFeedbackCount: 0,
-					} satisfies IChangesFileItem;
-				});
-			} else {
-				sourceEntries = [...sessionFiles];
+				sourceEntries.push(...toChangesFileItem(allChanges, lastCheckpointRef, firstCheckpointRef));
+			} else if (versionMode === ChangesVersionMode.LastTurn) {
+				const diffChanges = lastTurnChangesObs.read(reader).read(reader) ?? [];
+				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(undefined);
+				sourceEntries.push(...toChangesFileItem(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined));
 			}
 
 			const resources = new Set();
@@ -813,7 +815,7 @@ export class ChangesViewPane extends ViewPane {
 
 			let lastHasChanges = false;
 			this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
-				if (isLoadingLastTurnObs.read(reader)) {
+				if (isLoadingChangesObs.read(reader)) {
 					return lastHasChanges;
 				}
 				const { files } = topLevelStats.read(reader);
@@ -952,7 +954,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Update visibility and file count badge based on entries
 		this.renderDisposables.add(autorun(reader => {
-			if (isLoadingLastTurnObs.read(reader)) {
+			if (isLoadingChangesObs.read(reader)) {
 				return;
 			}
 
@@ -978,7 +980,7 @@ export class ChangesViewPane extends ViewPane {
 			this.summaryContainer.appendChild(linesRemovedSpan);
 
 			this.renderDisposables.add(autorun(reader => {
-				if (isLoadingLastTurnObs.read(reader)) {
+				if (isLoadingChangesObs.read(reader)) {
 					return;
 				}
 
@@ -1136,7 +1138,7 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const entries = combinedEntriesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
-			const isLoading = isLoadingLastTurnObs.read(reader);
+			const isLoading = isLoadingChangesObs.read(reader);
 
 			if (!this.tree || isLoading) {
 				return;
@@ -1315,6 +1317,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IChangesTreeTemplate {
@@ -1342,6 +1345,11 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
 			label.element.appendChild(actionBarContainer);
+
+			templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
+				const activeSession = this.sessionManagementService.activeSession.read(reader);
+				return activeSession?.sessionType ?? '';
+			}));
 		}
 
 		const decorationBadge = dom.$('.changes-decoration-badge');

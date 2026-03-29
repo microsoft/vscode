@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -194,11 +193,4 @@ export class MockChatService implements IChatService {
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
 	}
-
-	registerChatModelChangeListeners(chatSessionType: string, onChange: (sessionResource: URI) => void): IDisposable {
-		return {
-			dispose: () => { }
-		};
-	}
-
 }

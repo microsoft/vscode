@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
-import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, IWriteFileParams, IWriteFileResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	PendingMessageKind,
 	ResponsePartKind,
@@ -99,6 +101,37 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
+	// ---- Edit auto-approve --------------------------------------------------
+
+	/**
+	 * Default edit auto-approve patterns applied by the agent host.
+	 * Matches the VS Code `chat.tools.edits.autoApprove` setting defaults.
+	 */
+	private static readonly _DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
+		'**/*': true,
+		'**/.vscode/*.json': false,
+		'**/.git/**': false,
+		'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
+		'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
+		'**/*.lock': false,
+		'**/*-lock.{yaml,json}': false,
+	};
+
+	/**
+	 * Returns whether a write to `filePath` should be auto-approved based on
+	 * the built-in default patterns.
+	 */
+	private _shouldAutoApproveEdit(filePath: string): boolean {
+		const patterns = AgentSideEffects._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
+		let approved = true;
+		for (const [pattern, isApproved] of Object.entries(patterns)) {
+			if (isApproved !== approved && globMatch(pattern, filePath)) {
+				approved = isApproved;
+			}
+		}
+		return approved;
+	}
+
 	// ---- Agent registration -------------------------------------------------
 
 	/**
@@ -124,6 +157,16 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const sessionKey = e.session.toString();
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
+				// Check if this is a write permission request that can be auto-approved
+				// based on the built-in default patterns.
+				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
+					if (this._shouldAutoApproveEdit(e.permissionPath)) {
+						this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
+						agent.respondToPermissionRequest(e.toolCallId, true);
+						return;
+					}
+				}
+
 				const actions = agentMapper.mapProgressEventToActions(e, sessionKey, turnId);
 				if (actions) {
 					if (Array.isArray(actions)) {
@@ -442,8 +485,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			pendingTools: Map<string, IAgentToolStartEvent>;
 		} | undefined;
 
-		let turnCounter = 0;
-
 		const finalizeTurn = (turn: NonNullable<typeof currentTurn>, state: TurnState): void => {
 			turns.push({
 				id: turn.id,
@@ -454,8 +495,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			});
 		};
 
-		const startTurn = (text: string): NonNullable<typeof currentTurn> => ({
-			id: `restored-${turnCounter++}`,
+		const startTurn = (id: string, text: string): NonNullable<typeof currentTurn> => ({
+			id,
 			userMessage: { text },
 			responseParts: [],
 			pendingTools: new Map(),
@@ -468,10 +509,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				if (currentTurn) {
 					finalizeTurn(currentTurn, TurnState.Cancelled);
 				}
-				currentTurn = startTurn(msg.content);
+				currentTurn = startTurn(msg.messageId, msg.content);
 			} else if (msg.type === 'message' && msg.role === 'assistant') {
 				if (!currentTurn) {
-					currentTurn = startTurn('');
+					currentTurn = startTurn(msg.messageId, '');
 				}
 
 				if (msg.content) {
@@ -583,6 +624,33 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			};
 		} catch (_e) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
+		}
+	}
+
+	async handleWriteFile(params: IWriteFileParams): Promise<IWriteFileResult> {
+		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		let content: VSBuffer;
+		if (params.encoding === ContentEncoding.Base64) {
+			content = decodeBase64(params.data);
+		} else {
+			content = VSBuffer.fromString(params.data);
+		}
+		try {
+			if (params.createOnly) {
+				await this._fileService.createFile(fileUri, content, { overwrite: false });
+			} else {
+				await this._fileService.writeFile(fileUri, content);
+			}
+			return {};
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.FileExists) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
 		}
 	}
 

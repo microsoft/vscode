@@ -283,6 +283,60 @@ export interface IFetchContentResult {
 	contentType?: string;
 }
 
+// ─── writeFile ───────────────────────────────────────────────────────────────
+
+/**
+ * Writes content to a file on the server's filesystem.
+ *
+ * Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
+ * use `utf-8` encoding.
+ *
+ * If the file does not exist, it is created. If the file already exists, it is
+ * overwritten unless `createOnly` is set.
+ *
+ * @category Commands
+ * @method writeFile
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ * @throws `NotFound` (`-32008`) if the parent directory does not exist.
+ * @throws `PermissionDenied` (`-32009`) if the client is not permitted to write to the path.
+ * @throws `AlreadyExists` (`-32010`) if `createOnly` is set and the file already exists.
+ * @example
+ * ```jsonc
+ * // Client → Server
+ * { "jsonrpc": "2.0", "id": 11, "method": "writeFile",
+ *   "params": { "uri": "file:///workspace/hello.txt", "data": "SGVsbG8=",
+ *              "encoding": "base64", "contentType": "text/plain" } }
+ *
+ * // Server → Client
+ * { "jsonrpc": "2.0", "id": 11, "result": {} }
+ * ```
+ */
+export interface IWriteFileParams {
+	/** Target file URI on the server filesystem */
+	uri: URI;
+	/** Content encoded as a string */
+	data: string;
+	/** How `data` is encoded */
+	encoding: ContentEncoding;
+	/** Content type (e.g. `"text/plain"`, `"image/png"`) */
+	contentType?: string;
+	/**
+	 * If `true`, the server MUST fail if the file already exists instead of
+	 * overwriting it. Useful for safe creation of new files.
+	 */
+	createOnly?: boolean;
+}
+
+/**
+ * Result of the `writeFile` command.
+ *
+ * An empty object on success.
+ */
+export interface IWriteFileResult {
+}
+
 // ─── browseDirectory ────────────────────────────────────────────────────────
 
 /**

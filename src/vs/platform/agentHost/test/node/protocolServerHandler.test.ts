@@ -77,6 +77,7 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
 	async handleRestoreSession(_session: string): Promise<void> { }
 	handleGetResourceMetadata() { return { resources: [] }; }
+	handleWriteFile() { return Promise.resolve({}); }
 	async handleAuthenticate(_params: { resource: string; token: string }) { return { authenticated: true }; }
 	async handleBrowseDirectory(uri: string): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
 		this.browsedUris.push(URI.parse(uri));

@@ -125,7 +125,6 @@ export enum PromptFileSource {
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
 	Plugin = 'plugin',
-	Internal = 'internal',
 }
 
 /**

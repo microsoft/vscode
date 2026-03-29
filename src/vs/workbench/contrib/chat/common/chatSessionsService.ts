@@ -308,6 +308,13 @@ export interface IChatSessionCustomizationsProvider {
 }
 
 
+export interface IChatSessionCommitEvent {
+	/** The original (untitled) session resource. */
+	readonly original: URI;
+	/** The committed (real) session resource. */
+	readonly committed: URI;
+}
+
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export interface IChatSessionsService {
@@ -316,6 +323,12 @@ export interface IChatSessionsService {
 	// #region Chat session item provider support
 	readonly onDidChangeItemsProviders: Event<{ readonly chatSessionType: string }>;
 	readonly onDidChangeSessionItems: Event<IChatSessionItemsDelta>;
+
+	/**
+	 * Fired when an untitled session is committed (URI swapped to a real resource)
+	 * after the first turn completes.
+	 */
+	readonly onDidCommitSession: Event<IChatSessionCommitEvent>;
 
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
@@ -426,6 +439,12 @@ export interface IChatSessionsService {
 	 * are redirected to the canonical (untitled) resource in the internal session map.
 	 */
 	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
+
+	/**
+	 * Fires {@link onDidCommitSession} to notify listeners that an untitled
+	 * session has been committed with a real resource URI.
+	 */
+	fireSessionCommitted(original: URI, committed: URI): void;
 
 	// #region Customizations provider support
 	readonly onDidChangeCustomizations: Event<{ readonly chatSessionType: string }>;
