@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -669,7 +669,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._isBackgroundProvider.set(session?.sessionType === AgentSessionProviders.Background);
 
-		if (session && isAgentSession(session)) {
+		if (session && session.status.get() !== SessionStatus.Untitled) {
 			this.lastSelectedSession = session.resource;
 		}
 
