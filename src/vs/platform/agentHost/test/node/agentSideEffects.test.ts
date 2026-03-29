@@ -201,71 +201,6 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleCreateSession --------------------------------------------
-
-	suite('handleCreateSession', () => {
-
-		test('creates a session and dispatches session/ready', async () => {
-			const envelopes: IActionEnvelope[] = [];
-			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
-
-			await sideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'mock' });
-
-			const ready = envelopes.find(e => e.action.type === ActionType.SessionReady);
-			assert.ok(ready, 'should dispatch session/ready');
-		});
-
-		test('throws when no provider is specified', async () => {
-			await assert.rejects(
-				() => sideEffects.handleCreateSession({ session: sessionUri.toString() }),
-				/No provider specified/,
-			);
-		});
-
-		test('throws when no agent matches provider', async () => {
-			const emptyAgents = observableValue<readonly IAgent[]>('agents', []);
-			const noAgentSideEffects = disposables.add(new AgentSideEffects(stateManager, {
-				getAgent: () => undefined,
-				agents: emptyAgents,
-				sessionDataService: {} as ISessionDataService,
-			}, new NullLogService(), fileService));
-
-			await assert.rejects(
-				() => noAgentSideEffects.handleCreateSession({ session: sessionUri.toString(), provider: 'nonexistent' }),
-				/No agent registered/,
-			);
-		});
-	});
-
-	// ---- handleDisposeSession -------------------------------------------
-
-	suite('handleDisposeSession', () => {
-
-		test('disposes the session on the agent and removes state', async () => {
-			setupSession();
-
-			sideEffects.handleDisposeSession(sessionUri.toString());
-
-			await new Promise(r => setTimeout(r, 10));
-
-			assert.strictEqual(agent.disposeSessionCalls.length, 1);
-			assert.strictEqual(stateManager.getSessionState(sessionUri.toString()), undefined);
-		});
-	});
-
-	// ---- handleListSessions ---------------------------------------------
-
-	suite('handleListSessions', () => {
-
-		test('aggregates sessions from all agents', async () => {
-			await agent.createSession();
-			const sessions = await sideEffects.handleListSessions();
-			assert.strictEqual(sessions.length, 1);
-			assert.strictEqual(sessions[0].provider, 'mock');
-			assert.strictEqual(sessions[0].title, 'Session');
-		});
-	});
-
 	// ---- handleRestoreSession -----------------------------------------------
 
 	suite('handleRestoreSession', () => {
@@ -482,45 +417,6 @@ suite('AgentSideEffects', () => {
 
 			const action = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
 			assert.ok(action, 'should dispatch root/agentsChanged');
-		});
-	});
-
-	// ---- handleGetResourceMetadata / handleAuthenticate -----------------
-
-	suite('auth', () => {
-
-		test('handleGetResourceMetadata aggregates resources from agents', () => {
-			agentList.set([agent], undefined);
-
-			const metadata = sideEffects.handleGetResourceMetadata();
-			assert.strictEqual(metadata.resources.length, 0, 'mock agent has no protected resources');
-		});
-
-		test('handleGetResourceMetadata returns resources when agent declares them', () => {
-			const copilotAgent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => copilotAgent.dispose()));
-			agentList.set([copilotAgent], undefined);
-
-			const metadata = sideEffects.handleGetResourceMetadata();
-			assert.strictEqual(metadata.resources.length, 1);
-			assert.strictEqual(metadata.resources[0].resource, 'https://api.github.com');
-		});
-
-		test('handleAuthenticate returns authenticated for matching resource', async () => {
-			const copilotAgent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => copilotAgent.dispose()));
-			agentList.set([copilotAgent], undefined);
-
-			const result = await sideEffects.handleAuthenticate({ resource: 'https://api.github.com', token: 'test-token' });
-			assert.deepStrictEqual(result, { authenticated: true });
-			assert.deepStrictEqual(copilotAgent.authenticateCalls, [{ resource: 'https://api.github.com', token: 'test-token' }]);
-		});
-
-		test('handleAuthenticate returns not authenticated for non-matching resource', async () => {
-			agentList.set([agent], undefined);
-
-			const result = await sideEffects.handleAuthenticate({ resource: 'https://unknown.example.com', token: 'test-token' });
-			assert.deepStrictEqual(result, { authenticated: false });
 		});
 	});
 

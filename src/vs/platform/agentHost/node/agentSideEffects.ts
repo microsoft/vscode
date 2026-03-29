@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -12,10 +11,10 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
-import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, IWriteFileParams, IWriteFileResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, IDirectoryEntry, IFetchContentResult, IWriteFileParams, IWriteFileResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	PendingMessageKind,
 	ResponsePartKind,
@@ -32,7 +31,6 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
-import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
 /**
@@ -57,7 +55,7 @@ export interface IAgentSideEffectsOptions {
  * Used by both the Electron utility-process path ({@link AgentService}) and
  * the standalone WebSocket server (`agentHostServerMain`).
  */
-export class AgentSideEffects extends Disposable implements IProtocolSideEffectHandler {
+export class AgentSideEffects extends Disposable {
 
 	/** Maps tool call IDs to the agent that owns them, for routing confirmations. */
 	private readonly _toolCallAgents = new Map<string, string>();
@@ -187,7 +185,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		return disposables;
 	}
 
-	// ---- IProtocolSideEffectHandler -----------------------------------------
+	// ---- Side-effect handlers --------------------------------------------------
 
 	handleAction(action: ISessionAction): void {
 		switch (action.type) {
@@ -348,61 +346,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
 		});
-	}
-
-	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
-		const provider = command.provider;
-		if (!provider) {
-			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, 'No provider specified for session creation');
-		}
-		const agent = this._options.agents.get().find(a => a.id === provider);
-		if (!agent) {
-			throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `No agent registered for provider: ${provider}`);
-		}
-		// Use the client-provided session URI per the protocol spec
-		const session = command.session;
-		await agent.createSession({
-			provider,
-			model: command.model,
-			workingDirectory: command.workingDirectory ? URI.parse(command.workingDirectory) : undefined,
-			session: URI.parse(session),
-		});
-		const summary: ISessionSummary = {
-			resource: session,
-			provider,
-			title: 'Session',
-			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
-			workingDirectory: command.workingDirectory,
-		};
-		this._stateManager.createSession(summary);
-		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session });
-	}
-
-	handleDisposeSession(session: ProtocolURI): void {
-		const agent = this._options.getAgent(session);
-		agent?.disposeSession(URI.parse(session)).catch(() => { });
-		this._stateManager.deleteSession(session);
-	}
-
-	async handleListSessions(): Promise<ISessionSummary[]> {
-		const allSessions: ISessionSummary[] = [];
-		for (const agent of this._options.agents.get()) {
-			const sessions = await agent.listSessions();
-			const provider = agent.id;
-			for (const s of sessions) {
-				allSessions.push({
-					resource: s.session.toString(),
-					provider,
-					title: s.summary ?? 'Session',
-					status: SessionStatus.Idle,
-					createdAt: s.startTime,
-					modifiedAt: s.modifiedTime,
-				});
-			}
-		}
-		return allSessions;
 	}
 
 	/**
@@ -566,24 +509,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		return turns;
 	}
 
-	handleGetResourceMetadata(): IResourceMetadata {
-		const resources = this._options.agents.get().flatMap(a => a.getProtectedResources());
-		return { resources };
-	}
-
-	async handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
-		for (const agent of this._options.agents.get()) {
-			const resources = agent.getProtectedResources();
-			if (resources.some(r => r.resource === params.resource)) {
-				const accepted = await agent.authenticate(params.resource, params.token);
-				if (accepted) {
-					return { authenticated: true };
-				}
-			}
-		}
-		return { authenticated: false };
-	}
-
 	async handleBrowseDirectory(uri: ProtocolURI): Promise<IBrowseDirectoryResult> {
 		let stat;
 		try {
@@ -601,10 +526,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			type: child.isDirectory ? 'directory' : 'file',
 		}));
 		return { entries };
-	}
-
-	getDefaultDirectory(): ProtocolURI {
-		return URI.file(os.homedir()).toString();
 	}
 
 	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
