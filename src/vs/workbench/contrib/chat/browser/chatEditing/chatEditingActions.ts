@@ -583,7 +583,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.isFirstRequest.negate())
 				}
 			]
 		});
@@ -614,6 +614,42 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		if (confirmed && userAttachments.length) {
 			await widget?.input.restoreAttachments(userAttachments);
 		}
+	}
+});
+
+registerAction2(class StartOverAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.startOver',
+			title: localize2('chat.startOver.label', "Start Over"),
+			tooltip: localize2('chat.startOver.tooltip', "Clears the chat and undoes all changes"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [
+				{
+					id: MenuId.ChatMessageCheckpoint,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.isFirstRequest)
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		widget?.viewModel?.model.setCheckpoint(item.id);
+		await restoreSnapshotWithConfirmation(accessor, item);
 	}
 });
 
