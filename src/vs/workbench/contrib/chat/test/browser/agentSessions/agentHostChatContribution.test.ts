@@ -1459,7 +1459,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.fsPath, '/custom/working/dir');
+			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), URI.file('/custom/working/dir').toString());
 		});
 
 		test('list controller includes description in items', async () => {
