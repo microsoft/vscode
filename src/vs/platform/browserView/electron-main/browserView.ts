@@ -292,10 +292,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		// Focus events
 		webContents.on('focus', () => {
+			webContents.setIgnoreMenuShortcuts(true);
 			this._onDidChangeFocus.fire({ focused: true });
 		});
 
 		webContents.on('blur', () => {
+			webContents.setIgnoreMenuShortcuts(false);
 			this._onDidChangeFocus.fire({ focused: false });
 		});
 
