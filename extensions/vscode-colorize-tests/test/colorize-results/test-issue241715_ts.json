@@ -977,7 +977,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.ts meta.function.ts meta.parameters.ts meta.paramter.array-binding-pattern.ts punctuation.definition.binding-pattern.array.ts",
+		"t": "source.ts meta.function.ts meta.parameters.ts meta.parameter.array-binding-pattern.ts punctuation.definition.binding-pattern.array.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -993,7 +993,7 @@
 	},
 	{
 		"c": "first",
-		"t": "source.ts meta.function.ts meta.parameters.ts meta.paramter.array-binding-pattern.ts variable.parameter.ts",
+		"t": "source.ts meta.function.ts meta.parameters.ts meta.parameter.array-binding-pattern.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1009,7 +1009,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.ts meta.function.ts meta.parameters.ts meta.paramter.array-binding-pattern.ts punctuation.separator.comma.ts",
+		"t": "source.ts meta.function.ts meta.parameters.ts meta.parameter.array-binding-pattern.ts punctuation.separator.comma.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1025,7 +1025,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.function.ts meta.parameters.ts meta.paramter.array-binding-pattern.ts",
+		"t": "source.ts meta.function.ts meta.parameters.ts meta.parameter.array-binding-pattern.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1041,7 +1041,7 @@
 	},
 	{
 		"c": "second",
-		"t": "source.ts meta.function.ts meta.parameters.ts meta.paramter.array-binding-pattern.ts variable.parameter.ts",
+		"t": "source.ts meta.function.ts meta.parameters.ts meta.parameter.array-binding-pattern.ts variable.parameter.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1057,7 +1057,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.ts meta.function.ts meta.parameters.ts meta.paramter.array-binding-pattern.ts punctuation.definition.binding-pattern.array.ts",
+		"t": "source.ts meta.function.ts meta.parameters.ts meta.parameter.array-binding-pattern.ts punctuation.definition.binding-pattern.array.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
