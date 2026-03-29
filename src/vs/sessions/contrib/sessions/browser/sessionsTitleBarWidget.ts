@@ -6,7 +6,7 @@
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
 
-import { Action } from '../../../../base/common/actions.js';
+import { Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { localize } from '../../../../nls.js';
@@ -14,8 +14,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IMenuService, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -31,6 +31,7 @@ import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionStatus } from '../common/sessionData.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
+import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -63,6 +64,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -298,54 +301,22 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return;
 		}
 
-		const isArchived = sessionData.isArchived.get();
-		const isRead = sessionData.isRead.get();
+		const contextOverlay: [string, boolean | string][] = [
+			[IsSessionPinnedContext.key, false],
+			[IsSessionArchivedContext.key, sessionData.isArchived.get()],
+			[IsSessionReadContext.key, sessionData.isRead.get()],
+			['chatSessionType', sessionData.sessionType],
+			['chatSessionProviderId', sessionData.providerId],
+		];
 
-		const actions: Action[] = [];
-
-		if (isArchived) {
-			actions.push(new Action(
-				'sessions.unarchive',
-				localize('unarchiveSession', "Unarchive Session"),
-				undefined, true,
-				() => this.sessionsManagementService.unarchiveSession(sessionData)
-			));
-		} else {
-			actions.push(new Action(
-				'sessions.archive',
-				localize('archiveSession', "Archive Session"),
-				undefined, true,
-				() => this.sessionsManagementService.archiveSession(sessionData)
-			));
-		}
-
-		if (isRead) {
-			actions.push(new Action(
-				'sessions.markUnread',
-				localize('markUnread', "Mark as Unread"),
-				undefined, true,
-				() => this.sessionsManagementService.setRead(sessionData, false)
-			));
-		} else {
-			actions.push(new Action(
-				'sessions.markRead',
-				localize('markRead', "Mark as Read"),
-				undefined, true,
-				() => this.sessionsManagementService.setRead(sessionData, true)
-			));
-		}
-
-		actions.push(new Action(
-			'sessions.delete',
-			localize('deleteSession', "Delete Session"),
-			undefined, true,
-			() => this.sessionsManagementService.deleteSession(sessionData)
-		));
+		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
 		this.contextMenuService.showContextMenu({
-			getActions: () => actions,
+			getActions: () => Separator.join(...menu.getActions({ arg: sessionData, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => new StandardMouseEvent(getActiveWindow(), e),
 		});
+
+		menu.dispose();
 	}
 
 	private _showSessionsPicker(): void {
