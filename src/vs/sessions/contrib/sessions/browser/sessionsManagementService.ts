@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { COPILOT_CLI_SESSION_TYPE } from './sessionTypes.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionType, ISendRequestOptions, ISessionChangeEvent } from './sessionsProvider.js';
 import { SessionsGroupModel } from './sessionsGroupModel.js';
@@ -598,7 +598,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
-		this._isBackgroundProvider.set(session?.sessionType === AgentSessionProviders.Background);
+		this._isBackgroundProvider.set(session?.sessionType === COPILOT_CLI_SESSION_TYPE);
 
 		if (session && session.status.get() !== SessionStatus.Untitled) {
 			this.lastSelectedSession = session.resource;
