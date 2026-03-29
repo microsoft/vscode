@@ -566,7 +566,6 @@ export class CodeActionParticipantUtils {
 
 						progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 						await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
-						
 						if (model.getVersionId() !== initialVersion) {
 							appliedAction = true;
 							break; // Document changed, re-evaluate to get the latest edits
