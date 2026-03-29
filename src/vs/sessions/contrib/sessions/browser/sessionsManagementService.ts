@@ -722,23 +722,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
-		// Try finding the ISession first (preferred path)
 		const sessionData = this.getSession(sessionResource);
 		if (sessionData) {
 			return this.getGitHubContext(sessionData);
-		}
-
-		// Fallback: construct context directly from agent session metadata
-		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
-		if (!agentSession) {
-			return undefined;
-		}
-		const [repository] = this.getRepositoryFromMetadata(agentSession);
-		if (repository && repository.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = repository.path.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				return { owner: decodeURIComponent(parts[0]), repo: decodeURIComponent(parts[1]), prNumber: undefined };
-			}
 		}
 		return undefined;
 	}
