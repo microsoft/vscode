@@ -12,14 +12,14 @@ import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../
 import { basename, dirname, isEqual, isEqualOrParent, joinPath, extname } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
-import { PromptsType } from '../promptTypes.js';
+import { AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { AgentFileType, IResolvedAgentFile, Logger, PromptsStorage } from '../service/promptsService.js';
+import { AgentFileType, IPromptPath, IResolvedAgentFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -718,17 +718,19 @@ export class PromptFilesLocator {
 	/**
 	 * Searches for skills in all configured locations.
 	 */
-	public async findAgentSkills(token: CancellationToken): Promise<IResolvedPromptFile[]> {
+	public async findAgentSkills(token: CancellationToken): Promise<IPromptPath[]> {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill);
 		const absoluteLocations = await this.toAbsoluteLocations(PromptsType.skill, configuredLocations);
-		const allResults: IResolvedPromptFile[] = [];
+		const allResults: IPromptPath[] = [];
 
 		for (const { uri, source, storage } of absoluteLocations) {
 			if (token.isCancellationRequested) {
 				return [];
 			}
 			const results = await this.findAgentSkillsInFolder(uri, token);
-			allResults.push(...results.map(uri => ({ fileUri: uri, source, storage })));
+			for (const skillUri of results) {
+				allResults.push({ uri: skillUri, source, storage, type: PromptsType.skill });
+			}
 		}
 
 		return allResults;
