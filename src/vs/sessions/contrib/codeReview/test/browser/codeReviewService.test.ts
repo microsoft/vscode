@@ -126,6 +126,7 @@ suite('CodeReviewService', () => {
 				resource,
 				changes: changesObs,
 				isArchived: isArchivedObs,
+				gitHubInfo: observableValue('test.gitHubInfo', undefined),
 			} as unknown as ISession;
 			this._sessions.set(resource.toString(), sessionData);
 			return sessionData;
