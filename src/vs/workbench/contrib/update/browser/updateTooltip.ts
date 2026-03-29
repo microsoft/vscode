@@ -65,7 +65,6 @@ export class UpdateTooltip extends Disposable {
 	private releaseNotesVersion: string | undefined;
 
 	constructor(
-		private readonly hostedByTitleBar: boolean,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -305,9 +304,7 @@ export class UpdateTooltip extends Disposable {
 
 	private renderAvailableForDownload({ update }: AvailableForDownload) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateAvailableTitle', "Update Available"), update);
-		if (this.hostedByTitleBar) {
-			this.renderMessage(localize('updateTooltip.clickToDownload', "Click the Update button to download."));
-		}
+		this.renderMessage(localize('updateTooltip.clickToDownload', "Click the Update button to download."));
 	}
 
 	private renderDownloading(state: Downloading) {
@@ -339,9 +336,7 @@ export class UpdateTooltip extends Disposable {
 
 	private renderDownloaded({ update }: Downloaded) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateReadyTitle', "Update is Ready to Install"), update);
-		if (this.hostedByTitleBar) {
-			this.renderMessage(localize('updateTooltip.clickToInstall', "Click the Update button to install."));
-		}
+		this.renderMessage(localize('updateTooltip.clickToInstall', "Click the Update button to install."));
 	}
 
 	private renderUpdating({ update, currentProgress, maxProgress }: Updating) {
@@ -360,9 +355,7 @@ export class UpdateTooltip extends Disposable {
 
 	private renderReady({ update }: Ready) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateInstalledTitle', "Update Installed"), update);
-		if (this.hostedByTitleBar) {
-			this.renderMessage(localize('updateTooltip.clickToRestart', "Click the Update button to restart and apply."));
-		}
+		this.renderMessage(localize('updateTooltip.clickToRestart', "Click the Update button to restart and apply."));
 	}
 
 	private renderOverwriting({ update }: Overwriting) {

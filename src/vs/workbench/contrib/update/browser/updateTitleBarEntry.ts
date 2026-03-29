@@ -86,7 +86,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 
 		this.context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
-		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip, true));
+		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
 
 		this.mode = configurationService.getValue<string>('update.titleBar') as typeof this.mode;
 		this._register(configurationService.onDidChangeConfiguration(e => {
