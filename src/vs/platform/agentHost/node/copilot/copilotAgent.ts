@@ -3,33 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, CopilotSession } from '@github/copilot-sdk';
+import { CopilotClient } from '@github/copilot-sdk';
 import { rgPath } from '@vscode/ripgrep';
-import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IFileService } from '../../../files/common/files.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { localize } from '../../../../nls.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { ToolResultContentType, type IPendingMessage, type IToolResultContent, type PolicyState } from '../../common/state/sessionState.js';
+import { type IPendingMessage, type PolicyState } from '../../common/state/sessionState.js';
+import { CopilotAgentSession, SessionWrapperFactory } from './copilotAgentSession.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
-import { FileEditTracker } from './fileEditTracker.js';
-import { mapSessionEvents } from './mapSessionEvents.js';
-
-function tryStringify(value: unknown): string | undefined {
-	try {
-		return JSON.stringify(value);
-	} catch {
-		return undefined;
-	}
-}
 
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
@@ -43,22 +30,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
-	private readonly _sessions = this._register(new DisposableMap<string, CopilotSessionWrapper>());
-	/** Tracks active tool invocations so we can produce past-tense messages on completion. Keyed by `sessionId:toolCallId`. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined }>();
-	/** Pending permission requests awaiting a renderer-side decision. Keyed by requestId. */
-	private readonly _pendingPermissions = new Map<string, { sessionId: string; deferred: DeferredPromise<boolean> }>();
-	/** Working directory per session, used when resuming. */
-	private readonly _sessionWorkingDirs = new Map<string, string>();
-	/** File edit trackers per session, keyed by raw session ID. */
-	private readonly _editTrackers = new Map<string, FileEditTracker>();
-	/** Session database references, keyed by raw session ID. */
-	private readonly _sessionDatabases = this._register(new DisposableMap<string, IReference<ISessionDatabase>>());
+	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@IFileService private readonly _fileService: IFileService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -203,45 +179,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model}` : ''}`);
 		const client = await this._ensureClient();
-		const raw = await client.createSession({
-			model: config?.model,
-			sessionId: config?.session ? AgentSession.id(config.session) : undefined,
-			streaming: true,
-			workingDirectory: config?.workingDirectory,
-			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
-			hooks: this._createSessionHooks(),
-		});
 
-		const wrapper = this._trackSession(raw);
-		const session = AgentSession.uri(this.id, wrapper.sessionId);
-		if (config?.workingDirectory) {
-			this._sessionWorkingDirs.set(wrapper.sessionId, config.workingDirectory);
-		}
+		const factory: SessionWrapperFactory = async callbacks => {
+			const raw = await client.createSession({
+				model: config?.model,
+				sessionId: config?.session ? AgentSession.id(config.session) : undefined,
+				streaming: true,
+				workingDirectory: config?.workingDirectory,
+				onPermissionRequest: callbacks.onPermissionRequest,
+				hooks: callbacks.hooks,
+			});
+			return new CopilotSessionWrapper(raw);
+		};
+
+		const agentSession = this._createAgentSession(factory, config?.workingDirectory, config?.session ? AgentSession.id(config.session) : undefined);
+		await agentSession.initializeSession();
+
+		const session = agentSession.sessionUri;
 		this._logService.info(`[Copilot] Session created: ${session.toString()}`);
 		return session;
 	}
 
 	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
-		this._logService.info(`[Copilot:${sessionId}] Found session wrapper, calling session.send()...`);
-
-		const sdkAttachments = attachments?.map(a => {
-			if (a.type === 'selection') {
-				return { type: 'selection' as const, filePath: a.path, displayName: a.displayName ?? a.path, text: a.text, selection: a.selection };
-			}
-			return { type: a.type, path: a.path, displayName: a.displayName };
-		});
-		if (sdkAttachments?.length) {
-			this._logService.trace(`[Copilot:${sessionId}] Attachments: ${JSON.stringify(sdkAttachments.map(a => ({ type: a.type, path: a.type === 'selection' ? a.filePath : a.path })))}`);
-		}
-
-		await entry.session.send({ prompt, attachments: sdkAttachments });
-		this._logService.info(`[Copilot:${sessionId}] session.send() returned`);
+		await entry.send(prompt, attachments);
 	}
 
-	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void {
+	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, _queuedMessages: readonly IPendingMessage[]): void {
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId);
 		if (!entry) {
@@ -251,13 +216,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
 		if (steeringMessage) {
-			this._logService.info(`[Copilot:${sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
-			entry.session.send({
-				prompt: steeringMessage.userMessage.text,
-				mode: 'immediate',
-			}).catch(err => {
-				this._logService.error(`[Copilot:${sessionId}] Steering message failed`, err);
-			});
+			entry.sendSteering(steeringMessage);
 		}
 
 		// Queued messages are consumed by the server (AgentSideEffects)
@@ -271,33 +230,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!entry) {
 			return [];
 		}
-
-		const events = await entry.session.getMessages();
-		let db: ISessionDatabase | undefined;
-		try {
-			db = this._getSessionDatabase(sessionId);
-		} catch {
-			// Database may not exist yet — that's fine
-		}
-		return mapSessionEvents(session, db, events);
+		return entry.getMessages();
 	}
 
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		this._sessions.deleteAndDispose(sessionId);
-		this._clearToolCallsForSession(sessionId);
-		this._sessionWorkingDirs.delete(sessionId);
-		this._sessionDatabases.deleteAndDispose(sessionId);
-		this._denyPendingPermissionsForSession(sessionId);
 	}
 
 	async abortSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
-			this._logService.info(`[Copilot:${sessionId}] Aborting session...`);
-			this._denyPendingPermissionsForSession(sessionId);
-			await entry.session.abort();
+			await entry.abort();
 		}
 	}
 
@@ -305,27 +250,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
-			this._logService.info(`[Copilot:${sessionId}] Changing model to: ${model}`);
-			await entry.session.setModel(model);
+			await entry.setModel(model);
 		}
 	}
 
 	async shutdown(): Promise<void> {
 		this._logService.info('[Copilot] Shutting down...');
 		this._sessions.clearAndDisposeAll();
-		this._activeToolCalls.clear();
-		this._sessionWorkingDirs.clear();
-		this._denyPendingPermissions();
-		this._sessionDatabases.clearAndDisposeAll();
 		await this._client?.stop();
 		this._client = undefined;
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		const entry = this._pendingPermissions.get(requestId);
-		if (entry) {
-			this._pendingPermissions.delete(requestId);
-			entry.deferred.complete(approved);
+		for (const [, session] of this._sessions) {
+			if (session.respondToPermissionRequest(requestId, approved)) {
+				return;
+			}
 		}
 	}
 
@@ -339,477 +279,47 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- helpers ------------------------------------------------------------
 
 	/**
-	 * Handles a permission request from the SDK by firing a `tool_ready` event
-	 * (which transitions the tool to PendingConfirmation) and waiting for the
-	 * side-effects layer to respond via respondToPermissionRequest.
+	 * Creates a {@link CopilotAgentSession}, registers it in the sessions map,
+	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
+	 * to wire up the SDK session.
 	 */
-	private async _handlePermissionRequest(
-		request: { kind: string; toolCallId?: string;[key: string]: unknown },
-		invocation: { sessionId: string },
-	): Promise<{ kind: 'approved' | 'denied-interactively-by-user' }> {
-		const session = AgentSession.uri(this.id, invocation.sessionId);
+	private _createAgentSession(wrapperFactory: SessionWrapperFactory, workingDirectory: string | undefined, sessionIdOverride?: string): CopilotAgentSession {
+		const rawId = sessionIdOverride ?? crypto.randomUUID();
+		const sessionUri = AgentSession.uri(this.id, rawId);
 
-		this._logService.info(`[Copilot:${invocation.sessionId}] Permission request: kind=${request.kind}`);
+		const agentSession = this._instantiationService.createInstance(
+			CopilotAgentSession,
+			sessionUri,
+			rawId,
+			workingDirectory,
+			this._onDidSessionProgress,
+			wrapperFactory,
+		);
 
-		// Auto-approve reads inside the working directory
-		if (request.kind === 'read') {
-			const requestPath = typeof request.path === 'string' ? request.path : undefined;
-			const workingDir = this._sessionWorkingDirs.get(invocation.sessionId);
-			if (requestPath && workingDir && requestPath.startsWith(workingDir)) {
-				this._logService.trace(`[Copilot:${invocation.sessionId}] Auto-approving read inside working directory: ${requestPath}`);
-				return { kind: 'approved' };
-			}
-		}
-
-		const toolCallId = request.toolCallId;
-		if (!toolCallId) {
-			// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
-			this._logService.warn(`[Copilot:${invocation.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
-			return { kind: 'denied-interactively-by-user' };
-		}
-
-		this._logService.info(`[Copilot:${invocation.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
-
-		const deferred = new DeferredPromise<boolean>();
-		this._pendingPermissions.set(toolCallId, { sessionId: invocation.sessionId, deferred });
-
-		// Derive display information from the permission request kind
-		const { confirmationTitle, invocationMessage, toolInput } = this._getPermissionDisplay(request);
-
-		// Fire a tool_ready event to transition the tool to PendingConfirmation
-		this._onDidSessionProgress.fire({
-			session,
-			type: 'tool_ready',
-			toolCallId,
-			invocationMessage,
-			toolInput,
-			confirmationTitle,
-			permissionKind: request.kind,
-			permissionPath: typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined),
-		});
-
-		const approved = await deferred.p;
-		this._logService.info(`[Copilot:${invocation.sessionId}] Permission response: toolCallId=${toolCallId}, approved=${approved}`);
-		return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
+		this._sessions.set(rawId, agentSession);
+		return agentSession;
 	}
 
-	/**
-	 * Derives display fields from a permission request for the tool confirmation UI.
-	 */
-	private _getPermissionDisplay(request: { kind: string;[key: string]: unknown }): {
-		confirmationTitle: string;
-		invocationMessage: string;
-		toolInput?: string;
-	} {
-		const path = typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined);
-		const fullCommandText = typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined;
-		const intention = typeof request.intention === 'string' ? request.intention : undefined;
-		const serverName = typeof request.serverName === 'string' ? request.serverName : undefined;
-		const toolName = typeof request.toolName === 'string' ? request.toolName : undefined;
-
-		switch (request.kind) {
-			case 'shell':
-				return {
-					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
-					invocationMessage: intention ?? localize('copilot.permission.shell.message', "Run command"),
-					toolInput: fullCommandText,
-				};
-			case 'write':
-				return {
-					confirmationTitle: localize('copilot.permission.write.title', "Write file"),
-					invocationMessage: path ? localize('copilot.permission.write.message', "Edit {0}", path) : localize('copilot.permission.write.messageGeneric', "Edit file"),
-					toolInput: tryStringify(path ? { path } : request) ?? undefined,
-				};
-			case 'mcp': {
-				const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
-				return {
-					confirmationTitle: serverName ? `${serverName}: ${title}` : title,
-					invocationMessage: serverName ? `${serverName}: ${title}` : title,
-					toolInput: tryStringify({ serverName, toolName }) ?? undefined,
-				};
-			}
-			case 'read':
-				return {
-					confirmationTitle: localize('copilot.permission.read.title', "Read file"),
-					invocationMessage: intention ?? localize('copilot.permission.read.message', "Read file"),
-					toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
-				};
-			default:
-				return {
-					confirmationTitle: localize('copilot.permission.default.title', "Permission request"),
-					invocationMessage: localize('copilot.permission.default.message', "Permission request"),
-					toolInput: tryStringify(request) ?? undefined,
-				};
-		}
-	}
-
-	private _clearToolCallsForSession(sessionId: string): void {
-		const prefix = `${sessionId}:`;
-		for (const key of this._activeToolCalls.keys()) {
-			if (key.startsWith(prefix)) {
-				this._activeToolCalls.delete(key);
-			}
-		}
-	}
-
-	private _getSessionDatabase(rawSessionId: string): ISessionDatabase {
-		let ref = this._sessionDatabases.get(rawSessionId);
-		if (!ref) {
-			const session = AgentSession.uri(this.id, rawSessionId);
-			ref = this._sessionDataService.openDatabase(session);
-			this._sessionDatabases.set(rawSessionId, ref);
-		}
-		return ref.object;
-	}
-
-	private _getOrCreateEditTracker(rawSessionId: string): FileEditTracker {
-		let tracker = this._editTrackers.get(rawSessionId);
-		if (!tracker) {
-			const session = AgentSession.uri(this.id, rawSessionId);
-			const db = this._getSessionDatabase(rawSessionId);
-			tracker = new FileEditTracker(session.toString(), db, this._fileService, this._logService);
-			this._editTrackers.set(rawSessionId, tracker);
-		}
-		return tracker;
-	}
-
-	/**
-	 * Creates SDK session hooks for pre/post tool use. The `onPreToolUse`
-	 * hook snapshots files before edit tools run. The `onPostToolUse` hook
-	 * snapshots the after-content so that it's ready synchronously when
-	 * `onToolComplete` fires.
-	 */
-	private _createSessionHooks() {
-		return {
-			onPreToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
-				if (isEditTool(input.toolName)) {
-					const filePath = getEditFilePath(input.toolArgs);
-					if (filePath) {
-						const tracker = this._getOrCreateEditTracker(invocation.sessionId);
-						await tracker.trackEditStart(filePath);
-					}
-				}
-			},
-			onPostToolUse: async (input: { toolName: string; toolArgs: unknown }, invocation: { sessionId: string }) => {
-				if (isEditTool(input.toolName)) {
-					const filePath = getEditFilePath(input.toolArgs);
-					if (filePath) {
-						const tracker = this._editTrackers.get(invocation.sessionId);
-						await tracker?.completeEdit(filePath);
-					}
-				}
-			},
-		};
-	}
-
-	private _trackSession(raw: CopilotSession, sessionIdOverride?: string): CopilotSessionWrapper {
-		const wrapper = new CopilotSessionWrapper(raw);
-		const rawId = sessionIdOverride ?? wrapper.sessionId;
-		const session = AgentSession.uri(this.id, rawId);
-
-		wrapper.onMessageDelta(e => {
-			this._logService.trace(`[Copilot:${rawId}] delta: ${e.data.deltaContent}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'delta',
-				messageId: e.data.messageId,
-				content: e.data.deltaContent,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		wrapper.onMessage(e => {
-			this._logService.info(`[Copilot:${rawId}] Full message received: ${e.data.content.length} chars`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'message',
-				role: 'assistant',
-				messageId: e.data.messageId,
-				content: e.data.content,
-				toolRequests: e.data.toolRequests?.map(tr => ({
-					toolCallId: tr.toolCallId,
-					name: tr.name,
-					arguments: tr.arguments !== undefined ? tryStringify(tr.arguments) : undefined,
-					type: tr.type,
-				})),
-				reasoningOpaque: e.data.reasoningOpaque,
-				reasoningText: e.data.reasoningText,
-				encryptedContent: e.data.encryptedContent,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		wrapper.onToolStart(e => {
-			if (isHiddenTool(e.data.toolName)) {
-				this._logService.trace(`[Copilot:${rawId}] Tool started (hidden): ${e.data.toolName}`);
-				return;
-			}
-			this._logService.info(`[Copilot:${rawId}] Tool started: ${e.data.toolName}`);
-			const toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
-			let parameters: Record<string, unknown> | undefined;
-			if (toolArgs) {
-				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
-			}
-			const displayName = getToolDisplayName(e.data.toolName);
-			const trackingKey = `${rawId}:${e.data.toolCallId}`;
-			this._activeToolCalls.set(trackingKey, { toolName: e.data.toolName, displayName, parameters });
-			const toolKind = getToolKind(e.data.toolName);
-
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'tool_start',
-				toolCallId: e.data.toolCallId,
-				toolName: e.data.toolName,
-				displayName,
-				invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
-				toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
-				toolKind,
-				language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined,
-				toolArguments: toolArgs,
-				mcpServerName: e.data.mcpServerName,
-				mcpToolName: e.data.mcpToolName,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		let turnId: string = '';
-		wrapper.onTurnStart(e => {
-			turnId = e.data.turnId;
-		});
-
-		wrapper.onToolComplete(e => {
-			const trackingKey = `${rawId}:${e.data.toolCallId}`;
-			const tracked = this._activeToolCalls.get(trackingKey);
-			if (!tracked) {
-				return;
-			}
-			this._logService.info(`[Copilot:${rawId}] Tool completed: ${e.data.toolCallId}`);
-			this._activeToolCalls.delete(trackingKey);
-			const displayName = tracked.displayName;
-			const toolOutput = e.data.error?.message ?? e.data.result?.content;
-
-			const content: IToolResultContent[] = [];
-			if (toolOutput !== undefined) {
-				content.push({ type: ToolResultContentType.Text, text: toolOutput });
-			}
-
-			// File edit data was already prepared by the onPostToolUse hook
-			const tracker = this._editTrackers.get(rawId);
-			const filePath = isEditTool(tracked.toolName) ? getEditFilePath(tracked.parameters) : undefined;
-			if (tracker && filePath) {
-				const fileEdit = tracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath);
-				if (fileEdit) {
-					content.push(fileEdit);
-				}
-			}
-
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'tool_complete',
-				toolCallId: e.data.toolCallId,
-				result: {
-					success: e.data.success,
-					pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success),
-					content: content.length > 0 ? content : undefined,
-					error: e.data.error,
-				},
-				isUserRequested: e.data.isUserRequested,
-				toolTelemetry: e.data.toolTelemetry !== undefined ? tryStringify(e.data.toolTelemetry) : undefined,
-				parentToolCallId: e.data.parentToolCallId,
-			});
-		});
-
-		wrapper.onIdle(() => {
-			this._logService.info(`[Copilot:${rawId}] Session idle`);
-			this._onDidSessionProgress.fire({ session, type: 'idle' });
-		});
-
-		wrapper.onSessionError(e => {
-			this._logService.error(`[Copilot:${rawId}] Session error: ${e.data.errorType} - ${e.data.message}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'error',
-				errorType: e.data.errorType,
-				message: e.data.message,
-				stack: e.data.stack,
-			});
-		});
-
-		wrapper.onUsage(e => {
-			this._logService.trace(`[Copilot:${rawId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'usage',
-				inputTokens: e.data.inputTokens,
-				outputTokens: e.data.outputTokens,
-				model: e.data.model,
-				cacheReadTokens: e.data.cacheReadTokens,
-			});
-		});
-
-		wrapper.onReasoningDelta(e => {
-			this._logService.trace(`[Copilot:${rawId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
-			this._onDidSessionProgress.fire({
-				session,
-				type: 'reasoning',
-				content: e.data.deltaContent,
-			});
-		});
-
-		this._subscribeForLogging(wrapper, rawId);
-
-		this._sessions.set(rawId, wrapper);
-		return wrapper;
-	}
-
-	private _subscribeForLogging(wrapper: CopilotSessionWrapper, sessionId: string): void {
-		wrapper.onSessionStart(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session started: model=${e.data.selectedModel ?? 'default'}, producer=${e.data.producer}`);
-		});
-
-		wrapper.onSessionResume(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session resumed: eventCount=${e.data.eventCount}`);
-		});
-
-		wrapper.onSessionInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session info [${e.data.infoType}]: ${e.data.message}`);
-		});
-
-		wrapper.onSessionModelChange(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Model changed: ${e.data.previousModel ?? '(none)'} -> ${e.data.newModel}`);
-		});
-
-		wrapper.onSessionHandoff(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session handoff: sourceType=${e.data.sourceType}, remoteSessionId=${e.data.remoteSessionId ?? '(none)'}`);
-		});
-
-		wrapper.onSessionTruncation(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session truncation: removed ${e.data.tokensRemovedDuringTruncation} tokens, ${e.data.messagesRemovedDuringTruncation} messages`);
-		});
-
-		wrapper.onSessionSnapshotRewind(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Snapshot rewind: upTo=${e.data.upToEventId}, eventsRemoved=${e.data.eventsRemoved}`);
-		});
-
-		wrapper.onSessionShutdown(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, premiumRequests=${e.data.totalPremiumRequests}, apiDuration=${e.data.totalApiDurationMs}ms`);
-		});
-
-		wrapper.onSessionUsageInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Usage info: ${e.data.currentTokens}/${e.data.tokenLimit} tokens, ${e.data.messagesLength} messages`);
-		});
-
-		wrapper.onSessionCompactionStart(() => {
-			this._logService.trace(`[Copilot:${sessionId}] Compaction started`);
-		});
-
-		wrapper.onSessionCompactionComplete(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Compaction complete: success=${e.data.success}, tokensRemoved=${e.data.tokensRemoved ?? '?'}`);
-		});
-
-		wrapper.onUserMessage(e => {
-			this._logService.trace(`[Copilot:${sessionId}] User message: ${e.data.content.length} chars, ${e.data.attachments?.length ?? 0} attachments`);
-		});
-
-		wrapper.onPendingMessagesModified(() => {
-			this._logService.trace(`[Copilot:${sessionId}] Pending messages modified`);
-		});
-
-		wrapper.onTurnStart(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
-		});
-
-		wrapper.onIntent(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Intent: ${e.data.intent}`);
-		});
-
-		wrapper.onReasoning(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Reasoning: ${e.data.content.length} chars`);
-		});
-
-		wrapper.onTurnEnd(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Turn ended: ${e.data.turnId}`);
-		});
-
-		wrapper.onAbort(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Aborted: ${e.data.reason}`);
-		});
-
-		wrapper.onToolUserRequested(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool user-requested: ${e.data.toolName} (${e.data.toolCallId})`);
-		});
-
-		wrapper.onToolPartialResult(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
-		});
-
-		wrapper.onToolProgress(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool progress: ${e.data.toolCallId} - ${e.data.progressMessage}`);
-		});
-
-		wrapper.onSkillInvoked(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Skill invoked: ${e.data.name} (${e.data.path})`);
-		});
-
-		wrapper.onSubagentStarted(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Subagent started: ${e.data.agentName} (${e.data.agentDisplayName})`);
-		});
-
-		wrapper.onSubagentCompleted(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Subagent completed: ${e.data.agentName}`);
-		});
-
-		wrapper.onSubagentFailed(e => {
-			this._logService.error(`[Copilot:${sessionId}] Subagent failed: ${e.data.agentName} - ${e.data.error}`);
-		});
-
-		wrapper.onSubagentSelected(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Subagent selected: ${e.data.agentName}`);
-		});
-
-		wrapper.onHookStart(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Hook started: ${e.data.hookType} (${e.data.hookInvocationId})`);
-		});
-
-		wrapper.onHookEnd(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Hook ended: ${e.data.hookType} (${e.data.hookInvocationId}), success=${e.data.success}`);
-		});
-
-		wrapper.onSystemMessage(e => {
-			this._logService.trace(`[Copilot:${sessionId}] System message [${e.data.role}]: ${e.data.content.length} chars`);
-		});
-	}
-
-	private async _resumeSession(sessionId: string): Promise<CopilotSessionWrapper> {
+	private async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
 		const client = await this._ensureClient();
-		const raw = await client.resumeSession(sessionId, {
-			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
-			workingDirectory: this._sessionWorkingDirs.get(sessionId),
-			hooks: this._createSessionHooks(),
-		});
-		return this._trackSession(raw, sessionId);
+
+		const factory: SessionWrapperFactory = async callbacks => {
+			const raw = await client.resumeSession(sessionId, {
+				onPermissionRequest: callbacks.onPermissionRequest,
+				workingDirectory: undefined,
+				hooks: callbacks.hooks,
+			});
+			return new CopilotSessionWrapper(raw);
+		};
+
+		const agentSession = this._createAgentSession(factory, undefined, sessionId);
+		await agentSession.initializeSession();
+		return agentSession;
 	}
 
 	override dispose(): void {
-		this._denyPendingPermissions();
 		this._client?.stop().catch(() => { /* best-effort */ });
 		super.dispose();
-	}
-
-	private _denyPendingPermissions(): void {
-		for (const [, entry] of this._pendingPermissions) {
-			entry.deferred.complete(false);
-		}
-		this._pendingPermissions.clear();
-	}
-
-	private _denyPendingPermissionsForSession(sessionId: string): void {
-		for (const [requestId, entry] of this._pendingPermissions) {
-			if (entry.sessionId === sessionId) {
-				entry.deferred.complete(false);
-				this._pendingPermissions.delete(requestId);
-			}
-		}
 	}
 }
