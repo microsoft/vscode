@@ -361,6 +361,11 @@ export interface IModalEditorPartOptions {
 	 * modal editor. The caller provides a render callback that
 	 * receives a container element and a layout callback, and
 	 * returns a disposable to clean up when the modal closes.
+	 *
+	 * Note: the sidebar will only shown when the modal editor
+	 * is created as part of opening the editor. It can currently
+	 * not be added or removed dynamically after the modal editor is
+	 * opened.
 	 */
 	readonly sidebar?: IModalEditorSidebarContent;
 }
