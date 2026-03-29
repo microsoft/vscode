@@ -1196,7 +1196,10 @@ export class ChangesViewPane extends ViewPane {
 
 		container.classList.add('chat-editing-session-list');
 
-		const tree = this.createChangesTree(container, Event.None, disposables);
+		let sidebarTree: WorkbenchCompressibleObjectTree<ChangesTreeElement> | undefined;
+		const tree = this.createChangesTree(container, Event.None, disposables,
+			() => (sidebarTree?.getSelection() ?? []).filter(item => !!item && isChangesFileItem(item)));
+		sidebarTree = tree;
 
 		tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
 
@@ -1245,12 +1248,13 @@ export class ChangesViewPane extends ViewPane {
 		container: HTMLElement,
 		onDidChangeVisibility: Event<boolean>,
 		disposables: DisposableStore,
+		getSelection?: () => IChangesFileItem[],
 	): WorkbenchCompressibleObjectTree<ChangesTreeElement> {
 		const resourceLabels = disposables.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility }));
 		const actionRunner = disposables.add(new ChangesViewActionRunner(
 			() => this.viewModel.activeSessionResourceObs.get(),
 			() => this.getSessionDiscardRef(),
-			() => this.getTreeSelection(),
+			getSelection ?? (() => this.getTreeSelection()),
 		));
 		return disposables.add(this.instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree<ChangesTreeElement>,
