@@ -46,8 +46,6 @@ interface XtermBufferCellLike {
 	};
 }
 
-let activeHoverDisposable: IDisposable | undefined;
-
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
 /**
@@ -59,6 +57,7 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _linkProvidersDisposables: IDisposable[] = [];
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
+	private _activeHoverDisposable: IDisposable | undefined;
 
 	externalProvideLinksCb?: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>;
 
@@ -111,12 +110,11 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processInfo.remoteAuthority, localFileOpener, localFolderInWorkspaceOpener, localFolderOutsideWorkspaceOpener));
 		this._registerStandardLinkProviders();
 
-		// let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
 		this.add(toDisposable(() => {
 			this._clearLinkProviders();
 			dispose(this._externalLinkProviders);
-			activeHoverDisposable?.dispose();
+			this._activeHoverDisposable?.dispose();
 			activeTooltipScheduler?.dispose();
 		}));
 		this._xterm.options.linkHandler = {
@@ -128,8 +126,8 @@ export class TerminalLinkManager extends DisposableStore {
 				await this._openLinkHandlerTarget(text);
 			},
 			hover: (e, text, range) => {
-				activeHoverDisposable?.dispose();
-				activeHoverDisposable = undefined;
+				this._activeHoverDisposable?.dispose();
+				this._activeHoverDisposable = undefined;
 				activeTooltipScheduler?.dispose();
 				activeTooltipScheduler = new RunOnceScheduler(() => {
 					void this._showLinkHandlerHover(e, text, range).finally(() => {
@@ -158,7 +156,7 @@ export class TerminalLinkManager extends DisposableStore {
 		};
 
 		const oscHoverString = await this._getOscLinkHoverString(text, range);
-		activeHoverDisposable = this._showHover({
+		this._activeHoverDisposable = this._showHover({
 			viewportRange: convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY),
 			cellDimensions,
 			terminalDimensions
