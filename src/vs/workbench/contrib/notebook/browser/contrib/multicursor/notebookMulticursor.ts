@@ -6,7 +6,7 @@
 import { localize } from '../../../../../../nls.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, combinedDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { EditorConfiguration } from '../../../../../../editor/browser/config/editorConfiguration.js';
@@ -273,6 +273,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		const textModelRef = await this.textModelService.createModelReference(cell.cellViewModel.uri);
 		const textModel = textModelRef.object.textEditorModel;
 		if (!textModel) {
+			textModelRef.dispose();
 			return undefined;
 		}
 
@@ -280,11 +281,15 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		const converter = this.constructCoordinatesConverter();
 		const editorConfig = cell.editorConfig;
 
-		const controller = this.cursorsDisposables.add(new CursorsController(
+		const controller = new CursorsController(
 			textModel,
 			cursorSimpleModel,
 			converter,
 			new CursorConfiguration(textModel.getLanguageId(), textModel.getOptions(), editorConfig, this.languageConfigurationService)
+		);
+		this.cursorsDisposables.add(combinedDisposable(
+			controller,
+			toDisposable(() => textModelRef.dispose())
 		));
 
 		controller.setSelections(new ViewModelEventsCollector(), undefined, cell.matchSelections, CursorChangeReason.Explicit);
