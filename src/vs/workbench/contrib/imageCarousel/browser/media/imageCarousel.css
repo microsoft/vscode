@@ -252,10 +252,6 @@
 	border-color: var(--vscode-focusBorder);
 }
 
-.image-carousel-editor .thumbnail.broken .thumbnail-image {
-	display: none;
-}
-
 .image-carousel-editor .thumbnail.broken {
 	display: flex;
 	align-items: center;
@@ -263,9 +259,7 @@
 	background: var(--vscode-editor-background);
 }
 
-.image-carousel-editor .thumbnail.broken::after {
-	font-family: codicon;
-	content: '\eaea'; /* file-media */
+.image-carousel-editor .thumbnail-broken-icon {
 	font-size: 20px;
 	color: var(--vscode-descriptionForeground);
 }

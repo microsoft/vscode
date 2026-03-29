@@ -310,16 +310,46 @@ export class ImageCarouselEditor extends EditorPane {
 				} else {
 					const img = document.createElement('img');
 					img.className = 'thumbnail-image';
+					img.alt = image.name;
+
+					const markBroken = () => {
+						if (!btn.classList.contains('broken')) {
+							btn.classList.add('broken');
+							img.removeAttribute('src');
+							img.alt = '';
+							img.remove();
+							const fallback = h('span.codicon.codicon-warning.thumbnail-broken-icon');
+							fallback.root.setAttribute('aria-hidden', 'true');
+							btn.appendChild(fallback.root);
+						}
+					};
+
 					this._loadBlobUrl(image).then(url => {
-						img.src = url;
+						if (url) {
+							const preloader = new Image();
+							this._contentDisposables.add(addDisposableListener(preloader, 'load', () => {
+								if (btn.classList.contains('broken')) {
+									return;
+								}
+								img.src = url;
+								if (!img.parentElement) {
+									btn.appendChild(img);
+								}
+							}));
+							this._contentDisposables.add(addDisposableListener(preloader, 'error', () => {
+								markBroken();
+							}));
+							preloader.src = url;
+						} else {
+							markBroken();
+						}
 					}, () => {
-						btn.classList.add('broken');
+						markBroken();
 					});
 					img.alt = image.name;
 					this._contentDisposables.add(addDisposableListener(img, 'error', () => {
-						btn.classList.add('broken');
+						markBroken();
 					}));
-					btn.appendChild(img);
 				}
 
 				this._contentDisposables.add(addDisposableListener(btn, 'click', () => {
