@@ -63,6 +63,11 @@ export class GitHubAuth {
 
 			this.context.log('Authorizing device');
 			await page.getByRole('button', { name: 'Authorize' }).click();
+
+			if (await page.getByRole('heading', { name: 'Too many requests' }).isVisible()) {
+				await this.context.captureScreenshot(page);
+				this.context.error('GitHub rate limit hit');
+			}
 		} catch (error) {
 			this.context.log('Error during device code flow, capturing screenshot');
 			await this.context.captureScreenshot(page);

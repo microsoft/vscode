@@ -9,6 +9,9 @@ import { GitHubAuth } from './githubAuth.js';
 import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
+	/*
+	TODO: @dmitrivMS Reenable other platforms once throttling issues with GitHub account are resolved.
+
 	context.test('dev-tunnel-alpine-arm64', ['alpine', 'arm64', 'browser', 'github-account'], async () => {
 		const dir = await context.downloadAndUnpack('cli-alpine-arm64');
 		const entryPoint = context.getCliEntryPoint(dir);
@@ -52,6 +55,8 @@ export function setup(context: TestContext) {
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
+
+	*/
 
 	context.test('dev-tunnel-win32-arm64', ['windows', 'arm64', 'browser', 'github-account'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-arm64');
