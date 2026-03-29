@@ -12,12 +12,11 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionType, ISendRequestOptions, ISessionChangeEvent } from './sessionsProvider.js';
 import { SessionsGroupModel } from './sessionsGroupModel.js';
-import { ISession, ISessionWorkspace, GITHUB_REMOTE_FILE_SCHEME, ISessionData, IChat, SessionStatus } from '../common/sessionData.js';
+import { ISession, ISessionWorkspace, ISessionData, IChat, SessionStatus } from '../common/sessionData.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
@@ -125,11 +124,6 @@ export interface ISessionsManagementService {
 	 * No-op if the current session is already a new session.
 	 */
 	openNewSessionView(): void;
-
-	/**
-	 * Returns the repository URI for the given session, if available.
-	 */
-	getSessionRepositoryUri(session: IAgentSession): URI | undefined;
 
 	/**
 	 * Create a new session for the given workspace.
@@ -414,44 +408,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined, string | undefined, boolean | undefined] {
-		const metadata = session.metadata;
-		if (!metadata) {
-			return [undefined, undefined, undefined, undefined];
-		}
-
-		if (session.providerType === AgentSessionProviders.Cloud) {
-			//TODO: @osortega pass branch in metadata from extension
-			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
-			const repositoryUri = URI.from({
-				scheme: GITHUB_REMOTE_FILE_SCHEME,
-				authority: 'github',
-				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
-			});
-			return [repositoryUri, undefined, undefined, undefined];
-		}
-
-		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
-		if (workingDirectoryPath) {
-			return [URI.file(workingDirectoryPath), undefined, undefined, undefined];
-		}
-
-		const repositoryPath = metadata?.repositoryPath as string | undefined;
-		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
-
-		const worktreePath = metadata?.worktreePath as string | undefined;
-		const worktreePathUri = typeof worktreePath === 'string' ? URI.file(worktreePath) : undefined;
-
-		const worktreeBranchName = metadata?.branchName as string | undefined;
-		const worktreeBaseBranchProtected = metadata?.baseBranchProtected as boolean | undefined;
-
-		return [
-			URI.isUri(repositoryPathUri) ? repositoryPathUri : undefined,
-			URI.isUri(worktreePathUri) ? worktreePathUri : undefined,
-			worktreeBranchName,
-			worktreeBaseBranchProtected];
-	}
-
 	getSessions(): ISession[] {
 		const allChats = this.sessionsProvidersService.getSessions();
 		const chatById = new Map<string, ISessionData>();
@@ -636,11 +592,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		this.setActiveSession(undefined);
 		this.isNewChatSessionContext.set(true);
-	}
-
-	getSessionRepositoryUri(session: IAgentSession): URI | undefined {
-		const [repositoryUri] = this.getRepositoryFromMetadata(session);
-		return repositoryUri;
 	}
 
 	private setActiveSession(session: ISession | undefined): void {
