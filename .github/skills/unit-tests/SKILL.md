@@ -28,7 +28,7 @@ These scripts download Electron if needed and launch the Mocha test runner.
 
 #### Bare file paths - Run tests from specific files
 
-Pass source file paths directly as positional arguments. Both `test.sh` and `test.bat` automatically convert them to `--run` arguments.
+Pass source file paths directly as positional arguments. The test runner automatically treats bare `.ts`/`.js` positional arguments as `--run` values.
 
 ```bash
 ./scripts/test.sh src/vs/editor/test/common/model.test.ts

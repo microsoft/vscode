@@ -26,11 +26,6 @@ if /i "%~1"=="--runGlob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & 
 if /i "%~1"=="--glob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--runGrep" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--suite" (set "SUITE_FILTER=%~2"& shift & shift & goto parse_args)
-call :check_bare_path %1
-if defined _IS_FILE (
-	set "RUN_FILE=%~1"
-	set HAS_FILTER=1
-)
 shift
 goto parse_args
 :done_parsing
@@ -51,8 +46,6 @@ if defined SHOW_HELP (
 	echo --suite selects which extension host test suites to run.
 	echo Node.js integration tests are skipped when this option is used.
 	echo.
-	echo Bare .ts/.js file paths are automatically converted to --run arguments.
-	echo.
 	echo Options:
 	echo   --run ^<file^>                  run tests from a specific file ^(src/ path^)
 	echo   --runGlob, --glob ^<pattern^>   select test files by path glob ^(e.g. '**\*.integrationTest.js'^)
@@ -71,7 +64,6 @@ if defined SHOW_HELP (
 	echo.
 	echo Examples:
 	echo   %~nx0
-	echo   %~nx0 src\vs\editor\test\browser\controller.integrationTest.ts
 	echo   %~nx0 --run src\vs\editor\test\browser\controller.integrationTest.ts
 	echo   %~nx0 --grep "some test name"
 	echo   %~nx0 --runGlob "**\*.integrationTest.js"
@@ -321,15 +313,4 @@ for %%p in (%_filter%) do (
 exit /b 1
 
 :end
-set "EXIT_CODE=%ERRORLEVEL%"
-endlocal & exit /b %EXIT_CODE%
-
-:: Subroutine: check whether arg is a bare .ts/.js file path
-:check_bare_path
-set "_IS_FILE="
-set "_ARG=%~1"
-if "%_ARG%"=="" goto :eof
-if "%_ARG:~0,1%"=="-" goto :eof
-if "%_ARG:~-3%"==".ts" set "_IS_FILE=1"
-if "%_ARG:~-3%"==".js" set "_IS_FILE=1"
-goto :eof
+endlocal

@@ -27,8 +27,9 @@ const minimist = require('minimist');
 
 /**
  * @type {{
+ * _: string[];
  * grep: string;
- * run: string;
+ * run: string | string[];
  * runGlob: string;
  * testSplit: string;
  * dev: boolean;
@@ -64,8 +65,8 @@ const args = minimist(process.argv.slice(2), {
 if (args.help) {
 	console.log(`Usage: node ${process.argv[1]} [options] [file...]
 
-Bare .ts/.js file paths are automatically converted to --run arguments
-by the test.sh/test.bat wrapper scripts.
+Bare .ts/.js file paths passed as positional arguments are treated as
+--run arguments.
 
 Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
@@ -84,6 +85,14 @@ Options:
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
+}
+
+// Treat bare .ts/.js positional arguments as --run values
+const bareFiles = (args._ || []).filter(a => typeof a === 'string' && (a.endsWith('.ts') || a.endsWith('.js')));
+if (bareFiles.length > 0) {
+	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
+	args.run = [...existing, ...bareFiles];
+	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];
