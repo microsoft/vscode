@@ -433,7 +433,6 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 
 						progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 						await this.instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
-						
 						if (model.getVersionId() !== initialVersion) {
 							appliedAction = true;
 							break; // Document changed, re-evaluate to get the latest edits
