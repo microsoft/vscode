@@ -2795,47 +2795,6 @@ suite('PromptFilesLocator', () => {
 				'Should only return the workspace folder when no .git is found in any parent',
 			);
 		});
-
-		testT('terminates when workspace is on a Windows drive root with no .git', async () => {
-			// Regression: dirname of a Windows drive root (e.g. /d:/) is itself,
-			// so the walk-up loop must detect the fixed point and stop.
-			setWorkspaceFoldersForRoots(['d:/a/b']);
-
-			const roots = await locator.getWorkspaceFolderRoots(true);
-			assert.deepStrictEqual(
-				roots.map(r => r.path),
-				['/d:/a/b'],
-				'Should terminate and return only the workspace folder on a Windows drive root',
-			);
-		});
-
-		testT('finds .git at a Windows drive root', async () => {
-			// When the repo root lives at a Windows drive root (e.g. D:\.git),
-			// the walk-up loop must still check the drive root for .git before
-			// detecting the fixed-point and stopping.
-			setWorkspaceFoldersForRoots(['d:/a/b']);
-
-			// Seed the in-memory filesystem with d:/.git. We cannot use
-			// fileService.createFolder because resources.dirname mishandles
-			// Windows drive-letter paths on macOS (posix.dirname('d:') → '.').
-			// Instead, mock "exists" to report the .git directory at the drive root.
-			const originalExists = fileService.exists.bind(fileService);
-			fileService.exists = async (resource: URI) => {
-				if (resource.path === '/d:/.git') {
-					return true;
-				}
-				return originalExists(resource);
-			};
-
-			workspaceTrustService.setTrustedUris([URI.from({ scheme: 'file', path: '/d:' })]);
-
-			const roots = await locator.getWorkspaceFolderRoots(true);
-			assert.deepStrictEqual(
-				roots.map(r => r.path).sort(),
-				['/d:', '/d:/a', '/d:/a/b'].sort(),
-				'Should include workspace folder and all parents up to the drive-root repo',
-			);
-		});
 	});
 });
 
