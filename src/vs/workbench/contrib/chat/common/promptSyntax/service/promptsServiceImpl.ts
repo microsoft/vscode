@@ -648,7 +648,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt);
+		const promptSourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt);
+		const sourceFolders = [...promptSourceFolders];
+
+		if (useAgentSkills) {
+			const skillSourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
+			sourceFolders.push(...skillSourceFolders);
+		}
 		return { type: PromptsType.prompt, files, sourceFolders };
 	}
 
