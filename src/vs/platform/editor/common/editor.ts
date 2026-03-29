@@ -336,11 +336,6 @@ export interface IModalEditorPartOptions {
 	readonly maximized?: boolean;
 
 	/**
-	 * Minimum width of the modal editor part in pixels.
-	 */
-	readonly minWidth?: number;
-
-	/**
 	 * Size of the modal editor part unless it is maximized.
 	 */
 	readonly size?: { readonly width: number; readonly height: number };
@@ -361,6 +356,10 @@ export interface IModalEditorPartOptions {
 	 * modal editor. The caller provides a render callback that
 	 * receives a container element and a layout callback, and
 	 * returns a disposable to clean up when the modal closes.
+	 *
+	 * Note: the sidebar will only be shown when provided during
+	 * opening and cannot currently be added, removed, or updated
+	 * after the modal editor is opened.
 	 */
 	readonly sidebar?: IModalEditorSidebarContent;
 }

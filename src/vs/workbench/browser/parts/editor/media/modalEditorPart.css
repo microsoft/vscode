@@ -80,56 +80,6 @@
 	padding-right: 0 !important;
 }
 
-.monaco-modal-editor-block .modal-editor-sidebar-item {
-	display: flex;
-	align-items: center;
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar-item > .monaco-icon-label {
-	flex: 1;
-	min-width: 0;
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar .changes-decoration-badge {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	min-width: 16px;
-	font-size: 11px;
-	font-weight: 600;
-	line-height: 1;
-	margin-right: 2px;
-	opacity: 0.9;
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar .changes-decoration-badge.added {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar .changes-decoration-badge.modified {
-	color: var(--vscode-gitDecoration-modifiedResourceForeground);
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar .changes-decoration-badge.deleted {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar .working-set-line-counts {
-	margin: 0 6px;
-	display: inline-flex;
-	gap: 4px;
-	font-size: 11px;
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.monaco-modal-editor-block .modal-editor-sidebar .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
-}
-
 /** Modal Editor Header */
 .monaco-modal-editor-block .modal-editor-header {
 	display: grid;
