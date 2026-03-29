@@ -51,6 +51,9 @@ export class GitHubAuth {
 			this.context.log(`Running GitHub device flow with code ${code}`);
 			await page.goto('https://github.com/login/device');
 
+			this.context.log('Confirming signed-in account');
+			await page.getByRole('button', { name: 'Continue' }).click();
+
 			this.context.log('Entering device code');
 			const codeChars = code.replace(/-/g, '');
 			for (let i = 0; i < codeChars.length; i++) {
