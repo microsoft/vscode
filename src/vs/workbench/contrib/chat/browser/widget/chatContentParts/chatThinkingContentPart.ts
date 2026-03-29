@@ -34,9 +34,11 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { extractImagesFromToolInvocationOutputDetails } from '../../../common/chatImageExtraction.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
+import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 
 
@@ -139,6 +141,10 @@ interface ILazyThinkingItem {
 
 type ILazyItem = ILazyToolItem | ILazyThinkingItem;
 const THINKING_SCROLL_MAX_HEIGHT = 200;
+
+const TITLE_CACHE_STORAGE_KEY = 'chat.thinkingTitleCache';
+const TITLE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TITLE_CACHE_MAX_ENTRIES = 1000;
 
 const enum WorkingMessageCategory {
 	Thinking = 'thinking',
@@ -284,6 +290,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IHoverService hoverService: IHoverService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -683,17 +690,21 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			labelElement.appendChild(restSpan);
 		}
 
-		// Show aggregated diff stats from edit pills
+		// Show aggregated diff stats from edit pills (only when there are actual changes)
 		if (this.diffStatsByPartId.size > 0) {
 			const { added, removed } = this._aggregatedDiff;
-			const diffContainer = $('span.chat-thinking-title-diff');
-			diffContainer.appendChild($('span.label-added', {}, `+${added}`));
-			diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
-			labelElement.appendChild(diffContainer);
+			if (added > 0 || removed > 0) {
+				const diffContainer = $('span.chat-thinking-title-diff');
+				diffContainer.appendChild($('span.label-added', {}, `+${added}`));
+				diffContainer.appendChild($('span.label-removed', {}, `-${removed}`));
+				labelElement.appendChild(diffContainer);
 
-			const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
-			const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
-			this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+				const insertionsFragment = added === 1 ? localize('chat.thinking.insertions.one', "1 insertion") : localize('chat.thinking.insertions', "{0} insertions", added);
+				const deletionsFragment = removed === 1 ? localize('chat.thinking.deletions.one', "1 deletion") : localize('chat.thinking.deletions', "{0} deletions", removed);
+				this._collapseButton.element.ariaLabel = localize('chat.thinking.titleWithDiff', "{0}, {1}, {2}", title, insertionsFragment, deletionsFragment);
+			} else {
+				this._collapseButton.element.ariaLabel = title;
+			}
 		} else {
 			this._collapseButton.element.ariaLabel = title;
 		}
@@ -897,6 +908,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
+		// Reuse any existing generated title from tool invocations or thinking parts.
 		const existingTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle
 			?? this.allThinkingParts.find(t => t.generatedTitle)?.generatedTitle;
 		if (existingTitle) {
@@ -905,6 +917,27 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.setGeneratedTitleOnAllParts(existingTitle);
 			this.setFinalizedTitle(existingTitle);
 			return;
+		}
+
+		// Only check the persisted cache when re-rendering
+		// (all tool invocations are serialized), not during live streaming.
+		const allSerialized = this.toolInvocations.length > 0
+			&& this.toolInvocations.every(t => t.kind === 'toolInvocationSerialized');
+		if (allSerialized) {
+			// Fallback: check the persisted title cache using the last tool call (non-local sessions only)
+			if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+				const lastToolInvocation = this.toolInvocations[this.toolInvocations.length - 1];
+				if (lastToolInvocation) {
+					const cachedTitle = this.getCachedTitle(lastToolInvocation.toolCallId);
+					if (cachedTitle) {
+						this.currentTitle = cachedTitle;
+						this.content.generatedTitle = cachedTitle;
+						this.setGeneratedTitleOnAllParts(cachedTitle);
+						this.setFinalizedTitle(cachedTitle);
+						return;
+					}
+				}
+			}
 		}
 
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
@@ -964,6 +997,55 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		for (const thinkingPart of this.allThinkingParts) {
 			thinkingPart.generatedTitle = title;
 		}
+	}
+
+	private loadTitleCache(): Record<string, { title: string; storedAt: number }> {
+		return this.storageService.getObject<Record<string, { title: string; storedAt: number }>>(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE) ?? {};
+	}
+
+	private saveTitleCache(cache: Record<string, { title: string; storedAt: number }>): void {
+		if (Object.keys(cache).length === 0) {
+			this.storageService.remove(TITLE_CACHE_STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(TITLE_CACHE_STORAGE_KEY, JSON.stringify(cache), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+
+	private getTitleCacheKey(toolCallId: string): string {
+		return `${chatSessionResourceToId(this.element.sessionResource)}:${toolCallId}`;
+	}
+
+	private getCachedTitle(toolCallId: string): string | undefined {
+		const entry = this.loadTitleCache()[this.getTitleCacheKey(toolCallId)];
+		if (!entry || (Date.now() - entry.storedAt) > TITLE_CACHE_TTL_MS) {
+			return undefined;
+		}
+		return entry.title;
+	}
+
+	private setCachedTitle(toolCallId: string, title: string): void {
+		const cache = this.loadTitleCache();
+		const now = Date.now();
+
+		// Evict expired entries on write
+		for (const key of Object.keys(cache)) {
+			if ((now - cache[key].storedAt) > TITLE_CACHE_TTL_MS) {
+				delete cache[key];
+			}
+		}
+
+		cache[this.getTitleCacheKey(toolCallId)] = { title, storedAt: now };
+
+		// Cap size by dropping oldest entries
+		const keys = Object.keys(cache);
+		if (keys.length > TITLE_CACHE_MAX_ENTRIES) {
+			const sorted = keys.sort((a, b) => cache[a].storedAt - cache[b].storedAt);
+			for (let i = 0; i < sorted.length - TITLE_CACHE_MAX_ENTRIES; i++) {
+				delete cache[sorted[i]];
+			}
+		}
+
+		this.saveTitleCache(cache);
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
@@ -1123,6 +1205,15 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				this.setFinalizedTitle(generatedTitle);
 				this.content.generatedTitle = generatedTitle;
 				this.setGeneratedTitleOnAllParts(generatedTitle);
+
+				// Persist to storage for non-local sessions only
+				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+					const lastTool = this.toolInvocations[this.toolInvocations.length - 1];
+					if (lastTool) {
+						this.setCachedTitle(lastTool.toolCallId, generatedTitle);
+					}
+				}
+
 				return;
 			}
 		} catch (error) {
@@ -1181,7 +1272,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 	private setFallbackTitle(): void {
 		const finalLabel = this.appendedItemCount > 0
-			? localize('chat.thinking.finished.withSteps', 'Finished with {0} step{1}', this.appendedItemCount, this.appendedItemCount === 1 ? '' : 's')
+			? this.appendedItemCount === 1
+				? localize('chat.thinking.finished.withStepsSingular', 'Finished with 1 step')
+				: localize('chat.thinking.finished.withStepsPlural', 'Finished with {0} steps', this.appendedItemCount)
 			: localize('chat.thinking.finished', 'Finished Working');
 
 		this.currentTitle = finalLabel;
@@ -1716,7 +1809,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		// Handle tool items
 		if (item.lazy.hasValue) {
-			return; // Already materialized
+			// Already evaluated — but may not have been placed in the DOM yet
+			// (e.g. finalizeTitleIfDefault materialized it before the wrapper existed).
+			const result = item.lazy.value;
+			if (!result.domNode.parentElement) {
+				this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
+			}
+			return;
 		}
 
 		const result = item.lazy.value;

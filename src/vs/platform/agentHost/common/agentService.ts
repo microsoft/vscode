@@ -8,8 +8,8 @@ import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oa
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
+import { AttachmentType, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -239,6 +239,10 @@ export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
 	readonly toolInput?: string;
 	/** Short title for the confirmation prompt. */
 	readonly confirmationTitle?: StringOrMarkdown;
+	/** Kind of permission being requested (e.g. `'write'`, `'read'`). */
+	readonly permissionKind?: string;
+	/** File path associated with the permission request. */
+	readonly permissionPath?: string;
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
@@ -309,6 +313,16 @@ export interface IAgent {
 
 	/** Send a user message into an existing session. */
 	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
+
+	/**
+	 * Called when the session's pending (steering) message changes.
+	 * The agent harness decides how to react — e.g. inject steering
+	 * mid-turn via `mode: 'immediate'`.
+	 *
+	 * Queued messages are consumed on the server side and are not
+	 * forwarded to the agent; `queuedMessages` will always be empty.
+	 */
+	setPendingMessages?(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void;
 
 	/** Retrieve all session events/messages for reconstruction. */
 	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
@@ -442,6 +456,12 @@ export interface IAgentService {
 	 * or reading files from the remote filesystem).
 	 */
 	fetchContent(uri: URI): Promise<IFetchContentResult>;
+
+	/**
+	 * Write content to a file on the agent host's filesystem.
+	 * Used for undo/redo operations on file edits.
+	 */
+	writeFile(params: IWriteFileParams): Promise<IWriteFileResult>;
 }
 
 /**

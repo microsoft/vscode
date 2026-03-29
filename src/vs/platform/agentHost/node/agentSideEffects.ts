@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as os from 'os';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
-import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_PROVIDER_NOT_FOUND, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, ICreateSessionParams, IDirectoryEntry, IFetchContentResult, IWriteFileParams, IWriteFileResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
+	PendingMessageKind,
 	ResponsePartKind,
 	SessionStatus,
 	ToolCallConfirmationReason,
@@ -28,6 +31,7 @@ import {
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
+import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
 import type { IProtocolSideEffectHandler } from './protocolServerHandler.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -97,6 +101,37 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
+	// ---- Edit auto-approve --------------------------------------------------
+
+	/**
+	 * Default edit auto-approve patterns applied by the agent host.
+	 * Matches the VS Code `chat.tools.edits.autoApprove` setting defaults.
+	 */
+	private static readonly _DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
+		'**/*': true,
+		'**/.vscode/*.json': false,
+		'**/.git/**': false,
+		'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
+		'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
+		'**/*.lock': false,
+		'**/*-lock.{yaml,json}': false,
+	};
+
+	/**
+	 * Returns whether a write to `filePath` should be auto-approved based on
+	 * the built-in default patterns.
+	 */
+	private _shouldAutoApproveEdit(filePath: string): boolean {
+		const patterns = AgentSideEffects._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
+		let approved = true;
+		for (const [pattern, isApproved] of Object.entries(patterns)) {
+			if (isApproved !== approved && globMatch(pattern, filePath)) {
+				approved = isApproved;
+			}
+		}
+		return approved;
+	}
+
 	// ---- Agent registration -------------------------------------------------
 
 	/**
@@ -122,6 +157,16 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			const sessionKey = e.session.toString();
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
+				// Check if this is a write permission request that can be auto-approved
+				// based on the built-in default patterns.
+				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
+					if (this._shouldAutoApproveEdit(e.permissionPath)) {
+						this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
+						agent.respondToPermissionRequest(e.toolCallId, true);
+						return;
+					}
+				}
+
 				const actions = agentMapper.mapProgressEventToActions(e, sessionKey, turnId);
 				if (actions) {
 					if (Array.isArray(actions)) {
@@ -132,6 +177,11 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 						this._stateManager.dispatchServerAction(actions);
 					}
 				}
+			}
+
+			// After a turn completes (idle event), try to consume the next queued message
+			if (e.type === 'idle') {
+				this._tryConsumeNextQueuedMessage(sessionKey);
 			}
 		}));
 		return disposables;
@@ -198,7 +248,106 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				});
 				break;
 			}
+			case ActionType.SessionPendingMessageSet:
+			case ActionType.SessionPendingMessageRemoved:
+			case ActionType.SessionQueuedMessagesReordered: {
+				this._syncPendingMessages(action.session);
+				break;
+			}
 		}
+	}
+
+	/**
+	 * Pushes the current pending message state from the session to the agent.
+	 * The server controls queued message consumption; only steering messages
+	 * are forwarded to the agent for mid-turn injection.
+	 */
+	private _syncPendingMessages(session: ProtocolURI): void {
+		const state = this._stateManager.getSessionState(session);
+		if (!state) {
+			return;
+		}
+		const agent = this._options.getAgent(session);
+		agent?.setPendingMessages?.(
+			URI.parse(session),
+			state.steeringMessage,
+			[],
+		);
+
+		// Steering messages are consumed immediately by the agent;
+		// remove from protocol state so clients see the consumption.
+		if (state.steeringMessage) {
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionPendingMessageRemoved,
+				session,
+				kind: PendingMessageKind.Steering,
+				id: state.steeringMessage.id,
+			});
+		}
+
+		// If the session is idle, try to consume the next queued message
+		this._tryConsumeNextQueuedMessage(session);
+	}
+
+	/**
+	 * Consumes the next queued message by dispatching a server-initiated
+	 * `SessionTurnStarted` action with `queuedMessageId` set. The reducer
+	 * atomically creates the active turn and removes the message from the
+	 * queue. Only consumes one message at a time; subsequent messages are
+	 * consumed when the next `idle` event fires.
+	 */
+	private _tryConsumeNextQueuedMessage(session: ProtocolURI): void {
+		// Bail if there's already an active turn
+		if (this._stateManager.getActiveTurnId(session)) {
+			return;
+		}
+		const state = this._stateManager.getSessionState(session);
+		if (!state?.queuedMessages?.length) {
+			return;
+		}
+
+		const msg = state.queuedMessages[0];
+		const turnId = generateUuid();
+
+		// Reset event mappers for the new turn (same as handleAction does for SessionTurnStarted)
+		for (const mapper of this._eventMappers.values()) {
+			mapper.reset(session);
+		}
+
+		// Dispatch server-initiated turn start; the reducer removes the queued message atomically
+		this._stateManager.dispatchServerAction({
+			type: ActionType.SessionTurnStarted,
+			session,
+			turnId,
+			userMessage: msg.userMessage,
+			queuedMessageId: msg.id,
+		});
+
+		// Send the message to the agent backend
+		const agent = this._options.getAgent(session);
+		if (!agent) {
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionError,
+				session,
+				turnId,
+				error: { errorType: 'noAgent', message: 'No agent found for session' },
+			});
+			return;
+		}
+		const attachments = msg.userMessage.attachments?.map((a): IAgentAttachment => ({
+			type: a.type,
+			path: a.path,
+			displayName: a.displayName,
+		}));
+		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments).catch(err => {
+			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionError,
+				session,
+				turnId,
+				error: { errorType: 'sendFailed', message: String(err) },
+			});
+		});
 	}
 
 	async handleCreateSession(command: ICreateSessionParams): Promise<void> {
@@ -234,8 +383,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	handleDisposeSession(session: ProtocolURI): void {
 		const agent = this._options.getAgent(session);
 		agent?.disposeSession(URI.parse(session)).catch(() => { });
-		this._stateManager.removeSession(session);
-		this._options.sessionDataService.deleteSessionData(URI.parse(session));
+		this._stateManager.deleteSession(session);
 	}
 
 	async handleListSessions(): Promise<ISessionSummary[]> {
@@ -337,8 +485,6 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			pendingTools: Map<string, IAgentToolStartEvent>;
 		} | undefined;
 
-		let turnCounter = 0;
-
 		const finalizeTurn = (turn: NonNullable<typeof currentTurn>, state: TurnState): void => {
 			turns.push({
 				id: turn.id,
@@ -349,8 +495,8 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			});
 		};
 
-		const startTurn = (text: string): NonNullable<typeof currentTurn> => ({
-			id: `restored-${turnCounter++}`,
+		const startTurn = (id: string, text: string): NonNullable<typeof currentTurn> => ({
+			id,
 			userMessage: { text },
 			responseParts: [],
 			pendingTools: new Map(),
@@ -363,10 +509,10 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				if (currentTurn) {
 					finalizeTurn(currentTurn, TurnState.Cancelled);
 				}
-				currentTurn = startTurn(msg.content);
+				currentTurn = startTurn(msg.messageId, msg.content);
 			} else if (msg.type === 'message' && msg.role === 'assistant') {
 				if (!currentTurn) {
-					currentTurn = startTurn('');
+					currentTurn = startTurn(msg.messageId, '');
 				}
 
 				if (msg.content) {
@@ -462,6 +608,13 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 	}
 
 	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
+		// Handle session-db: URIs that reference file-edit content stored
+		// in a per-session SQLite database.
+		const dbFields = parseSessionDbUri(uri);
+		if (dbFields) {
+			return this._fetchSessionDbContent(dbFields);
+		}
+
 		try {
 			const content = await this._fileService.readFile(URI.parse(uri));
 			return {
@@ -471,6 +624,52 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			};
 		} catch (_e) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
+		}
+	}
+
+	async handleWriteFile(params: IWriteFileParams): Promise<IWriteFileResult> {
+		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		let content: VSBuffer;
+		if (params.encoding === ContentEncoding.Base64) {
+			content = decodeBase64(params.data);
+		} else {
+			content = VSBuffer.fromString(params.data);
+		}
+		try {
+			if (params.createOnly) {
+				await this._fileService.createFile(fileUri, content, { overwrite: false });
+			} else {
+				await this._fileService.writeFile(fileUri, content);
+			}
+			return {};
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.FileExists) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
+			}
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
+		}
+	}
+
+	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<IFetchContentResult> {
+		const sessionUri = URI.parse(fields.sessionUri);
+		const ref = this._options.sessionDataService.openDatabase(sessionUri);
+		try {
+			const content = await ref.object.readFileEditContent(fields.toolCallId, fields.filePath);
+			if (!content) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, `File edit not found: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
+			}
+			const bytes = fields.part === 'before' ? content.beforeContent : content.afterContent;
+			return {
+				data: new TextDecoder().decode(bytes),
+				encoding: ContentEncoding.Utf8,
+				contentType: 'text/plain',
+			};
+		} finally {
+			ref.dispose();
 		}
 	}
 

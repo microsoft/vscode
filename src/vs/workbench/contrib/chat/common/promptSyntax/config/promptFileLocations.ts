@@ -7,6 +7,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
 import { PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from '../service/promptsService.js';
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * File extension for the reusable prompt files.
@@ -124,7 +125,6 @@ export enum PromptFileSource {
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
 	Plugin = 'plugin',
-	Internal = 'internal',
 }
 
 /**
@@ -163,6 +163,8 @@ export interface IResolvedPromptFile {
 	readonly fileUri: URI;
 	readonly source: PromptFileSource;
 	readonly storage: PromptsStorage;
+	readonly extension?: IExtensionDescription;
+	readonly pluginUri?: URI;
 }
 
 /**

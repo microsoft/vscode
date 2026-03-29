@@ -194,7 +194,7 @@ export class PromptFilesLocator {
 			}
 		};
 
-		const update = async (emitEvent: boolean) => {
+		const update = async () => {
 			try {
 				const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 				parentFolders = await this.toAbsoluteLocations(type, configuredLocations, undefined);
@@ -203,23 +203,23 @@ export class PromptFilesLocator {
 					return;
 				}
 				updateExternalFolderWatchers();
-				if (emitEvent) {
-					eventEmitter.fire();
-				}
 			} catch (err) {
 				this.logService.error(`Error updating prompt file watchers after config change:`, err);
 			}
 		};
 		disposables.add(this.configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				void update(true);
+			if (e.affectsConfiguration(key) || e.affectsConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS)) {
+				void update();
+				eventEmitter.fire();
 			}
 		}));
 		disposables.add(this.onDidChangeWorkspaceFolders()(() => {
-			void update(true);
+			void update();
+			eventEmitter.fire();
 		}));
 		disposables.add(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => {
-			void update(true);
+			void update();
+			eventEmitter.fire();
 		}));
 		disposables.add(this.fileService.onDidFilesChange(e => {
 			if (e.affects(userDataFolder)) {
@@ -233,7 +233,7 @@ export class PromptFilesLocator {
 		}));
 		disposables.add(this.fileService.watch(userDataFolder));
 
-		void update(false);
+		void update();
 
 		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
 	}

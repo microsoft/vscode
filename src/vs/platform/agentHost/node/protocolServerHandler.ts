@@ -9,7 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
-import { isActionKnownToVersion, MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
@@ -25,6 +25,8 @@ import {
 	type IJsonRpcResponse,
 	type IReconnectParams,
 	type IStateSnapshot,
+	type IWriteFileParams,
+	type IWriteFileResult,
 } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, type ISessionSummary, type URI } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -313,6 +315,9 @@ export class ProtocolServerHandler extends Disposable {
 			this._sideEffectHandler.handleDisposeSession(params.session);
 			return null;
 		},
+		writeFile: async (_client, params) => {
+			return this._sideEffectHandler.handleWriteFile(params);
+		},
 		listSessions: async () => {
 			const items = await this._sideEffectHandler.handleListSessions();
 			return { items };
@@ -418,9 +423,6 @@ export class ProtocolServerHandler extends Disposable {
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: IActionEnvelope): boolean {
 		const action = envelope.action;
-		if (!isActionKnownToVersion(action, client.protocolVersion)) {
-			return false;
-		}
 		if (action.type.startsWith('root/')) {
 			return client.subscriptions.has(ROOT_STATE_URI);
 		}
@@ -455,6 +457,7 @@ export interface IProtocolSideEffectHandler {
 	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
 	handleFetchContent(uri: URI): Promise<IFetchContentResult>;
+	handleWriteFile(params: IWriteFileParams): Promise<IWriteFileResult>;
 	/** Returns the server's default browsing directory, if available. */
 	getDefaultDirectory?(): URI;
 	/** Refresh models from all providers (VS Code extension method). */
