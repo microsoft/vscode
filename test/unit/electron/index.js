@@ -62,7 +62,10 @@ const args = minimist(process.argv.slice(2), {
 });
 
 if (args.help) {
-	console.log(`Usage: node ${process.argv[1]} [options]
+	console.log(`Usage: node ${process.argv[1]} [options] [file...]
+
+Bare .ts/.js file paths are automatically converted to --run arguments
+by the test.sh/test.bat wrapper scripts.
 
 Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
