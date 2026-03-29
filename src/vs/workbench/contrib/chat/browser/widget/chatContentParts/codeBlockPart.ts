@@ -517,6 +517,21 @@ export class CodeBlockPart extends Disposable {
 	}
 }
 
+export class ChatCodeBlockContentProvider extends Disposable {
+
+	constructor(
+		@ITextModelService textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+	) {
+		super();
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeChatCodeBlock, {
+			provideTextContent: (resource: URI) => {
+				return Promise.resolve(this._modelService.getModel(resource));
+			}
+		}));
+	}
+}
+
 //
 
 export interface ICodeCompareBlockActionContext {
