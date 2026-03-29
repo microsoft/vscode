@@ -15,8 +15,8 @@ const enum ShellIntegrationTimeoutOverride {
 const isWindows = process.platform === 'win32';
 const isMacOS = process.platform === 'darwin';
 const sandboxFileSystemSetting = isMacOS
-	? 'chat.agent.sandbox.macFileSystem'
-	: 'chat.agent.sandbox.linuxFileSystem';
+	? 'chat.agent.sandboxFileSystem.mac'
+	: 'chat.agent.sandboxFileSystem.linux';
 
 /**
  * Extracts all text content from a LanguageModelToolResult.
@@ -326,7 +326,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const acceptable = [
 					[
 						'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
-						`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandbox.network.allowedDomains.`,
+						`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandboxNetwork.allowedDomains.`,
 						'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 						'',
 						'Here is the output of the command:',
@@ -375,7 +375,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 					? `/bin/bash: /tmp/${marker}.txt: Operation not permitted`
 					: `/usr/bin/bash: line 1: /tmp/${marker}.txt: Read-only file system`;
 				const sandboxBody = [
-					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandbox.network.allowedDomains.`,
+					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandboxNetwork.allowedDomains.`,
 					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 					'',
 					'Here is the output of the command:',

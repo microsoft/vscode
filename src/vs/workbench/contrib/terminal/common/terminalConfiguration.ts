@@ -771,11 +771,46 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			return configurationKeyValuePairs;
 		}
 	}, {
-		key: 'chat.agent.sandbox.network.allowTrustedDomains',
-		migrateFn: () => [['chat.agent.sandbox.network.allowTrustedDomains', { value: undefined }]]
+		key: 'chat.tools.terminal.sandbox.network.allowedDomains',
+		migrateFn: (value: string[], valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value }]);
+			}
+			configurationKeyValuePairs.push(['chat.tools.terminal.sandbox.network.allowedDomains', { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
 	}, {
-		key: 'chat.tools.terminal.sandbox.network.allowTrustedDomains',
-		migrateFn: () => [['chat.tools.terminal.sandbox.network.allowTrustedDomains', { value: undefined }]]
+		key: 'chat.tools.terminal.sandbox.network.deniedDomains',
+		migrateFn: (value: string[], valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value }]);
+			}
+			configurationKeyValuePairs.push(['chat.tools.terminal.sandbox.network.deniedDomains', { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	},
+	{
+		key: 'chat.tools.terminal.sandbox.linuxFileSystem',
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push(['chat.tools.terminal.sandbox.linuxFileSystem', { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: 'chat.tools.terminal.sandbox.macFileSystem',
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push(['chat.tools.terminal.sandbox.macFileSystem', { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
 	}, {
 		key: TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem,
 		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
