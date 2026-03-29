@@ -336,11 +336,6 @@ export interface IModalEditorPartOptions {
 	readonly maximized?: boolean;
 
 	/**
-	 * Minimum width of the modal editor part in pixels.
-	 */
-	readonly minWidth?: number;
-
-	/**
 	 * Size of the modal editor part unless it is maximized.
 	 */
 	readonly size?: { readonly width: number; readonly height: number };
