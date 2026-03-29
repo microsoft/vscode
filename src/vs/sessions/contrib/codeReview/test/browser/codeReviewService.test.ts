@@ -150,10 +150,6 @@ suite('CodeReviewService', () => {
 			return [...this._sessions.values()];
 		}
 
-		override resolveSessionFileUri(): undefined {
-			return undefined;
-		}
-
 		fireSessionsChanged(event?: Partial<ISessionsChangeEvent>): void {
 			this._onDidChangeSessions.fire({
 				added: event?.added ?? [],

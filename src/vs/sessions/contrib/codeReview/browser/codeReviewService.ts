@@ -682,10 +682,12 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				if (converted?.has(threadId)) {
 					continue;
 				}
-				const fileUri = this._sessionsManagementService.resolveSessionFileUri(sessionResource, thread.path);
-				if (!fileUri) {
+				const workspace = session?.workspace.get();
+				const baseUri = workspace?.repositories[0]?.workingDirectory ?? workspace?.repositories[0]?.uri;
+				if (!baseUri) {
 					continue;
 				}
+				const fileUri = URI.joinPath(baseUri, thread.path);
 				const line = thread.line ?? 1;
 				const firstComment = thread.comments[0];
 				comments.push({

@@ -13,7 +13,6 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionType, ISendRequestOptions, ISessionChangeEvent } from './sessionsProvider.js';
@@ -155,11 +154,6 @@ export interface ISessionsManagementService {
 	 */
 	setSessionType(chat: IChat, type: ISessionType): Promise<void>;
 
-	/**
-	 * Resolve a relative file path to a full URI based on the session's repository/worktree.
-	 */
-	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined;
-
 	// -- Session Actions --
 
 	/** Archive a session. */
@@ -253,7 +247,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -667,19 +660,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._activeSession.set(session, undefined);
-	}
-
-	resolveSessionFileUri(sessionResource: URI, relativePath: string): URI | undefined {
-		const agentSession = this.agentSessionsService.model.getSession(sessionResource);
-		if (!agentSession) {
-			return undefined;
-		}
-		const [repository, worktree] = this.getRepositoryFromMetadata(agentSession);
-		const baseUri = worktree ?? repository;
-		if (!baseUri) {
-			return undefined;
-		}
-		return URI.joinPath(baseUri, relativePath);
 	}
 
 	/**
