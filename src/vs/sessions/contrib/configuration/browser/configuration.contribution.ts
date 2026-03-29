@@ -67,7 +67,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
-		'workbench.editor.modalMinWidth': 600,
 		'workbench.panel.showLabels': false,
 		'workbench.colorTheme': 'VS Code Dark',
 

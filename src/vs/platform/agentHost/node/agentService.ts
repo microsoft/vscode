@@ -156,7 +156,7 @@ export class AgentService extends Disposable implements IAgentService {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
-			workingDirectory: config?.workingDirectory,
+			workingDirectory: config?.workingDirectory?.toString(),
 		};
 		this._stateManager.createSession(summary);
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
