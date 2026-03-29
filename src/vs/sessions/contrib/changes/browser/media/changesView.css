@@ -262,7 +262,7 @@
 }
 
 /* Decoration badges (A/M/D) */
-.changes-view-body .chat-editing-session-list .changes-decoration-badge {
+.chat-editing-session-list .changes-decoration-badge {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -275,20 +275,20 @@
 	opacity: 0.9;
 }
 
-.changes-view-body .chat-editing-session-list .changes-decoration-badge.added {
+.chat-editing-session-list .changes-decoration-badge.added {
 	color: var(--vscode-gitDecoration-addedResourceForeground);
 }
 
-.changes-view-body .chat-editing-session-list .changes-decoration-badge.modified {
+.chat-editing-session-list .changes-decoration-badge.modified {
 	color: var(--vscode-gitDecoration-modifiedResourceForeground);
 }
 
-.changes-view-body .chat-editing-session-list .changes-decoration-badge.deleted {
+.chat-editing-session-list .changes-decoration-badge.deleted {
 	color: var(--vscode-gitDecoration-deletedResourceForeground);
 }
 
 /* Line counts in list items */
-.changes-view-body .chat-editing-session-list .working-set-line-counts {
+.chat-editing-session-list .working-set-line-counts {
 	margin: 0 6px;
 	display: inline-flex;
 	gap: 4px;
@@ -321,11 +321,11 @@
 	font-size: 12px;
 }
 
-.changes-view-body .chat-editing-session-list .working-set-lines-added {
+.chat-editing-session-list .working-set-lines-added {
 	color: var(--vscode-chat-linesAddedForeground);
 }
 
-.changes-view-body .chat-editing-session-list .working-set-lines-removed {
+.chat-editing-session-list .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
