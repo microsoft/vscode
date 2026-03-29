@@ -346,7 +346,7 @@ export interface IPromptFileDiscoveryResult {
 	readonly errorMessage?: string;
 	/** For duplicates, the URI of the file that took precedence */
 	readonly duplicateOf?: URI;
-	/** Original prompt path when the discovery result came from a prompt file listing. */
+	/** Prompt path for the discovered file. */
 	readonly promptPath: IPromptPath;
 	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
 	readonly userInvocable?: boolean;
