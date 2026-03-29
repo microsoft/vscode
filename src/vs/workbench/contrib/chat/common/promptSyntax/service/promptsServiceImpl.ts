@@ -1497,7 +1497,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		for (const skill of allSkills) {
 			const uri = skill.fileUri;
-			//const { source } = skill;
 			const promptPath = this.toPromptPathFromResolvedPromptFile(skill, PromptsType.skill);
 
 			try {
