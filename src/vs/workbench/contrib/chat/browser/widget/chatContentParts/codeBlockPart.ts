@@ -11,7 +11,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, MutableDisposable, thenRegisterOrDispose } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { assertType } from '../../../../../../base/common/types.js';
@@ -156,6 +156,7 @@ export class CodeBlockPart extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILogService private readonly logService: ILogService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
@@ -278,6 +279,10 @@ export class CodeBlockPart extends Disposable {
 			URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: generateUuid() }),
 			this.isSimpleWidget
 		));
+		// Hold a model reference to prevent the TextModelResolverService from
+		// disposing our model when other consumers (e.g. WordHighlighter)
+		// acquire and release their references.
+		thenRegisterOrDispose(this.textModelService.createModelReference(this._textModel.uri), this._store);
 		this.editor.setModel(this._textModel);
 	}
 
