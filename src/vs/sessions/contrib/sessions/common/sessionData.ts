@@ -57,13 +57,17 @@ export interface ISessionWorkspace {
 }
 
 /**
- * Pull request information associated with a session.
+ * GitHub information associated with a session.
  */
-export interface ISessionPullRequest {
-	/** URI of the pull request. */
-	readonly uri: URI;
+export interface ISessionGitHubInfo {
+	/** GitHub repository owner. */
+	readonly owner: string;
+	/** GitHub repository name. */
+	readonly repo: string;
+	/** URI of the pull request, if any. */
+	readonly pullRequestUri: URI | undefined;
 	/** Icon reflecting the PR state. */
-	readonly icon?: ThemeIcon;
+	readonly pullRequestIcon?: ThemeIcon;
 }
 
 /**
@@ -111,8 +115,8 @@ export interface ISessionData {
 	readonly description: IObservable<string | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined>;
 }
 
 /**
@@ -159,8 +163,8 @@ export interface IChat {
 	readonly description: IObservable<string | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined>;
 }
 
 /**
@@ -207,8 +211,8 @@ export interface ISession {
 	readonly description: IObservable<string | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The currently active chat within this session group. */

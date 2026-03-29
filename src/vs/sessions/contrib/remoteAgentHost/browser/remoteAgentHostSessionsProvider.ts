@@ -26,7 +26,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionsBrowseAction, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
-import { ISessionData, ISessionPullRequest, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ISessionData, ISessionGitHubInfo, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
 
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
@@ -56,7 +56,7 @@ class RemoteSessionAdapter implements ISessionData {
 	readonly isRead = observableValue('isRead', true);
 	readonly description: ISettableObservable<string | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
-	readonly pullRequest = observableValue<ISessionPullRequest | undefined>('pullRequest', undefined);
+	readonly gitHubInfo = observableValue<ISessionGitHubInfo | undefined>('gitHubInfo', undefined);
 
 	/** The agent provider name (e.g. 'copilot') for constructing backend URIs. */
 	readonly agentProvider: string;
@@ -299,7 +299,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			isRead: observableValue(this, true),
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
-			pullRequest: observableValue(this, undefined),
+			gitHubInfo: observableValue(this, undefined),
 		};
 		this._currentNewSession = session;
 		return session;

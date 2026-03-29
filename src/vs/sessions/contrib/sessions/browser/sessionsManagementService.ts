@@ -205,7 +205,7 @@ function toChat(data: ISessionData): IChat {
 		isRead: data.isRead,
 		description: data.description,
 		lastTurnEnd: data.lastTurnEnd,
-		pullRequest: data.pullRequest,
+		gitHubInfo: data.gitHubInfo,
 	};
 }
 
@@ -677,48 +677,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private getGitHubContext(session: ISession): IGitHubSessionContext | undefined {
-		// 1. Try parsing a github-remote-file URI (Cloud sessions)
-		const repoUri = session.workspace.get()?.repositories[0]?.uri;
-		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = repoUri.path.split('/').filter(Boolean);
-			if (parts.length >= 2) {
-				const owner = decodeURIComponent(parts[0]);
-				const repo = decodeURIComponent(parts[1]);
-				const prNumber = this._parsePRNumberFromSession(session);
-				return { owner, repo, prNumber };
-			}
+		const info = session.gitHubInfo.get();
+		if (!info) {
+			return undefined;
 		}
 
-		// 2. Try from agent session metadata (Background sessions)
-		const agentSession = this.agentSessionsService.model.getSession(session.resource);
-		if (agentSession?.metadata) {
-			const metadata = agentSession.metadata;
-
-			// owner + name fields
-			if (typeof metadata.owner === 'string' && typeof metadata.name === 'string') {
-				const prNumber = this._parsePRNumberFromSession(session);
-				return { owner: metadata.owner, repo: metadata.name, prNumber };
-			}
-
-			// repositoryNwo: "owner/repo"
-			if (typeof metadata.repositoryNwo === 'string') {
-				const parts = (metadata.repositoryNwo as string).split('/');
-				if (parts.length === 2) {
-					const prNumber = this._parsePRNumberFromSession(session);
-					return { owner: parts[0], repo: parts[1], prNumber };
-				}
-			}
-
-			// pullRequestUrl: "https://github.com/{owner}/{repo}/pull/{number}"
-			if (typeof metadata.pullRequestUrl === 'string') {
-				const match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
-				if (match) {
-					return { owner: match[1], repo: match[2], prNumber: parseInt(match[3], 10) };
-				}
+		let prNumber: number | undefined;
+		if (info.pullRequestUri) {
+			const match = /\/pull\/(\d+)/.exec(info.pullRequestUri.path);
+			if (match) {
+				prNumber = parseInt(match[1], 10);
 			}
 		}
-
-		return undefined;
+		return { owner: info.owner, repo: info.repo, prNumber };
 	}
 
 	getGitHubContextForSession(sessionResource: URI): IGitHubSessionContext | undefined {
@@ -740,17 +711,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return undefined;
 		}
 		return URI.joinPath(baseUri, relativePath);
-	}
-
-	private _parsePRNumberFromSession(session: ISession): number | undefined {
-		const prUri = session.pullRequest.get()?.uri;
-		if (prUri) {
-			const match = /\/pull\/(\d+)/.exec(prUri.path);
-			if (match) {
-				return parseInt(match[1], 10);
-			}
-		}
-		return undefined;
 	}
 
 	/**
