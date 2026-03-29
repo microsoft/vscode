@@ -840,17 +840,17 @@ export class ChangesViewPane extends ViewPane {
 
 			this.renderDisposables.add(bindContextKey(hasPullRequestContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				const activeSessionPullRequest = activeSession?.pullRequest.read(reader);
-				return activeSessionPullRequest?.uri !== undefined;
+				const gitHubInfo = activeSession?.gitHubInfo.read(reader);
+				return gitHubInfo?.pullRequest?.uri !== undefined;
 			}));
 
 			this.renderDisposables.add(bindContextKey(hasOpenPullRequestContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				const activeSessionPullRequest = activeSession?.pullRequest.read(reader);
-				if (activeSessionPullRequest?.uri === undefined) {
+				const gitHubInfo = activeSession?.gitHubInfo.read(reader);
+				if (gitHubInfo?.pullRequest?.uri === undefined) {
 					return false;
 				}
-				const iconId = activeSessionPullRequest.icon?.id;
+				const iconId = gitHubInfo.pullRequest.icon?.id;
 				return iconId !== undefined &&
 					(iconId === Codicon.gitPullRequestDraft.id ||
 						iconId === Codicon.gitPullRequest.id);
