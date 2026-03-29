@@ -7,6 +7,14 @@ jobs:
         value: true
       - name: Codeql.SkipTaskAutoInjection
         value: true
+    templateContext:
+      outputParentDirectory: $(Build.ArtifactStagingDirectory)
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/copilot-vsix
+          artifactName: copilot_vsix
+          displayName: Publish Copilot VSIX
+          sbomEnabled: false
     steps:
       - checkout: self
         lfs: true
@@ -138,3 +146,11 @@ jobs:
       - script: xvfb-run -a npm run test:sanity
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Run sanity tests
+
+      - script: |
+          set -e
+          npx vsce package -o copilot-chat.vsix
+          mkdir -p $(Build.ArtifactStagingDirectory)/copilot-vsix
+          cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Package Copilot VSIX
