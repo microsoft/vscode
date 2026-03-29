@@ -422,6 +422,15 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 				assert.strictEqual(output.trim(), marker);
 			});
+
+			test('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
+				this.timeout(60000);
+
+				const marker = `SANDBOX_DOMAIN_${Date.now()}`;
+				const output = await invokeRunInTerminal(`echo https://example.com >/dev/null && echo "${marker}" > /tmp/${marker}.txt && cat /tmp/${marker}.txt && rm /tmp/${marker}.txt`);
+
+				assert.strictEqual(output.trim(), marker);
+			});
 		});
 	}
 });

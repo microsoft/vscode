@@ -52,6 +52,13 @@ export interface ITerminalSandboxPrerequisiteCheckResult {
 	missingDependencies?: string[];
 }
 
+export interface ITerminalSandboxWrapResult {
+	command: string;
+	isSandboxWrapped: boolean;
+	blockedDomains?: string[];
+	requiresUnsandboxConfirmation?: boolean;
+}
+
 /**
  * Abstraction over terminal operations needed by the install flow.
  * Provided by the browser-layer caller so the common-layer service
@@ -98,7 +105,7 @@ export interface ITerminalSandboxService {
 	isEnabled(): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
 	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean): string;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
@@ -124,6 +131,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _os: OperatingSystem = OS;
 	private _defaultWritePaths: string[] = ['~/.npm'];
 	private static readonly _sandboxTempDirName = 'tmp';
+	private static readonly _urlRegex = /(?:https?|wss?):\/\/[^\s'"`|&;<>]+/gi;
+	private static readonly _sshRemoteRegex = /(?:^|[\s'"`])(?:[^\s@:'"`]+@)?([a-z0-9.-]+\.[a-z]{2,})(?::[^\s'"`|&;<>]+)(?=$|[\s'"`|&;<>])/gi;
+	private static readonly _hostRegex = /(?:^|[\s'"`(=])([a-z0-9.-]+\.[a-z]{2,})(?::\d+)?(?=(?:\/[^\s'"`|&;<>]*)?(?:$|[\s'"`)\]|,;|&<>]))/gi;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -189,13 +199,27 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._os;
 	}
 
-	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean): string {
+	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
+
+		const blockedDomains = requestUnsandboxedExecution ? [] : this._getBlockedDomains(command);
+		if (!requestUnsandboxedExecution && blockedDomains.length > 0) {
+			return {
+				command: this._wrapUnsandboxedCommand(command),
+				isSandboxWrapped: false,
+				blockedDomains,
+				requiresUnsandboxConfirmation: true,
+			};
+		}
+
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
 		if (requestUnsandboxedExecution) {
-			return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
+			return {
+				command: this._wrapUnsandboxedCommand(command),
+				isSandboxWrapped: false,
+			};
 		}
 
 		if (!this._execPath) {
@@ -212,9 +236,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
 		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
-			return `${wrappedCommand}`;
+			return {
+				command: wrappedCommand,
+				isSandboxWrapped: true,
+			};
 		}
-		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
+		return {
+			command: `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`,
+			isSandboxWrapped: true,
+		};
 	}
 
 	public getTempDir(): URI | undefined {
@@ -419,6 +449,112 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private _quoteShellArgument(value: string): string {
 		return `'${value.replace(/'/g, `'\\''`)}'`;
+	}
+
+	private _wrapUnsandboxedCommand(command: string): string {
+		return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
+	}
+
+	private _getBlockedDomains(command: string): string[] {
+		const domains = this._extractDomains(command);
+		if (domains.length === 0) {
+			return [];
+		}
+
+		const { allowedDomains, deniedDomains } = this.getResolvedNetworkDomains();
+		const blockedDomains = new Set<string>();
+		for (const domain of domains) {
+			if (deniedDomains.some(pattern => this._matchesDomainPattern(domain, pattern))) {
+				blockedDomains.add(domain);
+				continue;
+			}
+			if (!allowedDomains.some(pattern => this._matchesDomainPattern(domain, pattern))) {
+				blockedDomains.add(domain);
+			}
+		}
+		return [...blockedDomains];
+	}
+
+	private _extractDomains(command: string): string[] {
+		const domains = new Set<string>();
+		let match: RegExpExecArray | null;
+
+		TerminalSandboxService._urlRegex.lastIndex = 0;
+		while ((match = TerminalSandboxService._urlRegex.exec(command)) !== null) {
+			const domain = this._extractDomainFromUrl(match[0]);
+			if (domain) {
+				domains.add(domain);
+			}
+		}
+
+		TerminalSandboxService._sshRemoteRegex.lastIndex = 0;
+		while ((match = TerminalSandboxService._sshRemoteRegex.exec(command)) !== null) {
+			const domain = this._normalizeDomain(match[1]);
+			if (domain) {
+				domains.add(domain);
+			}
+		}
+
+		TerminalSandboxService._hostRegex.lastIndex = 0;
+		while ((match = TerminalSandboxService._hostRegex.exec(command)) !== null) {
+			const domain = this._normalizeDomain(match[1]);
+			if (domain) {
+				domains.add(domain);
+			}
+		}
+
+		return [...domains];
+	}
+
+	private _extractDomainFromUrl(value: string): string | undefined {
+		try {
+			const authority = URI.parse(value).authority;
+			return this._normalizeDomain(authority);
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _normalizeDomain(value: string | undefined): string | undefined {
+		if (!value) {
+			return undefined;
+		}
+
+		const normalized = value.trim().toLowerCase().replace(/^[^@]+@/, '').replace(/:\d+$/, '').replace(/\.$/, '');
+		if (!normalized || normalized.includes('/') || normalized === '.' || normalized === '..') {
+			return undefined;
+		}
+		return normalized;
+	}
+
+	private _matchesDomainPattern(domain: string, pattern: string): boolean {
+		const normalizedPattern = this._normalizeDomain(this._extractDomainPattern(pattern));
+		if (!normalizedPattern) {
+			return false;
+		}
+		if (normalizedPattern === '*') {
+			return true;
+		}
+		if (normalizedPattern.startsWith('*.')) {
+			const suffix = normalizedPattern.slice(2);
+			return domain === suffix || domain.endsWith(`.${suffix}`);
+		}
+		return domain === normalizedPattern;
+	}
+
+	private _extractDomainPattern(pattern: string): string {
+		const trimmed = pattern.trim();
+		if (trimmed === '*') {
+			return trimmed;
+		}
+		if (!trimmed.includes('://')) {
+			return trimmed;
+		}
+		try {
+			return URI.parse(trimmed).authority;
+		} catch {
+			return trimmed;
+		}
 	}
 
 	private async _isSandboxConfiguredEnabled(): Promise<boolean> {

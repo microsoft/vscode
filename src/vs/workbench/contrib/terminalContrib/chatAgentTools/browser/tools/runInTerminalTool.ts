@@ -562,7 +562,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		]);
 		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 		const isTerminalSandboxEnabled = sandboxPrereqs.enabled;
-		const requiresUnsandboxConfirmation = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
+		const explicitUnsandboxRequest = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
+		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
+		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
+		let blockedDomains: string[] | undefined;
 
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
@@ -588,6 +591,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
 				if (rewriteResult.isSandboxWrapped) {
 					isSandboxWrapped = true;
+				} else if (rewriteResult.isSandboxWrapped === false) {
+					isSandboxWrapped = false;
+				}
+				if (rewriteResult.requiresUnsandboxConfirmation) {
+					requiresUnsandboxConfirmation = true;
+				}
+				if (rewriteResult.blockedDomains?.length) {
+					blockedDomains = rewriteResult.blockedDomains;
+					requestUnsandboxedExecutionReason = this._getBlockedDomainReason(rewriteResult.blockedDomains);
 				}
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
@@ -607,7 +619,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			language,
 			isBackground: args.isBackground,
 			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
-			requestUnsandboxedExecutionReason: args.requestUnsandboxedExecutionReason,
+			requestUnsandboxedExecutionReason,
 			missingSandboxDependencies: missingDependencies,
 		};
 
@@ -803,9 +815,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		if (requiresUnsandboxConfirmation) {
-			confirmationTitle = args.isBackground
-				? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the [sandbox]({1}) in background?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
-				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
+			confirmationTitle = blockedDomains?.length
+				? (args.isBackground
+					? localize('runInTerminal.unsandboxed.domain.background', "Run `{0}` command outside the [sandbox]({1}) in background to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
+					: localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains)))
+				: (args.isBackground
+					? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the [sandbox]({1}) in background?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
+					: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL));
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
@@ -816,7 +832,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				"Explanation: {0}\n\nGoal: {1}\n\nReason for leaving the sandbox: {2}",
 				args.explanation,
 				args.goal,
-				args.requestUnsandboxedExecutionReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
+				requestUnsandboxedExecutionReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
 			))
 			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal));
 		const confirmationMessages = shouldShowConfirmation ? {
@@ -846,6 +862,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			confirmationMessages: sandboxConfirmationMessageForMissingDeps ?? confirmationMessages,
 			toolSpecificData,
 		};
+	}
+
+	private _formatBlockedDomainsForTitle(blockedDomains: string[]): string {
+		if (blockedDomains.length === 1) {
+			return `\`${blockedDomains[0]}\``;
+		}
+		return localize('runInTerminal.unsandboxed.domain.summary', "`{0}` and {1} more domains", blockedDomains[0], blockedDomains.length - 1);
+	}
+
+	private _getBlockedDomainReason(blockedDomains: string[]): string {
+		if (blockedDomains.length === 1) {
+			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0]);
+		}
+		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0], blockedDomains.length - 1);
 	}
 
 	/**
