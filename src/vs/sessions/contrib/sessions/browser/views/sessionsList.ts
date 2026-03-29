@@ -804,9 +804,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Always include the active session even if it was filtered out,
 		// so it remains visible while selected
-		if (activeSession && !filtered.includes(activeSession)) {
-			if (this.sessions.includes(activeSession)) {
-				filtered = [...filtered, activeSession];
+		if (activeSession && !filtered.some(s => s.sessionId === activeSession.sessionId)) {
+			const match = this.sessions.find(s => s.sessionId === activeSession.sessionId);
+			if (match) {
+				filtered = [...filtered, match];
 			}
 		}
 
