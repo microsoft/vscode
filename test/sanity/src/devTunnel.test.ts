@@ -83,6 +83,7 @@ export function setup(context: TestContext) {
 		const browser = await context.launchBrowser();
 		try {
 			const page = await context.getPage(browser.newPage());
+			await auth.signIn(page);
 			context.log('Starting Dev Tunnel to local server using CLI');
 			await context.runCliApp('CLI', entryPoint,
 				[
@@ -99,11 +100,6 @@ export function setup(context: TestContext) {
 						context.log(`Device code detected: ${deviceCode}, starting device flow authentication`);
 						await auth.runDeviceCodeFlow(page, deviceCode);
 						return;
-					}
-
-					if (/Error getting authorization/.test(line)) {
-						context.log('Error during authentication, capturing screenshot');
-						await context.captureScreenshot(page);
 					}
 
 					const tunnelUrl = /Open this link in your browser (https?:\/\/[^\s]+)/.exec(line)?.[1];

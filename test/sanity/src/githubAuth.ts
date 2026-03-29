@@ -16,25 +16,33 @@ export class GitHubAuth {
 	public constructor(private readonly context: TestContext) { }
 
 	/**
+	 * Signs in to GitHub so the browser session is authenticated.
+	 * @param page Page to use.
+	 */
+	public async signIn(page: Page) {
+		if (!this.username || !this.password) {
+			this.context.error('GITHUB_ACCOUNT and GITHUB_PASSWORD environment variables must be set');
+		}
+
+		this.context.log('Signing in to GitHub');
+		await page.goto('https://github.com/login');
+
+		await page.getByLabel('Username or email address').fill(this.username);
+		await page.getByLabel('Password').fill(this.password);
+		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+
+		await page.waitForURL('https://github.com/**');
+		this.context.log('GitHub sign-in complete');
+	}
+
+	/**
 	 * Runs GitHub device authentication flow in a browser.
 	 * @param page Page to use.
 	 * @param code Device authentication code to use.
 	 */
 	public async runDeviceCodeFlow(page: Page, code: string) {
-		if (!this.username || !this.password) {
-			this.context.error('GITHUB_ACCOUNT and GITHUB_PASSWORD environment variables must be set');
-		}
-
 		this.context.log(`Running GitHub device flow with code ${code}`);
 		await page.goto('https://github.com/login/device');
-
-		this.context.log('Filling in GitHub credentials');
-		await page.getByLabel('Username or email address').fill(this.username);
-		await page.getByLabel('Password').fill(this.password);
-		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-
-		this.context.log('Confirming device activation');
-		await page.getByRole('button', { name: 'Continue' }).click();
 
 		this.context.log('Entering device code');
 		const codeChars = code.replace(/-/g, '');
