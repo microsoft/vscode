@@ -48,7 +48,6 @@ import type { IMarkdownString } from '../../../../../../base/common/htmlContent.
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession } from '../../../../chat/browser/agentSessions/agentSessionsModel.js';
 import { isDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ITrustedDomainService } from '../../../../url/common/trustedDomainService.js';
 import { ChatAgentToolsContribution } from '../../browser/terminal.chatAgentTools.contribution.js';
 import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -1987,13 +1986,11 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let registeredToolData: Map<string, IToolData>;
-	let trustedDomainsEmitter: Emitter<void>;
 	let sandboxEnabled: boolean;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		registeredToolData = new Map();
-		trustedDomainsEmitter = store.add(new Emitter<void>());
 		sandboxEnabled = false;
 
 		const logService = new NullLogService();
@@ -2050,13 +2047,6 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
-		});
-
-		instantiationService.stub(ITrustedDomainService, {
-			_serviceBrand: undefined,
-			onDidChangeTrustedDomains: trustedDomainsEmitter.event,
-			isValid: () => true,
-			trustedDomains: [],
 		});
 
 		const contextKeyService = instantiationService.get(IContextKeyService);
@@ -2120,10 +2110,10 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Enable sandbox and fire config change
 		sandboxEnabled = true;
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled, true);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxEnabled,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxEnabled]),
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxEnabled]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});
@@ -2137,23 +2127,6 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		ok(propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution after enabling sandbox');
 	});
 
-	test('should refresh run_in_terminal tool data when trusted domains change', async () => {
-		await createContribution();
-
-		const toolDataBefore = registeredToolData.get(TerminalToolId.RunInTerminal);
-		ok(toolDataBefore, 'Expected run_in_terminal tool to be registered');
-
-		// Fire trusted domains change
-		trustedDomainsEmitter.fire();
-
-		// Wait for async registration
-		await flushAsync();
-
-		// Tool should still be registered (re-registered with fresh data)
-		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
-		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered after trusted domains change');
-	});
-
 	test('should refresh run_in_terminal tool data when sandbox network setting changes', async () => {
 		sandboxEnabled = true;
 		await createContribution();
@@ -2163,8 +2136,8 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Fire network config change
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains]),
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});
