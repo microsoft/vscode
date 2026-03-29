@@ -847,10 +847,13 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(hasOpenPullRequestContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
 				const activeSessionPullRequest = activeSession?.pullRequest.read(reader);
-				return activeSessionPullRequest?.uri !== undefined
-					&& activeSessionPullRequest?.icon !== undefined &&
-					(ThemeIcon.isEqual(activeSessionPullRequest.icon, Codicon.gitPullRequestDraft) ||
-						ThemeIcon.isEqual(activeSessionPullRequest.icon, Codicon.gitPullRequest));
+				if (activeSessionPullRequest?.uri === undefined) {
+					return false;
+				}
+				const iconId = activeSessionPullRequest.icon?.id;
+				return iconId === undefined
+					|| iconId === Codicon.gitPullRequestDraft.id
+					|| iconId === Codicon.gitPullRequest.id;
 			}));
 
 			this.renderDisposables.add(bindContextKey(hasIncomingChangesContextKey, this.scopedContextKeyService, reader => {
