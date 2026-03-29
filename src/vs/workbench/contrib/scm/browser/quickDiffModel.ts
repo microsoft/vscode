@@ -29,7 +29,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 export const IQuickDiffModelService = createDecorator<IQuickDiffModelService>('IQuickDiffModelService');
 
@@ -134,7 +134,7 @@ export class QuickDiffModel extends Disposable {
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 		this._model = textFileModel;
