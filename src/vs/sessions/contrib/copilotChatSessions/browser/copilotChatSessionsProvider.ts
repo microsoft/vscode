@@ -707,8 +707,8 @@ class AgentSessionAdapter implements ISessionData {
 		}
 
 		const pullRequestUri = this._extractPullRequestUri(session);
-		const pullRequestIcon = this._extractPullRequestStateIcon(session);
-		return { owner, repo, pullRequestUri, pullRequestIcon };
+		const pullRequest = pullRequestUri ? { uri: pullRequestUri, icon: this._extractPullRequestStateIcon(session) } : undefined;
+		return { owner, repo, pullRequest };
 	}
 
 	private _extractOwnerRepo(session: IAgentSession): { owner: string | undefined; repo: string | undefined } {

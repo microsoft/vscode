@@ -683,8 +683,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		let prNumber: number | undefined;
-		if (info.pullRequestUri) {
-			const match = /\/pull\/(\d+)/.exec(info.pullRequestUri.path);
+		if (info.pullRequest) {
+			const match = /\/pull\/(\d+)/.exec(info.pullRequest.uri.path);
 			if (match) {
 				prNumber = parseInt(match[1], 10);
 			}

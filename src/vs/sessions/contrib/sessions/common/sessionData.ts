@@ -64,10 +64,13 @@ export interface IGitHubInfo {
 	readonly owner: string;
 	/** GitHub repository name. */
 	readonly repo: string;
-	/** URI of the pull request, if any. */
-	readonly pullRequestUri: URI | undefined;
-	/** Icon reflecting the PR state. */
-	readonly pullRequestIcon?: ThemeIcon;
+	/** Pull request associated with this session, if any. */
+	readonly pullRequest?: {
+		/** URI of the pull request. */
+		readonly uri: URI;
+		/** Icon reflecting the PR state. */
+		readonly icon?: ThemeIcon;
+	};
 }
 
 /**
