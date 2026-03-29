@@ -767,6 +767,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		// Re-update when the active session changes so that a filtered-out
+		// session becomes visible while active and hides again when unselected
+		this._register(autorun(reader => {
+			this._sessionsManagementService.activeSession.read(reader);
+			if (this.visible) {
+				this.update();
+			}
+		}));
+
 		this.refresh();
 	}
 
@@ -776,6 +785,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	update(expandAll?: boolean): void {
+		const activeSession = this._sessionsManagementService.activeSession.get();
+
 		// Filter by session type and status
 		let filtered = this.sessions;
 		if (this.excludedSessionTypes.size > 0) {
@@ -789,6 +800,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		if (this._excludeRead) {
 			filtered = filtered.filter(s => !s.isRead.get());
+		}
+
+		// Always include the active session even if it was filtered out,
+		// so it remains visible while selected
+		if (activeSession && !filtered.includes(activeSession)) {
+			if (this.sessions.includes(activeSession)) {
+				filtered = [...filtered, activeSession];
+			}
 		}
 
 		const sorted = this.sortSessions(filtered);
