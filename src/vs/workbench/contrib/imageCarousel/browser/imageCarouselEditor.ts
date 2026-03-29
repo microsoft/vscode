@@ -311,8 +311,13 @@ export class ImageCarouselEditor extends EditorPane {
 					const img = document.createElement('img');
 					img.className = 'thumbnail-image';
 					img.alt = image.name;
+					const thumbnailDisposables = this._contentDisposables.add(new DisposableStore());
 
 					const markBroken = () => {
+						if (thumbnailDisposables.isDisposed) {
+							return;
+						}
+
 						if (!btn.classList.contains('broken')) {
 							btn.classList.add('broken');
 							img.removeAttribute('src');
@@ -325,9 +330,13 @@ export class ImageCarouselEditor extends EditorPane {
 					};
 
 					this._loadBlobUrl(image).then(url => {
+						if (thumbnailDisposables.isDisposed) {
+							return;
+						}
+
 						if (url) {
 							const preloader = new Image();
-							this._contentDisposables.add(addDisposableListener(preloader, 'load', () => {
+							thumbnailDisposables.add(addDisposableListener(preloader, 'load', () => {
 								if (btn.classList.contains('broken')) {
 									return;
 								}
@@ -336,7 +345,7 @@ export class ImageCarouselEditor extends EditorPane {
 									btn.appendChild(img);
 								}
 							}));
-							this._contentDisposables.add(addDisposableListener(preloader, 'error', () => {
+							thumbnailDisposables.add(addDisposableListener(preloader, 'error', () => {
 								markBroken();
 							}));
 							preloader.src = url;
@@ -346,8 +355,7 @@ export class ImageCarouselEditor extends EditorPane {
 					}, () => {
 						markBroken();
 					});
-					img.alt = image.name;
-					this._contentDisposables.add(addDisposableListener(img, 'error', () => {
+					thumbnailDisposables.add(addDisposableListener(img, 'error', () => {
 						markBroken();
 					}));
 				}
