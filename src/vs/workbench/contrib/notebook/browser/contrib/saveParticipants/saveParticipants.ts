@@ -524,42 +524,67 @@ export class CodeActionParticipantUtils {
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await CodeActionParticipantUtils.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
-			if (token.isCancellationRequested) {
-				actionsToRun.dispose();
-				return;
-			}
+			const maxIterations = 10;
+			let currentIteration = 0;
 
-			try {
-				for (const action of actionsToRun.validActions) {
-					const codeActionEdits = action.action.edit?.edits;
-					let breakFlag = false;
-					if (!action.action.kind?.startsWith('notebook')) {
-						for (const edit of codeActionEdits ?? []) {
-							const workspaceTextEdit = edit as IWorkspaceTextEdit;
-							if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
-								continue;
-							} else {
-								// error -> applied to multiple resources
-								breakFlag = true;
-								break;
+			while (currentIteration < maxIterations) {
+				currentIteration++;
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				const actionsToRun = await CodeActionParticipantUtils.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
+				if (token.isCancellationRequested) {
+					actionsToRun.dispose();
+					return;
+				}
+
+				let appliedAction = false;
+				try {
+					for (const action of actionsToRun.validActions) {
+						const codeActionEdits = action.action.edit?.edits;
+						let breakFlag = false;
+						if (!action.action.kind?.startsWith('notebook')) {
+							for (const edit of codeActionEdits ?? []) {
+								const workspaceTextEdit = edit as IWorkspaceTextEdit;
+								if (workspaceTextEdit.resource && isEqual(workspaceTextEdit.resource, model.uri)) {
+									continue;
+								} else {
+									// error -> applied to multiple resources
+									breakFlag = true;
+									break;
+								}
 							}
 						}
+						if (breakFlag) {
+							logService.warn('Failed to apply code action on save, applied to multiple resources.');
+							continue;
+						}
+
+						const initialVersion = model.getVersionId();
+
+						progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
+						await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
+						
+						if (model.getVersionId() !== initialVersion) {
+							appliedAction = true;
+							break; // Document changed, re-evaluate to get the latest edits
+						}
+
+						if (token.isCancellationRequested) {
+							return;
+						}
 					}
-					if (breakFlag) {
-						logService.warn('Failed to apply code action on save, applied to multiple resources.');
-						continue;
-					}
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await instantiationService.invokeFunction(applyCodeAction, action, ApplyCodeActionReason.OnSave, {}, token);
-					if (token.isCancellationRequested) {
-						return;
-					}
+				} catch {
+					// Failure to apply a code action should not block other on save actions
+				} finally {
+					actionsToRun.dispose();
 				}
-			} catch {
-				// Failure to apply a code action should not block other on save actions
-			} finally {
-				actionsToRun.dispose();
+
+				if (!appliedAction) {
+					break; // No more actions applied, we are done with this kind
+				}
 			}
 		}
 	}
