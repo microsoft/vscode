@@ -18,7 +18,7 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, ISessionGitHubInfo } from '../../sessions/common/sessionData.js';
+import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo } from '../../sessions/common/sessionData.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionsBrowseAction, ISessionChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
@@ -113,7 +113,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
-	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined> = observableValue(this, undefined);
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
 	private readonly _loadBranchesCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -379,7 +379,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
 	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
-	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined> = observableValue(this, undefined);
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = observableValue(this, undefined);
 
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
@@ -625,8 +625,8 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 
-	private readonly _gitHubInfo: ReturnType<typeof observableValue<ISessionGitHubInfo | undefined>>;
-	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined>;
+	private readonly _gitHubInfo: ReturnType<typeof observableValue<IGitHubInfo | undefined>>;
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 
 	constructor(
 		session: IAgentSession,
@@ -695,7 +695,7 @@ class AgentSessionAdapter implements ISessionData {
 		return typeof session.description === 'string' ? session.description : session.description.value;
 	}
 
-	private _extractGitHubInfo(session: IAgentSession): ISessionGitHubInfo | undefined {
+	private _extractGitHubInfo(session: IAgentSession): IGitHubInfo | undefined {
 		const metadata = session.metadata;
 		if (!metadata) {
 			return undefined;

@@ -26,7 +26,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionsBrowseAction, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
-import { ISessionData, ISessionGitHubInfo, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ISessionData, IGitHubInfo, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
 
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
@@ -56,7 +56,7 @@ class RemoteSessionAdapter implements ISessionData {
 	readonly isRead = observableValue('isRead', true);
 	readonly description: ISettableObservable<string | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
-	readonly gitHubInfo = observableValue<ISessionGitHubInfo | undefined>('gitHubInfo', undefined);
+	readonly gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', undefined);
 
 	/** The agent provider name (e.g. 'copilot') for constructing backend URIs. */
 	readonly agentProvider: string;

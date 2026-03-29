@@ -59,7 +59,7 @@ export interface ISessionWorkspace {
 /**
  * GitHub information associated with a session.
  */
-export interface ISessionGitHubInfo {
+export interface IGitHubInfo {
 	/** GitHub repository owner. */
 	readonly owner: string;
 	/** GitHub repository name. */
@@ -116,7 +116,7 @@ export interface ISessionData {
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined>;
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 }
 
 /**
@@ -164,7 +164,7 @@ export interface IChat {
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined>;
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 }
 
 /**
@@ -212,7 +212,7 @@ export interface ISession {
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
-	readonly gitHubInfo: IObservable<ISessionGitHubInfo | undefined>;
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The currently active chat within this session group. */
