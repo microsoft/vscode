@@ -8,6 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
@@ -118,12 +119,12 @@ export class CopilotAgentSession extends Disposable {
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 
-	private readonly _workingDirectory: string | undefined;
+	private readonly _workingDirectory: URI | undefined;
 
 	constructor(
 		sessionUri: URI,
 		rawSessionId: string,
-		workingDirectory: string | undefined,
+		workingDirectory: URI | undefined,
 		private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>,
 		private readonly _wrapperFactory: SessionWrapperFactory,
 		@IFileService private readonly _fileService: IFileService,
@@ -240,7 +241,7 @@ export class CopilotAgentSession extends Disposable {
 		// Auto-approve reads inside the working directory
 		if (request.kind === 'read') {
 			const requestPath = typeof request.path === 'string' ? request.path : undefined;
-			if (requestPath && this._workingDirectory && requestPath.startsWith(this._workingDirectory)) {
+			if (requestPath && this._workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(requestPath)), this._workingDirectory)) {
 				this._logService.trace(`[Copilot:${this.sessionId}] Auto-approving read inside working directory: ${requestPath}`);
 				return { kind: 'approved' };
 			}

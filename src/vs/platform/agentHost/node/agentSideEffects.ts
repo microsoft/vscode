@@ -364,7 +364,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 		await agent.createSession({
 			provider,
 			model: command.model,
-			workingDirectory: command.workingDirectory,
+			workingDirectory: command.workingDirectory ? URI.parse(command.workingDirectory) : undefined,
 			session: URI.parse(session),
 		});
 		const summary: ISessionSummary = {
@@ -461,7 +461,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			status: SessionStatus.Idle,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
-			workingDirectory: meta.workingDirectory,
+			workingDirectory: meta.workingDirectory?.toString(),
 		};
 
 		this._stateManager.restoreSession(summary, turns);

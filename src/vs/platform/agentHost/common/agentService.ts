@@ -37,7 +37,7 @@ export interface IAgentSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
 }
 
 export type AgentProvider = string;
@@ -100,7 +100,7 @@ export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: string;
 	readonly session?: URI;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */

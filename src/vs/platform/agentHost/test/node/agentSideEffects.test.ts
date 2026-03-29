@@ -430,7 +430,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('preserves workingDirectory from agent metadata', async () => {
-			agent.sessionMetadataOverrides = { workingDirectory: '/home/user/project' };
+			agent.sessionMetadataOverrides = { workingDirectory: URI.file('/home/user/project') };
 			const session = await agent.createSession();
 			const sessions = await agent.listSessions();
 			const sessionResource = sessions[0].session.toString();
@@ -444,7 +444,7 @@ suite('AgentSideEffects', () => {
 
 			const state = stateManager.getSessionState(sessionResource);
 			assert.ok(state);
-			assert.strictEqual(state!.summary.workingDirectory, '/home/user/project');
+			assert.strictEqual(state!.summary.workingDirectory, URI.file('/home/user/project').toString());
 		});
 	});
 

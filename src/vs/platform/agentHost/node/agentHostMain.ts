@@ -153,7 +153,7 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 			await agentService.createSession({
 				provider: command.provider,
 				model: command.model,
-				workingDirectory: command.workingDirectory,
+				workingDirectory: command.workingDirectory ? URI.parse(command.workingDirectory) : undefined,
 				session: URI.parse(command.session),
 			});
 		},
@@ -169,10 +169,9 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 				status: SessionStatus.Idle,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
-				workingDirectory: s.workingDirectory,
+				workingDirectory: s.workingDirectory?.toString(),
 			}));
 		},
-
 		handleGetResourceMetadata() {
 			return agentService.getResourceMetadataSync();
 		},
