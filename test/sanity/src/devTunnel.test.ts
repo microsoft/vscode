@@ -139,29 +139,9 @@ export function setup(context: TestContext) {
 			await auth.runAuthorizeFlow(await popup);
 
 			context.log('Waiting for connection to be established');
-			const remoteButton = page.getByRole('button', { name: `remote ${tunnelId}` });
-			const reloadButton = page.getByRole('button', { name: 'Reload' });
-			const maxReloads = 5;
-			for (let attempt = 1; ; attempt++) {
-				const result = await Promise.race([
-					remoteButton.waitFor({ timeout: 5 * 60 * 1000 }).then(() => 'connected' as const),
-					reloadButton.waitFor().then(() => 'error' as const),
-				]);
-
-				if (result === 'connected') {
-					return;
-				}
-
-				await context.captureScreenshot(page);
-				if (attempt >= maxReloads) {
-					throw new Error(`Workbench failed to connect after ${maxReloads} reload attempts`);
-				}
-
-				context.log(`Error dialog detected (attempt ${attempt}/${maxReloads}), clicking Reload`);
-				await context.captureScreenshot(page);
-				await reloadButton.click();
-			}
+			await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
 		} catch (error) {
+			context.log('Error during tunnel connection, capturing screenshot');
 			await context.captureScreenshot(page);
 			throw error;
 		}
