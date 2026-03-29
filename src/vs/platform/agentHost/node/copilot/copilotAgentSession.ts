@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
@@ -241,7 +241,7 @@ export class CopilotAgentSession extends Disposable {
 		// Auto-approve reads inside the working directory
 		if (request.kind === 'read') {
 			const requestPath = typeof request.path === 'string' ? request.path : undefined;
-			if (requestPath && this._workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(requestPath), this._workingDirectory)) {
+			if (requestPath && this._workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(requestPath)), this._workingDirectory)) {
 				this._logService.trace(`[Copilot:${this.sessionId}] Auto-approving read inside working directory: ${requestPath}`);
 				return { kind: 'approved' };
 			}
