@@ -1258,7 +1258,7 @@ export class ChangesViewPane extends ViewPane {
 			'ChangesViewTree',
 			container,
 			new ChangesTreeDelegate(),
-			[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, MenuId.ChatEditingSessionChangeToolbar, actionRunner)],
+			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, MenuId.ChatEditingSessionChangeToolbar, actionRunner)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -1388,6 +1388,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	readonly templateId: string = ChangesTreeRenderer.TEMPLATE_ID;
 
 	constructor(
+		private viewModel: ChangesViewModel,
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
 		private actionRunner: ActionRunner | undefined,
@@ -1426,6 +1427,10 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
 				return activeSession?.sessionType ?? '';
+			}));
+
+			templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
+				return this.viewModel.versionModeObs.read(reader);
 			}));
 		}
 
