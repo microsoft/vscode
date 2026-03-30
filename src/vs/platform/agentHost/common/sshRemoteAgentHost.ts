@@ -38,6 +38,8 @@ export interface ISSHAgentHostConfig {
 	readonly password?: string;
 	/** Display name for this connection. */
 	readonly name: string;
+	/** SSH config host alias (e.g. "robfast2") for reconnection on restart. */
+	readonly sshConfigHost?: string;
 }
 
 /**
@@ -94,8 +96,19 @@ export interface ISSHRemoteAgentHostService {
 	 * removes the entry from {@link IRemoteAgentHostService}.
 	 */
 	disconnect(host: string): Promise<void>;
-}
 
+	/** List SSH config host aliases (excluding wildcards). */
+	listSSHConfigHosts(): Promise<string[]>;
+
+	/** Resolve full SSH config for a host via `ssh -G`. */
+	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
+
+	/**
+	 * Re-establish an SSH tunnel on startup for a previously connected host.
+	 * Returns the new local forwarded address and registers it.
+	 */
+	reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection>;
+}
 /**
  * Serializable result from a successful SSH connect operation.
  * Returned over IPC from the main process.
@@ -105,6 +118,19 @@ export interface ISSHConnectResult {
 	readonly name: string;
 	readonly connectionToken: string | undefined;
 	readonly config: ISSHAgentHostConfigSanitized;
+	/** SSH config host alias for reconnection on restart. */
+	readonly sshConfigHost?: string;
+}
+
+/**
+ * Resolved SSH configuration for a host, obtained from `ssh -G`.
+ */
+export interface ISSHResolvedConfig {
+	readonly hostname: string;
+	readonly user: string | undefined;
+	readonly port: number;
+	readonly identityFile: string[];
+	readonly forwardAgent: boolean;
 }
 
 /**
@@ -133,4 +159,17 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Disconnect an SSH-bootstrapped connection by host address.
 	 */
 	disconnect(host: string): Promise<void>;
+
+	/** List SSH config host aliases (excluding wildcards). */
+	listSSHConfigHosts(): Promise<string[]>;
+
+	/** Resolve full SSH config for a host via `ssh -G`. */
+	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
+
+	/**
+	 * Re-establish an SSH tunnel for a previously connected host.
+	 * Resolves the SSH config alias, connects, and returns fresh
+	 * connection info with a new local forwarded port.
+	 */
+	reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult>;
 }

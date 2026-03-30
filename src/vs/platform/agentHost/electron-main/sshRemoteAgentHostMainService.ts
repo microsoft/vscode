@@ -7,6 +7,8 @@ import { createRequire } from 'node:module';
 import * as net from 'net';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as cp from 'child_process';
+import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
@@ -16,6 +18,7 @@ import {
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConfigSanitized,
 	type ISSHConnectResult,
+	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
 
 const _require = createRequire(import.meta.url);
@@ -337,6 +340,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				name: config.name,
 				connectionToken,
 				config: conn.config,
+				sshConfigHost: config.sshConfigHost,
 			};
 
 		} catch (err) {
@@ -352,6 +356,159 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				return;
 			}
 		}
+	}
+
+	async reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult> {
+		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost}`);
+		const resolved = await this.resolveSSHConfig(sshConfigHost);
+
+		let authMethod: SSHAuthMethod = SSHAuthMethod.Agent;
+		let privateKeyPath: string | undefined;
+		const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
+		if (resolved.identityFile.length > 0 && !defaultKeys.includes(resolved.identityFile[0])) {
+			authMethod = SSHAuthMethod.KeyFile;
+			privateKeyPath = resolved.identityFile[0];
+		}
+
+		return this.connect({
+			host: resolved.hostname,
+			port: resolved.port !== 22 ? resolved.port : undefined,
+			username: resolved.user ?? sshConfigHost,
+			authMethod,
+			privateKeyPath,
+			name,
+			sshConfigHost,
+		});
+	}
+
+	async listSSHConfigHosts(): Promise<string[]> {
+		const configPath = join(os.homedir(), '.ssh', 'config');
+		try {
+			const content = fs.readFileSync(configPath, 'utf-8');
+			return this._parseSSHConfigHosts(content, dirname(configPath));
+		} catch {
+			this._logService.info(`${LOG_PREFIX} Could not read SSH config at ${configPath}`);
+			return [];
+		}
+	}
+
+	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+		return new Promise<ISSHResolvedConfig>((resolve, reject) => {
+			cp.execFile('ssh', ['-G', host], { timeout: 5000 }, (err, stdout) => {
+				if (err) {
+					reject(new Error(`${LOG_PREFIX} ssh -G failed for ${host}: ${err.message}`));
+					return;
+				}
+				const config = this._parseSSHGOutput(stdout);
+				resolve(config);
+			});
+		});
+	}
+
+	private _parseSSHConfigHosts(content: string, configDir: string, visited?: Set<string>): string[] {
+		const seen = visited ?? new Set<string>();
+		const hosts: string[] = [];
+
+		/** Strip inline comments (# not inside quotes). */
+		const stripComment = (s: string): string => {
+			const idx = s.indexOf(' #');
+			return idx !== -1 ? s.substring(0, idx).trim() : s;
+		};
+
+		for (const line of content.split('\n')) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith('#')) {
+				continue;
+			}
+
+			// Follow Include directives
+			const includeMatch = trimmed.match(/^Include\s+(.+)$/i);
+			if (includeMatch) {
+				const rawPattern = stripComment(includeMatch[1]);
+				const pattern = rawPattern.replace(/^~/, os.homedir());
+				const resolvedPattern = isAbsolute(pattern) ? pattern : join(configDir, pattern);
+
+				// Cycle protection
+				const realPath = resolvedPattern;
+				if (seen.has(realPath)) {
+					continue;
+				}
+				seen.add(realPath);
+
+				try {
+					// Simple glob: if it's a directory, read all files; otherwise read the file
+					const stat = fs.statSync(resolvedPattern);
+					if (stat.isDirectory()) {
+						for (const file of fs.readdirSync(resolvedPattern)) {
+							try {
+								const sub = fs.readFileSync(join(resolvedPattern, file), 'utf-8');
+								hosts.push(...this._parseSSHConfigHosts(sub, resolvedPattern, seen));
+							} catch { /* skip unreadable files */ }
+						}
+					} else {
+						const sub = fs.readFileSync(resolvedPattern, 'utf-8');
+						hosts.push(...this._parseSSHConfigHosts(sub, dirname(resolvedPattern), seen));
+					}
+				} catch {
+					// Try as a glob pattern with wildcard — read the parent dir and match
+					const dir = dirname(resolvedPattern);
+					const base = basename(resolvedPattern);
+					if (base.includes('*')) {
+						try {
+							for (const file of fs.readdirSync(dir)) {
+								// Simple wildcard match
+								const regex = new RegExp('^' + base.replace(/\*/g, '.*') + '$');
+								if (regex.test(file)) {
+									try {
+										const sub = fs.readFileSync(join(dir, file), 'utf-8');
+										hosts.push(...this._parseSSHConfigHosts(sub, dir, seen));
+									} catch { /* skip */ }
+								}
+							}
+						} catch { /* skip unreadable dirs */ }
+					}
+				}
+				continue;
+			}
+
+			const hostMatch = trimmed.match(/^Host\s+(.+)$/i);
+			if (hostMatch) {
+				const hostValue = stripComment(hostMatch[1]);
+				for (const h of hostValue.split(/\s+/)) {
+					// Skip wildcards and negations
+					if (!h.includes('*') && !h.includes('?') && !h.startsWith('!')) {
+						hosts.push(h);
+					}
+				}
+			}
+		}
+		return hosts;
+	}
+
+	private _parseSSHGOutput(stdout: string): ISSHResolvedConfig {
+		const map = new Map<string, string>();
+		const identityFiles: string[] = [];
+		for (const line of stdout.split('\n')) {
+			const spaceIdx = line.indexOf(' ');
+			if (spaceIdx === -1) {
+				continue;
+			}
+			const key = line.substring(0, spaceIdx).toLowerCase();
+			const value = line.substring(spaceIdx + 1).trim();
+			if (key === 'identityfile') {
+				identityFiles.push(value);
+			} else {
+				map.set(key, value);
+			}
+		}
+
+		return {
+			hostname: map.get('hostname') ?? '',
+			user: map.get('user') || undefined,
+			port: parseInt(map.get('port') ?? '22', 10),
+			identityFile: identityFiles,
+			forwardAgent: map.get('forwardagent') === 'yes',
+		};
 	}
 
 	private _connectSSH(

@@ -13,6 +13,8 @@ import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 
 import type { IAgentConnection } from '../common/agentService.js';
 import {
@@ -24,6 +26,7 @@ import {
 } from '../common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
 import { normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
+import { type ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../common/sshRemoteAgentHost.js';
 
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
@@ -43,13 +46,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _entries = new Map<string, IConnectionEntry>();
 	private readonly _names = new Map<string, string>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
+	private readonly _sshMainService: ISSHRemoteAgentHostMainService;
+	private readonly _pendingSSHReconnects = new Set<string /* sshConfigHost */>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
 		super();
+
+		this._sshMainService = ProxyChannel.toService<ISSHRemoteAgentHostMainService>(
+			mainProcessService.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL),
+		);
 
 		// React to setting changes
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -182,7 +192,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Add new connections
 		for (const entry of entries) {
 			if (!this._entries.has(entry.address)) {
-				this._connectTo(entry.address, entry.connectionToken);
+				if (entry.sshConfigHost) {
+					// SSH entry — re-establish tunnel before connecting.
+					// Skip if already reconnecting to avoid parallel tunnels.
+					if (!this._pendingSSHReconnects.has(entry.sshConfigHost)) {
+						this._reconnectSSH(entry as IRemoteAgentHostEntry & { sshConfigHost: string });
+					}
+				} else {
+					this._connectTo(entry.address, entry.connectionToken);
+				}
 			}
 		}
 
@@ -224,6 +242,39 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._logService.error(`[RemoteAgentHost] Failed to connect to ${address}. Verify address and connectionToken`, err);
 			this._rejectPendingConnectionWait(address, err);
 			guardedRemove();
+		});
+	}
+
+	/**
+	 * Re-establish an SSH tunnel on startup, then update the saved address
+	 * and connect via WebSocket to the new local port.
+	 */
+	private _reconnectSSH(savedEntry: IRemoteAgentHostEntry & { sshConfigHost: string }): void {
+		const alias = savedEntry.sshConfigHost;
+		this._pendingSSHReconnects.add(alias);
+		this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${alias} (saved address: ${savedEntry.address})`);
+
+		this._sshMainService.reconnect(alias, savedEntry.name).then(result => {
+			this._pendingSSHReconnects.delete(alias);
+			const newAddress = normalizeRemoteAgentHostAddress(result.localAddress);
+			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established: ${alias} -> ${newAddress}`);
+
+			// Update the persisted entry with the new address and connect.
+			// Always write the fresh address+token, then connect directly
+			// rather than relying on the config-change listener (avoids a
+			// re-entrant _reconnectSSH call).
+			const allEntries = this._getConfiguredEntries();
+			const updated = allEntries.map(e =>
+				normalizeRemoteAgentHostAddress(e.address) === savedEntry.address
+					? { ...e, address: result.localAddress, connectionToken: result.connectionToken }
+					: e
+			);
+			this._configurationService.updateValue(RemoteAgentHostsSettingId, updated, ConfigurationTarget.USER);
+			this._connectTo(newAddress, result.connectionToken);
+		}).catch(err => {
+			this._pendingSSHReconnects.delete(alias);
+			this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${alias}`, err);
+			this._rejectPendingConnectionWait(savedEntry.address, err);
 		});
 	}
 

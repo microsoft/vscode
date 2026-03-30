@@ -459,6 +459,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The address of the remote agent host (e.g. \"localhost:3000\").") },
 					name: { type: 'string', description: nls.localize('chat.remoteAgentHosts.name', "A display name for this remote agent host.") },
 					connectionToken: { type: 'string', description: nls.localize('chat.remoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
+					sshConfigHost: { type: 'string', description: nls.localize('chat.remoteAgentHosts.sshConfigHost', "SSH config host alias for automatic reconnection via SSH tunnel.") },
 				},
 				required: ['address', 'name'],
 			},

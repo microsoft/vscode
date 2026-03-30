@@ -19,6 +19,8 @@ export interface IRemoteAgentHostEntry {
 	readonly address: string;
 	readonly name: string;
 	readonly connectionToken?: string;
+	/** SSH config host alias — if set, the tunnel is re-established on startup. */
+	readonly sshConfigHost?: string;
 }
 
 export const enum RemoteAgentHostInputValidationError {

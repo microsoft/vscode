@@ -15,6 +15,7 @@ import {
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConnection,
 	type ISSHRemoteAgentHostMainService,
+	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
 
 /**
@@ -78,6 +79,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 				address: result.localAddress,
 				name: result.name,
 				connectionToken: result.connectionToken,
+				sshConfigHost: result.sshConfigHost,
 			});
 		} catch (err) {
 			this._mainService.disconnect(result.localAddress).catch(() => { /* best effort */ });
@@ -101,6 +103,44 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	async disconnect(host: string): Promise<void> {
 		await this._mainService.disconnect(host);
+	}
+
+	async listSSHConfigHosts(): Promise<string[]> {
+		return this._mainService.listSSHConfigHosts();
+	}
+
+	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+		return this._mainService.resolveSSHConfig(host);
+	}
+
+	async reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection> {
+		const result = await this._mainService.reconnect(sshConfigHost, name);
+
+		const existing = this._connections.get(result.localAddress);
+		if (existing) {
+			return existing;
+		}
+
+		// Register the new tunnel address
+		this._logService.info('[SSHRemoteAgentHost] Reconnect: registering at ' + result.localAddress);
+		await this._remoteAgentHostService.addRemoteAgentHost({
+			address: result.localAddress,
+			name: result.name,
+			connectionToken: result.connectionToken,
+			sshConfigHost: result.sshConfigHost,
+		});
+
+		const handle = new SSHAgentHostConnectionHandle(
+			result.config,
+			result.localAddress,
+			result.name,
+			() => this._mainService.disconnect(result.localAddress),
+		);
+
+		this._connections.set(result.localAddress, handle);
+		this._onDidChangeConnections.fire();
+
+		return handle;
 	}
 }
 
