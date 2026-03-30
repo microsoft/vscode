@@ -62,22 +62,22 @@ export function resolveCommandsContext(commandArgs: unknown[], editorService: IE
 
 function getCommandsContext(commandArgs: unknown[], editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext[] {
 
-	// Figure out if command is executed from a list
+	// Figure out if command is executed from a list or tree widget
 	const list = listService.lastFocusedList;
-	let isListAction = list !== undefined && list.getHTMLElement() === getActiveElement();
+	let isWidgetAction = list !== undefined && list.getHTMLElement() === getActiveElement();
 
 	// Get editor context for which the command was triggered
-	let editorContext = getEditorContextFromCommandArgs(commandArgs, isListAction, editorService, editorGroupsService, listService);
+	let editorContext = getEditorContextFromCommandArgs(commandArgs, isWidgetAction, editorService, editorGroupsService, listService);
 
 	// If the editor context can not be determind use the active editor
 	if (!editorContext) {
 		const activeGroup = editorGroupsService.activeGroup;
 		const activeEditor = activeGroup.activeEditor;
 		editorContext = { groupId: activeGroup.id, editorIndex: activeEditor ? activeGroup.getIndexOfEditor(activeEditor) : undefined };
-		isListAction = false;
+		isWidgetAction = false;
 	}
 
-	const multiEditorContext = getMultiSelectContext(editorContext, isListAction, editorService, editorGroupsService, listService);
+	const multiEditorContext = getMultiSelectContext(editorContext, isWidgetAction, editorService, editorGroupsService, listService);
 
 	// Make sure the command context is the first one in the list
 	return moveCurrentEditorContextToFront(editorContext, multiEditorContext);
@@ -136,7 +136,7 @@ function getWidgetSelectedElements(widget: WorkbenchListWidget): unknown[] {
 	return [];
 }
 
-function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAction: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext | undefined {
+function getEditorContextFromCommandArgs(commandArgs: unknown[], isWidgetAction: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext | undefined {
 
 	// We only know how to extraxt the command context from URI and IEditorCommandsContext arguments
 	const filteredArgs = commandArgs.filter(arg => isEditorCommandsContext(arg) || URI.isUri(arg));
@@ -160,7 +160,7 @@ function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAction: b
 
 	// If there is no context in the arguments, try to find the context from the focused list
 	// if the action was executed from a list
-	if (isListAction) {
+	if (isWidgetAction) {
 		const list = listService.lastFocusedList;
 		if (list) {
 			for (const focusedElement of getWidgetFocusedElements(list)) {
@@ -174,10 +174,10 @@ function getEditorContextFromCommandArgs(commandArgs: unknown[], isListAction: b
 	return undefined;
 }
 
-function getMultiSelectContext(editorContext: IEditorCommandsContext, isListAction: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext[] {
+function getMultiSelectContext(editorContext: IEditorCommandsContext, isWidgetAction: boolean, editorService: IEditorService, editorGroupsService: IEditorGroupsService, listService: IListService): IEditorCommandsContext[] {
 
 	// If the action was executed from a list, return all selected editors
-	if (isListAction) {
+	if (isWidgetAction) {
 		const list = listService.lastFocusedList;
 		if (list) {
 			const selection = getWidgetSelectedElements(list).filter(isGroupOrEditor);
@@ -187,10 +187,10 @@ function getMultiSelectContext(editorContext: IEditorCommandsContext, isListActi
 			}
 
 			if (selection.length === 0) {
-				// Workaround: the `isListAction` flag can be a false positive in certain
+				// Workaround: the `isWidgetAction` flag can be a false positive in certain
 				// cases because it will be `true` if the active element is a list or tree
 				// widget even if it is part of the editor area (e.g. notebooks). The
-				// workaround here is to fallback to `isListAction: false` if the widget
+				// workaround here is to fallback to `isWidgetAction: false` if the widget
 				// does not have any editor or group selected.
 				return getMultiSelectContext(editorContext, false, editorService, editorGroupsService, listService);
 			}
