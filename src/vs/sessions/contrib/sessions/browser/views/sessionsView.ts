@@ -390,7 +390,7 @@ export class SessionsView extends ViewPane {
 				for (const { key, getDefault } of filterContextKeys.values()) {
 					key.set(getDefault());
 				}
-				workspaceGroupCappedContextKey?.set(true);
+				workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 			}
 		}));
 	}
