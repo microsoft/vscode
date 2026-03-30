@@ -3,34 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
+import { IAgent, IAgentAttachment } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, IBrowseDirectoryResult, IDirectoryEntry, IFetchContentResult, IWriteFileParams, IWriteFileResult, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../common/state/sessionProtocol.js';
 import {
 	PendingMessageKind,
-	ResponsePartKind,
-	SessionStatus,
-	ToolCallConfirmationReason,
-	ToolCallStatus,
-	TurnState,
-	type IResponsePart,
 	type ISessionModelInfo,
-	type ISessionSummary,
-	type IToolCallCompletedState,
-	type ITurn,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
-import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
 /**
@@ -66,7 +53,6 @@ export class AgentSideEffects extends Disposable {
 		private readonly _stateManager: SessionStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		private readonly _logService: ILogService,
-		private readonly _fileService: IFileService,
 	) {
 		super();
 
@@ -346,252 +332,6 @@ export class AgentSideEffects extends Disposable {
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
 		});
-	}
-
-	/**
-	 * Restores a session from a previous server lifetime into the state
-	 * manager. Fetches the session's message history from the agent backend,
-	 * reconstructs `ITurn[]`, and creates the session in the state manager.
-	 *
-	 * @throws {ProtocolError} if the session URI doesn't match any agent or
-	 * the agent cannot retrieve the session messages.
-	 */
-	async handleRestoreSession(session: ProtocolURI): Promise<void> {
-		// Already in state manager - nothing to do.
-		if (this._stateManager.getSessionState(session)) {
-			return;
-		}
-
-		const agent = this._options.getAgent(session);
-		if (!agent) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${session}`);
-		}
-
-		// Verify the session actually exists on the backend to avoid
-		// creating phantom sessions for made-up URIs.
-		let allSessions;
-		try {
-			allSessions = await agent.listSessions();
-		} catch (err) {
-			if (err instanceof ProtocolError) {
-				throw err;
-			}
-			const message = err instanceof Error ? err.message : String(err);
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to list sessions for ${session}: ${message}`);
-		}
-		const meta = allSessions.find(s => s.session.toString() === session);
-		if (!meta) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${session}`);
-		}
-
-		const sessionUri = URI.parse(session);
-		let messages;
-		try {
-			messages = await agent.getSessionMessages(sessionUri);
-		} catch (err) {
-			if (err instanceof ProtocolError) {
-				throw err;
-			}
-			const message = err instanceof Error ? err.message : String(err);
-			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to restore session ${session}: ${message}`);
-		}
-		const turns = this._buildTurnsFromMessages(messages);
-
-		const summary: ISessionSummary = {
-			resource: session,
-			provider: agent.id,
-			title: meta.summary ?? 'Session',
-			status: SessionStatus.Idle,
-			createdAt: meta.startTime,
-			modifiedAt: meta.modifiedTime,
-			workingDirectory: meta.workingDirectory?.toString(),
-		};
-
-		this._stateManager.restoreSession(summary, turns);
-		this._logService.info(`[AgentSideEffects] Restored session ${session} with ${turns.length} turns`);
-	}
-
-	/**
-	 * Reconstructs completed `ITurn[]` from a sequence of agent session
-	 * messages (user messages, assistant messages, tool starts, tool
-	 * completions). Each user-message starts a new turn; the assistant
-	 * message closes it.
-	 */
-	private _buildTurnsFromMessages(
-		messages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[],
-	): ITurn[] {
-		const turns: ITurn[] = [];
-		let currentTurn: {
-			id: string;
-			userMessage: { text: string };
-			responseParts: IResponsePart[];
-			pendingTools: Map<string, IAgentToolStartEvent>;
-		} | undefined;
-
-		const finalizeTurn = (turn: NonNullable<typeof currentTurn>, state: TurnState): void => {
-			turns.push({
-				id: turn.id,
-				userMessage: turn.userMessage,
-				responseParts: turn.responseParts,
-				usage: undefined,
-				state,
-			});
-		};
-
-		const startTurn = (id: string, text: string): NonNullable<typeof currentTurn> => ({
-			id,
-			userMessage: { text },
-			responseParts: [],
-			pendingTools: new Map(),
-		});
-
-		for (const msg of messages) {
-			if (msg.type === 'message' && msg.role === 'user') {
-				// Flush any in-progress turn (e.g. interrupted/cancelled
-				// turn that never got a closing assistant message).
-				if (currentTurn) {
-					finalizeTurn(currentTurn, TurnState.Cancelled);
-				}
-				currentTurn = startTurn(msg.messageId, msg.content);
-			} else if (msg.type === 'message' && msg.role === 'assistant') {
-				if (!currentTurn) {
-					currentTurn = startTurn(msg.messageId, '');
-				}
-
-				if (msg.content) {
-					currentTurn.responseParts.push({
-						kind: ResponsePartKind.Markdown,
-						id: generateUuid(),
-						content: msg.content,
-					});
-				}
-
-				if (!msg.toolRequests || msg.toolRequests.length === 0) {
-					finalizeTurn(currentTurn, TurnState.Complete);
-					currentTurn = undefined;
-				}
-			} else if (msg.type === 'tool_start') {
-				currentTurn?.pendingTools.set(msg.toolCallId, msg);
-			} else if (msg.type === 'tool_complete') {
-				if (currentTurn) {
-					const start = currentTurn.pendingTools.get(msg.toolCallId);
-					currentTurn.pendingTools.delete(msg.toolCallId);
-
-					const tc: IToolCallCompletedState = {
-						status: ToolCallStatus.Completed,
-						toolCallId: msg.toolCallId,
-						toolName: start?.toolName ?? 'unknown',
-						displayName: start?.displayName ?? 'Unknown Tool',
-						invocationMessage: start?.invocationMessage ?? '',
-						toolInput: start?.toolInput,
-						success: msg.result.success,
-						pastTenseMessage: msg.result.pastTenseMessage,
-						content: msg.result.content,
-						error: msg.result.error,
-						confirmed: ToolCallConfirmationReason.NotNeeded,
-						_meta: start ? {
-							toolKind: start.toolKind,
-							language: start.language,
-						} : undefined,
-					};
-					currentTurn.responseParts.push({
-						kind: ResponsePartKind.ToolCall,
-						toolCall: tc,
-					});
-				}
-			}
-		}
-
-		if (currentTurn) {
-			finalizeTurn(currentTurn, TurnState.Cancelled);
-		}
-
-		return turns;
-	}
-
-	async handleBrowseDirectory(uri: ProtocolURI): Promise<IBrowseDirectoryResult> {
-		let stat;
-		try {
-			stat = await this._fileService.resolve(URI.parse(uri));
-		} catch {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Directory not found: ${uri.toString()}`);
-		}
-
-		if (!stat.isDirectory) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Not a directory: ${uri.toString()}`);
-		}
-
-		const entries: IDirectoryEntry[] = (stat.children ?? []).map(child => ({
-			name: child.name,
-			type: child.isDirectory ? 'directory' : 'file',
-		}));
-		return { entries };
-	}
-
-	async handleFetchContent(uri: ProtocolURI): Promise<IFetchContentResult> {
-		// Handle session-db: URIs that reference file-edit content stored
-		// in a per-session SQLite database.
-		const dbFields = parseSessionDbUri(uri);
-		if (dbFields) {
-			return this._fetchSessionDbContent(dbFields);
-		}
-
-		try {
-			const content = await this._fileService.readFile(URI.parse(uri));
-			return {
-				data: content.value.toString(),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'text/plain',
-			};
-		} catch (_e) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
-		}
-	}
-
-	async handleWriteFile(params: IWriteFileParams): Promise<IWriteFileResult> {
-		const fileUri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
-		let content: VSBuffer;
-		if (params.encoding === ContentEncoding.Base64) {
-			content = decodeBase64(params.data);
-		} else {
-			content = VSBuffer.fromString(params.data);
-		}
-		try {
-			if (params.createOnly) {
-				await this._fileService.createFile(fileUri, content, { overwrite: false });
-			} else {
-				await this._fileService.writeFile(fileUri, content);
-			}
-			return {};
-		} catch (e) {
-			const code = toFileSystemProviderErrorCode(e as Error);
-			if (code === FileSystemProviderErrorCode.FileExists) {
-				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
-			}
-			if (code === FileSystemProviderErrorCode.NoPermissions) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${fileUri.toString()}`);
-			}
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
-		}
-	}
-
-	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<IFetchContentResult> {
-		const sessionUri = URI.parse(fields.sessionUri);
-		const ref = this._options.sessionDataService.openDatabase(sessionUri);
-		try {
-			const content = await ref.object.readFileEditContent(fields.toolCallId, fields.filePath);
-			if (!content) {
-				throw new ProtocolError(AhpErrorCodes.NotFound, `File edit not found: toolCallId=${fields.toolCallId}, filePath=${fields.filePath}`);
-			}
-			const bytes = fields.part === 'before' ? content.beforeContent : content.afterContent;
-			return {
-				data: new TextDecoder().decode(bytes),
-				encoding: ContentEncoding.Utf8,
-				contentType: 'text/plain',
-			};
-		} finally {
-			ref.dispose();
-		}
 	}
 
 	override dispose(): void {
