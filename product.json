@@ -2,6 +2,7 @@
 	"nameShort": "Code - OSS",
 	"nameLong": "Code - OSS",
 	"applicationName": "code-oss",
+	"quality": "stable",
 	"dataFolderName": ".vscode-oss",
 	"extensionsGallery": {
 		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
