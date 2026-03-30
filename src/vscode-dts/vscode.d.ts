@@ -11176,6 +11176,9 @@ declare module 'vscode' {
 		/**
 		 * The URI of the currently active chat panel session, or `undefined`
 		 * if no chat session is active.
+		 *
+		 * *Note:* This currently only tracks local chat sessions. Sessions
+		 * backed by non-local providers may not be reflected.
 		 */
 		export const activeChatSessionUri: Uri | undefined;
 
@@ -11184,6 +11187,9 @@ declare module 'vscode' {
 		 * This occurs when the user switches between chat conversations,
 		 * or when a new conversation is started. The event payload is the URI
 		 * of the newly active session, or `undefined` if no session is active.
+		 *
+		 * *Note:* This currently only tracks local chat sessions. Sessions
+		 * backed by non-local providers may not be reflected.
 		 */
 		export const onDidChangeActiveChatSession: Event<Uri | undefined>;
 
