@@ -56,7 +56,7 @@ const multiAgentViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensi
 		icon: multiAgentViewIcon,
 		order: 8,
 		hideIfEmpty: false,
-	}, ViewContainerLocation.ChatBar, { doNotRegisterOpenCommand: false });
+	}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: false });
 
 // --- Views ---
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
