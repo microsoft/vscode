@@ -60,6 +60,7 @@ import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewr
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
+import { CommandLineBackgroundDetachRewriter } from './commandLineRewriter/commandLineBackgroundDetachRewriter.js';
 import { CommandLineSandboxRewriter } from './commandLineRewriter/commandLineSandboxRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
@@ -476,6 +477,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (this._enableCommandLineSandboxRewriting) {
 			this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)));
 		}
+		// BackgroundDetachRewriter must come after SandboxRewriter so that nohup/Start-Process
+		// wraps the entire sandbox runtime, keeping both the sandbox and the child process alive
+		// through VS Code shutdown.
+		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLineBackgroundDetachRewriter)));
 		// PreventHistoryRewriter must be last so the leading space is applied to the final
 		// command, including any sandbox wrapping.
 		this._commandLineRewriters.push(this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)));
@@ -584,6 +589,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				cwd,
 				shell,
 				os,
+				isBackground: args.isBackground,
 				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			});
 			if (rewriteResult) {
