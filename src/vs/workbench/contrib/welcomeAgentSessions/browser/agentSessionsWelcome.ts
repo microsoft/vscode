@@ -65,6 +65,8 @@ const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
 const MAX_REPO_PICKS = 10;
 const MAX_WALKTHROUGHS = 10;
+const WELCOME_CHAT_INPUT_LAYOUT_HEIGHT = 150;
+const WELCOME_CHAT_INPUT_MAX_HEIGHT_OVERRIDE = 272;
 
 /**
  * - visibleDurationMs: Do they close it right away or leave it open (#3)
@@ -804,9 +806,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 
 		const chatWidth = Math.min(800, this.lastDimension.width - 80);
-		// Use a reasonable height for the input part - the CSS will hide the list area
-		const inputHeight = 150;
-		this.chatWidget.layout(inputHeight, chatWidth);
+		this.chatWidget.setInputPartMaxHeightOverride(WELCOME_CHAT_INPUT_MAX_HEIGHT_OVERRIDE);
+		this.chatWidget.layout(WELCOME_CHAT_INPUT_LAYOUT_HEIGHT, chatWidth);
 	}
 
 	private layoutSessionsControl(): void {
