@@ -321,6 +321,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				if (description) {
 					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				} else {
+					descriptionDisposable.clear();
 					statusEl.textContent = localize('working', "Working...");
 				}
 				parts.push(statusEl);
@@ -332,6 +333,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				if (description) {
 					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				} else {
+					descriptionDisposable.clear();
 					statusEl.textContent = localize('needsInput', "Input needed");
 				}
 				parts.push(statusEl);
@@ -343,6 +345,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				if (description) {
 					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
 				} else {
+					descriptionDisposable.clear();
 					statusEl.textContent = localize('failed', "Failed");
 				}
 				parts.push(statusEl);
