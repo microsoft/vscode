@@ -48,7 +48,7 @@ class ConnectionState extends Disposable {
 		loggedConnection: LoggingAgentConnection,
 	) {
 		super();
-		this.clientState = this.store.add(new SessionClientState(clientId, logService));
+		this.clientState = this.store.add(new SessionClientState(clientId, logService, () => loggedConnection.nextClientSeq()));
 		this.loggedConnection = this.store.add(loggedConnection);
 	}
 }

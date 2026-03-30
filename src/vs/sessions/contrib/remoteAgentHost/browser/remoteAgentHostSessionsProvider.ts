@@ -16,7 +16,7 @@ import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -184,10 +184,13 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			}
 		}));
 
-		this._connectionListeners.add(connection.onDidAction(e => {
-			if (e.action.type === 'session/turnComplete' && isSessionAction(e.action)) {
+		// Handle session state changes from the server
+		this._register(this._connection.onDidAction(e => {
+			if (e.action.type === ActionType.SessionTurnComplete && isSessionAction(e.action)) {
 				const cts = new CancellationTokenSource();
 				this._refreshSessions(cts.token).finally(() => cts.dispose());
+			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
+				this._handleTitleChanged(e.action.session, e.action.title);
 			}
 		}));
 
@@ -337,8 +340,15 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
-	async renameSession(_sessionId: string, _title: string): Promise<void> {
-		// Agent host sessions don't support renaming
+	async renameSession(chatId: string, title: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(chatId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId && this._connection) {
+			cached.title.set(title, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			const action = { type: ActionType.SessionTitleChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), title };
+			this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
+		}
 	}
 
 	setRead(chatId: string, read: boolean): void {
@@ -540,6 +550,15 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		if (cached) {
 			this._sessionCache.delete(rawId);
 			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
+		}
+	}
+
+	private _handleTitleChanged(session: string, title: string): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.title.set(title, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
 

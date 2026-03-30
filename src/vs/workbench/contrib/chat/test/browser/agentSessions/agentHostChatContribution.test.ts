@@ -117,6 +117,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ action, clientId, clientSeq });
 	}
+	private _nextSeq = 1;
+	override nextClientSeq(): number {
+		return this._nextSeq++;
+	}
 
 	// Test helpers
 	fireAction(envelope: IActionEnvelope): void {

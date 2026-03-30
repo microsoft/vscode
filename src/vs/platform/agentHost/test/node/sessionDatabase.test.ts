@@ -421,4 +421,43 @@ suite('SessionDatabase', () => {
 			await assert.rejects(() => db!.createTurn('turn-1'), /disposed/);
 		});
 	});
+
+	// ---- Session metadata -----------------------------------------------
+
+	suite('session metadata', () => {
+
+		test('getMetadata returns undefined for missing key', async () => {
+			db = disposables.add(await SessionDatabase.open(dbPath()));
+			assert.strictEqual(await db.getMetadata('nonexistent'), undefined);
+		});
+
+		test('setMetadata and getMetadata round-trip', async () => {
+			db = disposables.add(await SessionDatabase.open(dbPath()));
+			await db.setMetadata('customTitle', 'My Session');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'My Session');
+		});
+
+		test('setMetadata overwrites existing value', async () => {
+			db = disposables.add(await SessionDatabase.open(dbPath()));
+			await db.setMetadata('customTitle', 'First');
+			await db.setMetadata('customTitle', 'Second');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('metadata persists across reopen', async () => {
+			const path = dbPath();
+			const db1 = await SessionDatabase.open(path);
+			await db1.setMetadata('customTitle', 'Persistent Title');
+			await db1.close();
+
+			db = disposables.add(await SessionDatabase.open(path));
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Persistent Title');
+		});
+
+		test('migration v2 creates session_metadata table', async () => {
+			db = disposables.add(await SessionDatabase.open(dbPath()));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('session_metadata'));
+		});
+	});
 });

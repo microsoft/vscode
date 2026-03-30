@@ -127,6 +127,27 @@ export class AgentService extends Disposable implements IAgentService {
 			[...this._providers.values()].map(p => p.listSessions())
 		);
 		const flat = results.flat();
+
+		// Overlay persisted custom titles from per-session databases.
+		await Promise.all(flat.map(async s => {
+			try {
+				const ref = await this._sessionDataService.tryOpenDatabase(s.session);
+				if (!ref) {
+					return;
+				}
+				try {
+					const customTitle = await ref.object.getMetadata('customTitle');
+					if (customTitle) {
+						(s as { summary?: string }).summary = customTitle;
+					}
+				} finally {
+					ref.dispose();
+				}
+			} catch {
+				// ignore — title overlay is best-effort
+			}
+		}));
+
 		this._logService.trace(`[AgentService] listSessions returned ${flat.length} sessions`);
 		return flat;
 	}

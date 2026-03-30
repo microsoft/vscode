@@ -474,6 +474,9 @@ export interface IAgentService {
 export interface IAgentConnection extends IAgentService {
 	/** Unique identifier for this client connection, used as the origin in action envelopes. */
 	readonly clientId: string;
+
+	/** Allocate the next client sequence number for action dispatch on this connection. */
+	nextClientSeq(): number;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');

@@ -52,3 +52,17 @@ registerSingleton(ISessionsManagementService, SessionsManagementService, Instant
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);
+
+// Bridge command for renaming sessions from the workbench layer (which cannot
+// import ISessionsProvidersService directly due to layering constraints).
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { URI } from '../../../../base/common/uri.js';
+
+CommandsRegistry.registerCommand('_chat.renameSessionFromProvider', (accessor, resource: URI, title: string) => {
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const session = sessionsProvidersService.getSessions().find(s => s.resource.toString() === resource.toString());
+	if (session) {
+		return sessionsProvidersService.renameSession(session.id, title);
+	}
+});

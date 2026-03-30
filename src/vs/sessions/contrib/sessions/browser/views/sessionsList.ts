@@ -52,6 +52,13 @@ export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.
 export const IsSessionReadContext = new RawContextKey<boolean>('sessionItem.isRead', true);
 export const SessionSectionTypeContext = new RawContextKey<string>('sessionSection.type', '');
 
+/**
+ * @deprecated TODO@roblourens HACK- this should not really exist, but it is currently needed to drive
+ * scenarios for remote agenthost sessions that are normally driven by code in the extension for copilot CLI.
+ * Don't use this unless you have a very good reason.
+ */
+export const SessionProviderIdContext = new RawContextKey<string>('sessionItem.providerId', '');
+
 //#region Types
 
 export enum SessionsGrouping {
@@ -219,6 +226,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
 		IsSessionReadContext.bindTo(template.contextKeyService).set(element.isRead.get());
+		SessionProviderIdContext.bindTo(template.contextKeyService).set(element.providerId);
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -964,6 +972,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionReadContext.key, element.isRead.get()],
 			['chatSessionType', element.sessionType],
 			['chatSessionProviderId', element.providerId],
+			[SessionProviderIdContext.key, element.providerId],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
