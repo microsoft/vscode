@@ -538,7 +538,31 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?))*$/.test(domainToValidate)) {
 			return undefined;
 		}
-		return normalized;
+
+		// Strip common trailing punctuation that may follow a domain in text, e.g. "example.com,".
+		const stripped = normalized.replace(/[),;:!?]+$/, '');
+		if (!stripped) {
+			return undefined;
+		}
+
+		// Allow a bare wildcard pattern.
+		if (stripped === '*') {
+			return stripped;
+		}
+
+		// Support wildcard domain patterns like "*.example.com".
+		const hasWildcardPrefix = stripped.startsWith('*.');
+		const host = hasWildcardPrefix ? stripped.slice(2) : stripped;
+		if (!host) {
+			return undefined;
+		}
+
+		// Validate that the host part only contains valid hostname characters.
+		if (!/^[a-z0-9.-]+$/.test(host)) {
+			return undefined;
+		}
+
+		return hasWildcardPrefix ? `*.${host}` : host;
 	}
 
 	private _matchesDomainPattern(domain: string, pattern: string): boolean {
