@@ -55,7 +55,7 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+stantimport { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -293,6 +293,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly windowTitle: WindowTitle;
 
+	protected readonly instantiationService: IInstantiationService;
+
 	constructor(
 		id: string,
 		targetWindow: CodeWindow,
@@ -300,13 +302,13 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -318,15 +320,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
-		// Create a scoped editor service that only tracks editors within this
-		// window's editor groups container, so the window title is not affected
-		// by active editor changes in other windows (e.g. auxiliary windows).
-		const titleDisposables = this._register(new DisposableStore());
-		const scopedEditorService = editorService.createScoped(editorGroupsContainer, titleDisposables);
-		const scopedInstantiationService = titleDisposables.add(instantiationService.createChild(new ServiceCollection(
+		const scopedEditorService = editorService.createScoped(editorGroupsContainer, this._store);
+		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IEditorService, scopedEditorService]
 		)));
-		this.windowTitle = this._register(scopedInstantiationService.createInstance(WindowTitle, targetWindow));
+		this.windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, targetWindow));
 
 		this.hoverDelegate = this._register(createInstantHoverDelegate());
 
@@ -722,7 +720,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			// The editor toolbar menu is handled by the editor group so we do not need to manage it here.
 			// However, depending on the active editor, we need to update the context and action runner of the toolbar menu.
-			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
+			if (this.editorActionsEnabled && this.editorGroupsContainer.activeGroup.activeEditor !== undefined) {
 				const context: IEditorCommandsContext = { groupId: this.editorGroupsContainer.activeGroup.id };
 
 				this.actionToolBar.actionRunner = this.editorToolbarMenuDisposables.add(new EditorCommandsContextActionRunner(context));
