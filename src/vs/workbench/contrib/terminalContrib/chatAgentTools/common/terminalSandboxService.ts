@@ -742,7 +742,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const setting = this._configurationService.inspect<T>(settingId);
 		const deprecatedSetting = deprecatedSettingId ? this._configurationService.inspect<T>(deprecatedSettingId) : undefined;
 
-		if (setting.userValue === undefined && deprecatedSetting?.userValue !== undefined) {
+		const isSettingConfigured = setting.value !== setting.defaultValue;
+		const isDeprecatedSettingConfigured = deprecatedSetting !== undefined && deprecatedSetting.value !== deprecatedSetting.defaultValue;
+
+		if (!isSettingConfigured && isDeprecatedSettingConfigured) {
 			this._logService.warn(`TerminalSandboxService: Using deprecated setting ${deprecatedSettingId} because ${settingId} is not set. Please update your settings to use ${settingId} instead.`);
 			return deprecatedSetting.value;
 		}
