@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ApiFormat, IMultiAgentProviderService, IProviderAccount, IProviderQuotaSummary, ITokenUsage } from './multiAgentProviderService.js';
 import { IProviderRotationService, IRotationEvent, IUsageEntry, IUsageStats, UsagePeriod } from './providerRotationService.js';
 

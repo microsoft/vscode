@@ -98,11 +98,11 @@ class ApplyChangesToParentRepoAction extends Action2 {
 			id: 'applyChangesToParentRepo.openFolder',
 			label: localize('openInVSCode', "Open in VS Code"),
 			run: () => {
-				const scheme = productService.quality === 'stable'
+				const scheme = productService.urlProtocol || (productService.quality === 'stable'
 					? 'vscode'
 					: productService.quality === 'exploration'
 						? 'vscode-exploration'
-						: 'vscode-insiders';
+						: 'vscode-insiders');
 
 				const params = new URLSearchParams();
 				params.set('windowId', '_blank');

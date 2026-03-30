@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from '../../../../../nls.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../../common/views.js';
-import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 // --- Service registrations ---
 import { IMultiAgentProviderService } from '../common/multiAgentProviderService.js';
@@ -56,7 +56,7 @@ const multiAgentViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensi
 		icon: multiAgentViewIcon,
 		order: 8,
 		hideIfEmpty: false,
-	}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: false });
+	}, ViewContainerLocation.ChatBar, { doNotRegisterOpenCommand: false });
 
 // --- Views ---
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([

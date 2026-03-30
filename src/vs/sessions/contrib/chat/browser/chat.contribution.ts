@@ -77,11 +77,11 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			return;
 		}
 
-		const scheme = productService.quality === 'stable'
+		const scheme = productService.urlProtocol || (productService.quality === 'stable'
 			? 'vscode'
 			: productService.quality === 'exploration'
 				? 'vscode-exploration'
-				: 'vscode-insiders';
+				: 'vscode-insiders');
 
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');

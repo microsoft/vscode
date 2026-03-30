@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IRequestService } from '../../../../../platform/request/common/request.js';
-import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatMessageRole, IChatMessage } from '../../chat/common/languageModels.js';
 import { ApiFormat, IMultiAgentProviderService, IProviderAccount } from './multiAgentProviderService.js';
 import { ApiFormatTranslator, IProviderStreamChunk } from './apiFormatTranslator.js';
@@ -124,7 +124,7 @@ export class DirectProviderClientImpl extends Disposable implements IDirectProvi
 	 * SSE format: lines starting with "data: " followed by JSON.
 	 */
 	private async _parseSSEStream(
-		stream: import('../../../../../base/common/buffer.js').VSBufferReadableStream,
+		stream: import('../../../../base/common/buffer.js').VSBufferReadableStream,
 		format: ApiFormat,
 		onChunk?: (text: string) => void,
 	): Promise<string> {

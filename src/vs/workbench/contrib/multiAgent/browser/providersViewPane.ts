@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IViewDescriptorService } from '../../../common/views.js';
 import { IMultiAgentProviderService, IProviderAccount, IProviderDefinition, IProviderQuotaSummary } from '../common/multiAgentProviderService.js';
-import * as dom from '../../../../../base/browser/dom.js';
+import * as dom from '../../../../base/browser/dom.js';
 
 export class ProvidersViewPane extends ViewPane {
 
