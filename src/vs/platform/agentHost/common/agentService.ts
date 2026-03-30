@@ -251,6 +251,12 @@ export interface IAgentReasoningEvent extends IAgentProgressEventBase {
 	readonly content: string;
 }
 
+/** A steering message was consumed (sent to the model). */
+export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
+	readonly type: 'steering_consumed';
+	readonly id: string;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
@@ -261,7 +267,8 @@ export type IAgentProgressEvent =
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
 	| IAgentUsageEvent
-	| IAgentReasoningEvent;
+	| IAgentReasoningEvent
+	| IAgentSteeringConsumedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
