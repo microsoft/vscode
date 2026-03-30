@@ -73,7 +73,6 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../../../plat
 import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
@@ -86,7 +85,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEnt
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
 import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, validateChatMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
@@ -537,7 +536,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
-		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILanguageModelToolsService private readonly toolService: ILanguageModelToolsService,
@@ -924,7 +922,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.selectedToolsModel.resetSessionEnablementState();
 		this._chatSessionIsEmpty = chatSessionIsEmpty;
 
-		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
 		if (chatSessionIsEmpty) {
 			this._setEmptyModelState();
 		}
@@ -941,29 +938,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _setEmptyModelState() {
-		const storageKey = this.getDefaultModeExperimentStorageKey();
-		const hasSetDefaultMode = this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false);
-		if (!hasSetDefaultMode) {
-			const isAnonymous = this.entitlementService.anonymous;
-			this.experimentService.getTreatment('chat.defaultMode')
-				.then((defaultModeTreatment => {
-					if (isAnonymous) {
-						// be deterministic for anonymous users
-						// to support agentic flows with default
-						// model.
-						defaultModeTreatment = ChatModeKind.Agent;
-					}
+		if (this.entitlementService.anonymous) {
+			// Be deterministic for anonymous users to support
+			// agentic flows with default model.
+			this.setChatMode(ChatModeKind.Agent, false);
+			this.checkModelSupported();
+			return;
+		}
 
-					if (typeof defaultModeTreatment === 'string') {
-						this.storageService.store(storageKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-						const defaultMode = validateChatMode(defaultModeTreatment);
-						if (defaultMode) {
-							this.logService.trace(`Applying default mode from experiment: ${defaultMode}`);
-							this.setChatMode(defaultMode, false);
-							this.checkModelSupported();
-						}
-					}
-				}));
+		const rawDefaultMode = this.configurationService.getValue<string>(ChatConfiguration.DefaultNewSessionMode);
+		if (typeof rawDefaultMode === 'string') {
+			const defaultMode = rawDefaultMode.trim();
+			if (defaultMode) {
+				// Custom modes are loaded asynchronously, so they may not be available yet
+				// at session initialization time. Built-in modes (ask, edit, agent) are always available.
+				const defaultModeLower = defaultMode.toLowerCase();
+				const resolved = this.chatModeService.findModeById(defaultMode)
+					?? this.chatModeService.findModeByName(defaultMode)
+					?? this.chatModeService.getModes().custom.find(m => m.name.get().toLowerCase() === defaultModeLower);
+				if (resolved) {
+					this.logService.trace(`[ChatInputPart] Applying default mode from setting: ${defaultMode} -> ${resolved.id}`);
+					this.setChatMode(resolved.id, false);
+					this.checkModelSupported();
+				} else {
+					this.logService.trace(`[ChatInputPart] Default mode '${defaultMode}' not found in available modes`);
+				}
+			}
 		}
 	}
 
@@ -1313,11 +1313,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(ChatModeKind.Ask);
 			return;
 		}
-	}
-
-	private getDefaultModeExperimentStorageKey(): string {
-		const tag = this.options.widgetViewKindTag;
-		return `chat.${tag}.hasSetDefaultModeByExperiment`;
 	}
 
 	logInputHistory(): void {
