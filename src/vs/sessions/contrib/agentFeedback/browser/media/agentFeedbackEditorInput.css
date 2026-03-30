@@ -28,6 +28,12 @@
 	}
 }
 
+@media (prefers-reduced-motion: reduce) {
+	.agent-feedback-input-widget {
+		animation: none;
+		transform: none;
+	}
+}
 .agent-feedback-input-widget textarea {
 	background-color: var(--vscode-panel-background);
 	border: none;
