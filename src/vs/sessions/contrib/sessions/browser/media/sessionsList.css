@@ -13,7 +13,7 @@
 	}
 
 	.pane-body & .monaco-tree-sticky-container {
-		padding: 0 6px;
+		padding: 0 10px;
 	}
 
 	.monaco-list-row {

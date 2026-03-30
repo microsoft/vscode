@@ -640,7 +640,7 @@ class AgentSessionAdapter implements ISessionData {
 		this.resource = session.resource;
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
-		this.icon = session.icon;
+		this.icon = this._getSessionTypeIcon(session);
 		this.createdAt = new Date(session.timing.created);
 		this._workspace = observableValue(this, this._buildWorkspace(session));
 		this.workspace = this._workspace;
@@ -690,6 +690,17 @@ class AgentSessionAdapter implements ISessionData {
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
 			this._gitHubInfo.set(this._extractGitHubInfo(session), tx);
 		});
+	}
+
+	private _getSessionTypeIcon(session: IAgentSession): ThemeIcon {
+		switch (session.providerType) {
+			case AgentSessionProviders.Background:
+				return CopilotCLISessionType.icon;
+			case AgentSessionProviders.Cloud:
+				return CopilotCloudSessionType.icon;
+			default:
+				return session.icon;
+		}
 	}
 
 	private _extractDescription(session: IAgentSession): string | undefined {

@@ -205,7 +205,6 @@ export interface IChatCodeBlockInfo {
 	readonly codeBlockIndex: number;
 	readonly elementId: string;
 	readonly uri: URI | undefined;
-	readonly uriPromise: Promise<URI | undefined>;
 	codemapperUri: URI | undefined;
 	readonly chatSessionResource: URI | undefined;
 	focus(): void;
