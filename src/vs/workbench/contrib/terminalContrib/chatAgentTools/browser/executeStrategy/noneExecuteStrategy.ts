@@ -39,9 +39,10 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, stripCommandLine: string | undefined, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
+			const commandLineForOutput = stripCommandLine ?? commandLine;
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -141,13 +142,14 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const endMarker = store.add(xterm.raw.registerMarker());
 
 			// Assemble final result - exit code is not available without shell integration
 			let output: string | undefined;
+			let rawOutput: string | undefined;
 			const additionalInformationLines: string[] = [];
-			try {
-				output = xterm.getContentsAsText(this._startMarker.value, endMarker);
+			const captureOutput = (): string | undefined => {
+				const endMarker = store.add(xterm.raw.registerMarker());
+				rawOutput = xterm.getContentsAsText(this._startMarker.value, endMarker);
 				this._log('Fetched output via markers');
 
 				// The marker-based output includes the command echo (the line where the
@@ -155,8 +157,31 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				// only the actual command output. The first line always contains the
 				// command echo (since the start marker is placed at the cursor before
 				// sendText), and trailing lines that look like shell prompts are removed.
-				if (output !== undefined) {
-					output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+				return rawOutput !== undefined
+					? stripCommandEchoAndPrompt(rawOutput, commandLineForOutput, this._log.bind(this))
+					: undefined;
+			};
+			try {
+				output = captureOutput();
+
+				if (!promptResult.detected && output !== undefined && output.trim().length === 0 && rawOutput?.split('\n').length === 1) {
+					this._log('Only command echo captured before prompt detection, waiting longer for late output');
+					const latePromptResultOrAltBuffer = await Promise.race([
+						waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, idlePollInterval, idlePollInterval * 30),
+						alternateBufferPromise.then(() => 'alternateBuffer' as const)
+					]);
+					if (latePromptResultOrAltBuffer === 'alternateBuffer') {
+						this._log('Detected alternate buffer entry while waiting for late output, skipping output capture');
+						return {
+							output: undefined,
+							additionalInformation: undefined,
+							exitCode: undefined,
+							error: 'alternateBuffer',
+							didEnterAltBuffer: true,
+						};
+					}
+					this._log(`Late prompt detection result: ${latePromptResultOrAltBuffer.detected ? 'detected' : 'not detected'} - ${latePromptResultOrAltBuffer.reason}`);
+					output = captureOutput();
 				}
 			} catch {
 				this._log('Failed to fetch output via markers');

@@ -58,10 +58,11 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, stripCommandLine: string | undefined, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 
 		try {
+			const commandLineForOutput = stripCommandLine ?? commandLine;
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval);
@@ -171,7 +172,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
 					this._log('Fetched output via finished command');
-					output = stripCommandEchoAndPrompt(commandOutput, commandLine, this._log.bind(this));
+					output = stripCommandEchoAndPrompt(commandOutput, commandLineForOutput, this._log.bind(this));
 				}
 			}
 			if (output === undefined) {
@@ -182,7 +183,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 					// The marker-based output includes the command echo and trailing
 					// prompt lines. Strip them to isolate the actual command output.
 					if (output !== undefined) {
-						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+						output = stripCommandEchoAndPrompt(output, commandLineForOutput, this._log.bind(this));
 					}
 				} catch {
 					this._log('Failed to fetch output via markers');

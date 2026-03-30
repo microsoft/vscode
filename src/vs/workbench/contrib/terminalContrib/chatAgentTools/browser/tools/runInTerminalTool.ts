@@ -510,8 +510,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._register(this._terminalService.onDidDisposeInstance(e => {
 			this._removeTerminalAssociations(e);
 		}));
-
-		// Listen for chat session disposal to clean up associated terminals
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				this._cleanupSessionTerminals(resource);
@@ -1131,7 +1129,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 
 			// Start execution (non-blocking - runs in background)
-			executionPromise = execution.start(command, executeCancellation.token, commandId);
+			executionPromise = execution.start(command, executeCancellation.token, commandId, toolSpecificData.commandLine.forDisplay ?? command);
 
 			if (args.isBackground) {
 				// Background mode: wait for OutputMonitor to detect idle, then return
@@ -1783,11 +1781,12 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	 * @param commandLine The command to execute
 	 * @param token Cancellation token
 	 * @param commandId Optional command ID for linking
+	 * @param stripCommandLine Optional command line to strip from output as the visible command echo
 	 * @returns The execution result
 	 */
-	async start(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async start(commandLine: string, token: CancellationToken, commandId?: string, stripCommandLine?: string): Promise<ITerminalExecuteStrategyResult> {
 		try {
-			const result = await this.strategy.execute(commandLine, token, commandId);
+			const result = await this.strategy.execute(commandLine, stripCommandLine, token, commandId);
 			this._completionDeferred.complete(result);
 			return result;
 		} catch (e) {

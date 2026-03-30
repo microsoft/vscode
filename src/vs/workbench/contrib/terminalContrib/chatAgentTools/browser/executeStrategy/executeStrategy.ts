@@ -16,10 +16,11 @@ export interface ITerminalExecuteStrategy extends IDisposable {
 	 * Executes a command line and gets a result designed to be passed directly to an LLM. The
 	 * result will include information about the exit code.
 	 * @param commandLine The command line to execute
+	 * @param stripCommandLine The command line to strip from output as the visible command echo
 	 * @param token Cancellation token
 	 * @param commandId Optional predefined command ID to link the command
 	 */
-	execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult>;
+	execute(commandLine: string, stripCommandLine: string | undefined, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult>;
 
 	readonly onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
