@@ -20,7 +20,7 @@ import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/commo
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
-import { ISessionData, SessionStatus } from '../../common/sessionData.js';
+import { ISession, SessionStatus } from '../../common/sessionData.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -246,7 +246,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionNewSession',
 			title: localize2('newSessionForWorkspace', "New Session"),
-			icon: Codicon.newSession,
+			icon: Codicon.plus,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -400,13 +400,16 @@ registerAction2(class PinSessionAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISessionData): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.sessionsControl?.pinSession(context);
+		for (const session of sessions) {
+			view?.sessionsControl?.pinSession(session);
+		}
 	}
 });
 
@@ -435,13 +438,16 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISessionData): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.sessionsControl?.unpinSession(context);
+		for (const session of sessions) {
+			view?.sessionsControl?.unpinSession(session);
+		}
 	}
 });
 
@@ -464,12 +470,15 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISessionData): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await sessionsManagementService.archiveSession(context);
+		for (const session of sessions) {
+			await sessionsManagementService.archiveSession(session);
+		}
 	}
 });
 
@@ -492,12 +501,15 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISessionData): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await sessionsManagementService.unarchiveSession(context);
+		for (const session of sessions) {
+			await sessionsManagementService.unarchiveSession(session);
+		}
 	}
 });
 
@@ -517,12 +529,15 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISessionData): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		sessionsManagementService.setRead(context, true);
+		for (const session of sessions) {
+			sessionsManagementService.setRead(session, true);
+		}
 	}
 });
 
@@ -542,12 +557,15 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISessionData): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		sessionsManagementService.setRead(context, false);
+		for (const session of sessions) {
+			sessionsManagementService.setRead(session, false);
+		}
 	}
 });
 
@@ -563,15 +581,18 @@ registerAction2(class OpenSessionInNewWindowAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISessionData): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		await chatWidgetService.openSession(context.resource, AUX_WINDOW_GROUP, {
-			auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
-			pinned: true
-		});
+		for (const session of sessions) {
+			await chatWidgetService.openSession(session.resource, AUX_WINDOW_GROUP, {
+				auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
+				pinned: true
+			});
+		}
 	}
 });
 
@@ -634,7 +655,7 @@ registerAction2(class AddChatAction extends Action2 {
 		super({
 			id: 'agentSession.addChat',
 			title: localize2('addChat', "Add Chat"),
-			icon: Codicon.newSession,
+			icon: Codicon.plus,
 			menu: [{
 				id: Menus.CommandCenter,
 				order: 102,

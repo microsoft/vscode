@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatData, ISessionData, SessionStatus } from '../../common/sessionData.js';
+import { IChat, ISession, SessionStatus } from '../../common/sessionData.js';
 import { groupByWorkspace, sortSessions, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
@@ -16,7 +16,7 @@ function createSession(id: string, opts: {
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
-}): ISessionData {
+}): ISession {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	return {
@@ -43,9 +43,9 @@ function createSession(id: string, opts: {
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
-		pullRequest: observableValue(`pullRequest-${id}`, undefined),
-		chats: observableValue<readonly IChatData[]>(`chats-${id}`, []),
-		activeChat: observableValue<IChatData>(`activeChat-${id}`, undefined!),
+		gitHubInfo: observableValue(`gitHubInfo-${id}`, undefined),
+		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
+		activeChat: observableValue<IChat>(`activeChat-${id}`, undefined!),
 		mainChat: undefined!,
 	};
 }

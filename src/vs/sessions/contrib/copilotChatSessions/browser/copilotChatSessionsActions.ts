@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
@@ -25,7 +26,7 @@ import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
-import { ISessionData } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../sessions/common/sessionData.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CopilotCLISession, COPILOT_PROVIDER_ID } from './copilotChatSessionsProvider.js';
 import { COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE } from '../../sessions/browser/sessionTypes.js';
@@ -289,6 +290,7 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 	constructor(
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -297,10 +299,10 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
-			if (chat instanceof CopilotCLISession) {
-				const isLoading = chat.loading.read(reader);
-				hasRepositoryKey.set(!isLoading && !!chat.gitRepository);
+			const providerSession = session ? sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
+			if (providerSession instanceof CopilotCLISession) {
+				const isLoading = providerSession.loading.read(reader);
+				hasRepositoryKey.set(!isLoading && !!providerSession.gitRepository);
 			} else {
 				hasRepositoryKey.set(false);
 			}
@@ -314,7 +316,7 @@ registerWorkbenchContribution2(CopilotActiveSessionContribution.ID, CopilotActiv
 /**
  * Bridges extension-contributed context menu actions from {@link MenuId.AgentSessionsContext}
  * to {@link SessionItemContextMenuId} for the new sessions view.
- * Registers wrapper commands that resolve {@link ISessionData} → {@link IAgentSession}
+ * Registers wrapper commands that resolve {@link ISession} → {@link IAgentSession}
  * and forward to the original command with marshalled context.
  */
 class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchContribution {
@@ -348,17 +350,18 @@ class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchCo
 			this._bridgedIds.add(commandId);
 
 			const wrapperId = `sessionsViewPane.bridge.${commandId}`;
-			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, sessionData?: ISessionData) => {
-				if (!sessionData) {
+			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, context?: ISession | ISession[]) => {
+				if (!context) {
 					return;
 				}
-				const agentSession = this.agentSessionsService.getSession(sessionData.resource);
-				if (!agentSession) {
+				const sessions = Array.isArray(context) ? context : [context];
+				const agentSessions = coalesce(sessions.map(s => this.agentSessionsService.getSession(s.resource)));
+				if (agentSessions.length === 0) {
 					return;
 				}
 				return this.commandService.executeCommand(commandId, {
-					session: agentSession,
-					sessions: [agentSession],
+					session: agentSessions[0],
+					sessions: agentSessions,
 					$mid: MarshalledId.AgentSessionContext,
 				});
 			}));

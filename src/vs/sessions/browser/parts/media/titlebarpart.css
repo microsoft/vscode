@@ -59,8 +59,8 @@
 	align-items: center;
 }
 
-/* Separator before right layout toolbar */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container:not(.has-no-actions)::before {
+/* Separator before right layout toolbar (only when session actions toolbar also has actions) */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions)::before {
 	content: '';
 	width: 1px;
 	height: 16px;
