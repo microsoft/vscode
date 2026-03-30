@@ -14,6 +14,8 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { RemoteAgentHostService } from '../../electron-browser/remoteAgentHostServiceImpl.js';
 import { parseRemoteAgentHostInput, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { IMainProcessService } from '../../../ipc/common/mainProcessService.js';
+import { type IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 
 // ---- Mock protocol client ---------------------------------------------------
 
@@ -106,6 +108,15 @@ suite('RemoteAgentHostService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
+
+		// Stub IMainProcessService with a no-op channel
+		const mockChannel = {
+			listen: () => Event.None,
+			call: () => Promise.resolve(null as never),
+		} satisfies IChannel;
+		instantiationService.stub(IMainProcessService, {
+			getChannel: () => mockChannel as IChannel,
+		} as Partial<IMainProcessService>);
 
 		// Mock the instantiation service to capture created protocol clients
 		const mockInstantiationService: Partial<IInstantiationService> = {

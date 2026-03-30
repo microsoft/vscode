@@ -74,6 +74,9 @@ export interface ISSHRemoteAgentHostService {
 	/** Fires when the set of active SSH connections changes. */
 	readonly onDidChangeConnections: Event<void>;
 
+	/** Progress messages during connect. */
+	readonly onDidReportConnectProgress: Event<ISSHConnectProgress>;
+
 	/** Currently active SSH-bootstrapped connections. */
 	readonly connections: readonly ISSHAgentHostConnection[];
 
@@ -133,6 +136,11 @@ export interface ISSHResolvedConfig {
 	readonly forwardAgent: boolean;
 }
 
+export interface ISSHConnectProgress {
+	readonly connectionKey: string;
+	readonly message: string;
+}
+
 /**
  * Main-process service that performs the actual SSH work.
  * The renderer calls this over IPC and handles registration
@@ -148,6 +156,9 @@ export interface ISSHRemoteAgentHostMainService {
 
 	/** Fires when a connection is closed from the main process side. */
 	readonly onDidCloseConnection: Event<string /* localAddress */>;
+
+	/** Progress messages during connect (e.g. "Installing CLI..."). */
+	readonly onDidReportConnectProgress: Event<ISSHConnectProgress>;
 
 	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable

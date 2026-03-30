@@ -11,12 +11,14 @@ import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	ISSHRemoteAgentHostMainService,
 	SSHAuthMethod,
 	type ISSHAgentHostConfig,
 	type ISSHAgentHostConfigSanitized,
+	type ISSHConnectProgress,
 	type ISSHConnectResult,
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
@@ -262,6 +264,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidCloseConnection = this._register(new Emitter<string>());
 	readonly onDidCloseConnection: Event<string> = this._onDidCloseConnection.event;
 
+	private readonly _onDidReportConnectProgress = this._register(new Emitter<ISSHConnectProgress>());
+	readonly onDidReportConnectProgress: Event<ISSHConnectProgress> = this._onDidReportConnectProgress.event;
+
 	private readonly _connections = new Map<string, SSHConnection>();
 
 	constructor(
@@ -291,7 +296,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		try {
 			const ssh2Module = _require('ssh2') as { Client: new () => unknown };
 
+			const reportProgress = (message: string) => {
+				this._onDidReportConnectProgress.fire({ connectionKey, message });
+			};
+
 			// 1. Establish SSH connection
+			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
 			sshClient = await this._connectSSH(config, ssh2Module.Client);
 
 			// 2. Detect remote platform
@@ -304,12 +314,15 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.os}-${platform.arch}`);
 
 			// 3. Install CLI if needed
-			await this._ensureCLIInstalled(sshClient, platform);
+			reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
+			await this._ensureCLIInstalled(sshClient, platform, reportProgress);
 
 			// 4. Start agent-host and capture port/token
+			reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
 			const { port: remotePort, connectionToken, stream: agentStream } = await startRemoteAgentHost(sshClient, this._logService);
 
 			// 5. Set up local TCP port forwarding
+			reportProgress(localize('sshProgressForwarding', "Setting up port forwarding..."));
 			const { server, localPort } = await createLocalForwarder(
 				sshClient, '127.0.0.1', remotePort, this._logService,
 			);
@@ -560,14 +573,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		});
 	}
 
-	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }): Promise<void> {
+	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<void> {
 		const { code } = await sshExec(client, `${REMOTE_CLI_BIN} --version`, { ignoreExitCode: true });
 		if (code === 0) {
 			this._logService.info(`${LOG_PREFIX} VS Code CLI already installed on remote`);
 			return;
 		}
 
-		this._logService.info(`${LOG_PREFIX} Installing VS Code CLI on remote...`);
+		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
 		const quality = 'stable';
 		const url = buildCLIDownloadUrl(platform.os, platform.arch, quality);
 

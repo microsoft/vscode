@@ -16,6 +16,7 @@ import {
 	type ISSHAgentHostConnection,
 	type ISSHRemoteAgentHostMainService,
 	type ISSHResolvedConfig,
+	type ISSHConnectProgress,
 } from '../common/sshRemoteAgentHost.js';
 
 /**
@@ -31,6 +32,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
 	readonly onDidChangeConnections: Event<void> = this._onDidChangeConnections.event;
 
+	readonly onDidReportConnectProgress: Event<ISSHConnectProgress>;
+
 	private readonly _connections = new Map<string, SSHAgentHostConnectionHandle>();
 
 	constructor(
@@ -43,6 +46,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		this._mainService = ProxyChannel.toService<ISSHRemoteAgentHostMainService>(
 			mainProcessService.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL),
 		);
+
+		this.onDidReportConnectProgress = this._mainService.onDidReportConnectProgress;
 
 		// When main process fires onDidCloseConnection, clean up the renderer-side handle
 		this._register(this._mainService.onDidCloseConnection(localAddress => {

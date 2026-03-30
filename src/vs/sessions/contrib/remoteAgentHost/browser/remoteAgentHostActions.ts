@@ -293,19 +293,27 @@ async function connectWithProgress(
 	sshService: ISSHRemoteAgentHostService,
 	notificationService: INotificationService,
 	config: ISSHAgentHostConfig,
-	host: string,
+	displayHost: string,
 ): Promise<void> {
 	const handle = notificationService.notify({
 		severity: Severity.Info,
-		message: localize('sshConnecting', "Connecting to {0} via SSH...", host),
+		message: localize('sshConnecting', "Connecting to {0} via SSH...", displayHost),
 		progress: { infinite: true },
 	});
+
+	// Listen for progress updates from the main process
+	const progressListener = sshService.onDidReportConnectProgress?.(progress => {
+		handle.updateMessage(progress.message);
+	});
+
 	try {
 		await sshService.connect(config);
 		handle.close();
 	} catch (err) {
 		handle.close();
-		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", host, String(err)));
+		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", displayHost, String(err)));
+	} finally {
+		progressListener?.dispose();
 	}
 }
 
