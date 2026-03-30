@@ -160,6 +160,16 @@ export class AgentLanesViewPane extends ViewPane {
 			errorEl.textContent = instance.error.message;
 			errorEl.title = `Retry count: ${instance.error.retryCount}`;
 		}
+
+		// Card actions: stop button
+		const actionsRow = dom.append(card, dom.$('.agent-card-actions'));
+		const stopBtn = dom.append(actionsRow, dom.$('a.agent-action-stop'));
+		stopBtn.textContent = 'Stop';
+		stopBtn.title = 'Terminate this agent';
+		this._bodyDisposables.add(dom.addDisposableListener(stopBtn, dom.EventType.CLICK, (e) => {
+			e.stopPropagation();
+			this._agentLaneService.terminateAgent(instance.id);
+		}));
 	}
 
 	private _renderAvailableAgents(container: HTMLElement): void {

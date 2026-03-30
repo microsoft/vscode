@@ -339,6 +339,27 @@
 	margin-top: 4px;
 }
 
+/* ===== Card Actions ===== */
+
+.agent-card-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 6px;
+	padding-top: 4px;
+	border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.15));
+}
+
+.agent-action-stop {
+	font-size: 11px;
+	color: var(--vscode-editorError-foreground, #f14c4c);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.agent-action-stop:hover {
+	text-decoration: underline;
+}
+
 /* ===== Available Agents ===== */
 
 .available-agents {

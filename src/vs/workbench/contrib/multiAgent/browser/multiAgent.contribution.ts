@@ -182,6 +182,59 @@ KeybindingsRegistry.registerKeybindingRule({
 	},
 });
 
+// --- View Title Toolbar Actions ---
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+
+const COMMAND_STOP_ALL_AGENTS = 'workbench.action.multiAgent.stopAllAgents';
+
+registerAction2(class AddAgentAction extends Action2 {
+	constructor() {
+		super({
+			id: COMMAND_CREATE_AGENT,
+			title: localize2('addAgent', "Add Agent"),
+			icon: Codicon.add,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', AgentLanesViewPane.ID),
+				order: 1,
+			}],
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const wizard = new AgentCreationWizard(
+			accessor.get(IQuickInputService),
+			accessor.get(IAgentLaneService),
+			accessor.get(IMultiAgentProviderService),
+		);
+		return wizard.run();
+	}
+});
+
+registerAction2(class StopAllAgentsAction extends Action2 {
+	constructor() {
+		super({
+			id: COMMAND_STOP_ALL_AGENTS,
+			title: localize2('stopAllAgents', "Stop All Agents"),
+			icon: Codicon.debugStop,
+			menu: [{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', AgentLanesViewPane.ID),
+				order: 2,
+			}],
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const agentLaneService = accessor.get(IAgentLaneService);
+		for (const instance of agentLaneService.getAgentInstances()) {
+			agentLaneService.terminateAgent(instance.id);
+		}
+	}
+});
+
 // --- Configuration ---
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'multiAgent',
