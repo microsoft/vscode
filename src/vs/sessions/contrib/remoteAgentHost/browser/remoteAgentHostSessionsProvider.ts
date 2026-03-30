@@ -80,7 +80,7 @@ class RemoteSessionAdapter implements ISessionData {
 		this.title = observableValue('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
-		this.description = observableValue('description', new MarkdownString(providerLabel));
+		this.description = observableValue('description', new MarkdownString().appendText(providerLabel));
 		this.workspace = observableValue('workspace', metadata.workingDirectory
 			? RemoteAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory, providerLabel, connectionAuthority)
 			: undefined);
