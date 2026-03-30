@@ -311,10 +311,14 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		// - individual session observable state (status, isRead, isArchived)
 		// - sidebar visibility changes
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
-		const partVisibilityChanged = observableSignalFromEvent(this, this.layoutService.onDidChangePartVisibility);
+		const sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
+			if (e.part === Parts.SIDEBAR_PART) {
+				handler(e);
+			}
+		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
-			partVisibilityChanged.read(reader);
+			sidebarVisibilityChanged.read(reader);
 			for (const session of this.sessionsManagementService.getSessions()) {
 				session.isArchived.read(reader);
 				session.status.read(reader);
