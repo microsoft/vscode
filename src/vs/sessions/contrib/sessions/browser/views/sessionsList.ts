@@ -23,6 +23,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatSessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -966,7 +967,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionArchivedContext.key, element.isArchived.get()],
 			[IsSessionReadContext.key, element.isRead.get()],
 			['chatSessionType', element.sessionType],
-			['chatSessionProviderId', element.providerId],
+			[ChatSessionProviderIdContext.key, element.providerId],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));

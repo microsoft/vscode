@@ -25,7 +25,7 @@ import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsM
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionStatus } from '../common/sessionData.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
@@ -269,7 +269,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			[IsSessionArchivedContext.key, sessionData.isArchived.get()],
 			[IsSessionReadContext.key, sessionData.isRead.get()],
 			['chatSessionType', sessionData.sessionType],
-			['chatSessionProviderId', sessionData.providerId],
+			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
