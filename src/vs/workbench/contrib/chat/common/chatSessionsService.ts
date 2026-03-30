@@ -52,8 +52,6 @@ export interface IChatSessionProviderOptionGroup {
 	readonly name: string;
 	readonly description?: string;
 	readonly items: readonly IChatSessionProviderOptionItem[];
-	readonly searchable?: boolean;
-	readonly onSearch?: (query: string, token: CancellationToken) => Thenable<IChatSessionProviderOptionItem[]>;
 	/**
 	 * A context key expression that controls visibility of this option group picker.
 	 * When specified, the picker is only visible when the expression evaluates to true.

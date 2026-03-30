@@ -11,7 +11,6 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
-import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
 import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionOptionGroup } from './newSession.js';
 import { RemoteNewSession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
@@ -26,7 +25,7 @@ import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvid
 export class ExtensionToolbarPickers extends Disposable {
 
 	private _container: HTMLElement | undefined;
-	private readonly _pickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
+	private readonly _pickerWidgets = new Map<string, ChatSessionPickerActionItem>();
 	private readonly _pickerDisposables = this._register(new DisposableStore());
 	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
 	private readonly _optionContextKeys = new Map<string, IContextKey<string>>();
@@ -84,7 +83,7 @@ export class ExtensionToolbarPickers extends Disposable {
 		const toolbarOptions = session.getOtherOptionGroups();
 		const visibleGroups = toolbarOptions.filter(option => {
 			const group = option.group;
-			return group.items.length > 0 || (group.commands || []).length > 0 || !!group.searchable;
+			return group.items.length > 0 || (group.commands || []).length > 0;
 		});
 
 		if (visibleGroups.length === 0) {
@@ -136,7 +135,7 @@ export class ExtensionToolbarPickers extends Disposable {
 
 		const action = toAction({ id: optionGroup.id, label: optionGroup.name, run: () => { } });
 		const widget = this.instantiationService.createInstance(
-			optionGroup.searchable ? SearchableOptionPickerActionItem : ChatSessionPickerActionItem,
+			ChatSessionPickerActionItem,
 			action, initialState, itemDelegate, undefined
 		);
 
