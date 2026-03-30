@@ -939,7 +939,7 @@ export class ChangesViewPane extends ViewPane {
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
 							if (
-								action.id === 'chatEditing.viewChanges' ||
+								action.id === 'chatEditing.viewAllSessionChanges' ||
 								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
 							) {
 								return { showIcon: true, showLabel: false, isSecondary: true };
