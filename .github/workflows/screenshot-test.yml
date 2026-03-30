@@ -42,6 +42,10 @@ jobs:
         run: npm ci
         working-directory: build
 
+      - name: Install rspack dependencies
+        run: npm ci
+        working-directory: build/rspack
+
       - name: Transpile source
         run: npm run transpile-client
 
