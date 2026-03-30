@@ -130,6 +130,7 @@
 		"welcomePage.progress.foreground": "#0078D4",
 		"banner.background": "#0078D4",
 		"banner.foreground": "#FFFFFF",
+		"banner.iconForeground": "#FFFFFF",
 		"widget.border": "#313131",
 	},
 }
