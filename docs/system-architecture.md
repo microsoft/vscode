@@ -307,9 +307,9 @@ Skill provides implementation guidance
 Planner incorporates into plan
 ```
 
-### 6. Integration Layer
+### 9. Integration Layer
 
-#### 6.1 Hook System (8 Core Hooks)
+#### 9.1 Hook System (8 Core Hooks)
 
 **Purpose**: Intercept and control Claude Code operations for performance, context management, and security
 
@@ -426,7 +426,7 @@ All hooks located in `.claude/hooks/` with consistent patterns - fail-safe exit 
 - Comprehensive Testing: Cross-platform test coverage
 - Session Continuity: Enables context preservation across session boundaries
 
-#### 6.2 MCP (Model Context Protocol) Integration
+#### 9.2 MCP (Model Context Protocol) Integration
 
 **Available MCP Servers**:
 
@@ -452,7 +452,7 @@ All hooks located in `.claude/hooks/` with consistent patterns - fail-safe exit 
 - Code analysis
 - Debugging assistance
 
-#### 6.3 Preview Dashboard System (COMPLETE - Phase 6)
+#### 9.3 Preview Dashboard System (COMPLETE - Phase 6)
 
 **Purpose**: Interactive web-based visualization of implementation plans and project progress
 
@@ -551,7 +551,7 @@ User sees sorted/filtered plan grid
 - Timestamp tracking for plan modifications
 - Security-validated path traversal
 
-#### 6.4 External Service Integration
+#### 9.4 External Service Integration
 
 **GitHub**:
 - Actions (CI/CD automation)
@@ -567,9 +567,24 @@ User sees sorted/filtered plan grid
 - Package publishing
 - Version management
 
-### 7. Data Layer
+### 7. Multi-Agent Orchestrator System
 
-#### 7.1 File-Based Storage
+VS Code includes a comprehensive multi-agent orchestrator framework enabling specialized agents to collaborate on complex development tasks.
+
+**Module Location**: `src/vs/workbench/contrib/multiAgent/`
+
+**Key Components**:
+- **IMultiAgentProviderService** - Provider account and credential management
+- **IAgentLaneService** - Agent lifecycle and state machine
+- **IOrchestratorService** - Task decomposition and delegation
+- **IProviderRotationService** - Load balancing and quota tracking
+- **Sidebar Views** - Providers ViewPane and Agent Lanes ViewPane
+
+For detailed architecture, see [Multi-Agent Orchestrator Documentation](./multiagent-orchestrator.md).
+
+### 8. Data Layer
+
+#### 8.1 File-Based Storage
 
 **Configuration Data**:
 - `.claude/` - Claude Code config
@@ -589,7 +604,7 @@ User sees sorted/filtered plan grid
 - `CHANGELOG.md` - Version history
 - Git tags - Release versions
 
-#### 7.2 Data Flow
+#### 8.2 Data Flow
 
 ```
 User Input
@@ -729,323 +744,27 @@ plans/<plan-name>/reports/251026-from-tester-to-main-test-results-report.md
 
 ## Data Flow Diagrams
 
-### Command Execution Flow
+**Command Execution**: User → CLI → Parser → Workflow → Sequential/Parallel Execution → Results
 
-```
-User → CLI → Parser → Command Def → Agent Workflow
-                                         ↓
-                        ┌────────────────┴────────────────┐
-                        ↓                                 ↓
-                Sequential Execution              Parallel Execution
-                        ↓                                 ↓
-                Agent A → Agent B → Agent C    Agent A + Agent B + Agent C
-                        ↓                                 ↓
-                        └─────────────┬───────────────────┘
-                                      ↓
-                              Collect Results
-                                      ↓
-                              Present to User
-```
+**Agent Communication**: File-based (plans/reports/) with async read/write coordination
 
-### File-Based Communication Flow
-
-```
-Agent A (Planner)
-    ↓ Writes
-./plans/<plan-name>/plan.md
-    ↓ Reads
-Main Agent
-    ↓ Implements
-Code Changes
-    ↓ Writes
-./plans/<plan-name>/reports/251026-from-main-to-tester-impl-report.md
-    ↓ Reads
-Tester Agent
-    ↓ Executes
-Tests
-    ↓ Writes
-./plans/<plan-name>/reports/251026-from-tester-to-main-results-report.md
-    ↓ Reads
-Main Agent (next steps)
-```
-
-### Documentation Update Flow
-
-```
-Code Changes
-    ↓
-Docs Manager Triggered
-    ↓
-Check Freshness (< 1 day?)
-    ↓
-┌─────────┴─────────┐
-↓ No (outdated)     ↓ Yes (fresh)
-Run Repomix         Read Existing
-    ↓                   ↓
-Generate Summary        │
-    └────────┬──────────┘
-             ↓
-    Analyze Changes
-             ↓
-    Update Documentation
-    - API docs
-    - Code standards
-    - Architecture
-    - Codebase summary
-             ↓
-    Validate Naming
-             ↓
-    Create Report
-             ↓
-    Save to ./docs/
-```
+**Documentation Update**: Code changes trigger freshness check → Repomix (if outdated) → Analysis → Update
 
 ## Security Architecture
 
-### Security Layers
+**Security Layers**: Pre-commit scanning, code validation, agent isolation, communication sanitization
 
-**Layer 1: Pre-Commit Security**
-- Secret scanning (git-manager agent)
-- Credential detection
-- .gitignore validation
-- Environment file exclusion
-
-**Layer 2: Code Security**
-- Input validation enforcement
-- SQL injection prevention
-- XSS protection patterns
-- OWASP Top 10 awareness
-
-**Layer 3: Agent Security**
-- No logging of sensitive data
-- Sanitized error messages
-- Secure credential handling
-- API key protection
-
-**Layer 4: Communication Security**
-- File system permissions
-- Report sanitization
-- Context isolation
-- Clean handoffs
-
-### Secret Management
-
-**Environment Variables**:
-```
-.env (local, gitignored)
-.env.example (template, committed)
-```
-
-**API Keys**:
-- Never hardcoded
-- Environment variable injection
-- Secure storage systems in production
-
-**Credentials**:
-- Password hashing (bcrypt, argon2)
-- Token-based authentication
-- Secure session management
+**Secret Management**: Environment variables (`.env` gitignored, `.env.example` committed), API keys via environment injection, secure credential storage
 
 ## Scalability Considerations
 
-### Horizontal Scalability
+**Horizontal**: Parallel agent execution (N agents), workflow parallelization across branches
+**Vertical**: Repomix for code compaction, selective context loading, lazy skill loading
 
-**Parallel Agent Execution**:
-- Independent researchers run simultaneously
-- No shared state between agents
-- File-based coordination
-- Scalable to N agents
-
-**Workflow Parallelization**:
-- Multiple feature branches
-- Concurrent issue resolution
-- Parallel test execution
-- Independent documentation updates
-
-### Vertical Scalability
-
-**Context Management**:
-- Repomix for code compaction
-- Selective context loading
-- Chunked file processing
-- Efficient token usage
-
-**Performance Optimization**:
-- Lazy loading of skills
-- Cached MCP responses
-- Incremental documentation updates
-- Optimized file I/O
-
-## Deployment Architecture
-
-### Development Environment
-
-```
-Developer Machine
-├── Claude Code CLI
-├── .claude/ (configuration)
-├── Git repository
-└── Node.js runtime
-```
-
-### CI/CD Pipeline
-
-```
-GitHub Repository
-    ↓ Push to main
-GitHub Actions
-    ↓
-Run Tests
-    ↓
-Semantic Release
-    ├─→ Version Bump
-    ├─→ Changelog Generation
-    ├─→ GitHub Release
-    └─→ (Optional) NPM Publish
-```
-
-### Production Usage
-
-```
-User Project
-├── .claude/ (from template)
-├── docs/ (generated)
-├── plans/ (generated)
-├── src/ (user code)
-└── tests/ (user tests)
-```
-
-## Monitoring & Observability
-
-### Agent Activity Tracking
-
-**Logs**:
-- Agent invocations
-- Command executions
-- Workflow progress
-- Error occurrences
-
-**Reports**:
-- Agent communication files
-- Implementation plans
-- Research findings
-- Test results
-
-**Metrics**:
-- Command execution time
-- Agent success rates
-- Test pass/fail ratios
-- Documentation coverage
-
-### Quality Metrics
-
-**Code Quality**:
-- Test coverage percentage
-- Type safety compliance
-- Linting pass rate
-- Security scan results
-
-**Process Metrics**:
-- Planning to implementation time
-- Code review turnaround
-- Documentation freshness
-- Commit message compliance
-
-## Failure Handling
-
-### Error Recovery Strategies
-
-**Agent Failures**:
-- Graceful degradation
-- Error reporting to user
-- Rollback mechanisms
-- Retry logic for transient errors
-
-**Workflow Failures**:
-- Checkpoint saving
-- Partial progress preservation
-- Clear failure messages
-- Recovery suggestions
-
-**Communication Failures**:
-- File write retries
-- Report validation
-- Missing report detection
-- Timeout handling
 
 ## Extension Points
 
-### Adding New Agents
-
-1. Create agent definition file: `.claude/agents/my-agent.md`
-2. Define YAML frontmatter (name, description, mode, model)
-3. Write agent instructions and workflows
-4. Reference in commands or other agents
-
-### Adding New Command-Style Skills
-
-1. Create skill directory: `.claude/skills/my-command/`
-2. Define `SKILL.md` with YAML frontmatter and workflow instructions
-3. Add script/reference files under `scripts/` or `references/` as needed
-4. Register discoverability metadata in SKILL.md frontmatter
-
-### Adding New Skills
-
-1. Create skill directory: `.claude/skills/my-skill/`
-2. Write `SKILL.md` with knowledge content
-3. Add references and examples
-4. Reference in agent definitions
-
-### Custom Workflows
-
-1. Define workflow in `.claude/rules/`
-2. Document orchestration patterns
-3. Specify agent handoffs
-4. Provide examples
-
-## Performance Considerations
-
-### Optimization Strategies
-
-**Token Efficiency**:
-- Repomix for codebase compaction
-- Selective context inclusion
-- Efficient prompt engineering
-- Response caching where possible
-
-**Execution Speed**:
-- Parallel agent spawning
-- Async file operations
-- Lazy skill loading
-- Minimal context switching
-
-**Resource Usage**:
-- File system efficiency
-- Memory management for large files
-- Cleanup of temporary files
-- Optimized git operations
-
-## Future Architecture Evolution
-
-### Planned Enhancements
-
-**Agent Improvements**:
-- Visual workflow builder for agent orchestration
-- Custom agent creator with UI
-- Agent marketplace for community contributions
-- Real-time agent communication (beyond files)
-
-**Scalability Enhancements**:
-- Distributed agent execution
-- Cloud-based agent orchestration
-- Multi-repository support
-- Large-scale project handling
-
-**Integration Expansions**:
-- Additional AI platforms
-- More MCP servers
-- Custom integration framework
-- Enterprise service connectors
+Create new agents at `.claude/agents/my-agent.md`, new skills at `.claude/skills/my-skill/`, and custom workflows at `.claude/rules/`.
 
 ## References
 

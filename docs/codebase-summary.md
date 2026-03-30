@@ -27,6 +27,22 @@ claudekit-engineer/
 ├── plans/               # Implementation plans and reports
 │   ├── reports/         # Agent-to-agent communication
 │   └── templates/       # Plan templates
+├── src/vs/workbench/contrib/multiAgent/  # Multi-agent orchestrator system
+│   ├── common/
+│   │   ├── multiAgentProviderService.ts      # IMultiAgentProviderService interface
+│   │   ├── multiAgentProviderServiceImpl.ts   # Provider registry & account management
+│   │   ├── modelProviderMap.ts               # Built-in provider/model definitions
+│   │   ├── agentLaneService.ts               # IAgentLaneService interface
+│   │   ├── agentLaneServiceImpl.ts            # Agent lifecycle & state machine
+│   │   ├── builtInAgents.ts                  # 6 built-in agent templates
+│   │   ├── orchestratorService.ts            # IOrchestratorService interface
+│   │   ├── orchestratorServiceImpl.ts         # Task decomposition & delegation
+│   │   ├── providerRotationService.ts        # IProviderRotationService interface
+│   │   └── providerRotationServiceImpl.ts     # Auto-rotation & quota tracking
+│   └── browser/
+│       ├── multiAgent.contribution.ts        # Registration & configuration
+│       ├── providersViewPane.ts              # Providers sidebar UI
+│       └── agentLanesViewPane.ts             # Agent Lanes sidebar UI
 ├── CLAUDE.md           # Project-specific Claude instructions
 ├── README.md           # Project overview
 ├── package.json        # Node.js dependencies
@@ -275,6 +291,7 @@ Types:
 - `code-standards.md` - Coding standards and structure
 - `codebase-summary.md` - This file
 - `system-architecture.md` - Architecture documentation
+- `multiagent-orchestrator.md` - Multi-agent orchestrator system architecture
 - `project-roadmap.md` - Development roadmap
 - `project-changelog.md` - Detailed changelog
 - `statusline-windows-support.md` - Windows statusline setup guide
