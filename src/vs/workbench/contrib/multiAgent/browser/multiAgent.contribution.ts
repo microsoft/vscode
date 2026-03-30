@@ -156,14 +156,7 @@ CommandsRegistry.registerCommand(COMMAND_OPEN_AGENT_LANES, async (accessor) => {
 	await viewsService.openView(AgentLanesViewPane.ID, true);
 });
 
-CommandsRegistry.registerCommand(COMMAND_CREATE_AGENT, async (accessor) => {
-	const wizard = new AgentCreationWizard(
-		accessor.get(IQuickInputService),
-		accessor.get(IAgentLaneService),
-		accessor.get(IMultiAgentProviderService),
-	);
-	await wizard.run();
-});
+// COMMAND_CREATE_AGENT is registered via registerAction2 (AddAgentAction) below
 
 // --- Keybindings ---
 KeybindingsRegistry.registerKeybindingRule({
