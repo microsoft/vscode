@@ -27,6 +27,20 @@ jobs:
           git submodule update --init extensions/copilot
         displayName: Initialize copilot submodule
 
+      - script: |
+          set -e
+          VSCODE_VERSION=$(node -p "require('$(Build.SourcesDirectory)/package.json').version")
+          echo "Setting Copilot extension version to $VSCODE_VERSION"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = '$VSCODE_VERSION';
+            pkg.engines.vscode = '^$VSCODE_VERSION';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, '\t') + '\n');
+          "
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Set Copilot version to VS Code version
+
       - template: copilot/setup-steps.yml
       - template: copilot/build-steps.yml
       - template: copilot/l10n-steps.yml
@@ -82,20 +96,6 @@ jobs:
           done
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Minify JSON files
-
-      - script: |
-          set -e
-          VSCODE_VERSION=$(node -p "require('$(Build.SourcesDirectory)/package.json').version")
-          echo "Setting Copilot extension version to $VSCODE_VERSION"
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$VSCODE_VERSION';
-            pkg.engines.vscode = '^$VSCODE_VERSION';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, '\t') + '\n');
-          "
-        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-        displayName: Set Copilot version to VS Code version
 
       - script: |
           set -e
