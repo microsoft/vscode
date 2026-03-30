@@ -271,7 +271,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult> {
-		const connectionKey = `${config.username}@${config.host}:${config.port ?? 22}`;
+		const connectionKey = config.sshConfigHost
+			? `ssh:${config.sshConfigHost}`
+			: `${config.username}@${config.host}:${config.port ?? 22}`;
 
 		const existing = this._connections.get(connectionKey);
 		if (existing) {

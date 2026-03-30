@@ -9,7 +9,7 @@ import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInpu
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 
@@ -164,11 +164,7 @@ async function promptToConnectViaSSH(
 					name: suggestedName,
 					sshConfigHost: picked.hostAlias,
 				};
-				try {
-					await sshService.connect(config);
-				} catch (err) {
-					notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", host, String(err)));
-				}
+				await connectWithProgress(sshService, notificationService, config, suggestedName);
 				return;
 			}
 		} else {
@@ -290,9 +286,25 @@ async function promptToConnectViaSSH(
 		name: name.trim(),
 	};
 
+	await connectWithProgress(sshService, notificationService, config, host);
+}
+
+async function connectWithProgress(
+	sshService: ISSHRemoteAgentHostService,
+	notificationService: INotificationService,
+	config: ISSHAgentHostConfig,
+	host: string,
+): Promise<void> {
+	const handle = notificationService.notify({
+		severity: Severity.Info,
+		message: localize('sshConnecting', "Connecting to {0} via SSH...", host),
+		progress: { infinite: true },
+	});
 	try {
 		await sshService.connect(config);
+		handle.close();
 	} catch (err) {
+		handle.close();
 		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", host, String(err)));
 	}
 }
