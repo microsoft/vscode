@@ -44,14 +44,19 @@ steps:
         Write-Host "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$AppRoot\$AppNameShort.exe"
       displayName: Compute VS Code build path
 
-  # Ensure Git LFS objects are available (macOS agents may not have LFS smudge filters configured)
+  # Ensure Git LFS objects are available (submodule checkout doesn't inherit LFS config)
   - ${{ if ne(parameters.OS, 'win32') }}:
-    - script: git lfs pull
+    - script: |
+        set -e
+        git lfs install --local
+        git lfs pull
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: Pull Git LFS objects
 
   - ${{ if eq(parameters.OS, 'win32') }}:
-    - powershell: git lfs pull
+    - powershell: |
+        git lfs install --local
+        git lfs pull
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: Pull Git LFS objects
 
