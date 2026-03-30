@@ -51,6 +51,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 						order: 7,
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
+							ContextKeyExpr.equals('sessions.hasGitRepository', true),
 							ChatContextKeys.agentSessionType.notEqualsTo(CopilotCloudSessionType.id),
 						),
 					},
