@@ -42,6 +42,7 @@
 	border-top: 6px solid transparent;
 	border-bottom: 6px solid transparent;
 	border-right: 6px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	display: none;
 }
 
 .agent-feedback-widget.collapsed .agent-feedback-widget-arrow {
@@ -133,7 +134,7 @@
 .agent-feedback-widget-item {
 	display: flex;
 	flex-direction: column;
-	padding: 8px 10px;
+	padding: 4px 8px 6px 12px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
 	cursor: pointer;
 	position: relative;
@@ -163,7 +164,7 @@
 
 .agent-feedback-widget-item-header {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	justify-content: space-between;
 	gap: 8px;
 }
