@@ -269,7 +269,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					? { ...e, address: result.localAddress, connectionToken: result.connectionToken }
 					: e
 			);
-			this._configurationService.updateValue(RemoteAgentHostsSettingId, updated, ConfigurationTarget.USER);
+			this._configurationService.updateValue(RemoteAgentHostsSettingId, updated, this._getConfigurationTarget());
 			this._connectTo(newAddress, result.connectionToken);
 		}).catch(err => {
 			this._pendingSSHReconnects.delete(alias);

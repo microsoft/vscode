@@ -5,7 +5,7 @@
 
 import { createRequire } from 'node:module';
 import * as net from 'net';
-import * as fs from 'fs';
+import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
@@ -93,16 +93,28 @@ function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: b
 
 			let stdout = '';
 			let stderr = '';
+			let settled = false;
 
-			stream.on('data', (data: Buffer) => { stdout += data.toString(); });
-			stream.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
-			stream.on('close', (code: number) => {
+			const finish = (error: Error | undefined, code: number | undefined) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				if (error) {
+					reject(error);
+					return;
+				}
 				if (code !== 0 && !opts?.ignoreExitCode) {
 					reject(new Error(`SSH command failed (exit ${code}): ${command}\nstderr: ${stderr}`));
 				} else {
-					resolve({ stdout, stderr, code });
+					resolve({ stdout, stderr, code: code ?? 0 });
 				}
-			});
+			};
+
+			stream.on('data', (data: Buffer) => { stdout += data.toString(); });
+			stream.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+			stream.on('error', (streamErr: Error) => finish(streamErr, undefined));
+			stream.on('close', (code: number) => finish(undefined, code));
 		});
 	});
 }
@@ -368,7 +380,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async disconnect(host: string): Promise<void> {
 		for (const [key, conn] of this._connections) {
-			if (key.includes(host) || conn.localAddress === host) {
+			if (key === host || conn.localAddress === host) {
 				conn.dispose();
 				return;
 			}
@@ -401,7 +413,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	async listSSHConfigHosts(): Promise<string[]> {
 		const configPath = join(os.homedir(), '.ssh', 'config');
 		try {
-			const content = fs.readFileSync(configPath, 'utf-8');
+			const content = await fsp.readFile(configPath, 'utf-8');
 			return this._parseSSHConfigHosts(content, dirname(configPath));
 		} catch {
 			this._logService.info(`${LOG_PREFIX} Could not read SSH config at ${configPath}`);
@@ -422,7 +434,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		});
 	}
 
-	private _parseSSHConfigHosts(content: string, configDir: string, visited?: Set<string>): string[] {
+	private async _parseSSHConfigHosts(content: string, configDir: string, visited?: Set<string>): Promise<string[]> {
 		const seen = visited ?? new Set<string>();
 		const hosts: string[] = [];
 
@@ -440,44 +452,49 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				continue;
 			}
 
-			const rawPattern = stripSSHComment(includeMatch[1]);
-			const pattern = rawPattern.replace(/^~/, os.homedir());
-			const resolvedPattern = isAbsolute(pattern) ? pattern : join(configDir, pattern);
+			const rawValue = stripSSHComment(includeMatch[1]);
+			const patterns = rawValue.split(/\s+/).filter(Boolean);
 
-			// Cycle protection
-			if (seen.has(resolvedPattern)) {
-				continue;
-			}
-			seen.add(resolvedPattern);
+			for (const rawPattern of patterns) {
+				const pattern = rawPattern.replace(/^~/, os.homedir());
+				const resolvedPattern = isAbsolute(pattern) ? pattern : join(configDir, pattern);
 
-			try {
-				const stat = fs.statSync(resolvedPattern);
-				if (stat.isDirectory()) {
-					for (const file of fs.readdirSync(resolvedPattern)) {
-						try {
-							const sub = fs.readFileSync(join(resolvedPattern, file), 'utf-8');
-							hosts.push(...this._parseSSHConfigHosts(sub, resolvedPattern, seen));
-						} catch { /* skip unreadable files */ }
-					}
-				} else {
-					const sub = fs.readFileSync(resolvedPattern, 'utf-8');
-					hosts.push(...this._parseSSHConfigHosts(sub, dirname(resolvedPattern), seen));
+				if (seen.has(resolvedPattern)) {
+					continue;
 				}
-			} catch {
-				const dir = dirname(resolvedPattern);
-				const base = basename(resolvedPattern);
-				if (base.includes('*')) {
-					try {
-						for (const file of fs.readdirSync(dir)) {
-							const regex = new RegExp('^' + base.replace(/\*/g, '.*') + '$');
-							if (regex.test(file)) {
-								try {
-									const sub = fs.readFileSync(join(dir, file), 'utf-8');
-									hosts.push(...this._parseSSHConfigHosts(sub, dir, seen));
-								} catch { /* skip */ }
-							}
+				seen.add(resolvedPattern);
+
+				try {
+					const stat = await fsp.stat(resolvedPattern);
+					if (stat.isDirectory()) {
+						const files = await fsp.readdir(resolvedPattern);
+						for (const file of files) {
+							try {
+								const sub = await fsp.readFile(join(resolvedPattern, file), 'utf-8');
+								hosts.push(...await this._parseSSHConfigHosts(sub, resolvedPattern, seen));
+							} catch { /* skip unreadable files */ }
 						}
-					} catch { /* skip unreadable dirs */ }
+					} else {
+						const sub = await fsp.readFile(resolvedPattern, 'utf-8');
+						hosts.push(...await this._parseSSHConfigHosts(sub, dirname(resolvedPattern), seen));
+					}
+				} catch {
+					const dir = dirname(resolvedPattern);
+					const base = basename(resolvedPattern);
+					if (base.includes('*')) {
+						try {
+							const files = await fsp.readdir(dir);
+							for (const file of files) {
+								const regex = new RegExp('^' + base.replace(/\*/g, '.*') + '$');
+								if (regex.test(file)) {
+									try {
+										const sub = await fsp.readFile(join(dir, file), 'utf-8');
+										hosts.push(...await this._parseSSHConfigHosts(sub, dir, seen));
+									} catch { /* skip */ }
+								}
+							}
+						} catch { /* skip unreadable dirs */ }
+					}
 				}
 			}
 		}
@@ -488,10 +505,36 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return parseSSHGOutput(stdout);
 	}
 
-	private _connectSSH(
+	private async _connectSSH(
 		config: ISSHAgentHostConfig,
 		SSHClientCtor: new () => unknown,
 	): Promise<SSHClient> {
+		const connectConfig: Record<string, unknown> = {
+			host: config.host,
+			port: config.port ?? 22,
+			username: config.username,
+			readyTimeout: 30_000,
+			keepaliveInterval: 15_000,
+		};
+
+		switch (config.authMethod) {
+			case SSHAuthMethod.Agent: {
+				const agentSock = process.env['SSH_AUTH_SOCK'];
+				this._logService.info(`${LOG_PREFIX} Using SSH agent: ${agentSock ?? '(not set)'}`);
+				connectConfig.agent = agentSock;
+				break;
+			}
+			case SSHAuthMethod.KeyFile:
+				if (config.privateKeyPath) {
+					const keyPath = config.privateKeyPath.replace(/^~/, os.homedir());
+					connectConfig.privateKey = await fsp.readFile(keyPath);
+				}
+				break;
+			case SSHAuthMethod.Password:
+				connectConfig.password = config.password;
+				break;
+		}
+
 		return new Promise<SSHClient>((resolve, reject) => {
 			const client = new SSHClientCtor() as SSHClient;
 
@@ -504,32 +547,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				this._logService.error(`${LOG_PREFIX} SSH connection error: ${err.message}`);
 				reject(err);
 			});
-
-			const connectConfig: Record<string, unknown> = {
-				host: config.host,
-				port: config.port ?? 22,
-				username: config.username,
-				readyTimeout: 30_000,
-				keepaliveInterval: 15_000,
-			};
-
-			switch (config.authMethod) {
-				case SSHAuthMethod.Agent: {
-					const agentSock = process.env['SSH_AUTH_SOCK'];
-					this._logService.info(`${LOG_PREFIX} Using SSH agent: ${agentSock ?? '(not set)'}`);
-					connectConfig.agent = agentSock;
-					break;
-				}
-				case SSHAuthMethod.KeyFile:
-					if (config.privateKeyPath) {
-						const keyPath = config.privateKeyPath.replace(/^~/, os.homedir());
-						connectConfig.privateKey = fs.readFileSync(keyPath);
-					}
-					break;
-				case SSHAuthMethod.Password:
-					connectConfig.password = config.password;
-					break;
-			}
 
 			client.connect(connectConfig);
 		});

@@ -152,7 +152,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 /**
  * Lightweight renderer-side handle that represents a connection
- * managed by the main process. Disposal triggers the onDidClose event.
+ * managed by the main process.
  */
 class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostConnection {
 	private readonly _onDidClose = this._register(new Emitter<void>());
