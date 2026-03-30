@@ -185,7 +185,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}));
 
 		// Handle session state changes from the server
-		this._register(this._connection.onDidAction(e => {
+		this._connectionListeners.add(this._connection.onDidAction(e => {
 			if (e.action.type === ActionType.SessionTurnComplete && isSessionAction(e.action)) {
 				const cts = new CancellationTokenSource();
 				this._refreshSessions(cts.token).finally(() => cts.dispose());

@@ -183,7 +183,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			const title = prompt.trim();
 			if (title) {
 				chatService.setChatSessionTitle(sessionResource, title);
-				commandService.executeCommand('_chat.renameSessionFromProvider', sessionResource, title);
+				void commandService.executeCommand('_chat.renameSessionFromProvider', sessionResource, title);
 			}
 		}));
 		const setPermissionLevelForSession = (sessionResource: URI, level: ChatPermissionLevel) => {
