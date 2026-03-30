@@ -133,8 +133,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _defaultWritePaths: string[] = ['~/.npm'];
 	private static readonly _sandboxTempDirName = 'tmp';
 	private static readonly _urlRegex = /(?:https?|wss?):\/\/[^\s'"`|&;<>]+/gi;
-	private static readonly _sshRemoteRegex = /(?:^|[\s'"`])(?:[^\s@:'"`]+@)?([a-z0-9.-]+\.[a-z]{2,})(?::[^\s'"`|&;<>]+)(?=$|[\s'"`|&;<>])/gi;
-	private static readonly _hostRegex = /(?:^|[\s'"`(=])([a-z0-9.-]+\.[a-z]{2,})(?::\d+)?(?=(?:\/[^\s'"`|&;<>]*)?(?:$|[\s'"`)\]|,;|&<>]))/gi;
+	private static readonly _sshRemoteRegex = /(?:^|[\s'"`])(?:[^\s@:'"`]+@)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::[^\s'"`|&;<>]+)(?=$|[\s'"`|&;<>])/gi;
+	private static readonly _hostRegex = /(?:^|[\s'"`(=])([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::\d+)?(?=(?:\/[^\s'"`|&;<>]*)?(?:$|[\s'"`)\]|,;|&<>]))/gi;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
