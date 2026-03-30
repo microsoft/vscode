@@ -166,7 +166,9 @@ export class AgentChatBridgeImpl extends Disposable implements IAgentChatBridge 
 						metadata: { instanceId, role: definition.role },
 					};
 				} catch (e) {
-					this._agentLaneService.transitionState(instanceId, AgentState.Error);
+					if (needsTransition) {
+						this._agentLaneService.transitionState(instanceId, AgentState.Error);
+					}
 
 					return {
 						errorDetails: {

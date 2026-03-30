@@ -99,12 +99,25 @@ class MultiAgentAutoRegisterContribution extends Disposable {
 	) {
 		super();
 
-		// Auto-register when agents are spawned
-		this._register(this._agentLaneService.onDidChangeInstances((instance) => {
-			if (instance && !this._registrations.has(instance.id)) {
-				// New agent spawned — register as chat participant
-				const registration = this._chatBridge.registerAgent(instance.definitionId, instance.id);
-				this._registrations.set(instance.id, registration);
+		// Single listener: register new agents, unregister removed ones
+		this._register(this._agentLaneService.onDidChangeInstances(() => {
+			const activeInstances = this._agentLaneService.getAgentInstances();
+			const activeIds = new Set(activeInstances.map(i => i.id));
+
+			// Register new agents
+			for (const instance of activeInstances) {
+				if (!this._registrations.has(instance.id)) {
+					const registration = this._chatBridge.registerAgent(instance.definitionId, instance.id);
+					this._registrations.set(instance.id, registration);
+				}
+			}
+
+			// Unregister removed agents
+			for (const [id, registration] of this._registrations) {
+				if (!activeIds.has(id)) {
+					registration.dispose();
+					this._registrations.delete(id);
+				}
 			}
 		}));
 
@@ -116,17 +129,6 @@ class MultiAgentAutoRegisterContribution extends Disposable {
 				// Ignore if max agents reached
 			}
 		}
-
-		// Auto-unregister when agents are terminated (instance = undefined means removal)
-		this._register(this._agentLaneService.onDidChangeInstances(() => {
-			const activeIds = new Set(this._agentLaneService.getAgentInstances().map(i => i.id));
-			for (const [id, registration] of this._registrations) {
-				if (!activeIds.has(id)) {
-					registration.dispose();
-					this._registrations.delete(id);
-				}
-			}
-		}));
 	}
 
 	override dispose(): void {

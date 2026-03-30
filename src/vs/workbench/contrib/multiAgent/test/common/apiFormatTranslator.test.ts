@@ -59,7 +59,8 @@ suite('ApiFormatTranslator', () => {
 		assert.strictEqual(body.contents.length, 2); // no system in contents
 		assert.strictEqual(body.contents[0].role, 'user');
 		assert.strictEqual(body.contents[1].role, 'model'); // Google uses 'model' not 'assistant'
-		assert.ok(req.url.includes('key=key-test'));
+		assert.ok(req.headers['x-goog-api-key'] === 'key-test');
+		assert.ok(!req.url.includes('key='), 'API key should not be in URL');
 	});
 
 	// --- SSE chunk parsing ---

@@ -119,8 +119,11 @@ export class ApiFormatTranslator {
 		}
 
 		return {
-			url: `${baseUrl}/v1beta/models/${modelId}:streamGenerateContent?key=${apiKey}&alt=sse`,
-			headers: { 'Content-Type': 'application/json' },
+			url: `${baseUrl}/v1beta/models/${modelId}:streamGenerateContent?alt=sse`,
+			headers: {
+				'Content-Type': 'application/json',
+				'x-goog-api-key': apiKey,
+			},
 			body: JSON.stringify(body),
 		};
 	}

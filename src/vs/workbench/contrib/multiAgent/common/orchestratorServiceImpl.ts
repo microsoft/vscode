@@ -265,9 +265,8 @@ export class OrchestratorServiceImpl extends Disposable implements IOrchestrator
 					}
 				}
 
-				if (ready.length === 0) {
-					break; // All remaining are stuck
-				}
+				// Re-evaluate after cancellations — new tasks may now be ready
+				continue;
 			}
 
 			// Execute ready tasks in parallel (up to max concurrent)
