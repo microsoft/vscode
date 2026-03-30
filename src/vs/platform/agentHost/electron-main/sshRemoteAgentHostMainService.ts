@@ -255,6 +255,8 @@ class SSHConnection extends Disposable {
 	}
 }
 
+import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+
 export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRemoteAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
 
@@ -424,76 +426,58 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		const seen = visited ?? new Set<string>();
 		const hosts: string[] = [];
 
-		/** Strip inline comments (# not inside quotes). */
-		const stripComment = (s: string): string => {
-			const idx = s.indexOf(' #');
-			return idx !== -1 ? s.substring(0, idx).trim() : s;
-		};
+		// Extract hosts from this file directly
+		hosts.push(...parseSSHConfigHostEntries(content));
 
+		// Follow Include directives
 		for (const line of content.split('\n')) {
 			const trimmed = line.trim();
 			if (!trimmed || trimmed.startsWith('#')) {
 				continue;
 			}
-
-			// Follow Include directives
 			const includeMatch = trimmed.match(/^Include\s+(.+)$/i);
-			if (includeMatch) {
-				const rawPattern = stripComment(includeMatch[1]);
-				const pattern = rawPattern.replace(/^~/, os.homedir());
-				const resolvedPattern = isAbsolute(pattern) ? pattern : join(configDir, pattern);
-
-				// Cycle protection
-				const realPath = resolvedPattern;
-				if (seen.has(realPath)) {
-					continue;
-				}
-				seen.add(realPath);
-
-				try {
-					// Simple glob: if it's a directory, read all files; otherwise read the file
-					const stat = fs.statSync(resolvedPattern);
-					if (stat.isDirectory()) {
-						for (const file of fs.readdirSync(resolvedPattern)) {
-							try {
-								const sub = fs.readFileSync(join(resolvedPattern, file), 'utf-8');
-								hosts.push(...this._parseSSHConfigHosts(sub, resolvedPattern, seen));
-							} catch { /* skip unreadable files */ }
-						}
-					} else {
-						const sub = fs.readFileSync(resolvedPattern, 'utf-8');
-						hosts.push(...this._parseSSHConfigHosts(sub, dirname(resolvedPattern), seen));
-					}
-				} catch {
-					// Try as a glob pattern with wildcard — read the parent dir and match
-					const dir = dirname(resolvedPattern);
-					const base = basename(resolvedPattern);
-					if (base.includes('*')) {
-						try {
-							for (const file of fs.readdirSync(dir)) {
-								// Simple wildcard match
-								const regex = new RegExp('^' + base.replace(/\*/g, '.*') + '$');
-								if (regex.test(file)) {
-									try {
-										const sub = fs.readFileSync(join(dir, file), 'utf-8');
-										hosts.push(...this._parseSSHConfigHosts(sub, dir, seen));
-									} catch { /* skip */ }
-								}
-							}
-						} catch { /* skip unreadable dirs */ }
-					}
-				}
+			if (!includeMatch) {
 				continue;
 			}
 
-			const hostMatch = trimmed.match(/^Host\s+(.+)$/i);
-			if (hostMatch) {
-				const hostValue = stripComment(hostMatch[1]);
-				for (const h of hostValue.split(/\s+/)) {
-					// Skip wildcards and negations
-					if (!h.includes('*') && !h.includes('?') && !h.startsWith('!')) {
-						hosts.push(h);
+			const rawPattern = stripSSHComment(includeMatch[1]);
+			const pattern = rawPattern.replace(/^~/, os.homedir());
+			const resolvedPattern = isAbsolute(pattern) ? pattern : join(configDir, pattern);
+
+			// Cycle protection
+			if (seen.has(resolvedPattern)) {
+				continue;
+			}
+			seen.add(resolvedPattern);
+
+			try {
+				const stat = fs.statSync(resolvedPattern);
+				if (stat.isDirectory()) {
+					for (const file of fs.readdirSync(resolvedPattern)) {
+						try {
+							const sub = fs.readFileSync(join(resolvedPattern, file), 'utf-8');
+							hosts.push(...this._parseSSHConfigHosts(sub, resolvedPattern, seen));
+						} catch { /* skip unreadable files */ }
 					}
+				} else {
+					const sub = fs.readFileSync(resolvedPattern, 'utf-8');
+					hosts.push(...this._parseSSHConfigHosts(sub, dirname(resolvedPattern), seen));
+				}
+			} catch {
+				const dir = dirname(resolvedPattern);
+				const base = basename(resolvedPattern);
+				if (base.includes('*')) {
+					try {
+						for (const file of fs.readdirSync(dir)) {
+							const regex = new RegExp('^' + base.replace(/\*/g, '.*') + '$');
+							if (regex.test(file)) {
+								try {
+									const sub = fs.readFileSync(join(dir, file), 'utf-8');
+									hosts.push(...this._parseSSHConfigHosts(sub, dir, seen));
+								} catch { /* skip */ }
+							}
+						}
+					} catch { /* skip unreadable dirs */ }
 				}
 			}
 		}
@@ -501,29 +485,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	private _parseSSHGOutput(stdout: string): ISSHResolvedConfig {
-		const map = new Map<string, string>();
-		const identityFiles: string[] = [];
-		for (const line of stdout.split('\n')) {
-			const spaceIdx = line.indexOf(' ');
-			if (spaceIdx === -1) {
-				continue;
-			}
-			const key = line.substring(0, spaceIdx).toLowerCase();
-			const value = line.substring(spaceIdx + 1).trim();
-			if (key === 'identityfile') {
-				identityFiles.push(value);
-			} else {
-				map.set(key, value);
-			}
-		}
-
-		return {
-			hostname: map.get('hostname') ?? '',
-			user: map.get('user') || undefined,
-			port: parseInt(map.get('port') ?? '22', 10),
-			identityFile: identityFiles,
-			forwardAgent: map.get('forwardagent') === 'yes',
-		};
+		return parseSSHGOutput(stdout);
 	}
 
 	private _connectSSH(

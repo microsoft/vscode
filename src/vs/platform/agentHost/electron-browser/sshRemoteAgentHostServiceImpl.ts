@@ -55,6 +55,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			if (handle) {
 				this._connections.delete(localAddress);
 				handle.fireClose();
+				handle.dispose();
 				this._remoteAgentHostService.removeRemoteAgentHost(localAddress).catch(() => { /* best effort */ });
 				this._onDidChangeConnections.fire();
 			}
@@ -157,6 +158,8 @@ class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostCo
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
+	private _closedByMain = false;
+
 	constructor(
 		readonly config: ISSHAgentHostConnection['config'],
 		readonly localAddress: string,
@@ -166,13 +169,17 @@ class SSHAgentHostConnectionHandle extends Disposable implements ISSHAgentHostCo
 		super();
 
 		// When this handle is disposed, tear down the main-process tunnel
+		// (skip if already closed from the main process side)
 		this._register(toDisposable(() => {
-			disconnectFn().catch(() => { /* best effort */ });
+			if (!this._closedByMain) {
+				disconnectFn().catch(() => { /* best effort */ });
+			}
 		}));
 	}
 
 	/** Called by the service when the main process signals connection closure. */
 	fireClose(): void {
+		this._closedByMain = true;
 		this._onDidClose.fire();
 	}
 }
