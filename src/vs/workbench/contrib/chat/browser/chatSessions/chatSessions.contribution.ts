@@ -31,11 +31,11 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
-import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -52,6 +52,7 @@ import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -288,6 +289,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
 
+	private readonly _onDidCommitSession = this._register(new Emitter<IChatSessionCommitEvent>());
+	readonly onDidCommitSession = this._onDidCommitSession.event;
+
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability: Event<void> = this._onDidChangeAvailability.event;
 
@@ -303,7 +307,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap = new Map</* chatSessionType */ string, number>();
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
-	private readonly _sessionTypeNewSessionOptions = new Map</* sessionType */string, ChatSessionOptionsMap>();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
@@ -1033,13 +1036,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
-		if (isUntitledChatSession(sessionResource) && newSessionOptions) {
+		const newSessionOptionGroups = await this.getNewChatSessionInputState(resolvedType);
+		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
+			const options: ChatSessionOptionsMap = new Map();
+			for (const group of newSessionOptionGroups) {
+				const selected = group.selected ?? group.items.find(item => item.default) ?? group.items[0];
+				if (selected) {
+					options.set(group.id, selected);
+				}
+			}
 			session = {
 				sessionResource: sessionResource,
 				onWillDispose: Event.None,
 				history: [],
-				options: newSessionOptions ?? {},
+				options: options.size > 0 ? options : undefined,
 				dispose: () => { }
 			};
 		} else {
@@ -1136,6 +1146,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._resourceAliases.set(realResource, untitledResource);
 	}
 
+	public fireSessionCommitted(original: URI, committed: URI): void {
+		this._onDidCommitSession.fire({ original, committed });
+	}
+
 	/**
 	 * Store option groups for a session type
 	 */
@@ -1155,16 +1169,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	public getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined {
-		const options = this._sessionTypeNewSessionOptions.get(chatSessionType);
-		if (!options || options.size === 0) {
+	public async getNewChatSessionInputState(chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+		const controllerData = this._itemControllers.get(chatSessionType);
+		if (controllerData?.controller.getNewChatSessionInputState) {
+			const groups = await controllerData.controller.getNewChatSessionInputState(CancellationToken.None);
+			if (groups?.length) {
+				this._sessionTypeOptions.set(chatSessionType, [...groups]);
+				this._onDidChangeOptionGroups.fire(chatSessionType);
+			}
+			return groups;
+		}
+
+		const groups = this._sessionTypeOptions.get(chatSessionType);
+		if (!groups?.length) {
 			return undefined;
 		}
-		return new Map(options);
-	}
-
-	public setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void {
-		this._sessionTypeNewSessionOptions.set(chatSessionType, new Map(options));
+		return groups;
 	}
 
 	/**
@@ -1401,4 +1421,41 @@ export function getResourceForNewChatSession(options: NewChatSessionOpenOptions)
 
 function isAgentSessionProviderType(type: string): boolean {
 	return Object.values(AgentSessionProviders).includes(type as AgentSessionProviders);
+}
+
+export function getSessionStatusForModel(model: IChatModel): ChatSessionStatus | undefined {
+	if (model.requestInProgress.get()) {
+		return ChatSessionStatus.InProgress;
+	}
+
+	const lastRequest = model.getRequests().at(-1);
+	if (lastRequest?.response) {
+		if (lastRequest.response.state === ResponseModelState.NeedsInput) {
+			return ChatSessionStatus.NeedsInput;
+		} else if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
+			return ChatSessionStatus.Completed;
+		} else if (lastRequest.response.result?.errorDetails) {
+			return ChatSessionStatus.Failed;
+		} else if (lastRequest.response.isComplete) {
+			return ChatSessionStatus.Completed;
+		} else {
+			return ChatSessionStatus.InProgress;
+		}
+	}
+
+	return undefined;
+}
+
+export function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessionStatus {
+	switch (state) {
+		case ResponseModelState.Cancelled:
+		case ResponseModelState.Complete:
+			return ChatSessionStatus.Completed;
+		case ResponseModelState.Failed:
+			return ChatSessionStatus.Failed;
+		case ResponseModelState.Pending:
+			return ChatSessionStatus.InProgress;
+		case ResponseModelState.NeedsInput:
+			return ChatSessionStatus.NeedsInput;
+	}
 }

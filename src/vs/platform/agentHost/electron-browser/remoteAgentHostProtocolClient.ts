@@ -16,6 +16,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { IFileService } from '../../files/common/files.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
@@ -38,6 +39,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _clientId = generateUuid();
 	private readonly _transport: WebSocketClientTransport;
+	private readonly _connectionAuthority: string;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
 	private _defaultDirectory: string | undefined;
@@ -74,6 +76,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		this._connectionAuthority = agentHostAuthority(address);
 		this._transport = this._register(new WebSocketClientTransport(address, connectionToken));
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._onDidClose.fire()));
@@ -135,7 +138,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			session: session.toString(),
 			provider,
 			model: config?.model,
-			workingDirectory: config?.workingDirectory,
+			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 		});
 		return session;
 	}
@@ -192,7 +195,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			startTime: s.createdAt,
 			modifiedTime: s.modifiedAt,
 			summary: s.title,
-			workingDirectory: typeof s.workingDirectory === 'string' ? s.workingDirectory : undefined,
+			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
 		}));
 	}
 
@@ -208,6 +211,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async fetchContent(uri: URI): Promise<ICommandMap['fetchContent']['result']> {
 		return this._sendRequest('fetchContent', { uri: uri.toString() });
+	}
+
+	async writeFile(params: ICommandMap['writeFile']['params']): Promise<ICommandMap['writeFile']['result']> {
+		return this._sendRequest('writeFile', params);
 	}
 
 	private _handleMessage(msg: IProtocolMessage): void {

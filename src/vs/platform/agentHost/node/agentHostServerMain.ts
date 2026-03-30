@@ -14,8 +14,8 @@ import { fileURLToPath } from 'url';
 globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 
 import * as fs from 'fs';
+import * as os from 'os';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -30,21 +30,15 @@ import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { AgentSession, type AgentProvider, type IAgent } from '../common/agentService.js';
-import { AgentSideEffects } from './agentSideEffects.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentService } from './agentService.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { FileService } from '../../files/common/fileService.js';
 import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
-import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
-import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { SessionDataService } from './sessionDataService.js';
-import { AgentPluginManager } from './agentPluginManager.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -144,46 +138,16 @@ async function main(): Promise<void> {
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
 
-	// Create state manager
-	const stateManager = disposables.add(new SessionStateManager(logService));
-
-	// Agent registry — maps provider id to agent instance
-	const agents = new Map<AgentProvider, IAgent>();
-
-	// Observable agents list for root state
-	const registeredAgents = observableValue<readonly IAgent[]>('agents', []);
-
 	// File service
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 
-	// Register client-side filesystem provider (reverse RPC)
-	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
-	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
-
 	// Session data service
-	const userDataUri = URI.file(environmentService.userDataPath);
-	const sessionDataService = new SessionDataService(userDataUri, fileService, logService);
+	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
-	// Plugin manager
-	const pluginManager = new AgentPluginManager(userDataUri, fileService, logService);
-
-	// Shared side-effect handler
-	const sideEffects = disposables.add(new AgentSideEffects(stateManager, {
-		getAgent(session) {
-			const provider = AgentSession.provider(session);
-			return provider ? agents.get(provider) : agents.values().next().value;
-		},
-		agents: registeredAgents,
-		sessionDataService,
-	}, logService, fileService));
-
-	function registerAgent(agent: IAgent): void {
-		agents.set(agent.id, agent);
-		disposables.add(sideEffects.registerProgressListener(agent));
-		registeredAgents.set([...agents.values()], undefined);
-		logService.info(`[AgentHostServer] Registered agent: ${agent.id}`);
-	}
+	// Create the agent service (owns SessionStateManager + AgentSideEffects internally)
+	const agentService = new AgentService(logService, fileService, sessionDataService);
+	disposables.add(agentService);
 
 	// Register agents
 	if (!options.quiet) {
@@ -194,10 +158,9 @@ async function main(): Promise<void> {
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
-		diServices.set(IAgentPluginManager, pluginManager);
 		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
-		registerAgent(copilotAgent);
+		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
 	}
 
@@ -205,7 +168,7 @@ async function main(): Promise<void> {
 		// Dynamic import to avoid bundling test code in production
 		import('../test/node/mockAgent.js').then(({ ScriptedMockAgent }) => {
 			const mockAgent = disposables.add(new ScriptedMockAgent());
-			registerAgent(mockAgent);
+			agentService.registerProvider(mockAgent);
 		}).catch(err => {
 			logService.error('[AgentHostServer] Failed to load mock agent', err);
 		});
@@ -220,7 +183,13 @@ async function main(): Promise<void> {
 	}, logService));
 
 	// Wire up protocol handler
-	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, clientFileSystemProvider, logService));
+	disposables.add(new ProtocolServerHandler(
+		agentService,
+		agentService.stateManager,
+		wsServer,
+		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		logService,
+	));
 
 	// Report ready
 	function reportReady(addr: string): void {

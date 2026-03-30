@@ -91,8 +91,12 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		if (path === '/' || path === '') {
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
-		const decodedPath = this._decodeUri(resource).path;
-		if (decodedPath === '/' || decodedPath === '') {
+		const decoded = this._decodeUri(resource);
+		if (decoded.scheme === 'session-db') {
+			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
+		}
+
+		if (decoded.path === '/' || decoded.path === '') {
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 

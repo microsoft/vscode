@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.statusbar > .items-container > #status\.update > a > span {
-	color: var(--vscode-button-background);
-	font-size: 16px;
-}
+import { registerMainProcessRemoteService } from '../../ipc/electron-browser/services.js';
+import { ISandboxHelperService } from '../common/sandboxHelperService.js';
+
+registerMainProcessRemoteService(ISandboxHelperService, 'sandboxHelper');

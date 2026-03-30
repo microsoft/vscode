@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
 import { AttachmentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
@@ -38,7 +38,7 @@ export interface IAgentSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
 }
 
 export type AgentProvider = string;
@@ -101,7 +101,7 @@ export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: string;
 	readonly session?: URI;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
@@ -240,6 +240,10 @@ export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
 	readonly toolInput?: string;
 	/** Short title for the confirmation prompt. */
 	readonly confirmationTitle?: StringOrMarkdown;
+	/** Kind of permission being requested (e.g. `'write'`, `'read'`). */
+	readonly permissionKind?: string;
+	/** File path associated with the permission request. */
+	readonly permissionPath?: string;
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
@@ -474,6 +478,12 @@ export interface IAgentService {
 	 * or reading files from the remote filesystem).
 	 */
 	fetchContent(uri: URI): Promise<IFetchContentResult>;
+
+	/**
+	 * Write content to a file on the agent host's filesystem.
+	 * Used for undo/redo operations on file edits.
+	 */
+	writeFile(params: IWriteFileParams): Promise<IWriteFileResult>;
 }
 
 /**

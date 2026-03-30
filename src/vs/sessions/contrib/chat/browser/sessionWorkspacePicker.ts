@@ -343,11 +343,11 @@ export class WorkspacePicker extends Disposable {
 			const submenuActions = [...providerMap.values()].map(({ provider, actions }) =>
 				new SubmenuAction(
 					`workspacePicker.browse.${provider.id}`,
-					provider.label,
-					actions.map(({ action, index }) => toAction({
+					'',
+					actions.map(({ action, index }, ci) => toAction({
 						id: `workspacePicker.browse.${index}`,
 						label: localize(`workspacePicker.browse`, "{0}...", action.label),
-						tooltip: '',
+						tooltip: ci === 0 ? provider.label : '',
 						run: () => this._executeBrowseAction(index),
 					})),
 				)
@@ -381,7 +381,7 @@ export class WorkspacePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 		const workspace = this._selectedWorkspace?.workspace;
-		const label = workspace ? workspace.label : localize('pickWorkspace', "a workspace");
+		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
 		const icon = workspace ? workspace.icon : Codicon.project;
 
 		dom.append(this._triggerElement, renderIcon(icon));

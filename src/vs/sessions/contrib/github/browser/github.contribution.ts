@@ -38,11 +38,11 @@ class GitHubActiveSessionRefreshContribution extends Disposable implements IWork
 				return;
 			}
 			this._lastSessionResource = session.resource;
-			const context = this._sessionsManagementService.getGitHubContextForSession(session.resource);
-			if (!context || context.prNumber === undefined) {
+			const gitHubInfo = session.gitHubInfo.read(reader);
+			if (!gitHubInfo?.pullRequest) {
 				return;
 			}
-			const prModel = this._gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+			const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			prModel.refresh();
 		}));
 	}
