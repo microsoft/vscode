@@ -44,6 +44,17 @@ steps:
         Write-Host "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$AppRoot\$AppNameShort.exe"
       displayName: Compute VS Code build path
 
+  # Ensure Git LFS objects are available (macOS agents may not have LFS smudge filters configured)
+  - ${{ if ne(parameters.OS, 'win32') }}:
+    - script: git lfs pull
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Pull Git LFS objects
+
+  - ${{ if eq(parameters.OS, 'win32') }}:
+    - powershell: git lfs pull
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Pull Git LFS objects
+
   # Compile copilot extension for tests
   - ${{ if ne(parameters.OS, 'win32') }}:
     - script: npm run compile
@@ -54,103 +65,6 @@ steps:
     - powershell: npm run compile
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
       displayName: Compile copilot
-
-  # Diagnostics before Copilot integration tests
-  - ${{ if ne(parameters.OS, 'win32') }}:
-    - script: |
-        set -e
-        echo "=== .env file ==="
-        if [ -f .env ]; then
-          echo ".env exists ($(wc -c < .env) bytes)"
-          echo "Keys present:"
-          grep -oP '^[^=]+' .env || true
-        else
-          echo ".env NOT FOUND"
-        fi
-        echo ""
-        echo "=== Environment variables ==="
-        echo "GITHUB_PAT set: $([ -n \"$GITHUB_PAT\" ] && echo YES || echo NO)"
-        echo "GITHUB_OAUTH_TOKEN set: $([ -n \"$GITHUB_OAUTH_TOKEN\" ] && echo YES || echo NO)"
-        echo ""
-        echo "=== SQLite cache ==="
-        CACHE_DIR="test/simulation/cache"
-        if [ -d "$CACHE_DIR" ]; then
-          echo "Cache dir exists"
-          ls -la "$CACHE_DIR/base.sqlite" 2>/dev/null || echo "base.sqlite NOT FOUND"
-          ls "$CACHE_DIR/layers/" 2>/dev/null | wc -l | xargs -I{} echo "Layer files: {}"
-        else
-          echo "Cache dir NOT FOUND at $CACHE_DIR"
-        fi
-        echo ""
-        echo "=== sqlite3 native module ==="
-        node -e "try { require('sqlite3'); console.log('sqlite3 npm package: OK'); } catch(e) { console.log('sqlite3 npm package FAILED:', e.message); }"
-        node -e "try { require('node:sqlite'); console.log('node:sqlite built-in: OK'); } catch(e) { console.log('node:sqlite built-in FAILED:', e.message); }"
-        echo ""
-        echo "=== Cache read test ==="
-        node -e "
-          const KeyvSqlite = require('@keyv/sqlite').default || require('@keyv/sqlite');
-          const Keyv = require('keyv');
-          const path = require('path');
-          const dbPath = path.join('test', 'simulation', 'cache', 'base.sqlite');
-          console.log('DB path:', path.resolve(dbPath));
-          const store = new KeyvSqlite(dbPath);
-          const kv = new Keyv(store);
-          Promise.all([
-            kv.get('modelMetadata|2025-10-23T15:44:16.705Z:response:prod'),
-            kv.get('modelMetadata|2025-10-23T15:44:16.705Z:response:modelLab')
-          ]).then(([prod, lab]) => {
-            console.log('Cache prod entry:', prod ? 'HIT (' + JSON.stringify(prod).length + ' chars)' : 'MISS');
-            console.log('Cache modelLab entry:', lab ? 'HIT (' + JSON.stringify(lab).length + ' chars)' : 'MISS');
-          }).catch(e => console.log('Cache read error:', e.message));
-        " 2>&1 || true
-        echo ""
-        echo "=== Node / Electron info ==="
-        node -e "console.log('Node:', process.version, process.arch, process.platform)"
-        echo "VSCODE_UNDER_TEST: $VSCODE_UNDER_TEST"
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Copilot test diagnostics
-      continueOnError: true
-
-  - ${{ if eq(parameters.OS, 'win32') }}:
-    - powershell: |
-        Write-Host "=== .env file ==="
-        if (Test-Path .env) {
-          $size = (Get-Item .env).Length
-          Write-Host ".env exists ($size bytes)"
-          Write-Host "Keys present:"
-          Get-Content .env | ForEach-Object { ($_ -split '=')[0] }
-        } else {
-          Write-Host ".env NOT FOUND"
-        }
-        Write-Host ""
-        Write-Host "=== Environment variables ==="
-        Write-Host "GITHUB_PAT set: $(if ($env:GITHUB_PAT) { 'YES' } else { 'NO' })"
-        Write-Host "GITHUB_OAUTH_TOKEN set: $(if ($env:GITHUB_OAUTH_TOKEN) { 'YES' } else { 'NO' })"
-        Write-Host ""
-        Write-Host "=== SQLite cache ==="
-        $cacheDir = "test\simulation\cache"
-        if (Test-Path $cacheDir) {
-          Write-Host "Cache dir exists"
-          if (Test-Path "$cacheDir\base.sqlite") { Get-Item "$cacheDir\base.sqlite" | Select-Object Length } else { Write-Host "base.sqlite NOT FOUND" }
-          $layers = (Get-ChildItem "$cacheDir\layers\*.sqlite" -ErrorAction SilentlyContinue).Count
-          Write-Host "Layer files: $layers"
-        } else {
-          Write-Host "Cache dir NOT FOUND at $cacheDir"
-        }
-        Write-Host ""
-        Write-Host "=== sqlite3 native module ==="
-        node -e "try { require('sqlite3'); console.log('sqlite3 npm package: OK'); } catch(e) { console.log('sqlite3 npm package FAILED:', e.message); }"
-        node -e "try { require('node:sqlite'); console.log('node:sqlite built-in: OK'); } catch(e) { console.log('node:sqlite built-in FAILED:', e.message); }"
-        Write-Host ""
-        Write-Host "=== Cache read test ==="
-        node -e "const KeyvSqlite = require('@keyv/sqlite').default || require('@keyv/sqlite'); const Keyv = require('keyv'); const path = require('path'); const dbPath = path.join('test', 'simulation', 'cache', 'base.sqlite'); console.log('DB path:', path.resolve(dbPath)); const store = new KeyvSqlite(dbPath); const kv = new Keyv(store); Promise.all([kv.get('modelMetadata|2025-10-23T15:44:16.705Z:response:prod'), kv.get('modelMetadata|2025-10-23T15:44:16.705Z:response:modelLab')]).then(([prod, lab]) => { console.log('Cache prod entry:', prod ? 'HIT (' + JSON.stringify(prod).length + ' chars)' : 'MISS'); console.log('Cache modelLab entry:', lab ? 'HIT (' + JSON.stringify(lab).length + ' chars)' : 'MISS'); }).catch(e => console.log('Cache read error:', e.message));" 2>&1
-        Write-Host ""
-        Write-Host "=== Node / Electron info ==="
-        node -e "console.log('Node:', process.version, process.arch, process.platform)"
-        Write-Host "VSCODE_UNDER_TEST: $env:VSCODE_UNDER_TEST"
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Copilot test diagnostics
-      continueOnError: true
 
   # Run Copilot integration tests
   - ${{ if eq(parameters.OS, 'linux') }}:
