@@ -247,6 +247,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		this.migrateColorThemeSettings();
 		await this.migrateAutoDetectColorScheme();
+		await this.migrateColorThemeDefaults();
 		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
 		this.showNewDefaultThemeNotification();
 		return result;
@@ -276,6 +277,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}));
 	}
 
+	private static readonly THEME_MIGRATION_KEY = 'workbench.colorThemeDefaultMigrated';
+
 	/**
 	 * Migrates legacy theme setting values to their current equivalents,
 	 * writing back the migrated value so settings sync distributes the correct ID.
@@ -303,6 +306,65 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				}
 			}
 		}
+	}
+
+	/**
+	 * Pins the previous default theme for existing users who never explicitly
+	 * chose a theme, so changing the schema default does not silently alter
+	 * their appearance. Runs after settings sync completes to avoid conflicts.
+	 */
+	private async migrateColorThemeDefaults(): Promise<void> {
+		if (this.storageService.isNew(StorageScope.PROFILE)
+			|| this.storageService.getBoolean(WorkbenchThemeService.THEME_MIGRATION_KEY, StorageScope.PROFILE)) {
+			return; // new install or already migrated
+		}
+
+		// Wait for settings sync so we don't overwrite values arriving from another device.
+		await this.userDataInitializationService.whenInitializationFinished();
+
+		const colorThemeInspection = this.configurationService.inspect<string>(ThemeSettings.COLOR_THEME);
+		if (!colorThemeInspection.userValue && !colorThemeInspection.userLocalValue && !colorThemeInspection.userRemoteValue && !colorThemeInspection.workspaceValue && !colorThemeInspection.workspaceFolderValue) {
+			// Existing user on the old default — figure out which theme they had.
+			// The stored theme data tells us what was actually applied last session.
+			const storedTheme = ColorThemeData.fromStorageData(this.storageService);
+			if (storedTheme) {
+				const previousId = migrateThemeSettingsId(storedTheme.settingsId);
+				if (previousId !== ThemeSettingDefaults.COLOR_THEME_DARK && previousId !== ThemeSettingDefaults.COLOR_THEME_LIGHT) {
+					// Their previous theme differs from the new default — pin it.
+					await this.configurationService.updateValue(ThemeSettings.COLOR_THEME, previousId, ConfigurationTarget.USER);
+				}
+			} else {
+				// No stored theme data but existing user — pin the old default
+				// based on the current color scheme so they keep their appearance.
+				// In high-contrast mode, avoid pinning a non-high-contrast theme and
+				// let the system's high-contrast behavior take precedence.
+				if (!this.hostColorService.highContrast) {
+					const prefersDark = this.hostColorService.dark;
+					const oldDefault = prefersDark ? ThemeSettingDefaults.COLOR_THEME_DARK_OLD : ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD;
+					await this.configurationService.updateValue(ThemeSettings.COLOR_THEME, oldDefault, ConfigurationTarget.USER);
+				}
+			}
+		}
+
+		// Pin preferred light/dark settings only when auto-detect is enabled,
+		// to avoid writing unnecessary settings for users who never used it.
+		const detectInspection = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
+		if (detectInspection.value === true) {
+			const preferredSettings = [
+				{ key: ThemeSettings.PREFERRED_DARK_THEME, oldDefault: ThemeSettingDefaults.COLOR_THEME_DARK_OLD },
+				{ key: ThemeSettings.PREFERRED_LIGHT_THEME, oldDefault: ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD },
+			];
+			for (const { key, oldDefault } of preferredSettings) {
+				const inspection = this.configurationService.inspect<string>(key);
+				if (!inspection.userValue && !inspection.userLocalValue && !inspection.userRemoteValue && !inspection.workspaceValue && !inspection.workspaceFolderValue) {
+					await this.configurationService.updateValue(key, oldDefault, ConfigurationTarget.USER);
+				}
+			}
+		}
+
+		// Mark migration complete only after all updates succeed, so a partial
+		// failure (or crash) will retry on the next startup.
+		this.storageService.store(WorkbenchThemeService.THEME_MIGRATION_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	/**
