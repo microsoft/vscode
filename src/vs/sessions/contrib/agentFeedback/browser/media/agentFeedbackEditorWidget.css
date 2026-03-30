@@ -65,7 +65,7 @@
 .agent-feedback-widget-header {
 	display: flex;
 	align-items: center;
-	padding: 8px 10px;
+	padding: 4px 4px 4px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
 	border-radius: 8px 8px 0 0;
 	overflow: hidden;
@@ -102,9 +102,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 18px;
-	height: 18px;
-	border-radius: 4px;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	cursor: pointer;
 	color: var(--vscode-foreground);
 	opacity: 0.7;
@@ -134,7 +134,7 @@
 .agent-feedback-widget-item {
 	display: flex;
 	flex-direction: column;
-	padding: 4px 8px 6px 12px;
+	padding: 4px 4px 4px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
 	cursor: pointer;
 	position: relative;
@@ -293,7 +293,7 @@
 
 /* Inline edit textarea */
 .agent-feedback-widget-text.editing {
-	padding: 0;
+	padding: 0 4px 0 0;
 }
 
 .agent-feedback-widget-edit-textarea {
@@ -304,6 +304,7 @@
 	border-radius: 4px;
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
+	font: inherit;
 	font-size: 12px;
 	line-height: 1.4;
 	resize: none;
