@@ -614,8 +614,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._activeSession.set(session, undefined);
 
 		this._activeSessionDisposables.clear();
-		this._activeSessionDisposables = this._register(new DisposableStore());
-
 		// Listen for the active session becoming archived
 		if (session && !session.isArchived.get()) {
 			this._activeSessionDisposables.add(autorun(reader => {
