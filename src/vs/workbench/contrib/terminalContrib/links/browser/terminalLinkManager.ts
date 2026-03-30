@@ -397,8 +397,8 @@ export class TerminalLinkManager extends DisposableStore {
 			throw new Error(`Could not parse uri from link "${text}"`);
 		}
 
-		if (uri.scheme === Schemas.file) {
-			const linkStat = await this._linkResolver.resolveLink(this._processInfo, text, uri);
+		if (!uri.scheme || uri.scheme === Schemas.file) {
+			const linkStat = await this._linkResolver.resolveLink(this._processInfo, text, uri.scheme ? uri : undefined);
 			if (linkStat) {
 				const type = getTerminalLinkType(linkStat.uri, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 				await this._openLink({

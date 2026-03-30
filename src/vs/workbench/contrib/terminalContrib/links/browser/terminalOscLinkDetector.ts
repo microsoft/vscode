@@ -9,7 +9,6 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
 import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
-import { convertLinkRangeToBuffer } from './terminalLinkHelpers.js';
 import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
 import { ITerminalBackend, ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
@@ -142,17 +141,16 @@ export class TerminalOscLinkDetector implements ITerminalLinkDetector {
 							continue;
 						}
 
-						const bufferRange = convertLinkRangeToBuffer(
-							lines,
-							this.xterm.cols,
-							{
-								startColumn: currentStart + 1,
-								startLineNumber: lineIndex + 1,
-								endColumn: currentStart + trimmedRangeText.length + 1,
-								endLineNumber: lineIndex + 1
+						const bufferRange: IBufferRange = {
+							start: {
+								x: currentStart + 1,
+								y: startLine + lineIndex + 1
 							},
-							startLine
-						);
+							end: {
+								x: currentStart + trimmedRangeText.length,
+								y: startLine + lineIndex + 1
+							}
+						};
 						const link = await this._createLink(uriText, bufferRange, trimmedRangeText);
 						if (link) {
 							links.push(link);
