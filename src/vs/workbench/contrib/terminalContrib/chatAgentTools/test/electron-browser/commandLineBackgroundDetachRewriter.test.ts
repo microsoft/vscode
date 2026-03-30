@@ -109,7 +109,7 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 
 		test('should escape double quotes in PowerShell commands', () => {
 			deepStrictEqual(rewriter.rewrite(createOptions('echo "hello world"', 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', OperatingSystem.Windows, true)), {
-				rewritten: 'Start-Process -WindowStyle Hidden -FilePath "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -ArgumentList "-NoProfile", "-Command", "echo \\"hello world\\""',
+				rewritten: 'Start-Process -WindowStyle Hidden -FilePath "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -ArgumentList "-NoProfile", "-Command", "echo `"hello world`""',
 				reasoning: 'Wrapped background command with Start-Process to survive terminal shutdown',
 				forDisplay: 'echo "hello world"',
 			});
