@@ -8,8 +8,9 @@
 	align-items: center;
 	border-radius: var(--vscode-cornerRadius-medium);
 	white-space: nowrap;
-	padding: 0px 12px;
+	padding: 0px 6px;
 	height: 22px;
+	box-sizing: border-box;
 	background-color: transparent;
 	border: 1px solid transparent;
 }
@@ -21,6 +22,23 @@
 .monaco-action-bar .update-indicator .indicator-label {
 	font-size: var(--vscode-bodyFontSize-small);
 	position: relative;
+}
+
+/* Expanded hint — slides out to the right inside the button */
+.monaco-action-bar .update-indicator .indicator-hint {
+	display: inline-block;
+	max-width: 0;
+	opacity: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	font-size: var(--vscode-bodyFontSize-small);
+	margin-left: 3px;
+	transition: max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease 0.15s;
+}
+
+.monaco-action-bar .update-indicator.hint-visible .indicator-hint {
+	max-width: 180px;
+	opacity: 1;
 }
 
 /* Prominent state (action required) — primary button style */
@@ -80,19 +98,10 @@
 	transition: background 0.3s ease;
 }
 
-/* Bounce animation — macOS dock-style bounce when prominent state appears */
-.monaco-action-bar .update-indicator.prominent {
-	animation: update-indicator-bounce 0.6s ease;
-}
-
-@keyframes update-indicator-bounce {
-	0%   { transform: translateY(0); }
-	20%  { transform: translateY(-6px); }
-	40%  { transform: translateY(0); }
-	55%  { transform: translateY(-3px); }
-	70%  { transform: translateY(0); }
-	85%  { transform: translateY(-1px); }
-	100% { transform: translateY(0); }
+/* Hover expand — show hint text on hover */
+.monaco-action-bar .update-indicator:hover .indicator-hint {
+	max-width: 180px;
+	opacity: 1;
 }
 
 /* Reduced motion */
@@ -104,6 +113,6 @@
 	transition: none;
 }
 
-.monaco-workbench.monaco-reduce-motion .update-indicator.prominent {
-	animation: none;
+.monaco-workbench.monaco-reduce-motion .update-indicator .indicator-hint {
+	transition: none;
 }
