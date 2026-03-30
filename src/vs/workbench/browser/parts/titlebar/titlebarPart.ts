@@ -314,16 +314,17 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
+		const scopedEditorService = editorService.createScoped(editorGroupsContainer, this._store);
+		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+			[IEditorService, scopedEditorService]
+		)));
+
 		this.isAuxiliary = targetWindow.vscodeWindowId !== mainWindow.vscodeWindowId;
 
 		this.isCompactContextKey = IsCompactTitleBarContext.bindTo(this.contextKeyService);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
-		const scopedEditorService = editorService.createScoped(editorGroupsContainer, this._store);
-		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection(
-			[IEditorService, scopedEditorService]
-		)));
 		this.windowTitle = this._register(this.instantiationService.createInstance(WindowTitle, targetWindow));
 
 		this.hoverDelegate = this._register(createInstantHoverDelegate());
