@@ -6,6 +6,8 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
+import { hasKey } from '../../../base/common/types.js';
+import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
@@ -13,8 +15,10 @@ import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionC
 import {
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
+	ContentEncoding,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
+	isJsonRpcResponse,
 	JSON_RPC_INTERNAL_ERROR,
 	ProtocolError,
 	type IAhpServerNotification,
@@ -22,7 +26,9 @@ import {
 	type ICreateSessionParams,
 	type IFetchContentResult,
 	type IInitializeParams,
+	type IJsonRpcRequest as IJsonRpcRequestType,
 	type IJsonRpcResponse,
+	type IProtocolMessage,
 	type IReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
@@ -97,6 +103,7 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _stateManager: SessionStateManager,
 		private readonly _server: IProtocolServer,
 		private readonly _sideEffectHandler: IProtocolSideEffectHandler,
+		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -174,7 +181,10 @@ export class ProtocolServerHandler extends Disposable {
 						break;
 				}
 			}
-			// Responses from the client (if any) are ignored on the server side.
+			// Handle reverse RPC responses from the client
+			if (this._handleReverseResponse(msg)) {
+				return;
+			}
 		}));
 
 		disposables.add(transport.onClose(() => {
@@ -215,6 +225,11 @@ export class ProtocolServerHandler extends Disposable {
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
+		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
+			browseDirectory: (uri) => this._sendReverseRequest(params.clientId, 'browseDirectory', { uri: uri.toString() }),
+			fetchContent: (uri) => this._sendReverseRequest(params.clientId, 'fetchContent', { uri: uri.toString() }),
+		}));
+
 		const snapshots: IStateSnapshot[] = [];
 		if (params.initialSubscriptions) {
 			for (const uri of params.initialSubscriptions) {
@@ -254,6 +269,12 @@ export class ProtocolServerHandler extends Disposable {
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
+		// Register the client's filesystem connection for reverse RPC access
+		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
+			browseDirectory: (uri) => this._sendReverseRequest(params.clientId, 'browseDirectory', { uri: uri.toString() }),
+			fetchContent: (uri) => this._sendReverseRequest(params.clientId, 'fetchContent', { uri: uri.toString() }),
+		}));
+
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
@@ -281,6 +302,48 @@ export class ProtocolServerHandler extends Disposable {
 			}
 			return { client, response: { type: 'snapshot', snapshots } };
 		}
+	}
+
+	// ---- Reverse RPC (server → client requests) ----------------------------
+
+	private _reverseRequestId = 0;
+	private readonly _pendingReverseRequests = new Map<number, { resolve: (value: unknown) => void; reject: (reason: unknown) => void }>();
+
+	/**
+	 * Sends a JSON-RPC request to a connected client and waits for the response.
+	 * Used for reverse-RPC operations like reading client-side files.
+	 */
+	private _sendReverseRequest<T>(clientId: string, method: string, params: unknown): Promise<T> {
+		const client = this._clients.get(clientId);
+		if (!client) {
+			return Promise.reject(new Error(`Client ${clientId} is not connected`));
+		}
+		const id = ++this._reverseRequestId;
+		return new Promise<T>((resolve, reject) => {
+			this._pendingReverseRequests.set(id, { resolve: resolve as (value: unknown) => void, reject });
+			const request: IJsonRpcRequestType = { jsonrpc: '2.0', id, method, params };
+			client.transport.send(request);
+		});
+	}
+
+	/**
+	 * Called when a JSON-RPC response arrives from a client (reverse RPC result).
+	 */
+	private _handleReverseResponse(msg: IProtocolMessage): boolean {
+		if (!isJsonRpcResponse(msg)) {
+			return false;
+		}
+		const pending = this._pendingReverseRequests.get(msg.id);
+		if (!pending) {
+			return false;
+		}
+		this._pendingReverseRequests.delete(msg.id);
+		if (hasKey(msg, { error: true })) {
+			pending.reject(new Error(msg.error?.message ?? 'Reverse RPC error'));
+		} else {
+			pending.resolve(msg.result);
+		}
+		return true;
 	}
 
 	// ---- Requests (expect a response) ---------------------------------------
@@ -345,6 +408,10 @@ export class ProtocolServerHandler extends Disposable {
 		fetchContent: async (_client, params) => {
 			return this._sideEffectHandler.handleFetchContent(params.uri);
 		},
+		writeFile: async (_client, params) => {
+			await this._sideEffectHandler.handleWriteFile(params.uri, params.data, params.encoding);
+			return {};
+		}
 	};
 
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
@@ -452,6 +519,7 @@ export interface IProtocolSideEffectHandler {
 	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
 	handleFetchContent(uri: URI): Promise<IFetchContentResult>;
+	handleWriteFile(uri: URI, data: string, encoding: ContentEncoding): Promise<void>;
 	/** Returns the server's default browsing directory, if available. */
 	getDefaultDirectory?(): URI;
 	/** Refresh models from all providers (VS Code extension method). */

@@ -60,6 +60,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _activeTurns = new Set<string>();
 	/** When true, the CopilotClient should be restarted when all active turns finish. */
 	private _pendingPluginRestart = false;
+	/** Resolves when the current customization sync completes. */
+	private _customizationSync: Promise<void> | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -113,13 +115,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return [...this._clientCustomizations];
 	}
 
-	async setClientCustomizations(customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	async setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
 		this._clientCustomizations = customizations;
 
-		const results = await this._pluginManager.syncCustomizations(customizations, status => {
+		const syncPromise = this._pluginManager.syncCustomizations(clientId, customizations, status => {
 			// Relay progress, wrapping ISessionCustomization[] → ISyncedCustomization[]
 			progress?.(status.map(c => ({ customization: c })));
 		});
+		this._customizationSync = syncPromise.then(() => { }, () => { });
+
+		const results = await syncPromise;
 
 		// Collect the new set of plugin dirs from successful syncs
 		const newDirs = results
@@ -158,6 +163,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Stops the current CopilotClient so the next operation triggers
 	 * {@link _ensureClient} with the updated plugin dirs.
+	 *
+	 * Existing session wrappers are cleared so that subsequent calls to
+	 * {@link sendMessage} or {@link getSessionMessages} go through
+	 * {@link _resumeSession}, which re-creates them on the new client.
 	 */
 	private _restartClient(): void {
 		this._pendingPluginRestart = false;
@@ -166,6 +175,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const client = this._client;
 			this._client = undefined;
 			this._clientStarting = undefined;
+			this._sessions.clearAndDisposeAll();
 			client.stop().catch(() => { /* best-effort */ });
 		}
 	}
@@ -313,6 +323,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		this._activeTurns.add(sessionId);
+
+		// Wait for any in-flight customization sync to finish so the
+		// client has the correct plugin dirs before processing the turn.
+		if (this._customizationSync) {
+			this._logService.info(`[Copilot:${sessionId}] Waiting for customization sync to finish before sending message...`);
+			await this._customizationSync;
+		}
+
 		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
 		this._logService.info(`[Copilot:${sessionId}] Found session wrapper, calling session.send()...`);

@@ -6,6 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -25,7 +26,7 @@ import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon,
 import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY } from './aiCustomizationManagement.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -53,7 +54,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter, ICustomizationSyncProvider } from '../../common/customizationHarnessService.js';
 import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -113,6 +114,14 @@ export interface IAICustomizationListItem {
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
 	readonly extensionLabel?: string;
+	/** Server-reported loading/sync status for remote customizations. */
+	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
+	/** Human-readable status detail (e.g. error message or warning). */
+	readonly statusMessage?: string;
+	/** When true, this item can be selected for syncing to a remote harness. */
+	readonly syncable?: boolean;
+	/** When true, this syncable item is currently selected for syncing. */
+	readonly synced?: boolean;
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -162,9 +171,11 @@ interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
 	readonly actionBar: ActionBar;
+	readonly syncCheckboxContainer: HTMLElement;
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
+	readonly statusIcon: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -292,6 +303,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
@@ -301,11 +313,14 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
+		const syncCheckboxContainer = DOM.append(leftSection, $('.item-sync-checkbox'));
+		syncCheckboxContainer.style.display = 'none';
 		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameRow = DOM.append(textContainer, $('.item-name-row'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
+		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
 
 		// Right section for actions (hover-visible)
@@ -318,9 +333,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			container,
 			actionsContainer,
 			actionBar,
+			syncCheckboxContainer,
 			typeIcon,
 			nameLabel,
 			badge,
+			statusIcon,
 			description,
 			disposables,
 			elementDisposables,
@@ -330,6 +347,25 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const element = entry.item;
+
+		// Sync checkbox: shown for syncable local items
+		if (element.syncable) {
+			templateData.syncCheckboxContainer.style.display = '';
+			const title = element.synced
+				? localize('unsyncItem', "Remove {0} from sync", element.name)
+				: localize('syncItem', "Add {0} to sync", element.name);
+			const checkbox = templateData.elementDisposables.add(
+				new Checkbox(title, !!element.synced, defaultCheckboxStyles)
+			);
+			templateData.syncCheckboxContainer.replaceChildren(checkbox.domNode);
+			templateData.elementDisposables.add(checkbox.onChange(() => {
+				const syncProvider = this.harnessService.getActiveDescriptor().syncProvider;
+				syncProvider?.toggleUri(element.uri, element.promptType);
+			}));
+		} else {
+			templateData.syncCheckboxContainer.style.display = 'none';
+			templateData.syncCheckboxContainer.replaceChildren();
+		}
 
 		// Type icon: use per-item override or fall back to prompt type
 		templateData.typeIcon.className = 'item-type-icon';
@@ -384,6 +420,36 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		} else {
 			templateData.badge.textContent = '';
 			templateData.badge.style.display = 'none';
+		}
+
+		// Status icon for external items with sync/loading status
+		if (element.status) {
+			templateData.statusIcon.style.display = '';
+			templateData.statusIcon.className = 'item-status-icon';
+			switch (element.status) {
+				case 'loading':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+					break;
+				case 'loaded':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+					break;
+				case 'degraded':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+					break;
+				case 'error':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+					break;
+			}
+			if (element.statusMessage) {
+				templateData.elementDisposables.add(this.hoverService.setupManagedHover(
+					getDefaultHoverDelegate('mouse'),
+					templateData.statusIcon,
+					element.statusMessage,
+				));
+			}
+		} else {
+			templateData.statusIcon.style.display = 'none';
+			templateData.statusIcon.className = 'item-status-icon';
 		}
 
 		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
@@ -583,6 +649,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Subscribe to the active provider's onDidChange event
 		const providerChangeDisposable = this._register(new MutableDisposable());
+		const syncChangeDisposable = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
 			const activeDescriptor = this.harnessService.getActiveDescriptor();
@@ -590,6 +657,11 @@ export class AICustomizationListWidget extends Disposable {
 				providerChangeDisposable.value = activeDescriptor.itemProvider.onDidChange(() => this.refresh());
 			} else {
 				providerChangeDisposable.clear();
+			}
+			if (activeDescriptor.syncProvider) {
+				syncChangeDisposable.value = activeDescriptor.syncProvider.onDidChange(() => this.refresh());
+			} else {
+				syncChangeDisposable.clear();
 			}
 		}));
 
@@ -1162,9 +1234,16 @@ export class AICustomizationListWidget extends Disposable {
 
 		// When the active harness has an external item provider, delegate to it
 		// instead of querying promptsService and applying filters.
+		// When the harness also has a syncProvider, include local items with
+		// sync toggles alongside the remote items.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider && promptType) {
-			return this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
+			const remoteItems = await this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
+			if (!activeDescriptor.syncProvider) {
+				return remoteItems;
+			}
+			const localItems = await this.fetchLocalSyncableItems(promptType, activeDescriptor.syncProvider);
+			return [...remoteItems, ...localItems];
 		}
 
 		const items: IAICustomizationListItem[] = [];
@@ -1553,7 +1632,37 @@ export class AICustomizationListWidget extends Disposable {
 				filename: basename(item.uri),
 				description: item.description,
 				promptType,
+				disabled: item.enabled === false,
+				status: item.status,
+				statusMessage: item.statusMessage,
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Fetches local customization items and marks them as syncable, using
+	 * the sync provider to determine their current selection state.
+	 * These items appear alongside remote items with sync checkboxes.
+	 */
+	private async fetchLocalSyncableItems(promptType: PromptsType, syncProvider: ICustomizationSyncProvider): Promise<IAICustomizationListItem[]> {
+		const files = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+		if (!files.length) {
+			return [];
+		}
+
+		return files
+			.filter(f => f.storage === PromptsStorage.local || f.storage === PromptsStorage.user)
+			.map(f => ({
+				id: `sync-${f.uri.toString()}`,
+				uri: f.uri,
+				name: this.getFriendlyName(basename(f.uri)),
+				filename: basename(f.uri),
+				promptType,
 				disabled: false,
+				storage: f.storage,
+				groupKey: 'sync-local',
+				syncable: true,
+				synced: syncProvider.isSelected(f.uri),
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
@@ -1609,12 +1718,53 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		// When items come from an external provider, skip storage-based grouping
-		// and render a flat list. The provider controls the full item set, so
-		// Workspace/User/Extension categories don't apply.
+		// and render a flat list. When a syncProvider is also present, show
+		// remote items first, then local items below with sync checkboxes.
+		// Synced local items sort to the top of the local group; unsynced
+		// items appear greyed out below them.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider) {
-			matchedItems.sort((a, b) => a.name.localeCompare(b.name));
-			this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			if (activeDescriptor.syncProvider) {
+				const remoteItems = matchedItems.filter(i => !i.syncable);
+				const localItems = matchedItems.filter(i => i.syncable);
+				const entries: IListEntry[] = [];
+
+				// Remote items first (flat, no group header)
+				for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
+					entries.push({ type: 'file-item' as const, item });
+				}
+
+				// Local items below with a group header, synced items first
+				if (localItems.length > 0) {
+					const syncedCount = localItems.filter(i => i.synced).length;
+					entries.push({
+						type: 'group-header' as const,
+						id: 'group-sync-local',
+						groupKey: 'sync-local',
+						label: localize('localGroup', "Local"),
+						icon: Codicon.folder,
+						count: syncedCount,
+						isFirst: remoteItems.length === 0,
+						description: localize('localGroupDescription', "Local customizations available to sync to the remote agent."),
+						collapsed: false,
+					});
+					// Sort: synced items first, then alphabetical within each group
+					const sorted = localItems.sort((a, b) => {
+						if (a.synced !== b.synced) {
+							return a.synced ? -1 : 1;
+						}
+						return a.name.localeCompare(b.name);
+					});
+					for (const item of sorted) {
+						entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });
+					}
+				}
+
+				this.displayEntries = entries;
+			} else {
+				matchedItems.sort((a, b) => a.name.localeCompare(b.name));
+				this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			}
 			this.list.splice(0, this.list.length, this.displayEntries);
 			this.updateEmptyState();
 			return matchedItems.length;

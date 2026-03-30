@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ROOT_STATE_URI, type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -23,6 +28,13 @@ import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
+import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -54,6 +66,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super();
 
@@ -154,6 +169,27 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined));
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
+		// Customization sync provider + bundler + observable
+		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
+		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
+		store.add(this._customizationHarnessService.registerExternalHarness({
+			id: sessionType,
+			label: agent.displayName,
+			icon: ThemeIcon.fromId(Codicon.server.id),
+			hiddenSections: [],
+			hideGenerateButton: true,
+			getStorageSourceFilter: () => ({ sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin] }),
+			syncProvider,
+		}));
+
+		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
+		const updateCustomizations = async () => {
+			const refs = await this._resolveCustomizations(syncProvider, bundler);
+			customizations.set(refs, undefined);
+		};
+		store.add(syncProvider.onDidChange(() => updateCustomizations()));
+		updateCustomizations(); // resolve initial state
+
 		// Session handler
 		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
 			provider: agent.provider,
@@ -164,6 +200,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connection: this._loggedConnection!,
 			connectionAuthority: 'local',
 			resolveAuthentication: () => this._resolveAuthenticationInteractively(),
+			customizations,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -183,6 +220,48 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
 		store.add(this._authenticationService.onDidChangeSessions(() =>
 			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
+	}
+
+	/**
+	 * Resolves the customizations to include in the active client set.
+	 *
+	 * Classifies sync provider entries as plugins (matched against
+	 * installed plugins) or individual files (bundled into a synthetic
+	 * Open Plugin).
+	 */
+	private async _resolveCustomizations(
+		syncProvider: AgentCustomizationSyncProvider,
+		bundler: SyncedCustomizationBundler,
+	): Promise<ICustomizationRef[]> {
+		const entries = syncProvider.getSelectedEntries();
+		if (entries.length === 0) {
+			return [];
+		}
+
+		const plugins = this._agentPluginService.plugins.get();
+		const refs: ICustomizationRef[] = [];
+		const individualFiles: { uri: URI; type: PromptsType }[] = [];
+
+		for (const entry of entries) {
+			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
+			if (plugin) {
+				refs.push({
+					uri: plugin.uri.toString() as ProtocolURI,
+					displayName: plugin.label,
+				});
+			} else if (entry.type) {
+				individualFiles.push({ uri: entry.uri, type: entry.type });
+			}
+		}
+
+		if (individualFiles.length > 0) {
+			const result = await bundler.bundle(individualFiles);
+			if (result) {
+				refs.push(result.ref);
+			}
+		}
+
+		return refs;
 	}
 
 	/**

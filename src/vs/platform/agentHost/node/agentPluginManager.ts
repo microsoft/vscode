@@ -11,6 +11,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
 import { CustomizationStatus, type ICustomizationRef, type ISessionCustomization } from '../common/state/sessionState.js';
+import { toAgentClientUri } from '../common/agentClientUri.js';
 
 const DEFAULT_MAX_PLUGINS = 20;
 
@@ -62,6 +63,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	}
 
 	async syncCustomizations(
+		clientId: string,
 		customizations: ICustomizationRef[],
 		progress?: (status: ISessionCustomization[]) => void,
 	): Promise<ISyncedCustomization[]> {
@@ -79,7 +81,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 		const results = await Promise.all(customizations.map((ref, i) =>
 			this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
 				try {
-					const pluginDir = await this._syncPlugin(ref);
+					const pluginDir = await this._syncPlugin(clientId, ref);
 					statuses[i] = { customization: ref, enabled: true, status: CustomizationStatus.Loaded };
 					progress?.([...statuses]);
 					return { customization: statuses[i], pluginDir };
@@ -102,8 +104,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * Syncs a single plugin to local storage. Skips the copy when the
 	 * nonce matches the cached value. Returns the local directory URI.
 	 */
-	private async _syncPlugin(ref: ICustomizationRef): Promise<URI> {
-		const pluginUri = URI.parse(ref.uri);
+	private async _syncPlugin(clientId: string, ref: ICustomizationRef): Promise<URI> {
+		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
 		const key = this._keyForUri(ref.uri);
 		const destDir = URI.joinPath(this._basePath, key);
 
@@ -116,7 +118,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 		this._logService.info(`[AgentPluginManager] Syncing plugin: ${ref.uri} → ${destDir.toString()}`);
 
-		await this._recursiveCopy(pluginUri, destDir);
+		await this._fileService.copy(pluginUri, destDir, true);
 
 		if (ref.nonce) {
 			this._cachedNonces.set(pluginUri, ref.nonce);
@@ -130,25 +132,6 @@ export class AgentPluginManager implements IAgentPluginManager {
 
 	private _keyForUri(uri: string): string {
 		return uri.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 128);
-	}
-
-	private async _recursiveCopy(source: URI, dest: URI): Promise<void> {
-		const stat = await this._fileService.resolve(source);
-
-		if (!stat.isDirectory) {
-			const content = await this._fileService.readFile(source);
-			await this._fileService.writeFile(dest, content.value);
-			return;
-		}
-
-		await this._fileService.createFolder(dest);
-
-		const resolved = stat.children ? stat : await this._fileService.resolve(source);
-		if (resolved.children) {
-			for (const child of resolved.children) {
-				await this._recursiveCopy(child.resource, URI.joinPath(dest, child.name));
-			}
-		}
 	}
 
 	private _touchLru(uri: URI): void {

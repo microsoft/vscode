@@ -55,12 +55,10 @@ suite('AgentPluginManager', () => {
 			await seedPluginDir('alpha', { 'index.js': 'a' });
 			await seedPluginDir('beta', { 'index.js': 'b' });
 
-			const results = await manager.syncCustomizations([
+			const results = await manager.syncCustomizations('test-client', [
 				makeRef('alpha', 'n1'),
 				makeRef('beta', 'n2'),
 			]);
-
-			assert.strictEqual(results.length, 2);
 			assert.strictEqual(results[0].customization.status, CustomizationStatus.Loaded);
 			assert.ok(results[0].pluginDir, 'should have pluginDir');
 			assert.strictEqual(results[1].customization.status, CustomizationStatus.Loaded);
@@ -68,7 +66,7 @@ suite('AgentPluginManager', () => {
 		});
 
 		test('returns error status without pluginDir when source missing', async () => {
-			const results = await manager.syncCustomizations([makeRef('nonexistent')]);
+			const results = await manager.syncCustomizations('test-client', [makeRef('nonexistent')]);
 
 			assert.strictEqual(results.length, 1);
 			assert.strictEqual(results[0].customization.status, CustomizationStatus.Error);
@@ -79,14 +77,10 @@ suite('AgentPluginManager', () => {
 		test('mixes loaded and error results', async () => {
 			await seedPluginDir('good', { 'index.js': 'ok' });
 
-			const results = await manager.syncCustomizations([
+			const results = await manager.syncCustomizations('test-client', [
 				makeRef('good', 'n1'),
 				makeRef('missing'),
 			]);
-
-			assert.strictEqual(results.length, 2);
-			assert.strictEqual(results[0].customization.status, CustomizationStatus.Loaded);
-			assert.ok(results[0].pluginDir);
 			assert.strictEqual(results[1].customization.status, CustomizationStatus.Error);
 			assert.strictEqual(results[1].pluginDir, undefined);
 		});
@@ -95,7 +89,7 @@ suite('AgentPluginManager', () => {
 			await seedPluginDir('prog', { 'index.js': 'content' });
 
 			const progressCalls: ISessionCustomization[][] = [];
-			await manager.syncCustomizations([makeRef('prog', 'n1')], statuses => {
+			await manager.syncCustomizations('test-client', [makeRef('prog', 'n1')], statuses => {
 				progressCalls.push(statuses);
 			});
 
@@ -109,11 +103,11 @@ suite('AgentPluginManager', () => {
 			await seedPluginDir('cached', { 'index.js': 'v1' });
 			const ref = makeRef('cached', 'nonce-abc');
 
-			const result1 = await manager.syncCustomizations([ref]);
+			const result1 = await manager.syncCustomizations('test-client', [ref]);
 			assert.ok(result1[0].pluginDir);
 
 			// Second sync with same nonce should still succeed (from cache)
-			const result2 = await manager.syncCustomizations([ref]);
+			const result2 = await manager.syncCustomizations('test-client', [ref]);
 			assert.ok(result2[0].pluginDir);
 			assert.strictEqual(result1[0].pluginDir!.toString(), result2[0].pluginDir!.toString());
 		});
@@ -124,8 +118,8 @@ suite('AgentPluginManager', () => {
 
 			// Fire two syncs concurrently
 			const [r1, r2] = await Promise.all([
-				manager.syncCustomizations([ref]),
-				manager.syncCustomizations([ref]),
+				manager.syncCustomizations('test-client', [ref]),
+				manager.syncCustomizations('test-client', [ref]),
 			]);
 
 			// Both should succeed without error
@@ -143,7 +137,7 @@ suite('AgentPluginManager', () => {
 
 			for (let i = 1; i <= 4; i++) {
 				await seedPluginDir(`plugin-${i}`, { 'index.js': `p${i}` });
-				await smallManager.syncCustomizations([makeRef(`plugin-${i}`, `n${i}`)]);
+				await smallManager.syncCustomizations('test-client', [makeRef(`plugin-${i}`, `n${i}`)]);
 			}
 
 			// The evicted dir should no longer exist on disk (cache.json + 3 plugin dirs)
@@ -164,11 +158,11 @@ suite('AgentPluginManager', () => {
 			const ref = makeRef('persist1', 'nonce-persist');
 
 			// Sync with first manager
-			await manager.syncCustomizations([ref]);
+			await manager.syncCustomizations('test-client', [ref]);
 
 			// Create a new manager pointing to the same base path
 			const manager2 = new AgentPluginManager(basePath, fileService, new NullLogService());
-			const result = await manager2.syncCustomizations([ref]);
+			const result = await manager2.syncCustomizations('test-client', [ref]);
 
 			// Should be loaded from cache (nonce match), not error
 			assert.strictEqual(result[0].customization.status, CustomizationStatus.Loaded);

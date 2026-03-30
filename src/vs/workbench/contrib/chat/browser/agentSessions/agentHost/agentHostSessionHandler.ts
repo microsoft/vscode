@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, type IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -18,7 +18,7 @@ import { ActionType, isSessionAction, type ISessionAction } from '../../../../..
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { AttachmentType, PendingMessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IMessageAttachment, type ISessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, PendingMessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICustomizationRef, type IMessageAttachment, type ISessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -155,6 +155,11 @@ export interface IAgentHostSessionHandlerConfig {
 	 * and return true if the user authenticated successfully.
 	 */
 	readonly resolveAuthentication?: () => Promise<boolean>;
+	/**
+	 * Observable set of agent-level customizations to include in the active
+	 * client set. When the value changes, active sessions are updated.
+	 */
+	readonly customizations?: IObservable<ICustomizationRef[]>;
 }
 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
@@ -443,6 +448,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config.connection.dispatchAction(action, this._clientState.clientId, seq);
 	}
 
+	private _setActiveClient(session: URI): void {
+		this._dispatchAction({
+			type: ActionType.SessionActiveClientChanged,
+			session: session.toString(),
+			activeClient: {
+				clientId: this._clientState.clientId,
+				tools: [],
+				customizations: this._config.customizations?.get() || [],
+			},
+		});
+	}
+
 	// ---- Server-initiated turn detection ------------------------------------
 
 	/**
@@ -686,6 +703,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._config.connection.dispatchAction(modelAction, this._clientState.clientId, modelSeq);
 			}
 		}
+
+		this._setActiveClient(session);
 
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.

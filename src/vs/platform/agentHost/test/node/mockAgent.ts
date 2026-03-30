@@ -29,7 +29,7 @@ export class MockAgent implements IAgent {
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: string }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
-	readonly setClientCustomizationsCalls: ICustomizationRef[][] = [];
+	readonly setClientCustomizationsCalls: { clientId: string; customizations: ICustomizationRef[] }[] = [];
 	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
 
 	/** Configurable return value for getCustomizations. */
@@ -107,8 +107,8 @@ export class MockAgent implements IAgent {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
-		this.setClientCustomizationsCalls.push(customizations);
+	async setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
 				customization: c,

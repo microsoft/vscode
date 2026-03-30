@@ -38,6 +38,8 @@ import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { FileService } from '../../files/common/fileService.js';
 import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
+import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
+import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
@@ -155,6 +157,10 @@ async function main(): Promise<void> {
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 
+	// Register client-side filesystem provider (reverse RPC)
+	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
+	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+
 	// Session data service
 	const userDataUri = URI.file(environmentService.userDataPath);
 	const sessionDataService = new SessionDataService(userDataUri, fileService, logService);
@@ -214,7 +220,7 @@ async function main(): Promise<void> {
 	}, logService));
 
 	// Wire up protocol handler
-	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, logService));
+	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, clientFileSystemProvider, logService));
 
 	// Report ready
 	function reportReady(addr: string): void {

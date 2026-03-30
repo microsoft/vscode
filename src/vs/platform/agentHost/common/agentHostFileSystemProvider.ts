@@ -185,11 +185,6 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
  * ```
  */
 export class AgentHostFileSystemProvider extends AHPFileSystemProvider {
-
-	override registerAuthority(authority: string, connection: IAgentConnection): IDisposable {
-		return super.registerAuthority(authority, connection);
-	}
-
 	protected _decodeUri(resource: URI): URI {
 		return fromAgentHostUri(resource);
 	}

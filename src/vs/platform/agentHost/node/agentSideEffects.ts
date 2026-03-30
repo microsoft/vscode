@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -210,7 +211,7 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 				if (customizations && customizations.length > 0) {
 					const agent = this._options.getAgent(action.session);
 					if (agent?.setClientCustomizations) {
-						agent.setClientCustomizations(customizations, results => {
+						agent.setClientCustomizations(action.activeClient!.clientId, customizations, results => {
 							this._stateManager.dispatchServerAction({
 								type: ActionType.SessionCustomizationsChanged,
 								session: action.session,
@@ -600,6 +601,17 @@ export class AgentSideEffects extends Disposable implements IProtocolSideEffectH
 			};
 		} catch (_e) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Content not found: ${uri}`);
+		}
+	}
+
+	async handleWriteFile(uri: ProtocolURI, data: string, encoding: ContentEncoding): Promise<void> {
+		try {
+			const content = encoding === ContentEncoding.Base64
+				? VSBuffer.wrap(Buffer.from(data, 'base64'))
+				: VSBuffer.fromString(data);
+			await this._fileService.writeFile(URI.parse(uri), content);
+		} catch (_e) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${uri}`);
 		}
 	}
 

@@ -465,6 +465,25 @@
 	line-height: 16px;
 }
 
+/* Status icon for remote customization items (loading/loaded/degraded/error) */
+.ai-customization-list-item .item-status-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+}
+
+/* Sync checkbox for local items in remote agent harness view */
+.ai-customization-list-item .item-sync-checkbox {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-right: 4px;
+}
+
 /* MCP bridged badge — shown inline next to the server name */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;

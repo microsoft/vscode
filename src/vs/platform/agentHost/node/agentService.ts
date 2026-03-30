@@ -199,7 +199,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const state = this._stateManager.dispatchClientAction(action, origin);
 		this._logService.trace(`[AgentService] resulting state:`, state);
 
-		this._sideEffects.handleAction(action);
+		this._sideEffects.handleAction(action, clientId);
 	}
 
 	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {

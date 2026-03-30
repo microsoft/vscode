@@ -43,5 +43,5 @@ export interface IAgentPluginManager {
 	 * @returns Final status for every customization, with `pluginDir`
 	 * defined when the sync was successful.
 	 */
-	syncCustomizations(customizations: ICustomizationRef[], progress?: (status: ISessionCustomization[]) => void): Promise<ISyncedCustomization[]>;
+	syncCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (status: ISessionCustomization[]) => void): Promise<ISyncedCustomization[]>;
 }
