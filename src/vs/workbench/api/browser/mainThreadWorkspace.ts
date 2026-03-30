@@ -84,13 +84,13 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	// --- workspace ---
 
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents; name?: string }[]): Promise<void> {
+	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, foldersToAdd: { uri: UriComponents; name?: string }[], suppressConfirmation?: boolean): Promise<void> {
 		const workspaceFoldersToAdd = foldersToAdd.map(f => ({ uri: URI.revive(f.uri), name: f.name }));
 
 		// Indicate in status message
 		this._notificationService.status(this.getStatusMessage(extensionName, workspaceFoldersToAdd.length, deleteCount), { hideAfter: 10 * 1000 /* 10s */ });
 
-		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true);
+		return this._workspaceEditingService.updateFolders(index, deleteCount, workspaceFoldersToAdd, true, suppressConfirmation ? { suppressConfirmation } : undefined);
 	}
 
 	private getStatusMessage(extensionName: string, addCount: number, removeCount: number): string {

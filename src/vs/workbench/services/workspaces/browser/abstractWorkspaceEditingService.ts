@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { IDidEnterWorkspaceEvent, IEnterWorkspaceOptions, IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
@@ -124,7 +124,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return `workspace.${WORKSPACE_EXTENSION}`;
 	}
 
-	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
+	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, options?: IEnterWorkspaceOptions): Promise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 
 		let foldersToDelete: URI[] = [];
@@ -161,7 +161,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			// other folders, we handle this specially and just enter workspace
 			// mode with the folders that are being added.
 			if (this.includesSingleFolderWorkspace(foldersToDelete)) {
-				return this.createAndEnterWorkspace(foldersToAdd);
+				return this.createAndEnterWorkspace(foldersToAdd, undefined, options);
 			}
 
 			// if we are not in workspace-state, we just add the folders
@@ -257,7 +257,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return false;
 	}
 
-	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> {
+	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI, options?: IEnterWorkspaceOptions): Promise<void> {
 		if (path && !await this.isValidTargetWorkspacePath(path)) {
 			return;
 		}
@@ -277,7 +277,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			}
 		}
 
-		return this.enterWorkspace(path);
+		return this.enterWorkspace(path, options);
 	}
 
 	async saveAndEnterWorkspace(workspaceUri: URI): Promise<void> {
@@ -377,7 +377,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		);
 	}
 
-	abstract enterWorkspace(workspaceUri: URI): Promise<void>;
+	abstract enterWorkspace(workspaceUri: URI, options?: IEnterWorkspaceOptions): Promise<void>;
 
 	protected async fireDidEnterWorkspace(oldWorkspace: IAnyWorkspaceIdentifier, newWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
 		const event = new DidEnterWorkspaceEvent(oldWorkspace, newWorkspace);

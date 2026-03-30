@@ -24,6 +24,21 @@ export interface IDidEnterWorkspaceEvent {
 	join(promise: Promise<void>): void;
 }
 
+/**
+ * Options that control workspace entry behavior.
+ */
+export interface IEnterWorkspaceOptions {
+	/**
+	 * When `true`, the extension host restart confirmation dialog is
+	 * suppressed. Extension hosts are still stopped and restarted
+	 * cleanly; only the user-facing veto dialog is bypassed.
+	 *
+	 * Callers should only set this when the user has already consented
+	 * to the operation that triggers the workspace transition.
+	 */
+	readonly suppressConfirmation?: boolean;
+}
+
 export interface IWorkspaceEditingService {
 
 	readonly _serviceBrand: undefined;
@@ -50,18 +65,18 @@ export interface IWorkspaceEditingService {
 	 * Allows to add and remove folders to the existing workspace at once.
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
-	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
+	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean, options?: IEnterWorkspaceOptions): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.
 	 */
-	enterWorkspace(path: URI): Promise<void>;
+	enterWorkspace(path: URI, options?: IEnterWorkspaceOptions): Promise<void>;
 
 	/**
 	 * Creates a new workspace with the provided folders and opens it. if path is provided
 	 * the workspace will be saved into that location.
 	 */
-	createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void>;
+	createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI, options?: IEnterWorkspaceOptions): Promise<void>;
 
 	/**
 	 * Saves the current workspace to the provided path and opens it. requires a workspace to be opened.

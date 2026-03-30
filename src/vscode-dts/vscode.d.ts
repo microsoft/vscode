@@ -13956,6 +13956,44 @@ declare module 'vscode' {
 		}[]): boolean;
 
 		/**
+		 * Options for {@link updateWorkspaceFolders}.
+		 */
+		export interface UpdateWorkspaceFoldersOptions {
+			/**
+			 * When `true`, the workspace transition dialog that warns about
+			 * extension host restarts is suppressed and the operation proceeds
+			 * immediately. This is useful for automated tooling — such as project
+			 * scaffolders, branch-per-chat workflows, or workspace migration
+			 * utilities — where the calling extension already understands the
+			 * lifecycle implications and the confirmation dialog would interrupt
+			 * a programmatic flow.
+			 *
+			 * Defaults to `false` (the dialog is shown when applicable).
+			 */
+			readonly suppressConfirmation?: boolean;
+		}
+
+		/**
+		 * This overload accepts an {@link UpdateWorkspaceFoldersOptions options}
+		 * bag that controls the behavior of the workspace folder update. See
+		 * the zero-options overload for full usage examples and caveats.
+		 *
+		 * @param start the zero-based location in the list of currently opened
+		 * {@link WorkspaceFolder workspace folders} from which to start deleting.
+		 * @param deleteCount the optional number of workspace folders to remove.
+		 * @param options additional options for the update operation.
+		 * @param workspaceFoldersToAdd the optional variable set of workspace
+		 * folders to add in place of the deleted ones.
+		 * @returns true if the operation was successfully started and false
+		 * otherwise if arguments were used that would result in invalid workspace
+		 * folder state (e.g. 2 folders with the same URI).
+		 */
+		export function updateWorkspaceFolders(start: number, deleteCount: number | undefined | null, options: UpdateWorkspaceFoldersOptions, ...workspaceFoldersToAdd: {
+			readonly uri: Uri;
+			readonly name?: string;
+		}[]): boolean;
+
+		/**
 		 * Creates a file system watcher that is notified on file events (create, change, delete)
 		 * depending on the parameters provided.
 		 *

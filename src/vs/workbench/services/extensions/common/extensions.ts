@@ -530,10 +530,16 @@ export interface IExtensionService {
 	 *
 	 * @param auto indicates if the operation was triggered by an automatic action
 	 *
+	 * @param force when `true`, skip the `onWillStop` veto chain and stop
+	 * extension hosts unconditionally. The confirmation dialog is not shown.
+	 * Callers should only set this when the user has already consented to the
+	 * operation that requires the restart.
+	 *
 	 * @returns a promise that resolves to `true` if the extension hosts were stopped, `false`
-	 * if the operation was vetoed by listeners of the `onWillStop` event.
+	 * if the operation was vetoed by listeners of the `onWillStop` event (never `false` when
+	 * `force` is `true`).
 	 */
-	stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean>;
+	stopExtensionHosts(reason: string, auto?: boolean, force?: boolean): Promise<boolean>;
 
 	/**
 	 * Starts the extension hosts. If updates are provided, the extension hosts are started with the given updates.
