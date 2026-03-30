@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Superpowers vs ClaudeKit Engineer — Comparative Analysis</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --purple: #bc8cff;
+  --orange: #f0883e;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+h1 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+h2 {
+  font-size: 1.5rem;
+  color: var(--accent);
+  margin: 2rem 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+h3 {
+  font-size: 1.15rem;
+  color: var(--purple);
+  margin: 1.5rem 0 0.5rem;
+}
+h4 { color: var(--text-muted); margin: 1rem 0 0.5rem; }
+p, li { color: var(--text); margin-bottom: 0.5rem; }
+.subtitle { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 2rem; }
+.executive-summary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+th {
+  background: var(--surface);
+  color: var(--accent);
+  padding: 0.75rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+}
+td {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+tr:hover td { background: rgba(88,166,255,0.05); }
+.winner-sp { color: var(--green); font-weight: 600; }
+.winner-cke { color: var(--purple); font-weight: 600; }
+.winner-tie { color: var(--yellow); font-weight: 600; }
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-sp { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+.badge-cke { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+.stars { color: var(--yellow); }
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.2rem;
+}
+.card h4 { margin-top: 0; color: var(--text); }
+.card p { font-size: 0.9rem; color: var(--text-muted); }
+.priority-tag {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.p1 { background: rgba(248,81,73,0.2); color: var(--red); }
+.p2 { background: rgba(210,153,34,0.2); color: var(--yellow); }
+.p3 { background: rgba(88,166,255,0.2); color: var(--accent); }
+.p4 { background: rgba(139,148,158,0.2); color: var(--text-muted); }
+ul { padding-left: 1.5rem; }
+li { margin-bottom: 0.3rem; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+.stat-num { font-size: 2rem; font-weight: 700; }
+.stat-label { font-size: 0.8rem; color: var(--text-muted); }
+.philosophy-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 1rem 0;
+}
+@media (max-width: 768px) {
+  .philosophy-grid, .card-grid { grid-template-columns: 1fr; }
+  body { padding: 1rem; }
+}
+blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  color: var(--text-muted);
+  background: rgba(88,166,255,0.05);
+  border-radius: 0 8px 8px 0;
+}
+code {
+  background: rgba(110,118,129,0.2);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--orange);
+}
+.section-anchor { scroll-margin-top: 2rem; }
+nav {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.5rem;
+  margin: 1.5rem 0;
+}
+nav a {
+  color: var(--accent);
+  text-decoration: none;
+  display: block;
+  padding: 0.2rem 0;
+  font-size: 0.9rem;
+}
+nav a:hover { text-decoration: underline; }
+.tag-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<h1>Superpowers vs ClaudeKit Engineer</h1>
+<p class="subtitle">Deep Comparative Analysis &mdash; March 15, 2026</p>
+
+<nav>
+  <strong style="color:var(--text)">Table of Contents</strong>
+  <a href="#summary">1. Executive Summary</a>
+  <a href="#stats">2. By the Numbers</a>
+  <a href="#architecture">3. Architecture Comparison</a>
+  <a href="#sp-better">4. What Superpowers Does Better</a>
+  <a href="#cke-better">5. What CKE Does Better</a>
+  <a href="#feature">6. Feature-by-Feature Matrix</a>
+  <a href="#learnings">7. Key Learnings for CKE</a>
+  <a href="#philosophy">8. Philosophy Comparison</a>
+  <a href="#questions">9. Unresolved Questions</a>
+</nav>
+
+<!-- EXECUTIVE SUMMARY -->
+<h2 id="summary" class="section-anchor">1. Executive Summary</h2>
+<div class="executive-summary">
+  <p><span class="badge badge-sp">Superpowers</span> (by Jesse Vincent / @obra) is an opinionated <strong>workflow-enforcement</strong> framework focused on disciplined software development via ~14 tightly-coupled skills. It excels at TDD enforcement, systematic debugging, and preventing LLM rationalization.</p>
+  <br>
+  <p><span class="badge badge-cke">ClaudeKit Engineer</span> is a comprehensive <strong>productivity framework</strong> with 70+ skills, 14 agents, extensive hooks, and multi-platform support. It excels at breadth of domain coverage, agent orchestration, and lifecycle management.</p>
+</div>
+
+<!-- STATS -->
+<h2 id="stats" class="section-anchor">2. By the Numbers</h2>
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--green)">14</div>
+    <div class="stat-label">Superpowers Skills</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--purple)">70+</div>
+    <div class="stat-label">CKE Skills</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--green)">1</div>
+    <div class="stat-label">SP Agents</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--purple)">14</div>
+    <div class="stat-label">CKE Agents</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--green)">1</div>
+    <div class="stat-label">SP Hooks</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--purple)">15+</div>
+    <div class="stat-label">CKE Hooks</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--green)">5</div>
+    <div class="stat-label">SP Platforms</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--purple)">2</div>
+    <div class="stat-label">CKE Platforms</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--green)">5</div>
+    <div class="stat-label">SP Test Suites</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--purple)">1</div>
+    <div class="stat-label">CKE Test Suites</div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE -->
+<h2 id="architecture" class="section-anchor">3. Architecture Comparison</h2>
+<div class="card-grid">
+  <div class="card" style="border-color: rgba(63,185,80,0.4);">
+    <h4><span class="badge badge-sp">Superpowers</span> Architecture</h4>
+    <p><strong>Skill Router Pattern:</strong> Injects ONE meta-skill (<code>using-superpowers</code>) at session start that forces agent to check/invoke skills before ANY action.</p>
+    <ul>
+      <li><code>hooks/</code> &mdash; 1 hook (SessionStart), bash+polyglot</li>
+      <li><code>skills/</code> &mdash; 14 skills with SKILL.md + references</li>
+      <li><code>agents/</code> &mdash; 1 agent (code-reviewer)</li>
+      <li><code>commands/</code> &mdash; 3 commands (deprecated)</li>
+      <li><code>tests/</code> &mdash; 5 test suites</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color: rgba(188,140,255,0.4);">
+    <h4><span class="badge badge-cke">CKE</span> Architecture</h4>
+    <p><strong>Orchestration Pattern:</strong> Multiple hooks at different lifecycle stages, dedicated agents per concern, rules as persistent instructions.</p>
+    <ul>
+      <li><code>.claude/hooks/</code> &mdash; 15+ JS hooks (CJS)</li>
+      <li><code>.claude/skills/</code> &mdash; 70+ skills with install scripts</li>
+      <li><code>.claude/agents/</code> &mdash; 14 specialized agents</li>
+      <li><code>.claude/commands/</code> &mdash; Active command groups</li>
+      <li><code>.claude/rules/</code> &mdash; Workflow rules</li>
+    </ul>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Aspect</th><th>Superpowers</th><th>CKE</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Skill routing</td><td>Meta-skill forces invocation</td><td>Hook-injected rules + catalog</td></tr>
+    <tr><td>Agent model</td><td>Fresh subagent per task</td><td>Named agents with defined roles</td></tr>
+    <tr><td>Hook lifecycle</td><td>SessionStart only</td><td>Session, Subagent, Privacy, Task</td></tr>
+    <tr><td>Config format</td><td>Bash scripts + JSON</td><td>Node.js CJS modules</td></tr>
+    <tr><td>State management</td><td>TodoWrite checklists</td><td>Tasks API + plans + memory</td></tr>
+    <tr><td>Plan storage</td><td><code>docs/superpowers/plans/</code></td><td><code>plans/{date-slug}/</code> with phases</td></tr>
+  </tbody>
+</table>
+
+<!-- SP BETTER -->
+<h2 id="sp-better" class="section-anchor">4. What Superpowers Does Better</h2>
+<p style="color:var(--text-muted); margin-bottom:1rem;">Features CKE should learn from Superpowers</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;&#9733;</span> DOT Flowcharts as Executable Specs</h4>
+    <p>GraphViz DOT diagrams in skills serve as the AUTHORITATIVE process definition. Models follow graphs more reliably than prose. Discovered "The Description Trap" &mdash; models follow short descriptions over detailed flowcharts.</p>
+    <p><strong>CKE Action:</strong> Add DOT/Mermaid flows to <code>cook</code>, <code>fix</code>, <code>brainstorm</code>, <code>plan</code></p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;&#9733;</span> Hard Gates &amp; Anti-Rationalization</h4>
+    <p>Explicit <code>&lt;HARD-GATE&gt;</code> blocks prevent implementation before design. Comprehensive rationalization prevention tables catch LLM excuse patterns.</p>
+    <p><strong>CKE Action:</strong> Add <code>&lt;HARD-GATE&gt;</code> blocks + rationalization tables to core skills</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;&#9733;</span> Verification Before Completion</h4>
+    <p>Dedicated skill: "Evidence before claims, always." No "should work" &mdash; must run verification command and show output. Iron Law: NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION.</p>
+    <p><strong>CKE Action:</strong> Integrate into <code>code-review</code> and <code>test</code> skills</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Two-Stage Code Review</h4>
+    <p>Separates review into spec compliance (does it match requirements?) then code quality (is it well-written?). Catches well-written code that doesn't match spec.</p>
+    <p><strong>CKE Action:</strong> Split <code>code-review</code> into two passes</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Subagent Context Isolation</h4>
+    <p>"Subagents receive only the context they need." Each gets precisely crafted prompts &mdash; never session history. Preserves controller context.</p>
+    <p><strong>CKE Action:</strong> Add context isolation guidelines to orchestration protocol</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Implementer Status Protocol</h4>
+    <p>Structured statuses: <code>DONE</code>, <code>DONE_WITH_CONCERNS</code>, <code>BLOCKED</code>, <code>NEEDS_CONTEXT</code>. Controller handles each case appropriately.</p>
+    <p><strong>CKE Action:</strong> Define standard status protocol for agent communication</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Git Worktree First-Class</h4>
+    <p>Worktree REQUIRED before implementation. Auto-detect directory, verify .gitignore, run project setup, verify clean baseline.</p>
+    <p><strong>CKE Action:</strong> Make worktree recommended in <code>cook</code> workflow</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Skill Test Infrastructure</h4>
+    <p>5 test suites: skill-triggering, integration (<code>claude -p</code>), token analysis, e2e workflows, explicit request tests.</p>
+    <p><strong>CKE Action:</strong> Build skill-triggering test suite</p>
+  </div>
+</div>
+
+<!-- CKE BETTER -->
+<h2 id="cke-better" class="section-anchor">5. What CKE Does Better</h2>
+<p style="color:var(--text-muted); margin-bottom:1rem;">Features Superpowers lacks that CKE excels at</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;&#9733;</span> Massive Skill Ecosystem (70+)</h4>
+    <p>Frontend (React, Vue, Three.js), Backend (Node, Python, Go), Mobile (RN, Flutter), DevOps (Docker, K8s), AI/ML (Gemini, Claude API), Design (UI/UX, Mermaid), Payments (Stripe, Paddle), Databases, Testing, Docs.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;&#9733;</span> 14 Specialized Agents</h4>
+    <p>Planner, researcher, tester, debugger, fullstack-developer, UI/UX designer, code-reviewer, code-simplifier, docs-manager, project-manager, git-manager, journal-writer, brainstormer, MCP manager.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;&#9733;</span> Rich Hook System (15+)</h4>
+    <p>SessionStart/State, SubagentStart/Stop, privacy-block, scout-block, skill-dedup, descriptive-name, dev-rules-reminder, post-edit-simplify, task-completed, team-context, plan-format-kanban.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;&#9733;</span> Agent Team Orchestration</h4>
+    <p>Multi-agent teams with file ownership, communication protocol, task claiming, plan approval flow, conflict resolution, shutdown protocol, git worktree per teammate.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Plan Management System</h4>
+    <p>Timestamped directories, multi-phase files, research subdirs, plan-scoped reports, kanban visualization, progress tracking.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Persistent Memory System</h4>
+    <p>File-based: user memories, feedback memories, project memories, reference memories. Indexed via MEMORY.md. Cross-session continuity.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> MCP Integration</h4>
+    <p>Browser automation, external tools, dedicated mcp-manager agent, use-mcp skill for intelligent tool discovery.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;&#9733;</span> Visual Preview System</h4>
+    <p>Generate explanations, slides, diagrams, ASCII art. Markdown-novel-viewer serves in browser. Multiple output modes.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;</span> Security Features</h4>
+    <p>Privacy-block hook for sensitive files, security-scan skill (OWASP), secret detection in git skill.</p>
+  </div>
+  <div class="card">
+    <h4><span class="stars">&#9733;</span> Documentation Management</h4>
+    <p>Docs-manager agent, init/update/summarize, auto changelog/roadmap, project overview PDR.</p>
+  </div>
+</div>
+
+<!-- FEATURE MATRIX -->
+<h2 id="feature" class="section-anchor">6. Feature-by-Feature Matrix</h2>
+<table>
+  <thead>
+    <tr><th>Feature</th><th>Superpowers</th><th>CKE</th><th>Winner</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Brainstorming</td><td>Socratic, visual companion, spec review, hard gates</td><td>Question-driven, agent delegation</td><td class="winner-sp">Superpowers</td></tr>
+    <tr><td>Planning</td><td>Bite-sized tasks, chunk review, TDD-enforced</td><td>Multi-phase, structured dirs, kanban</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>TDD Enforcement</td><td>Iron Law, delete-code-first, anti-rationalization</td><td>Mentioned in rules, not enforced</td><td class="winner-sp">Superpowers</td></tr>
+    <tr><td>Code Review</td><td>Two-stage (spec + quality), loop-based</td><td>Dedicated agent, single-pass</td><td class="winner-sp">Superpowers</td></tr>
+    <tr><td>Debugging</td><td>4-phase systematic, root-cause tracing</td><td>Dedicated debugger agent</td><td class="winner-sp">Superpowers</td></tr>
+    <tr><td>Git Workflow</td><td>Worktree-first, branch finishing</td><td>Git-manager agent, conventional commits</td><td class="winner-sp">Superpowers</td></tr>
+    <tr><td>Domain Skills</td><td>None</td><td>70+ covering full-stack</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>Agent Orchestration</td><td>Subagent dispatch, fresh-per-task</td><td>14 agents, team coordination</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>Hook System</td><td>1 hook (SessionStart)</td><td>15+ lifecycle hooks</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>Multi-Platform</td><td>CC, Codex, OpenCode, Gemini, Cursor</td><td>CC, OpenCode</td><td class="winner-sp">Superpowers</td></tr>
+    <tr><td>Test Infrastructure</td><td>5 test suites, token analysis</td><td>Hook unit tests</td><td class="winner-sp">Superpowers</td></tr>
+    <tr><td>Memory</td><td>None</td><td>File-based memory system</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>Visual Tools</td><td>Brainstorm companion only</td><td>Preview, diagrams, slides, viewer</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>Security</td><td>None</td><td>Privacy, scan, secret detection</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>Documentation</td><td>Minimal</td><td>Full management system</td><td class="winner-cke">CKE</td></tr>
+    <tr><td>Community</td><td>Open-source, marketplace</td><td>Commercial, marketplace</td><td class="winner-tie">Tie</td></tr>
+  </tbody>
+</table>
+
+<div style="margin-top:1rem; padding:1rem; background:var(--surface); border-radius:8px; border:1px solid var(--border);">
+  <strong>Score:</strong>
+  <span class="winner-sp">Superpowers: 6</span> &nbsp;|&nbsp;
+  <span class="winner-cke">CKE: 8</span> &nbsp;|&nbsp;
+  <span class="winner-tie">Tie: 1</span>
+  <p style="color:var(--text-muted); margin-top:0.5rem; font-size:0.85rem;">SP wins on <em>depth &amp; discipline</em>. CKE wins on <em>breadth &amp; ecosystem</em>.</p>
+</div>
+
+<!-- LEARNINGS -->
+<h2 id="learnings" class="section-anchor">7. Key Learnings for CKE</h2>
+
+<h3><span class="priority-tag p1">Priority 1</span> Workflow Discipline (High Impact, Medium Effort)</h3>
+<ol>
+  <li><strong>Add DOT/Mermaid process flows</strong> to <code>cook</code>, <code>fix</code>, <code>brainstorm</code>, <code>plan</code> as authoritative specs</li>
+  <li><strong>Add <code>&lt;HARD-GATE&gt;</code> blocks</strong> to prevent implementation before design approval</li>
+  <li><strong>Add anti-rationalization tables</strong> to <code>cook</code>, <code>fix</code>, <code>test</code> skills</li>
+  <li><strong>Integrate verification-before-completion</strong> into <code>code-review</code> and <code>test</code></li>
+</ol>
+
+<h3><span class="priority-tag p2">Priority 2</span> Quality Gates (High Impact, High Effort)</h3>
+<ol start="5">
+  <li><strong>Two-stage code review</strong> &mdash; spec-compliance + quality passes</li>
+  <li><strong>Implementer status protocol</strong> &mdash; DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT</li>
+  <li><strong>Subagent context isolation</strong> &mdash; enforce minimal context in orchestration</li>
+  <li><strong>Scope assessment</strong> &mdash; detect over-scoped projects in brainstorm/plan</li>
+</ol>
+
+<h3><span class="priority-tag p3">Priority 3</span> Testing &amp; Quality (Medium Impact, High Effort)</h3>
+<ol start="9">
+  <li><strong>Skill-triggering tests</strong> &mdash; validate skills activate from naive prompts</li>
+  <li><strong>End-to-end workflow tests</strong> &mdash; brainstorm &rarr; plan &rarr; implement &rarr; review</li>
+  <li><strong>Token usage tracking</strong> &mdash; analyze cost per skill/workflow</li>
+</ol>
+
+<h3><span class="priority-tag p4">Priority 4</span> Nice-to-Have</h3>
+<ol start="12">
+  <li><strong>Gemini CLI support</strong> &mdash; extension format + tool mapping</li>
+  <li><strong>Cursor plugin support</strong> &mdash; plugin manifest</li>
+  <li><strong>Brainstorm visual companion</strong> &mdash; WebSocket-based mockup viewer</li>
+</ol>
+
+<!-- PHILOSOPHY -->
+<h2 id="philosophy" class="section-anchor">8. Philosophy Comparison</h2>
+<div class="philosophy-grid">
+  <div class="card" style="border-color: rgba(63,185,80,0.4);">
+    <h4 style="color:var(--green);">Superpowers: "Discipline Through Enforcement"</h4>
+    <ul>
+      <li><strong>Iron Laws</strong> that cannot be violated</li>
+      <li><strong>Delete code</strong> written before tests</li>
+      <li>Skills as <strong>mandatory workflows</strong></li>
+      <li>Every project goes through brainstorming</li>
+      <li>"Violating the letter = violating the spirit"</li>
+      <li>Heavy anti-rationalization focus</li>
+    </ul>
+  </div>
+  <div class="card" style="border-color: rgba(188,140,255,0.4);">
+    <h4 style="color:var(--purple);">CKE: "Productivity Through Breadth"</h4>
+    <ul>
+      <li><strong>YAGNI/KISS/DRY</strong> as principles</li>
+      <li>Skills as <strong>specialized tools</strong></li>
+      <li>Agent orchestration for <strong>parallel execution</strong></li>
+      <li>Rich ecosystem covering <strong>full lifecycle</strong></li>
+      <li>Hooks for <strong>lifecycle management</strong></li>
+      <li>Memory for <strong>cross-session continuity</strong></li>
+    </ul>
+  </div>
+</div>
+
+<blockquote>
+  <strong>The Ideal Framework</strong> combines Superpowers' <em>discipline enforcement</em> (hard gates, verification, anti-rationalization) with CKE's <em>breadth and ecosystem</em> (70+ skills, 14 agents, rich hooks, memory).
+</blockquote>
+
+<!-- UNRESOLVED -->
+<h2 id="questions" class="section-anchor">9. Unresolved Questions</h2>
+<ol>
+  <li>How to integrate DOT flowcharts without bloating skill file sizes?</li>
+  <li>Should CKE enforce TDD as strictly as Superpowers, or keep it configurable?</li>
+  <li>Can Superpowers' skill-triggering test approach work with CKE's larger skill set?</li>
+  <li>What's the right balance between enforcement and flexibility for different user levels?</li>
+  <li>Should CKE adopt Superpowers' spec-then-plan two-document approach or keep single-plan?</li>
+</ol>
+
+<footer>
+  Generated by ClaudeKit Engineer &mdash; Brainstorm Analysis &mdash; 2026-03-15
+</footer>
+
+</body>
+</html>

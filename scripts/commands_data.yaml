@@ -1,0 +1,4 @@
+# Commands have been migrated to skills.
+# This file is no longer maintained.
+# See .claude/skills/ for the current skill catalog.
+# Regenerate skills catalog via: python3 .claude/scripts/scan_skills.py
