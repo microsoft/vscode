@@ -117,6 +117,12 @@ export function getMultiSelectedResources(commandArg: unknown, listService: ILis
 			if (context.length) {
 				return context.map(c => c.resource);
 			}
+			// Explorer is focused but no item is selected (e.g. clicked blank area),
+			// fall back to the workspace root resources
+			const roots = explorerService.roots;
+			if (roots.length) {
+				return roots.map(r => r.resource);
+			}
 		}
 
 		// Open editors view
