@@ -108,6 +108,15 @@ class MultiAgentAutoRegisterContribution extends Disposable {
 			}
 		}));
 
+		// Auto-spawn built-in agents so they're @mentionable immediately
+		for (const def of this._agentLaneService.getBuiltInAgents()) {
+			try {
+				this._agentLaneService.spawnAgent(def.id);
+			} catch {
+				// Ignore if max agents reached
+			}
+		}
+
 		// Auto-unregister when agents are terminated (instance = undefined means removal)
 		this._register(this._agentLaneService.onDidChangeInstances(() => {
 			const activeIds = new Set(this._agentLaneService.getAgentInstances().map(i => i.id));
