@@ -2345,6 +2345,26 @@ export class Repository {
 		}
 	}
 
+	async restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void> {
+		const args = ['restore'];
+
+		if (options?.staged) {
+			args.push('--staged');
+		}
+
+		if (options?.ref) {
+			args.push('--source', options.ref);
+		}
+
+		if (paths.length > 0) {
+			for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
+				await this.exec([...args, '--', ...chunk]);
+			}
+		} else {
+			await this.exec([...args, '--', '.']);
+		}
+	}
+
 	async addRemote(name: string, url: string): Promise<void> {
 		const args = ['remote', 'add', name, url];
 		await this.exec(args);

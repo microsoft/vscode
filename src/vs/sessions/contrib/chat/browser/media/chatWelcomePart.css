@@ -12,46 +12,13 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	padding: 0 16px 48px 16px;
+	padding: 16px 16px 20px 16px;
 	container-type: size;
+	position: relative;
 }
 
 .chat-full-welcome.revealed {
 	justify-content: center;
-}
-
-/* Header */
-.chat-full-welcome-header {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	width: 100%;
-	max-width: 800px;
-	overflow: visible;
-}
-
-/* Watermark letterpress */
-.chat-full-welcome-letterpress {
-	width: 100%;
-	max-width: 200px;
-	aspect-ratio: 1/1;
-	background-image: url('./letterpress-sessions-dark.svg');
-	background-size: contain;
-	background-position: center;
-	background-repeat: no-repeat;
-	margin-top: 8px;
-	margin-bottom: 20px;
-}
-
-.vs .chat-full-welcome-letterpress,
-.hc-light .chat-full-welcome-letterpress {
-	background-image: url('./letterpress-sessions-light.svg');
-}
-
-@container (max-height: 350px) {
-	.chat-full-welcome-letterpress {
-		display: none;
-	}
 }
 
 /* Input slot */
@@ -73,7 +40,7 @@
 	display: none;
 	width: 100%;
 	max-width: 800px;
-	margin: 0 0 24px 0;
+	margin: 0 0 12px 0;
 	padding: 0;
 	box-sizing: border-box;
 }
@@ -100,13 +67,19 @@
 	margin-bottom: 0;
 }
 
+.chat-full-welcome-content {
+	width: 100%;
+	max-width: 800px;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+}
+
 /* Local mode picker (Workspace / Worktree) below input */
 .chat-full-welcome-local-mode {
 	width: 100%;
 	max-width: 800px;
 	margin-top: 8px;
-	padding-left: 7px;
-	padding-right: 7px;
 	box-sizing: border-box;
 	display: none;
 	flex-direction: row;
@@ -167,7 +140,8 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
+	gap: 6px;
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0;
@@ -177,34 +151,46 @@
 	display: none;
 }
 
-/* Prominent project picker button */
+.chat-full-welcome-pickers-label {
+	font-size: 18px;
+	line-height: 1.25;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+/* Project picker in inline title row */
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	height: auto;
-	padding: 8px 20px;
-	font-size: 15px;
-	border: 1px solid var(--vscode-button-border);
-	background-color: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border-radius: 6px;
+	padding: 4px;
+	font-size: 18px;
+	line-height: 1.25;
+	border: none;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border-radius: 4px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
-}
-
-.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .codicon {
-	font-size: 18px;
-	margin-right: 2px;
-}
-
-.sessions-chat-picker-slot.sessions-chat-project-picker .action-label .codicon-chevron-down {
-	margin-right: 0;
-	position: relative;
-	top: 1px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 15px;
+	font-size: 18px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: 16px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	margin-left: 6px;
+	line-height: 1;
+	transform: translateY(1px);
 }
 
 .sessions-chat-dropdown-label {
@@ -290,8 +276,13 @@
 }
 
 .sessions-chat-picker-slot .action-label .codicon-chevron-down {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	font-size: 12px;
 	margin-left: 6px;
+	line-height: 1;
+	transform: translateY(1px);
 }
 
 .sessions-chat-picker-slot .action-label .chat-session-option-label {

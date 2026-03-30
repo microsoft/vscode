@@ -28,9 +28,13 @@ import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { localize } from '../../../nls.js';
 import { FileService } from '../../files/common/fileService.js';
+import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
+import { InstantiationService } from '../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { SessionDataService } from './sessionDataService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -70,7 +74,12 @@ function startAgentHost(): void {
 	let agentService: AgentService;
 	try {
 		agentService = new AgentService(logService, fileService, sessionDataService);
-		agentService.registerProvider(new CopilotAgent(logService, fileService, sessionDataService));
+		const diServices = new ServiceCollection();
+		diServices.set(ILogService, logService);
+		diServices.set(IFileService, fileService);
+		diServices.set(ISessionDataService, sessionDataService);
+		const instantiationService = new InstantiationService(diServices);
+		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
@@ -144,7 +153,7 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 			await agentService.createSession({
 				provider: command.provider,
 				model: command.model,
-				workingDirectory: command.workingDirectory,
+				workingDirectory: command.workingDirectory ? URI.parse(command.workingDirectory) : undefined,
 				session: URI.parse(command.session),
 			});
 		},
@@ -160,10 +169,9 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 				status: SessionStatus.Idle,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
-				workingDirectory: s.workingDirectory,
+				workingDirectory: s.workingDirectory?.toString(),
 			}));
 		},
-
 		handleGetResourceMetadata() {
 			return agentService.getResourceMetadataSync();
 		},
@@ -172,6 +180,9 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		},
 		handleBrowseDirectory(uri) {
 			return agentService.browseDirectory(URI.parse(uri));
+		},
+		handleWriteFile(params) {
+			return agentService.writeFile(params);
 		},
 		async handleRestoreSession(session) {
 			return agentService.restoreSession(URI.parse(session));

@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
+import { randomUUID } from 'crypto';
+import { mkdirSync, rmSync } from 'fs';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
+import { join } from '../../../../base/common/path.js';
 
 suite('SessionDataService', () => {
 
@@ -78,5 +83,80 @@ suite('SessionDataService', () => {
 	test('cleanupOrphanedData is a no-op when base directory does not exist', async () => {
 		// Should not throw
 		await service.cleanupOrphanedData(new Set());
+	});
+});
+
+suite('SessionDataService — openDatabase ref-counting', () => {
+
+	const disposables = new DisposableStore();
+	let service: SessionDataService;
+	let testDir: string;
+
+	setup(() => {
+		testDir = join(tmpdir(), `vscode-session-data-test-${randomUUID()}`);
+		mkdirSync(testDir, { recursive: true });
+
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(new NullLogService()))));
+		service = new SessionDataService(URI.file(testDir), fileService, new NullLogService());
+	});
+
+	teardown(() => {
+		disposables.clear();
+		rmSync(testDir, { recursive: true, force: true });
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns a functional database reference', async () => {
+		const session = AgentSession.uri('copilot', 'ref-test');
+		const ref = service.openDatabase(session);
+		disposables.add(ref);
+
+		await ref.object.createTurn('turn-1');
+		const edits = await ref.object.getFileEdits([]);
+		assert.deepStrictEqual(edits, []);
+		await ref.object.close();
+	});
+
+	test('multiple references share the same database', async () => {
+		const session = AgentSession.uri('copilot', 'shared-test');
+		const ref1 = service.openDatabase(session);
+		const ref2 = service.openDatabase(session);
+
+		assert.strictEqual(ref1.object, ref2.object);
+
+		ref1.dispose();
+		ref2.dispose();
+		await ref1.object.close();
+	});
+
+	test('database remains usable until last reference is disposed', async () => {
+		const session = AgentSession.uri('copilot', 'refcount-test');
+		const ref1 = service.openDatabase(session);
+		const ref2 = service.openDatabase(session);
+
+		ref1.dispose();
+
+		// ref2 still works
+		await ref2.object.createTurn('turn-1');
+
+		ref2.dispose();
+
+		await ref1.object.close();
+	});
+
+	test('new reference after all disposed gets a fresh database', async () => {
+		const session = AgentSession.uri('copilot', 'reopen-test');
+		const ref1 = service.openDatabase(session);
+		const db1 = ref1.object;
+		ref1.dispose();
+
+		const ref2 = service.openDatabase(session);
+		disposables.add(ref2);
+		// New reference — may or may not be the same object, but must be functional
+		await ref2.object.createTurn('turn-1');
+		assert.notStrictEqual(ref2.object, db1);
+
+		await ref2.object.close();
 	});
 });

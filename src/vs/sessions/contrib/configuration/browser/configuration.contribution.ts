@@ -31,7 +31,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'files.watcherExclude': {
 			'**/.git/objects/**': true,
 			'**/.git/subtree-cache/**': true,
-			'**/node_modules/*/**': true /* TODO@bpasero see if this helps improve perf */,
+			'**/node_modules/*/**': true,
 			'**/.hg/store/**': true
 		},
 
@@ -45,8 +45,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 			'plaintext': true,
 		},
 		'github.copilot.chat.claudeCode.enabled': true,
+		'github.copilot.chat.cli.autoCommit.enabled': false,
 		'github.copilot.chat.cli.branchSupport.enabled': true,
-		'github.copilot.chat.cli.isolationOption.enabled': false,
+		'github.copilot.chat.cli.isolationOption.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
 		'github.copilot.chat.githubMcpServer.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
@@ -66,7 +67,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
-		'workbench.editor.modalMinWidth': 600,
 		'workbench.panel.showLabels': false,
 		'workbench.colorTheme': 'VS Code Dark',
 

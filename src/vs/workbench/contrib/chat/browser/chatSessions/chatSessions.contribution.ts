@@ -31,16 +31,13 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
-import { IChatModel } from '../../common/model/chatModel.js';
-import { IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
+import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -55,6 +52,7 @@ import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -290,6 +288,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeSessionItems = this._register(new Emitter<IChatSessionItemsDelta>());
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
+
+	private readonly _onDidCommitSession = this._register(new Emitter<IChatSessionCommitEvent>());
+	readonly onDidCommitSession = this._onDidCommitSession.event;
 
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability: Event<void> = this._onDidChangeAvailability.event;
@@ -999,60 +1000,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return provider.provideCustomizations(token);
 	}
 
-	public getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
-		const requests = chatModel.getRequests();
-		if (requests.length === 0) {
-			return undefined;
-		}
-
-		// Get the last request to check its response status
-		const lastRequest = requests.at(-1);
-		const response = lastRequest?.response;
-		if (!response) {
-			return undefined;
-		}
-
-		// If the response is complete, show Finished
-		if (response.isComplete) {
-			return undefined;
-		}
-
-		// Get the response parts to find tool invocations and progress messages
-		const responseParts = response.response.value;
-		let description: string | IMarkdownString | undefined = '';
-
-		for (let i = responseParts.length - 1; i >= 0; i--) {
-			const part = responseParts[i];
-			if (description) {
-				break;
-			}
-
-			if (part.kind === 'confirmation' && typeof part.message === 'string') {
-				description = part.message;
-			} else if (part.kind === 'toolInvocation') {
-				const toolInvocation = part as IChatToolInvocation;
-				const state = toolInvocation.state.get();
-				description = toolInvocation.generatedTitle || toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const confirmationTitle = state.confirmationMessages?.title;
-					const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
-						? confirmationTitle
-						: confirmationTitle.value);
-					const descriptionValue = typeof description === 'string' ? description : description.value;
-					description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
-				}
-			} else if (part.kind === 'toolInvocationSerialized') {
-				description = part.invocationMessage;
-			} else if (part.kind === 'progressMessage') {
-				description = part.content;
-			} else if (part.kind === 'thinking') {
-				description = localize('chat.sessions.description.thinking', 'Thinking...');
-			}
-		}
-
-		return description ? renderAsPlaintext(description, { useLinkFormatter: true }) : '';
-	}
-
 	async createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		const controllerData = this._itemControllers.get(chatSessionType);
 		if (!controllerData) {
@@ -1191,6 +1138,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public registerSessionResourceAlias(untitledResource: URI, realResource: URI): void {
 		this._resourceAliases.set(realResource, untitledResource);
+	}
+
+	public fireSessionCommitted(original: URI, committed: URI): void {
+		this._onDidCommitSession.fire({ original, committed });
 	}
 
 	/**
@@ -1458,4 +1409,41 @@ export function getResourceForNewChatSession(options: NewChatSessionOpenOptions)
 
 function isAgentSessionProviderType(type: string): boolean {
 	return Object.values(AgentSessionProviders).includes(type as AgentSessionProviders);
+}
+
+export function getSessionStatusForModel(model: IChatModel): ChatSessionStatus | undefined {
+	if (model.requestInProgress.get()) {
+		return ChatSessionStatus.InProgress;
+	}
+
+	const lastRequest = model.getRequests().at(-1);
+	if (lastRequest?.response) {
+		if (lastRequest.response.state === ResponseModelState.NeedsInput) {
+			return ChatSessionStatus.NeedsInput;
+		} else if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
+			return ChatSessionStatus.Completed;
+		} else if (lastRequest.response.result?.errorDetails) {
+			return ChatSessionStatus.Failed;
+		} else if (lastRequest.response.isComplete) {
+			return ChatSessionStatus.Completed;
+		} else {
+			return ChatSessionStatus.InProgress;
+		}
+	}
+
+	return undefined;
+}
+
+export function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessionStatus {
+	switch (state) {
+		case ResponseModelState.Cancelled:
+		case ResponseModelState.Complete:
+			return ChatSessionStatus.Completed;
+		case ResponseModelState.Failed:
+			return ChatSessionStatus.Failed;
+		case ResponseModelState.Pending:
+			return ChatSessionStatus.InProgress;
+		case ResponseModelState.NeedsInput:
+			return ChatSessionStatus.NeedsInput;
+	}
 }
