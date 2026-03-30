@@ -750,8 +750,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 					const bodyOffset = ast.body.offset;
 					const bodyVarRefs = ast.body.variableReferences;
 					for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
-						const { name, offset } = bodyVarRefs[i];
-						const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + name.length + 1);
+						const { name, offset, fullLength } = bodyVarRefs[i];
+						const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + fullLength);
 						toolReferences.push({ name, range });
 					}
 				}
