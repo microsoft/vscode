@@ -31,6 +31,8 @@ jobs:
       - template: copilot/build-steps.yml
       - template: copilot/l10n-steps.yml
       - template: copilot/test-steps.yml
+        parameters:
+          runIntegrationTests: false
 
       - task: notice@0
         inputs:

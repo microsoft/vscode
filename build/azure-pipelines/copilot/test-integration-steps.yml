@@ -1,0 +1,77 @@
+parameters:
+  - name: OS
+    type: string # linux, darwin, win32
+
+steps:
+  # Setup copilot test environment (tokens, env vars)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'VS Code Development WIF'
+      ${{ if eq(parameters.OS, 'win32') }}:
+        scriptType: 'pscore'
+      ${{ else }}:
+        scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: npm run setup
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Setup copilot test environment
+
+  # Compile copilot extension for tests
+  - ${{ if ne(parameters.OS, 'win32') }}:
+    - script: npm run compile
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Compile copilot
+
+  - ${{ if eq(parameters.OS, 'win32') }}:
+    - powershell: npm run compile
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Compile copilot
+
+  # Run Copilot integration tests
+  - ${{ if eq(parameters.OS, 'linux') }}:
+    - script: xvfb-run -a npm run test:extension
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot extension tests
+      timeoutInMinutes: 15
+
+    - script: xvfb-run -a npm run test:completions-core
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot completions core tests
+      timeoutInMinutes: 15
+
+    - script: xvfb-run -a npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests
+      timeoutInMinutes: 15
+
+  - ${{ if eq(parameters.OS, 'darwin') }}:
+    - script: npm run test:extension
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot extension tests
+      timeoutInMinutes: 15
+
+    - script: npm run test:completions-core
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot completions core tests
+      timeoutInMinutes: 15
+
+    - script: npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests
+      timeoutInMinutes: 15
+
+  - ${{ if eq(parameters.OS, 'win32') }}:
+    - powershell: npm run test:extension
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot extension tests
+      timeoutInMinutes: 15
+
+    - powershell: npm run test:completions-core
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot completions core tests
+      timeoutInMinutes: 15
+
+    - powershell: npm run test:sanity
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot sanity tests
+      timeoutInMinutes: 15
