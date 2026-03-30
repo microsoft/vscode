@@ -35,7 +35,7 @@ export interface ISessionsProvidersService {
 	/** Get available session types for a provider. */
 	getSessionTypesForProvider(providerId: string): ISessionType[];
 	/** Get available session types for a session from its provider. */
-	getSessionTypes(session: ISessionData): ISessionType[];
+	getSessionTypes(sessionId: string): ISessionType[];
 
 	// -- Aggregated Sessions --
 
@@ -140,12 +140,12 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return [...entry.provider.sessionTypes];
 	}
 
-	getSessionTypes(session: ISessionData): ISessionType[] {
-		const entry = this._providers.get(session.providerId);
-		if (!entry) {
+	getSessionTypes(chatId: string): ISessionType[] {
+		const { provider } = this._resolveProvider(chatId);
+		if (!provider) {
 			return [];
 		}
-		return entry.provider.getSessionTypes(session);
+		return provider.getSessionTypes(chatId);
 	}
 
 	// -- Aggregated Sessions --

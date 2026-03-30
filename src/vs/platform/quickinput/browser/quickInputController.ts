@@ -38,7 +38,7 @@ import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
 import { AnchorAlignment, AnchorPosition, layout2d } from '../../../base/common/layout.js';
-import { getAnchorRect } from '../../../base/browser/ui/contextview/contextview.js';
+import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
 
@@ -875,7 +875,7 @@ export class QuickInputController extends Disposable {
 			// Position
 			if (this.controller?.anchor) {
 				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
-				const anchor = getAnchorRect(this.controller.anchor);
+				const anchor = getAnchorRect(this.controller.anchor as HTMLElement | IAnchor);
 				width = 380;
 				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
 
