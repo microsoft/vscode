@@ -11174,6 +11174,20 @@ declare module 'vscode' {
 		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
 
 		/**
+		 * The URI of the currently active chat panel session, or `undefined`
+		 * if no chat session is active.
+		 */
+		export const activeChatSessionUri: Uri | undefined;
+
+		/**
+		 * An {@link Event} which fires when the active chat panel session changes.
+		 * This occurs when the user switches between chat conversations,
+		 * or when a new conversation is started. The event payload is the URI
+		 * of the newly active session, or `undefined` if no session is active.
+		 */
+		export const onDidChangeActiveChatSession: Event<Uri | undefined>;
+
+		/**
 		 * An {@link Event} which fires when a terminal has been created, either through the
 		 * {@link window.createTerminal createTerminal} API or commands.
 		 */
