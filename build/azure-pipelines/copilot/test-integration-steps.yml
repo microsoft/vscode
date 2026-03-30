@@ -44,32 +44,10 @@ steps:
         Write-Host "##vso[task.setvariable variable=VSCODE_UNDER_TEST]$AppRoot\$AppNameShort.exe"
       displayName: Compute VS Code build path
 
-  # Ensure Git LFS objects are available (submodule checkout doesn't inherit LFS config)
-  - ${{ if ne(parameters.OS, 'win32') }}:
-    - script: |
-        set -e
-        git lfs install --local
-        git lfs pull
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Pull Git LFS objects
-
-  - ${{ if eq(parameters.OS, 'win32') }}:
-    - powershell: |
-        git lfs install --local
-        git lfs pull
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Pull Git LFS objects
-
   # Compile copilot extension for tests
-  - ${{ if ne(parameters.OS, 'win32') }}:
-    - script: npm run compile
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Compile copilot
-
-  - ${{ if eq(parameters.OS, 'win32') }}:
-    - powershell: npm run compile
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Compile copilot
+  - script: npm run compile
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Compile copilot
 
   # Run Copilot integration tests
   - ${{ if eq(parameters.OS, 'linux') }}:

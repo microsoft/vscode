@@ -54,13 +54,14 @@ steps:
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Download distro (non-Windows)
 
-  - pwsh: |
-      git submodule update --init --depth=1
-    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
-    displayName: Initialize submodules (Windows)
+  # Copilot
+  - script: git submodule update --init --depth=1
+    displayName: Initialize submodules
 
-  - script: |
-      set -e
-      git submodule update --init --depth=1
-    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
-    displayName: Initialize submodules (non-Windows)
+  - script: git lfs install --local
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Initialize Git LFS
+
+  - script: git lfs pull
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Pull Git LFS objects
