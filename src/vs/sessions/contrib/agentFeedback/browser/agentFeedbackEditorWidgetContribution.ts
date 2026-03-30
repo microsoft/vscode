@@ -88,8 +88,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		// Header
 		this._headerNode = $('div.agent-feedback-widget-header');
 
-		// Comment icon
-		this._headerNode.appendChild(renderIcon(Codicon.comment));
+		// Comment icon (decorative, hidden from screen readers)
+		const commentIcon = renderIcon(Codicon.comment);
+		commentIcon.setAttribute('aria-hidden', 'true');
+		this._headerNode.appendChild(commentIcon);
 
 		// Title showing feedback count
 		this._titleNode = $('span.agent-feedback-widget-title');
