@@ -644,13 +644,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private _applyOptionGroups(handle: number, chatSessionType: string, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
-		const groupsWithCallbacks = optionGroups.map(group => ({
-			...group,
-			onSearch: group.searchable ? async (query: string, token: CancellationToken) => {
-				return await this._proxy.$invokeOptionGroupSearch(handle, group.id, query, token);
-			} : undefined,
-		}));
-		this._chatSessionsService.setOptionGroupsForSessionType(chatSessionType, handle, groupsWithCallbacks);
+		this._chatSessionsService.setOptionGroupsForSessionType(chatSessionType, handle, optionGroups);
 	}
 
 	private getController(handle: number): MainThreadChatSessionItemController {

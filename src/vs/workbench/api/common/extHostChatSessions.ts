@@ -782,14 +782,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return undefined;
 	}
 
-	private _getControllerForContentProviderHandle(handle: number) {
-		const entry = this._chatSessionContentProviders.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-		return this.getChatSessionItemController(entry.chatSessionScheme);
-	}
-
 	private _createInputStateFromOptions(
 		groups: readonly vscode.ChatSessionProviderOptionGroup[],
 		sessionOptions?: ReadonlyArray<{ optionId: string; value: string }>,

@@ -424,7 +424,7 @@ export interface IChatSessionsService {
 	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
-	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
+	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: readonly IChatSessionProviderOptionGroup[]): void;
 
 	/**
 	 * Get the default options for new sessions of this type, derived from option groups'
