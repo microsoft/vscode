@@ -9,8 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap } from '../../common/chatSessionsService.js';
-import { IChatModel } from '../../common/model/chatModel.js';
+import { ReadonlyChatSessionOptionsMap, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, ResolvedChatSessionsExtensionPoint, ChatSessionOptionsMap } from '../../common/chatSessionsService.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 
@@ -37,6 +36,9 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	private readonly _onDidChangeOptionGroups = new Emitter<string>();
 	readonly onDidChangeOptionGroups = this._onDidChangeOptionGroups.event;
+
+	private readonly _onDidCommitSession = new Emitter<IChatSessionCommitEvent>();
+	readonly onDidCommitSession = this._onDidCommitSession.event;
 
 
 	private sessionItemControllers = new Map<string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
@@ -167,12 +169,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	getNewSessionOptionsForSessionType(_chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined {
+	async getNewChatSessionInputState(_chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		return undefined;
-	}
-
-	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: ReadonlyChatSessionOptionsMap): void {
-		// noop
 	}
 
 	getSessionOptions(sessionResource: URI): ReadonlyChatSessionOptionsMap | undefined {
@@ -200,10 +198,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 		this._onDidChangeSessionOptions.fire({ sessionResource, updates });
 
 		return true;
-	}
-
-	hasAnySessionOptions(resource: URI): boolean {
-		return this.sessionOptions.has(resource) && this.sessionOptions.get(resource)!.size > 0;
 	}
 
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined {
@@ -234,15 +228,15 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.contentProviders.keys());
 	}
 
-	getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
-		return undefined;
-	}
-
 	async createNewChatSessionItem(_chatSessionType: string, _request: IChatNewSessionRequest, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		return undefined;
 	}
 
 	registerSessionResourceAlias(_untitledResource: URI, _realResource: URI): void {
+		// noop
+	}
+
+	fireSessionCommitted(_original: URI, _committed: URI): void {
 		// noop
 	}
 
@@ -257,4 +251,20 @@ export class MockChatSessionsService implements IChatSessionsService {
 			}
 		};
 	}
+
+	private readonly _onDidChangeCustomizations = new Emitter<{ readonly chatSessionType: string }>();
+	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+
+	registerCustomizationsProvider(_chatSessionType: string, _provider: IChatSessionCustomizationsProvider): IDisposable {
+		return { dispose: () => { } };
+	}
+
+	hasCustomizationsProvider(_chatSessionType: string): boolean {
+		return false;
+	}
+
+	async getCustomizations(_chatSessionType: string, _token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined> {
+		return undefined;
+	}
+
 }

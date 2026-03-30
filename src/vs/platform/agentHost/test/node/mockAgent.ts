@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { ToolResultContentType, type IToolCallResult } from '../../common/state/sessionState.js';
+import { ToolResultContentType, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -22,6 +23,7 @@ export class MockAgent implements IAgent {
 
 
 	readonly sendMessageCalls: { session: URI; prompt: string }[] = [];
+	readonly setPendingMessagesCalls: { session: URI; steeringMessage: IPendingMessage | undefined; queuedMessages: readonly IPendingMessage[] }[] = [];
 	readonly disposeSessionCalls: URI[] = [];
 	readonly abortSessionCalls: URI[] = [];
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
@@ -64,6 +66,10 @@ export class MockAgent implements IAgent {
 
 	async sendMessage(session: URI, prompt: string): Promise<void> {
 		this.sendMessageCalls.push({ session, prompt });
+	}
+
+	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void {
+		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
 	}
 
 	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
@@ -207,14 +213,52 @@ export class ScriptedMockAgent implements IAgent {
 					toolInput: 'echo test',
 					confirmationTitle: 'Run a test command',
 				};
-				setTimeout(() => {
+				(async () => {
+					await timeout(10);
 					this._onDidSessionProgress.fire(toolStartEvent);
-					setTimeout(() => this._onDidSessionProgress.fire(toolReadyEvent), 5);
-				}, 10);
+					await timeout(5);
+					this._onDidSessionProgress.fire(toolReadyEvent);
+				})();
 				this._pendingPermissions.set('tc-perm-1', (approved) => {
 					if (approved) {
 						this._fireSequence(session, [
 							{ type: 'delta', session, messageId: 'msg-1', content: 'Allowed.' },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'write-file': {
+				// Fire tool_start + tool_ready with write permission for a regular file (should be auto-approved)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
+					// Auto-approved writes resolve immediately — complete the tool and turn
+					await timeout(10);
+					this._fireSequence(session, [
+						{ type: 'tool_complete', session, toolCallId: 'tc-write-1', result: { pastTenseMessage: 'Wrote file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+						{ type: 'idle', session },
+					]);
+				})();
+				break;
+			}
+
+			case 'write-env': {
+				// Fire tool_start + tool_ready with write permission for .env (should be blocked)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-env-1', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' });
+				})();
+				this._pendingPermissions.set('tc-write-env-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-write-env-1', result: { pastTenseMessage: 'Wrote .env', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
 							{ type: 'idle', session },
 						]);
 					}

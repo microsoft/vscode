@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -63,6 +64,8 @@ export class WorkspacePicker extends Disposable {
 
 	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection>());
 	readonly onDidSelectWorkspace: Event<IWorkspaceSelection> = this._onDidSelectWorkspace.event;
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 
 	private _selectedWorkspace: IWorkspaceSelection | undefined;
 
@@ -88,22 +91,27 @@ export class WorkspacePicker extends Disposable {
 		// Restore selected workspace from storage
 		this._selectedWorkspace = this._restoreSelectedWorkspace();
 
-		// If restore failed (providers not yet registered), retry when providers appear
-		if (!this._selectedWorkspace && this._hasStoredWorkspace()) {
-			const providerListener = this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
-				if (!this._selectedWorkspace) {
-					const restored = this._restoreSelectedWorkspace();
-					if (restored) {
-						this._selectedWorkspace = restored;
-						this._updateTriggerLabel();
-						this._onDidSelectWorkspace.fire(restored);
-					}
+		// React to provider registrations/removals: re-validate the current
+		// selection and attempt to restore a stored workspace when none is active.
+		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
+			if (this._selectedWorkspace) {
+				// Validate that the selected workspace's provider is still registered
+				const providers = this.sessionsProvidersService.getProviders();
+				if (!providers.some(p => p.id === this._selectedWorkspace!.providerId)) {
+					this._selectedWorkspace = undefined;
+					this._updateTriggerLabel();
 				}
-				if (this._selectedWorkspace) {
-					providerListener.dispose();
+			}
+			if (!this._selectedWorkspace) {
+				const restored = this._restoreSelectedWorkspace();
+				if (restored) {
+					this._selectedWorkspace = restored;
+					this._updateTriggerLabel();
+					this._onDidChangeSelection.fire();
+					this._onDidSelectWorkspace.fire(restored);
 				}
-			}));
-		}
+			}
+		}));
 	}
 
 	/**
@@ -119,6 +127,8 @@ export class WorkspacePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
+		trigger.setAttribute('aria-haspopup', 'listbox');
+		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
@@ -159,10 +169,16 @@ export class WorkspacePicker extends Disposable {
 					this._selectProject(item.selection);
 				}
 			},
-			onHide: () => { triggerElement.focus(); },
+			onHide: () => {
+				triggerElement.setAttribute('aria-expanded', 'false');
+				triggerElement.focus();
+			},
 		};
 
-		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces...") } : undefined;
+		const listOptions = showFilter
+			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false }
+			: { reserveSubmenuSpace: false };
+		triggerElement.setAttribute('aria-expanded', 'true');
 
 		this.actionWidgetService.show<IWorkspacePickerItem>(
 			'workspacePicker',
@@ -184,7 +200,7 @@ export class WorkspacePicker extends Disposable {
 	 * Programmatically set the selected project.
 	 * @param fireEvent Whether to fire the onDidSelectWorkspace event. Defaults to true.
 	 */
-	setSelectedProject(project: IWorkspaceSelection, fireEvent = true): void {
+	setSelectedWorkspace(project: IWorkspaceSelection, fireEvent = true): void {
 		this._selectProject(project, fireEvent);
 	}
 
@@ -192,12 +208,14 @@ export class WorkspacePicker extends Disposable {
 	 * Clears the selected project.
 	 */
 	clearSelection(): void {
+		this.actionWidgetService.hide();
 		this._selectedWorkspace = undefined;
 		// Clear checked state from all recents
 		const recents = this._getStoredRecentWorkspaces();
 		const updated = recents.map(p => ({ ...p, checked: false }));
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
 	}
 
 	/**
@@ -213,6 +231,7 @@ export class WorkspacePicker extends Disposable {
 		this._selectedWorkspace = selection;
 		this._persistSelectedWorkspace(selection);
 		this._updateTriggerLabel();
+		this._onDidChangeSelection.fire();
 		if (fireEvent) {
 			this._onDidSelectWorkspace.fire(selection);
 		}
@@ -267,27 +286,26 @@ export class WorkspacePicker extends Disposable {
 		const hasMultipleProviders = allProviders.length > 1;
 
 		if (hasMultipleProviders) {
-			// Group workspaces by provider
-			for (const provider of allProviders) {
+			// Group workspaces by provider, showing provider name as description on the first entry
+			const providersWithWorkspaces = allProviders.filter(p => recentWorkspaces.some(w => w.providerId === p.id));
+			for (let pi = 0; pi < providersWithWorkspaces.length; pi++) {
+				const provider = providersWithWorkspaces[pi];
 				const providerWorkspaces = recentWorkspaces.filter(w => w.providerId === provider.id);
-				if (providerWorkspaces.length === 0) {
-					continue;
-				}
-				items.push({
-					kind: ActionListItemKind.Header,
-					label: provider.label,
-					group: { title: provider.label, icon: provider.icon },
-					item: {},
-				});
-				for (const { workspace, providerId } of providerWorkspaces) {
+				for (let i = 0; i < providerWorkspaces.length; i++) {
+					const { workspace, providerId } = providerWorkspaces[i];
 					const selection: IWorkspaceSelection = { providerId, workspace };
 					const selected = this._isSelectedWorkspace(selection);
 					items.push({
 						kind: ActionListItemKind.Action,
 						label: workspace.label,
+						description: i === 0 ? provider.label : undefined,
 						group: { title: '', icon: workspace.icon },
 						item: { selection, checked: selected || undefined },
+						onRemove: () => this._removeRecentWorkspace(selection),
 					});
+				}
+				if (pi < providersWithWorkspaces.length - 1) {
+					items.push({ kind: ActionListItemKind.Separator, label: '' });
 				}
 			}
 		} else {
@@ -299,6 +317,7 @@ export class WorkspacePicker extends Disposable {
 					label: workspace.label,
 					group: { title: '', icon: workspace.icon },
 					item: { selection, checked: selected || undefined },
+					onRemove: () => this._removeRecentWorkspace(selection),
 				});
 			}
 		}
@@ -308,14 +327,48 @@ export class WorkspacePicker extends Disposable {
 		if (items.length > 0 && allBrowseActions.length > 0) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 		}
-		for (let i = 0; i < allBrowseActions.length; i++) {
-			const action = allBrowseActions[i];
+		if (hasMultipleProviders && allBrowseActions.length > 1) {
+			// Show a single "Browse..." entry with provider-grouped submenu actions
+			const providerMap = new Map<string, { provider: typeof allProviders[0]; actions: { action: ISessionsBrowseAction; index: number }[] }>();
+			allBrowseActions.forEach((action, i) => {
+				let entry = providerMap.get(action.providerId);
+				if (!entry) {
+					const provider = allProviders.find(p => p.id === action.providerId);
+					if (!provider) { return; }
+					entry = { provider, actions: [] };
+					providerMap.set(action.providerId, entry);
+				}
+				entry.actions.push({ action, index: i });
+			});
+			const submenuActions = [...providerMap.values()].map(({ provider, actions }) =>
+				new SubmenuAction(
+					`workspacePicker.browse.${provider.id}`,
+					'',
+					actions.map(({ action, index }, ci) => toAction({
+						id: `workspacePicker.browse.${index}`,
+						label: localize(`workspacePicker.browse`, "{0}...", action.label),
+						tooltip: ci === 0 ? provider.label : '',
+						run: () => this._executeBrowseAction(index),
+					})),
+				)
+			);
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: action.label,
-				group: { title: '', icon: action.icon },
-				item: { browseActionIndex: i },
+				label: localize('workspacePicker.browse', "Select..."),
+				group: { title: '', icon: Codicon.folderOpened },
+				item: {},
+				submenuActions,
 			});
+		} else {
+			for (let i = 0; i < allBrowseActions.length; i++) {
+				const action = allBrowseActions[i];
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: localize(`workspacePicker.browse`, "Select {0}...", action.label),
+					group: { title: '', icon: action.icon },
+					item: { browseActionIndex: i },
+				});
+			}
 		}
 
 		return items;
@@ -328,21 +381,25 @@ export class WorkspacePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 		const workspace = this._selectedWorkspace?.workspace;
-		const label = workspace ? workspace.label : localize('pickWorkspace', "Pick a Workspace");
+		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
 		const icon = workspace ? workspace.icon : Codicon.project;
 
 		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
 	private _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
 		if (!this._selectedWorkspace) {
 			return false;
 		}
-		return this._selectedWorkspace.providerId === selection.providerId
-			&& this._selectedWorkspace.workspace.label === selection.workspace.label;
+		if (this._selectedWorkspace.providerId !== selection.providerId) {
+			return false;
+		}
+		const selectedUri = this._selectedWorkspace.workspace.repositories[0]?.uri;
+		const candidateUri = selection.workspace.repositories[0]?.uri;
+		return this.uriIdentityService.extUri.isEqual(selectedUri, candidateUri);
 	}
 
 	private _persistSelectedWorkspace(selection: IWorkspaceSelection): void {
@@ -351,10 +408,6 @@ export class WorkspacePicker extends Disposable {
 			return;
 		}
 		this._addRecentWorkspace(selection.providerId, selection.workspace, true);
-	}
-
-	private _hasStoredWorkspace(): boolean {
-		return this._getStoredRecentWorkspaces().length > 0;
 	}
 
 	private _restoreSelectedWorkspace(): IWorkspaceSelection | undefined {
@@ -467,6 +520,26 @@ export class WorkspacePicker extends Disposable {
 				}
 				return a.workspace.label.localeCompare(b.workspace.label);
 			});
+	}
+
+	private _removeRecentWorkspace(selection: IWorkspaceSelection): void {
+		const uri = selection.workspace.repositories[0]?.uri;
+		if (!uri) {
+			return;
+		}
+		const recents = this._getStoredRecentWorkspaces();
+		const updated = recents.filter(p =>
+			!(p.providerId === selection.providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri))
+		);
+		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Clear current selection if it was the removed workspace
+		if (this._isSelectedWorkspace(selection)) {
+			this.actionWidgetService.hide();
+			this._selectedWorkspace = undefined;
+			this._updateTriggerLabel();
+			this._onDidChangeSelection.fire();
+		}
 	}
 
 	private _getStoredRecentWorkspaces(): IStoredRecentWorkspace[] {

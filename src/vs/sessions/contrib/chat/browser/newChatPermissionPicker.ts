@@ -13,18 +13,21 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CopilotCLISession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import Severity from '../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../base/common/uri.js';
 
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
 
 interface IPermissionItem {
-	readonly level: ChatPermissionLevel;
+	readonly level?: ChatPermissionLevel;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly checked: boolean;
@@ -47,21 +50,29 @@ export class NewChatPermissionPicker extends Disposable {
 		return this._currentLevel;
 	}
 
+	set permissionLevel(level: ChatPermissionLevel) {
+		this._currentLevel = level;
+		this._updateTriggerLabel(this._triggerElement);
+	}
+
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		// Write permission level to the active session data when it changes
 		this._register(this.onDidChangeLevel(level => {
 			const session = this.sessionsManagementService.activeSession.get();
-			if (!(session instanceof CopilotCLISession)) {
+			const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
+			if (!(providerSession instanceof CopilotCLISession)) {
 				throw new Error('NewChatPermissionPicker requires a CopilotCLISession');
 			}
-			session.setPermissionLevel(level);
+			providerSession.setPermissionLevel(level);
 		}));
 	}
 
@@ -146,11 +157,33 @@ export class NewChatPermissionPicker extends Disposable {
 			});
 		}
 
+		items.push({
+			kind: ActionListItemKind.Separator,
+			label: '',
+			disabled: false,
+		});
+		items.push({
+			kind: ActionListItemKind.Action,
+			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
+			item: {
+				label: localize('permissions.learnMore', "Learn more about permissions"),
+				icon: Codicon.blank,
+				checked: false,
+			},
+			label: localize('permissions.learnMore', "Learn more about permissions"),
+			hideIcon: false,
+			disabled: false,
+		});
+
 		const triggerElement = this._triggerElement;
 		const delegate: IActionListDelegate<IPermissionItem> = {
 			onSelect: async (item) => {
 				this.actionWidgetService.hide();
-				await this._selectLevel(item.level);
+				if (item.level) {
+					await this._selectLevel(item.level);
+				} else {
+					await this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+				}
 			},
 			onHide: () => { triggerElement.focus(); },
 		};

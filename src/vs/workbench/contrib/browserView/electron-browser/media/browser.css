@@ -177,11 +177,11 @@
 		 * which would cause visible shifts when swapping between the live
 		 * view and the placeholder screenshot.
 		 */
-		width: round(down, 100% - 8px, calc(1px / var(--zoom-factor, 1)));
-		height: round(down, 100% - 4px, calc(1px / var(--zoom-factor, 1)));
+		width: round(down, 100% - 6px, calc(1px / var(--zoom-factor, 1)));
+		height: round(down, 100% - 3px, calc(1px / var(--zoom-factor, 1)));
 		margin: 0 auto;
 		overflow: visible;
-		border-radius: var(--vscode-cornerRadius-medium);
+		border-radius: var(--vscode-cornerRadius-small);
 		position: relative;
 		outline: none !important;
 		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
@@ -196,7 +196,7 @@
 			right: -1px;
 			bottom: -1px;
 			z-index: -2;
-			border-radius: var(--vscode-cornerRadius-medium);
+			border-radius: calc(var(--vscode-cornerRadius-small) + 1px);
 			background: conic-gradient(from var(--animation-angle),
 				color-mix(in srgb, #b44aff var(--animation-opacity), var(--vscode-browser-border, transparent)),
 				color-mix(in srgb, #4af0c0 var(--animation-opacity), var(--vscode-browser-border, transparent)),
@@ -208,10 +208,11 @@
 		}
 
 		&.shared::before {
-			top: -3px;
-			left: -3px;
-			right: -3px;
-			bottom: -3px;
+			top: -2px;
+			left: -2px;
+			right: -2px;
+			bottom: -2px;
+			border-radius: calc(var(--vscode-cornerRadius-small) + 2px);
 			--animation-angle: 495deg;
 			--animation-opacity: 100%;
 		}
@@ -221,6 +222,7 @@
 				left 350ms cubic-bezier(0.2, 0, 0, 1),
 				right 350ms cubic-bezier(0.2, 0, 0, 1),
 				bottom 350ms cubic-bezier(0.2, 0, 0, 1),
+				border-radius 350ms cubic-bezier(0.2, 0, 0, 1),
 				--animation-opacity 350ms cubic-bezier(0.2, 0, 0, 1);
 		}
 
@@ -237,7 +239,7 @@
 			right: 1px;
 			bottom: 1px;
 			z-index: -1;
-			border-radius: var(--vscode-cornerRadius-medium);
+			border-radius: var(--vscode-cornerRadius-small);
 			background-color: var(--vscode-editor-background);
 			pointer-events: none;
 		}
@@ -248,7 +250,7 @@
 		height: 100%;
 		position: relative;
 		overflow: hidden;
-		border-radius: var(--vscode-cornerRadius-medium);
+		border-radius: var(--vscode-cornerRadius-small);
 	}
 
 	.browser-placeholder-screenshot {
