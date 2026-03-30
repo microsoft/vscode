@@ -1238,7 +1238,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const groups = new Map<string, ISession[]>();
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
-		const label = workspace?.label ?? localize('unknown', "Unknown");
+		const label = workspace?.label || localize('unknown', "Unknown");
 		let group = groups.get(label);
 		if (!group) {
 			group = [];
