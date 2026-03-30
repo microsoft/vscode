@@ -664,6 +664,9 @@ export class QuickInputController extends Disposable {
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void {
+		if (this.controller?.anchor) {
+			return; // anchored inputs own their own positioning
+		}
 		this.dndController?.setAlignment(alignment);
 	}
 
@@ -723,6 +726,14 @@ export class QuickInputController extends Disposable {
 		this.updateLayout();
 		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
+		if (controller.anchor) {
+			// Anchored quick inputs are positioned near a specific element, not
+			// at the default top location, so report them as custom-positioned.
+			this._alignment.set('custom', undefined);
+		} else {
+			// Re-sync from DnD in case a previous anchored input left us stale.
+			this._alignment.set(this.dndController?.alignment.get() ?? 'top', undefined);
+		}
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
@@ -1024,7 +1035,7 @@ class QuickInputDragAndDropController extends Disposable {
 
 	private readonly _quickInputAlignmentContext: IContextKey<'center' | 'top' | undefined>;
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
-	readonly alignment: typeof this._alignment = this._alignment;
+	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
 
 	constructor(
 		private _container: HTMLElement,
@@ -1048,7 +1059,7 @@ class QuickInputDragAndDropController extends Disposable {
 		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
 		// Initialize alignment from restored state. The exact snap alignment will
 		// be refined in layoutContainer() once pixel dimensions are available.
-		if (initialViewState?.top !== undefined) {
+		if (initialViewState?.top !== undefined && initialViewState?.left !== undefined) {
 			this._setAlignmentState(undefined);
 		}
 	}
