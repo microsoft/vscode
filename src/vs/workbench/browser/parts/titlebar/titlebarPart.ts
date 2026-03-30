@@ -55,6 +55,7 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -317,7 +318,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
-		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow));
+		// Create a scoped editor service that only tracks editors within this
+		// window's editor groups container, so the window title is not affected
+		// by active editor changes in other windows (e.g. auxiliary windows).
+		const titleDisposables = this._register(new DisposableStore());
+		const scopedEditorService = editorService.createScoped(editorGroupsContainer, titleDisposables);
+		const scopedInstantiationService = titleDisposables.add(instantiationService.createChild(new ServiceCollection(
+			[IEditorService, scopedEditorService]
+		)));
+		this.windowTitle = this._register(scopedInstantiationService.createInstance(WindowTitle, targetWindow));
 
 		this.hoverDelegate = this._register(createInstantHoverDelegate());
 
