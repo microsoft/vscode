@@ -306,6 +306,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				await configuration.update('chat.agent.sandbox', undefined, vscode.ConfigurationTarget.Global);
 			});
 
+			// Flaky: #305722
 			test.skip('echo works in sandbox and output is clean', async function () {
 				this.timeout(60000);
 
