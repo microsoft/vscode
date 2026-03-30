@@ -87,6 +87,7 @@ The widget:
 - Gets the active session label from `IActiveSessionService.getActiveSession()` and the live model title from `IChatService`, falling back to "New Session" if no active session is found
 - Re-renders automatically when the active session changes via `autorun` on `IActiveSessionService.activeSession`, and when session data changes via `IAgentSessionsService.model.onDidChangeSessions`
 - Is registered via `SessionsTitleBarContribution` (an `IWorkbenchContribution` in `contrib/sessions/browser/sessionsTitleBarWidget.ts`) that calls `IActionViewItemService.register()` to intercept the submenu rendering
+- Uses `padding-left: 0` while the sidebar is visible, and restores `padding-left: 16px` when the sidebar is hidden via the `nosidebar` workbench class
 
 ### 3.3 Left Toolbar
 
@@ -643,6 +644,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-30 | Adjusted `.agent-sessions-titlebar-container` padding so it sits flush when the sidebar is visible and restores 16px left padding when the sidebar is hidden |
 | 2026-03-26 | Updated the sessions sidebar appear animation so only the body content (`.part.sidebar > .content`) slides/fades in during reveal while the sidebar title/header and footer remain fixed |
 | 2026-03-25 | Updated Sessions view documentation to reflect the refactored `SessionsView` implementation in `contrib/sessions/browser/views/sessionsView.ts` and documented the left-aligned "+ Session" sidebar action with its inline keybinding hint |
 | 2026-03-24 | Updated the sessions new-chat empty state: removed the watermark, vertically centered the empty-state controls block, restyled the workspace picker as an inline `New session in {dropdown}` title row aligned to the chat input, and tuned empty-state dropdown icon/chevron and local-mode spacing for the final visual polish. |
