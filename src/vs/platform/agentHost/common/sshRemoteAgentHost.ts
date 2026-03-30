@@ -9,6 +9,11 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const ISSHRemoteAgentHostService = createDecorator<ISSHRemoteAgentHostService>('sshRemoteAgentHostService');
 
+/**
+ * IPC channel name for the main-process SSH service.
+ */
+export const SSH_REMOTE_AGENT_HOST_CHANNEL = 'sshRemoteAgentHost';
+
 export const enum SSHAuthMethod {
 	/** Use the local SSH agent for key-based auth. */
 	Agent = 'agent',
@@ -87,6 +92,45 @@ export interface ISSHRemoteAgentHostService {
 	 * Disconnect an SSH-bootstrapped connection by host address.
 	 * Tears down the SSH tunnel, stops the remote agent host, and
 	 * removes the entry from {@link IRemoteAgentHostService}.
+	 */
+	disconnect(host: string): Promise<void>;
+}
+
+/**
+ * Serializable result from a successful SSH connect operation.
+ * Returned over IPC from the main process.
+ */
+export interface ISSHConnectResult {
+	readonly localAddress: string;
+	readonly name: string;
+	readonly connectionToken: string | undefined;
+	readonly config: ISSHAgentHostConfigSanitized;
+}
+
+/**
+ * Main-process service that performs the actual SSH work.
+ * The renderer calls this over IPC and handles registration
+ * with {@link IRemoteAgentHostService} locally.
+ */
+export const ISSHRemoteAgentHostMainService = createDecorator<ISSHRemoteAgentHostMainService>('sshRemoteAgentHostMainService');
+
+export interface ISSHRemoteAgentHostMainService {
+	readonly _serviceBrand: undefined;
+
+	/** Fires when the set of active SSH connections changes. */
+	readonly onDidChangeConnections: Event<void>;
+
+	/** Fires when a connection is closed from the main process side. */
+	readonly onDidCloseConnection: Event<string /* localAddress */>;
+
+	/**
+	 * Bootstrap a remote agent host over SSH. Returns serializable
+	 * connection info for the renderer to register.
+	 */
+	connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult>;
+
+	/**
+	 * Disconnect an SSH-bootstrapped connection by host address.
 	 */
 	disconnect(host: string): Promise<void>;
 }
