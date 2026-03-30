@@ -247,7 +247,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 					modelPicker.setEnabled(models.length > 0);
 					if (!currentModel.get() && models.length > 0) {
 						const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
-						currentModel.set(remembered ?? models[0], undefined);
+						delegate.setModel(remembered ?? models[0]);
 					}
 				};
 				initModel();
