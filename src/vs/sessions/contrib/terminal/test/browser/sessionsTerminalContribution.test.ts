@@ -74,7 +74,7 @@ function makeAgentSession(opts: {
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequest: observableValue('test.pullRequest', undefined),
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
 	};
 	const session: ISession = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat), mainChat: chat };
 	return session;
@@ -107,7 +107,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequest: observableValue('test.pullRequest', undefined),
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
 	};
 	const session: ISession = { ...chat, sessionId: chat.chatId, chats: observableValue('test.chats', [chat]), activeChat: observableValue('test.activeChat', chat), mainChat: chat };
 	return session;

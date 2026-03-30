@@ -14,17 +14,17 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { EditorsVisibleContext, IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
-import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
+import { ISessionsManagementService } from '../sessionsManagementService.js';
+import { IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { ISession, SessionStatus } from '../../common/sessionData.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 
 //  Constants
 
@@ -400,13 +400,16 @@ registerAction2(class PinSessionAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.sessionsControl?.pinSession(context);
+		for (const session of sessions) {
+			view?.sessionsControl?.pinSession(session);
+		}
 	}
 });
 
@@ -435,13 +438,16 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
-		view?.sessionsControl?.unpinSession(context);
+		for (const session of sessions) {
+			view?.sessionsControl?.unpinSession(session);
+		}
 	}
 });
 
@@ -464,12 +470,15 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISession): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await sessionsManagementService.archiveSession(context);
+		for (const session of sessions) {
+			await sessionsManagementService.archiveSession(session);
+		}
 	}
 });
 
@@ -492,12 +501,15 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISession): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await sessionsManagementService.unarchiveSession(context);
+		for (const session of sessions) {
+			await sessionsManagementService.unarchiveSession(session);
+		}
 	}
 });
 
@@ -517,12 +529,15 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		sessionsManagementService.setRead(context, true);
+		for (const session of sessions) {
+			sessionsManagementService.setRead(session, true);
+		}
 	}
 });
 
@@ -542,12 +557,15 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession): void {
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		sessionsManagementService.setRead(context, false);
+		for (const session of sessions) {
+			sessionsManagementService.setRead(session, false);
+		}
 	}
 });
 
@@ -563,15 +581,18 @@ registerAction2(class OpenSessionInNewWindowAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISession): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
 		if (!context) {
 			return;
 		}
+		const sessions = Array.isArray(context) ? context : [context];
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		await chatWidgetService.openSession(context.resource, AUX_WINDOW_GROUP, {
-			auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
-			pinned: true
-		});
+		for (const session of sessions) {
+			await chatWidgetService.openSession(session.resource, AUX_WINDOW_GROUP, {
+				auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
+				pinned: true
+			});
+		}
 	}
 });
 
@@ -612,6 +633,16 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 					IsAuxiliaryWindowContext.negate(),
 					SessionsWelcomeVisibleContext.negate(),
 					IsNewChatSessionContext.negate()
+				)
+			},
+			{
+				id: MenuId.ChatEditingSessionChangesToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ContextKeyExpr.equals('sessions.hasPullRequest', true),
+					ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
 				)
 			}]
 		});

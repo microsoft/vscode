@@ -73,6 +73,7 @@ function createMockChatModel(options: {
 			response: {
 				value: [],
 				getMarkdown: () => '',
+				getFinalResponse: () => '',
 				toString: () => options.customTitle ? '' : 'Test response content'
 			}
 		};

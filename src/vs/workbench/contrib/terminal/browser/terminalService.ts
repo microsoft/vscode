@@ -69,7 +69,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _detachedXterms = new Set<IDetachedTerminalInstance>();
-	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
 	private _isShuttingDown: boolean = false;
@@ -222,11 +221,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
 		this._terminalCountContextKey = TerminalContextKeys.count.bindTo(this._contextKeyService);
-		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(this._contextKeyService);
-
-		this._register(this.onDidChangeActiveInstance(instance => {
-			this._terminalEditorActive.set(!!instance?.target && instance.target === TerminalLocation.Editor);
-		}));
 
 		this._register(_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal')));
 		this._register(_lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));

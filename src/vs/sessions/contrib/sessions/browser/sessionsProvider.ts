@@ -86,6 +86,14 @@ export interface ISessionsProvider {
 	getSessions(): ISessionData[];
 	/** Fires when chats are added, removed, or changed. */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+	/**
+	 * Optional. Fires when a temporary (untitled) session is atomically replaced
+	 * by a committed session after the first turn.
+	 *
+	 * @internal This is an implementation detail of the Copilot Chat sessions
+	 * provider. Do not implement or consume this event in other providers.
+	 */
+	readonly onDidReplaceSession?: Event<{ readonly from: ISessionData; readonly to: ISessionData }>;
 
 	// -- Session Management --
 
@@ -96,7 +104,7 @@ export interface ISessionsProvider {
 	/** Update the session type for a session. */
 	setSessionType(chatId: string, type: ISessionType): ISessionData;
 	/** Returns session types available for the given session. */
-	getSessionTypes(session: ISessionData): ISessionType[];
+	getSessionTypes(chatId: string): ISessionType[];
 	/** Rename a session. */
 	renameSession(chatId: string, title: string): Promise<void>;
 	/** Set the model for a session. */
