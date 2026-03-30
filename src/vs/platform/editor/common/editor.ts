@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../base/common/arrays.js';
+import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
@@ -335,11 +336,6 @@ export interface IModalEditorPartOptions {
 	readonly maximized?: boolean;
 
 	/**
-	 * Minimum width of the modal editor part in pixels.
-	 */
-	readonly minWidth?: number;
-
-	/**
 	 * Size of the modal editor part unless it is maximized.
 	 */
 	readonly size?: { readonly width: number; readonly height: number };
@@ -354,6 +350,34 @@ export interface IModalEditorPartOptions {
 	 * within this modal editor. Pass `undefined` to clear.
 	 */
 	readonly navigation?: IModalEditorNavigation;
+
+	/**
+	 * Optional sidebar content to render on the left side of the
+	 * modal editor. The caller provides a render callback that
+	 * receives a container element and a layout callback, and
+	 * returns a disposable to clean up when the modal closes.
+	 *
+	 * Note: the sidebar will only be shown when provided during
+	 * opening and cannot currently be added, removed, or updated
+	 * after the modal editor is opened.
+	 */
+	readonly sidebar?: IModalEditorSidebarContent;
+}
+
+/**
+ * Content to render in the modal editor sidebar.
+ */
+export interface IModalEditorSidebarContent {
+
+	/**
+	 * Render the sidebar content into the given container.
+	 *
+	 * @param container The DOM element to render into.
+	 * @param onDidLayout An event that fires when the sidebar is
+	 * 		laid out with the available dimensions.
+	 * @returns A disposable to clean up when the modal closes.
+	 */
+	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => IDisposable;
 }
 
 /**

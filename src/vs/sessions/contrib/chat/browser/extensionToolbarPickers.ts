@@ -16,6 +16,7 @@ import { IChatSessionProviderOptionItem } from '../../../../workbench/contrib/ch
 import { ISessionOptionGroup } from './newSession.js';
 import { RemoteNewSession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 
 /**
  * Self-contained widget that renders extension-driven toolbar pickers
@@ -35,6 +36,7 @@ export class ExtensionToolbarPickers extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -60,15 +62,16 @@ export class ExtensionToolbarPickers extends Disposable {
 	}
 
 	private _bindToSession(): void {
-		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (!chat) {
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!session) {
 			return;
 		}
 
-		if (chat instanceof RemoteNewSession) {
-			this._renderToolbarPickers(chat, true);
-			this._sessionDisposables.add(chat.onDidChangeOptionGroups(() => {
-				this._renderToolbarPickers(chat);
+		const providerSession = this.sessionsProvidersService.getUntitledSession(session.providerId);
+		if (providerSession instanceof RemoteNewSession) {
+			this._renderToolbarPickers(providerSession, true);
+			this._sessionDisposables.add(providerSession.onDidChangeOptionGroups(() => {
+				this._renderToolbarPickers(providerSession);
 			}));
 		}
 	}

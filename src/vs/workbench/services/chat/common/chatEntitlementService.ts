@@ -50,6 +50,7 @@ export namespace ChatEntitlementContextKeys {
 
 		planFree: new RawContextKey<boolean>('chatPlanFree', false, true),								// True when user is a chat free user.
 		planPro: new RawContextKey<boolean>('chatPlanPro', false, true),								// True when user is a chat pro user.
+		planEdu: new RawContextKey<boolean>('chatPlanEdu', false, true),								// True when user is a chat edu user.
 		planProPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 						// True when user is a chat pro plus user.
 		planBusiness: new RawContextKey<boolean>('chatPlanBusiness', false, true), 						// True when user is a chat business user.
 		planEnterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true), 					// True when user is a chat enterprise user.
@@ -78,6 +79,8 @@ export enum ChatEntitlement {
 	Unavailable = 4,
 	/** Signed-up to Free */
 	Free = 5,
+	/** Signed-up to EDU */
+	EDU = 10,
 	/** Signed-up to Pro */
 	Pro = 6,
 	/** Signed-up to Pro Plus */
@@ -177,7 +180,8 @@ export interface IChatEntitlementService {
  * @returns Whether or not they are a paid user
  */
 export function isProUser(chatEntitlement: ChatEntitlement): boolean {
-	return chatEntitlement === ChatEntitlement.Pro ||
+	return chatEntitlement === ChatEntitlement.EDU ||
+		chatEntitlement === ChatEntitlement.Pro ||
 		chatEntitlement === ChatEntitlement.ProPlus ||
 		chatEntitlement === ChatEntitlement.Business ||
 		chatEntitlement === ChatEntitlement.Enterprise;
@@ -190,6 +194,8 @@ export function isProUser(chatEntitlement: ChatEntitlement): boolean {
  */
 export function getChatPlanName(chatEntitlement: ChatEntitlement): string {
 	switch (chatEntitlement) {
+		case ChatEntitlement.EDU:
+			return localize('plan.eduName', 'Copilot EDU');
 		case ChatEntitlement.Pro:
 			return localize('plan.proName', 'Copilot Pro');
 		case ChatEntitlement.ProPlus:
@@ -289,6 +295,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
+					ChatEntitlementContextKeys.Entitlement.planEdu.key,
 					ChatEntitlementContextKeys.Entitlement.planPro.key,
 					ChatEntitlementContextKeys.Entitlement.planBusiness.key,
 					ChatEntitlementContextKeys.Entitlement.planEnterprise.key,
@@ -342,7 +349,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	get entitlement(): ChatEntitlement {
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planPro.key) === true) {
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planEdu.key) === true) {
+			return ChatEntitlement.EDU;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planPro.key) === true) {
 			return ChatEntitlement.Pro;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Entitlement.planBusiness.key) === true) {
 			return ChatEntitlement.Business;
@@ -676,6 +685,8 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement = ChatEntitlement.Free;
 		} else if (entitlementsData.can_signup_for_limited) {
 			entitlement = ChatEntitlement.Available;
+		} else if (entitlementsData.copilot_plan === 'individual_edu') {
+			entitlement = ChatEntitlement.EDU;
 		} else if (entitlementsData.copilot_plan === 'individual') {
 			entitlement = ChatEntitlement.Pro;
 		} else if (entitlementsData.copilot_plan === 'individual_pro') {
@@ -1011,6 +1022,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly signedOutContextKey: IContextKey<boolean>;
 
 	private readonly freeContextKey: IContextKey<boolean>;
+	private readonly eduContextKey: IContextKey<boolean>;
 	private readonly proContextKey: IContextKey<boolean>;
 	private readonly proPlusContextKey: IContextKey<boolean>;
 	private readonly businessContextKey: IContextKey<boolean>;
@@ -1049,6 +1061,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.signedOutContextKey = ChatEntitlementContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
 
 		this.freeContextKey = ChatEntitlementContextKeys.Entitlement.planFree.bindTo(contextKeyService);
+		this.eduContextKey = ChatEntitlementContextKeys.Entitlement.planEdu.bindTo(contextKeyService);
 		this.proContextKey = ChatEntitlementContextKeys.Entitlement.planPro.bindTo(contextKeyService);
 		this.proPlusContextKey = ChatEntitlementContextKeys.Entitlement.planProPlus.bindTo(contextKeyService);
 		this.businessContextKey = ChatEntitlementContextKeys.Entitlement.planBusiness.bindTo(contextKeyService);
@@ -1160,6 +1173,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.canSignUpContextKey.set(state.entitlement === ChatEntitlement.Available);
 
 		this.freeContextKey.set(state.entitlement === ChatEntitlement.Free);
+		this.eduContextKey.set(state.entitlement === ChatEntitlement.EDU);
 		this.proContextKey.set(state.entitlement === ChatEntitlement.Pro);
 		this.proPlusContextKey.set(state.entitlement === ChatEntitlement.ProPlus);
 		this.businessContextKey.set(state.entitlement === ChatEntitlement.Business);

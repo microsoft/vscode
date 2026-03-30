@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -15,10 +17,12 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -61,11 +65,14 @@ const defaultChat = {
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
+const SIGN_IN_TITLE_BAR_ACTION_ID = 'workbench.action.chat.signInIndicator';
+
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatSetup';
 
 	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
@@ -90,6 +97,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this.registerSetupAgents(context, controller);
 		this.registerGrowthSession(chatEntitlementService);
 		this.registerActions(context, requests, controller);
+		this.registerSignInTitleBarEntry(actionViewItemService);
 		this.registerUrlLinkHandler();
 		this.checkExtensionInstallation(context);
 	}
@@ -361,6 +369,39 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
+		class ChatSetupSignInTitleBarAction extends Action2 {
+
+			static readonly ID = SIGN_IN_TITLE_BAR_ACTION_ID;
+
+			constructor() {
+				super({
+					id: ChatSetupSignInTitleBarAction.ID,
+					title: localize('signInIndicatorTitleBarAction', 'Sign In'),
+					f1: false,
+					menu: [{
+						id: MenuId.TitleBarAdjacentCenter,
+						order: 0, // same position as the update button
+						when: ContextKeyExpr.and(
+							IsWebContext.negate(),
+							ContextKeyExpr.has(`config.${ChatConfiguration.SignInTitleBarEnabled}`),
+							ChatContextKeys.Entitlement.signedOut,
+							ChatContextKeys.Setup.hidden.negate(),
+							ContextKeyExpr.has('updateTitleBar').negate()
+						),
+					}]
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
+
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'titlebar' });
+
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			}
+		}
+
 		const windowFocusListener = this._register(new MutableDisposable());
 		class UpgradePlanAction extends Action2 {
 			constructor() {
@@ -430,6 +471,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.planPro,
 							ChatContextKeys.Entitlement.planProPlus,
+							ChatContextKeys.Entitlement.planEdu,
 						)
 					),
 					menu: {
@@ -440,6 +482,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ContextKeyExpr.or(
 								ChatContextKeys.Entitlement.planPro,
 								ChatContextKeys.Entitlement.planProPlus,
+								ChatContextKeys.Entitlement.planEdu,
 							),
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
@@ -459,6 +502,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
+		registerAction2(ChatSetupSignInTitleBarAction);
 		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);
@@ -552,6 +596,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			when: internalGenerateCodeContext
 		});
 
+	}
+
+	private registerSignInTitleBarEntry(actionViewItemService: IActionViewItemService): void {
+		this._register(actionViewItemService.register(
+			MenuId.TitleBarAdjacentCenter,
+			SIGN_IN_TITLE_BAR_ACTION_ID,
+			(action, options) => new SignInTitleBarEntry(action, options)
+		));
 	}
 
 	private registerUrlLinkHandler(): void {
@@ -767,4 +819,46 @@ export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
 	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
+}
+
+/**
+ * Custom action view item that renders a "Sign In" button
+ * in the title bar with prominent button styling.
+ */
+class SignInTitleBarEntry extends BaseActionViewItem {
+
+	private label: HTMLElement | undefined;
+
+	constructor(
+		action: IAction,
+		options: IBaseActionViewItemOptions,
+	) {
+		super(undefined, action, options);
+	}
+
+	public override render(container: HTMLElement) {
+		super.render(container);
+
+		container.setAttribute('role', 'button');
+		container.setAttribute('aria-label', this.action.label);
+
+		const content = dom.append(container, dom.$('.update-indicator.prominent'));
+		this.label = dom.append(content, dom.$('.indicator-label'));
+		this.label.textContent = this.action.label;
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			this.label.textContent = this.action.label;
+		}
+		if (this.element) {
+			this.element.setAttribute('aria-label', this.action.label);
+		}
+	}
+
+	protected override updateEnabled(): void {
+		if (this.element) {
+			this.element.classList.toggle('disabled', !this.action.enabled);
+		}
+	}
 }

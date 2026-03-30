@@ -22,6 +22,7 @@ import { IAuthenticationService } from '../../../../../services/authentication/c
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -175,6 +176,9 @@ function createTestServices(disposables: DisposableStore) {
 	instantiationService.stub(IConfigurationService, { getValue: () => true });
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
+	instantiationService.stub(IChatEditingService, {
+		registerEditingSessionProvider: () => toDisposable(() => { }),
+	});
 
 	return { instantiationService, agentHostService, chatAgentService };
 }
@@ -1447,7 +1451,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
-				resolveWorkingDirectory: () => '/custom/working/dir',
+				resolveWorkingDirectory: () => URI.file('/custom/working/dir'),
 			}));
 
 			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
@@ -1455,7 +1459,7 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
-			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory, '/custom/working/dir');
+			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), URI.file('/custom/working/dir').toString());
 		});
 
 		test('list controller includes description in items', async () => {

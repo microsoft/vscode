@@ -31,30 +31,60 @@
 
 /** Modal Editor Container */
 .monaco-modal-editor-block .modal-editor-part {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-template-rows: auto 1fr;
+	grid-template-columns: 1fr;
 	width: 100%;
 	height: 100%;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 	border-radius: 8px;
 	overflow: hidden;
+	position: relative;
 
 	&:focus {
 		outline: none;
 	}
 
-	.content {
-		flex: 1;
-		position: relative;
-		overflow: hidden;
+	&.has-sidebar {
+		grid-template-columns: auto 1fr;
+
+		> .content {
+			grid-column: 2;
+			grid-row: 2;
+		}
 	}
+
+	> .content {
+		overflow: hidden;
+		min-width: 0;
+		min-height: 0;
+	}
+}
+
+/** Modal Editor Sidebar */
+.monaco-modal-editor-block .modal-editor-sidebar {
+	grid-row: 2;
+	grid-column: 1;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	box-sizing: border-box;
+	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
+	border-right: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-editorWidget-border, transparent));
+}
+
+.monaco-modal-editor-block .modal-editor-sidebar .monaco-tl-twistie.force-no-twistie {
+	width: 6px !important;
+	padding-left: 0 !important;
+	padding-right: 0 !important;
 }
 
 /** Modal Editor Header */
 .monaco-modal-editor-block .modal-editor-header {
 	display: grid;
 	grid-template-columns: 1fr auto 1fr;
+	grid-column: 1 / -1;
 	align-items: center;
 	height: 32px;
 	min-height: 32px;

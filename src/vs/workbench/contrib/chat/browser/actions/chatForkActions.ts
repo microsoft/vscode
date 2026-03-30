@@ -39,6 +39,7 @@ export function registerChatForkActions() {
 						order: 3,
 						when: ContextKeyExpr.and(
 							ChatContextKeys.isRequest,
+							ChatContextKeys.isFirstRequest.negate(),
 							ContextKeyExpr.or(
 								ChatContextKeys.lockedToCodingAgent.negate(),
 								ChatContextKeys.chatSessionSupportsFork

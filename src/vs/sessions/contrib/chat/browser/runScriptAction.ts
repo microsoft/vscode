@@ -26,17 +26,14 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionData, SessionStatus } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../sessions/common/sessionData.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
-import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 
@@ -93,7 +90,7 @@ function getPrimaryTask(tasks: readonly ISessionTaskWithTarget[], pinnedTaskLabe
 }
 
 interface IRunScriptActionContext {
-	readonly session: ISessionData;
+	readonly session: ISession;
 	readonly tasks: readonly ISessionTaskWithTarget[];
 	readonly pinnedTaskLabel: string | undefined;
 }
@@ -111,12 +108,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>;
 
 	constructor(
-		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
+		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 	) {
 		super();
@@ -135,7 +130,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						&& t1.task.runOptions?.runOn === t2.task.runOptions?.runOn);
 			}
 		}, reader => {
-			const activeSession = this._activeSessionService.activeSession.read(reader);
+			const activeSession = this._sessionManagementService.activeSession.read(reader);
 			if (!activeSession) {
 				return undefined;
 			}
@@ -164,8 +159,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					action,
 					options,
 					that._activeRunState,
-					(session: ISessionData) => that._showConfigureQuickPick(session),
-					(session: ISessionData, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
+					(session: ISession) => that._showConfigureQuickPick(session),
+					(session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
 				);
 			},
 		));
@@ -258,20 +253,13 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					const status = session.status.read(undefined);
-					if (status === SessionStatus.Untitled) {
-						const viewPane = that._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
-						viewPane?.sendQuery('/generate-run-commands');
-					} else {
-						const widget = that._chatWidgetService.getWidgetBySessionResource(session.resource);
-						await widget?.acceptInput('/generate-run-commands');
-					}
+					await that._sessionManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
 				}
 			}));
 		}));
 	}
 
-	private async _showConfigureQuickPick(session: ISessionData): Promise<ITaskEntry | undefined> {
+	private async _showConfigureQuickPick(session: ISession): Promise<ITaskEntry | undefined> {
 		const nonSessionTasks = await this._sessionsConfigService.getNonSessionTasks(session);
 		if (nonSessionTasks.length === 0) {
 			// No existing tasks, go straight to custom command input
@@ -320,7 +308,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private async _showCustomCommandInput(session: ISessionData, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<ITaskEntry | undefined> {
+	private async _showCustomCommandInput(session: ISession, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<ITaskEntry | undefined> {
 		const taskConfiguration = await this._showCustomCommandWidget(session, existingTask, mode);
 		if (!taskConfiguration) {
 			return undefined;
@@ -374,7 +362,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		);
 	}
 
-	private _showCustomCommandWidget(session: ISessionData, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<IRunScriptCustomTaskWidgetResult | undefined> {
+	private _showCustomCommandWidget(session: ISession, existingTask?: INonSessionTaskEntry, mode: TaskConfigurationMode = 'add'): Promise<IRunScriptCustomTaskWidgetResult | undefined> {
 		const repo = session.workspace.get()?.repositories[0];
 		const workspaceTargetDisabledReason = !(repo?.workingDirectory ?? repo?.uri)
 			? localize('workspaceStorageUnavailableTooltip', "Workspace storage is unavailable for this session")
@@ -450,16 +438,15 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		_options: IActionViewItemOptions,
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
-		private readonly _showConfigureQuickPick: (session: ISessionData) => Promise<ITaskEntry | undefined>,
-		private readonly _showCustomCommandInput: (session: ISessionData, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
+		private readonly _showConfigureQuickPick: (session: ISession) => Promise<ITaskEntry | undefined>,
+		private readonly _showCustomCommandInput: (session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly _viewsService: IViewsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super(undefined, action);
 
@@ -677,13 +664,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: addCategory,
 			run: async () => {
-				if (session.status.get() === SessionStatus.Untitled) {
-					const viewPane = this._viewsService.getViewWithId<NewChatViewPane>(SessionsViewId);
-					viewPane?.sendQuery('/generate-run-commands');
-				} else {
-					const widget = this._chatWidgetService.getWidgetBySessionResource(session.resource);
-					await widget?.acceptInput('/generate-run-commands');
-				}
+				await this._sessionsManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
 			},
 		});
 

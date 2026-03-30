@@ -12,6 +12,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CopilotCLISession } from './copilotChatSessionsProvider.js';
 
 const FILTER_THRESHOLD = 10;
@@ -34,26 +35,31 @@ export class BranchPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
-			if (chat instanceof CopilotCLISession) {
-				chat.loading.read(reader);
-				chat.branches.read(reader);
-				chat.branchesLoading.read(reader);
-				chat.branchObservable.read(reader);
-				chat.isolationModeObservable.read(reader);
+			const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
+			if (providerSession instanceof CopilotCLISession) {
+				providerSession.loading.read(reader);
+				providerSession.branches.read(reader);
+				providerSession.branchesLoading.read(reader);
+				providerSession.branchObservable.read(reader);
+				providerSession.isolationModeObservable.read(reader);
 			}
 			this._updateTriggerLabel();
 		}));
 	}
 
 	private _getSession(): CopilotCLISession | undefined {
-		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		return chat instanceof CopilotCLISession ? chat : undefined;
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!session) {
+			return undefined;
+		}
+		const providerSession = this.sessionsProvidersService.getUntitledSession(session.providerId);
+		return providerSession instanceof CopilotCLISession ? providerSession : undefined;
 	}
 
 	render(container: HTMLElement): void {

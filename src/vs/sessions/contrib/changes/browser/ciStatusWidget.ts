@@ -330,21 +330,11 @@ export class CIStatusWidget extends Disposable {
 	 * Layout the widget body list to the given height.
 	 * Called by the parent view after computing available space.
 	 */
-	layout(maxBodyHeight: number): void {
-		if (this._checkCount === 0) {
-			return;
-		}
-		const contentHeight = this._checkCount * CICheckListDelegate.ITEM_HEIGHT;
-		const bodyHeight = Math.min(contentHeight, maxBodyHeight);
-		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
-		this._list.layout(bodyHeight);
+	layout(height: number): void {
+		this._list.layout(height);
 	}
 
 	private _renderBody(checks: readonly ICICheckListItem[]): void {
-		const contentHeight = checks.length * CICheckListDelegate.ITEM_HEIGHT;
-		const bodyHeight = Math.min(contentHeight, CIStatusWidget.MAX_BODY_HEIGHT);
-		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
-		this._list.layout(bodyHeight);
 		this._list.splice(0, this._list.length, checks);
 	}
 

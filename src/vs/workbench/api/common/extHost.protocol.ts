@@ -1682,7 +1682,6 @@ export interface IChatSessionCustomizationProviderMetadataDto {
 	readonly label: string;
 	readonly iconId?: string;
 	readonly unsupportedTypes?: readonly string[];
-	readonly workspaceSubpaths?: readonly string[];
 }
 
 export interface IChatSessionCustomizationItemDto {
@@ -1690,6 +1689,9 @@ export interface IChatSessionCustomizationItemDto {
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly groupKey?: string;
+	readonly badge?: string;
+	readonly badgeTooltip?: string;
 }
 export interface IChatParticipantMetadata {
 	participant: string;

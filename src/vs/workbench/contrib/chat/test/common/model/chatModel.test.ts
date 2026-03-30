@@ -612,6 +612,81 @@ suite('Response', () => {
 		assert.deepStrictEqual(response.value[0].toolSpecificData, toolSpecificData);
 		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
 	});
+
+	test('getFinalResponse returns last contiguous markdown after tool call', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Early text'), kind: 'markdownContent' });
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+		response.updateContent({ content: new MarkdownString('Final text'), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'Final text');
+	});
+
+	test('getFinalResponse skips trailing empty markdown and tool calls', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Before tool'), kind: 'markdownContent' });
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+		response.updateContent({ content: new MarkdownString('The answer is 42.'), kind: 'markdownContent' });
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-2',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran another tool',
+		});
+		response.updateContent({ content: new MarkdownString(''), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'The answer is 42.');
+	});
+
+	test('getFinalResponse includes inline references in final block', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+		response.updateContent({ content: new MarkdownString('See '), kind: 'markdownContent' });
+		response.updateContent({ inlineReference: URI.parse('https://example.com/'), kind: 'inlineReference' });
+		response.updateContent({ content: new MarkdownString(' for details.'), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'See https://example.com/ for details.');
+	});
+
+	test('getFinalResponse returns empty string when no markdown', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+
+		assert.strictEqual(response.getFinalResponse(), '');
+	});
+
+	test('getFinalResponse returns all markdown when there are no tool calls', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Hello '), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('World'), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'Hello World');
+	});
 });
 
 suite('normalizeSerializableChatData', () => {

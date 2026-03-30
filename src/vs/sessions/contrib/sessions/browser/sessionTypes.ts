@@ -5,14 +5,13 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ISessionType } from './sessionsProvider.js';
 
 /** Session type ID for local Copilot CLI sessions. */
-export const COPILOT_CLI_SESSION_TYPE = AgentSessionProviders.Background;
+export const COPILOT_CLI_SESSION_TYPE = 'copilotcli';
 
 /** Session type ID for Copilot Cloud sessions. */
-export const COPILOT_CLOUD_SESSION_TYPE = AgentSessionProviders.Cloud;
+export const COPILOT_CLOUD_SESSION_TYPE = 'copilot-cloud-agent';
 
 /** Copilot CLI session type — local background agent running in a Git worktree. */
 export const CopilotCLISessionType: ISessionType = {

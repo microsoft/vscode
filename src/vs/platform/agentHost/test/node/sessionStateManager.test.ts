@@ -121,13 +121,26 @@ suite('SessionStateManager', () => {
 		assert.deepStrictEqual(envelopes[0].origin, origin);
 	});
 
-	test('removeSession clears state and emits notification', () => {
+	test('removeSession clears state without notification', () => {
 		manager.createSession(makeSessionSummary());
 
 		const notifications: INotification[] = [];
 		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
 
 		manager.removeSession(sessionUri);
+
+		assert.strictEqual(manager.getSessionState(sessionUri), undefined);
+		assert.strictEqual(manager.getSnapshot(sessionUri), undefined);
+		assert.strictEqual(notifications.length, 0);
+	});
+
+	test('deleteSession clears state and emits notification', () => {
+		manager.createSession(makeSessionSummary());
+
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+		manager.deleteSession(sessionUri);
 
 		assert.strictEqual(manager.getSessionState(sessionUri), undefined);
 		assert.strictEqual(manager.getSnapshot(sessionUri), undefined);

@@ -1938,7 +1938,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[
 						'/Users/legomushroom/repos/vscode/.claude/skills/pptx/SKILL.md',
 						'/Users/legomushroom/repos/vscode/.claude/skills/excel/SKILL.md',
@@ -1974,7 +1974,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[
 						'/Users/legomushroom/repos/vscode/.claude/skills/valid-skill/SKILL.md',
 					],
@@ -1996,7 +1996,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[],
 					'Must return empty array when no skills exist.',
 				);
@@ -2016,7 +2016,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[],
 					'Must return empty array when folder does not exist.',
 				);
@@ -2048,7 +2048,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[
 						'/Users/legomushroom/repos/vscode/.claude/skills/skill-a/SKILL.md',
 						'/Users/legomushroom/repos/node/.claude/skills/skill-b/SKILL.md',

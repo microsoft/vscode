@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,17 +20,19 @@ export class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionResource = undefined;
 	readonly onDidSubmitRequest = Event.None;
-	readonly onDidCreateModel = Event.None;
+
+	private readonly _onDidCreateModel = new Emitter<IChatModel>();
+	readonly onDidCreateModel = this._onDidCreateModel.event;
 
 	private readonly sessions = new ResourceMap<IChatModel>();
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
-	private readonly _onDidDisposeSession = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
+	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
-	fireDidDisposeSession(sessionResource: URI[]): void {
-		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
+	fireDidDisposeSession(sessionResources: URI[]): void {
+		this._onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
 	}
 
 	setSaveModelsEnabled(enabled: boolean): void {
@@ -54,6 +55,7 @@ export class MockChatService implements IChatService {
 		this.sessions.set(session.sessionResource, session);
 		// Update the chatModels observable
 		this._chatModels.set([...this.sessions.values()], undefined);
+		this._onDidCreateModel.fire(session);
 	}
 
 	removeSession(sessionResource: URI): void {
@@ -190,23 +192,5 @@ export class MockChatService implements IChatService {
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
 		throw new Error('Method not implemented.');
-	}
-
-
-	private onChange?: (sessionResource: URI) => void;
-
-	registerChatModelChangeListeners(chatSessionType: string, onChange: (sessionResource: URI) => void): IDisposable {
-		// Store the emitter so tests can trigger it
-		this.onChange = onChange;
-		return {
-			dispose: () => {
-				this.onChange = undefined;
-			}
-		};
-	}
-
-	// Helper method for tests to trigger progress events
-	triggerProgressEvent(sessionResource: URI): void {
-		this.onChange?.(sessionResource);
 	}
 }

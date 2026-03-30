@@ -87,14 +87,7 @@ export class ScreenshotBrowserTool implements IToolImpl {
 			}
 			return locator.boundingBox();
 		}, selector, params.scrollIntoViewIfNeeded) || undefined;
-		const zoomFactor = browserViewModel.zoomFactor;
-		if (bounds) {
-			bounds.x *= zoomFactor;
-			bounds.y *= zoomFactor;
-			bounds.width *= zoomFactor;
-			bounds.height *= zoomFactor;
-		}
-		const screenshot = await browserViewModel.captureScreenshot({ rect: bounds });
+		const screenshot = await browserViewModel.captureScreenshot({ pageRect: bounds });
 
 		return {
 			content: [

@@ -40,7 +40,7 @@ Use this checklist when adding a new action, command, state field, or notificati
 1. **Write an E2E test first** in `protocolWebSocket.integrationTest.ts`. The test should fail until the implementation is complete.
 2. **Define the request params and result interfaces** in `sessionProtocol.ts`.
 3. **Handle it in `protocolServerHandler.ts`** `_handleRequestAsync()`. The method returns the result; the caller wraps it in a JSON-RPC response or error automatically.
-4. **Add the side-effect** in `IProtocolSideEffectHandler` if the command requires I/O or agent interaction. Implement it in `agentHostServerMain.ts`.
+4. **Add the handler** in `protocolServerHandler.ts` request handler map. If the command requires I/O or agent interaction, it delegates to `IAgentService`. Implement the backing method in `AgentService` (or `AgentSideEffects` for operations that involve agent backends).
 5. **Update `protocol.md`** — add the command to the Commands table.
 6. **Verify the E2E test passes.**
 

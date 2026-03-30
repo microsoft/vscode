@@ -12,8 +12,17 @@ import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugS
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { PromptsDebugContribution } from '../../browser/promptsDebugContribution.js';
-import { IPromptDiscoveryLogEntry, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ILocalPromptPath, IPromptDiscoveryLogEntry, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+
+function createLocalPromptPath(path: string, name: string): ILocalPromptPath {
+	return {
+		uri: URI.file(path),
+		name,
+		storage: PromptsStorage.local,
+		type: PromptsType.instructions,
+	};
+}
 
 suite('PromptsDebugContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,10 +72,8 @@ suite('PromptsDebugContribution', () => {
 		const discoveryInfo: IPromptDiscoveryInfo = {
 			type: PromptsType.instructions,
 			files: [{
-				uri: URI.file('/workspace/.github/instructions/test.instructions.md'),
-				name: 'test.instructions.md',
 				status: 'loaded' as const,
-				storage: PromptsStorage.local,
+				promptPath: createLocalPromptPath('/workspace/.github/instructions/test.instructions.md', 'test.instructions.md'),
 			}],
 			sourceFolders: [{
 				uri: URI.file('/workspace/.github/instructions'),
@@ -131,16 +138,12 @@ suite('PromptsDebugContribution', () => {
 			type: PromptsType.instructions,
 			files: [
 				{
-					uri: URI.file('/workspace/.github/instructions/loaded.instructions.md'),
-					name: 'loaded.instructions.md',
 					status: 'loaded' as const,
-					storage: PromptsStorage.local,
+					promptPath: createLocalPromptPath('/workspace/.github/instructions/loaded.instructions.md', 'loaded.instructions.md'),
 				},
 				{
-					uri: URI.file('/workspace/.github/instructions/skipped.instructions.md'),
-					name: 'skipped.instructions.md',
 					status: 'skipped' as const,
-					storage: PromptsStorage.local,
+					promptPath: createLocalPromptPath('/workspace/.github/instructions/skipped.instructions.md', 'skipped.instructions.md'),
 					skipReason: 'disabled',
 				},
 			],

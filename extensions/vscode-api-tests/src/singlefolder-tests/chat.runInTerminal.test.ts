@@ -15,8 +15,8 @@ const enum ShellIntegrationTimeoutOverride {
 const isWindows = process.platform === 'win32';
 const isMacOS = process.platform === 'darwin';
 const sandboxFileSystemSetting = isMacOS
-	? 'chat.tools.terminal.sandbox.macFileSystem'
-	: 'chat.tools.terminal.sandbox.linuxFileSystem';
+	? 'chat.agent.sandboxFileSystem.mac'
+	: 'chat.agent.sandboxFileSystem.linux';
 
 /**
  * Extracts all text content from a LanguageModelToolResult.
@@ -297,13 +297,13 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		(isWindows ? suite.skip : suite)('sandbox on', () => {
 
 			setup(async () => {
-				const sandboxConfig = vscode.workspace.getConfiguration('chat.tools.terminal.sandbox');
-				await sandboxConfig.update('enabled', true, vscode.ConfigurationTarget.Global);
+				const configuration = vscode.workspace.getConfiguration();
+				await configuration.update('chat.agent.sandbox', true, vscode.ConfigurationTarget.Global);
 			});
 
 			teardown(async () => {
-				const sandboxConfig = vscode.workspace.getConfiguration('chat.tools.terminal.sandbox');
-				await sandboxConfig.update('enabled', undefined, vscode.ConfigurationTarget.Global);
+				const configuration = vscode.workspace.getConfiguration();
+				await configuration.update('chat.agent.sandbox', undefined, vscode.ConfigurationTarget.Global);
 			});
 
 			test('echo works in sandbox and output is clean', async function () {
@@ -326,7 +326,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const acceptable = [
 					[
 						'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
-						`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
+						`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandboxNetwork.allowedDomains.`,
 						'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 						'',
 						'Here is the output of the command:',
@@ -375,7 +375,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 					? `/bin/bash: /tmp/${marker}.txt: Operation not permitted`
 					: `/usr/bin/bash: line 1: /tmp/${marker}.txt: Read-only file system`;
 				const sandboxBody = [
-					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
+					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandboxNetwork.allowedDomains.`,
 					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 					'',
 					'Here is the output of the command:',

@@ -407,6 +407,7 @@ export class ChatManagementEditor extends EditorPane {
 		const entitlement = this.chatEntitlementService.entitlement;
 		return entitlement === ChatEntitlement.Available ||
 			entitlement === ChatEntitlement.Free ||
+			entitlement === ChatEntitlement.EDU ||
 			entitlement === ChatEntitlement.Pro;
 	}
 

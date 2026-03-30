@@ -10,9 +10,15 @@
 
 /* ===== Modern action label styling for sessions panel ===== */
 
-/* Hide the underline indicator entirely */
-.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
+/* Hide the underline indicator for non-focused, non-checked items; keep it for focus-visible and checked */
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(:focus-visible):not(.checked) .active-item-indicator:before {
 	display: none !important;
+}
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible .active-item-indicator:before {
+	display: block !important;
+}
+.agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+	display: block !important;
 }
 
 /* Make icon action items 24px tall */
