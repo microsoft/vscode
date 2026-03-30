@@ -5,6 +5,7 @@
 
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ThemeSettingDefaults } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
@@ -68,7 +69,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
 		'workbench.panel.showLabels': false,
-		'workbench.colorTheme': 'VS Code Dark',
+		'workbench.colorTheme': ThemeSettingDefaults.COLOR_THEME_DARK,
 
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',
