@@ -2796,6 +2796,139 @@ suite('PromptFilesLocator', () => {
 			);
 		});
 	});
+
+	suite('hooks', () => {
+		const setHookLocations = (value: unknown) => {
+			configValues[PromptsConfig.HOOKS_LOCATION_KEY] = value;
+		};
+
+		suite('listFiles', () => {
+			testT('specific .json file path returns only that file', async () => {
+				setWorkspaceFolders(['/repos/my-project']);
+				setHookLocations({
+					'.claude/settings.json': true,
+				});
+				await mockFiles(fileService, [
+					{ path: '/repos/my-project/.claude/settings.json', contents: ['{"hooks":{}}'] },
+					{ path: '/repos/my-project/.claude/other.json', contents: ['{"unrelated":true}'] },
+					{ path: '/repos/my-project/.claude/nested.json', contents: ['{}'] },
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
+
+				assertOutcome(
+					await locator.listFiles(PromptsType.hook, PromptsStorage.local, CancellationToken.None),
+					[
+						'/repos/my-project/.claude/settings.json',
+					],
+					'Must return only the specific .json file, not all .json files in the directory.',
+				);
+			});
+
+			testT('directory-based hook path returns all hook files in directory', async () => {
+				setWorkspaceFolders(['/repos/my-project']);
+				setHookLocations({
+					'.github/hooks': true,
+				});
+				await mockFiles(fileService, [
+					{ path: '/repos/my-project/.github/hooks/pre-commit.json', contents: ['{}'] },
+					{ path: '/repos/my-project/.github/hooks/post-push.json', contents: ['{}'] },
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
+
+				assertOutcome(
+					await locator.listFiles(PromptsType.hook, PromptsStorage.local, CancellationToken.None),
+					[
+						'/repos/my-project/.github/hooks/pre-commit.json',
+						'/repos/my-project/.github/hooks/post-push.json',
+					],
+					'Must return all hook files in the directory.',
+				);
+			});
+
+			testT('mixed directory and specific file paths', async () => {
+				setWorkspaceFolders(['/repos/my-project']);
+				setHookLocations({
+					'.github/hooks': true,
+					'.claude/settings.json': true,
+				});
+				await mockFiles(fileService, [
+					{ path: '/repos/my-project/.github/hooks/pre-commit.json', contents: ['{}'] },
+					{ path: '/repos/my-project/.claude/settings.json', contents: ['{"hooks":{}}'] },
+					{ path: '/repos/my-project/.claude/other-config.json', contents: ['{}'] },
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
+
+				assertOutcome(
+					await locator.listFiles(PromptsType.hook, PromptsStorage.local, CancellationToken.None),
+					[
+						'/repos/my-project/.github/hooks/pre-commit.json',
+						'/repos/my-project/.claude/settings.json',
+					],
+					'Must return all files from directory paths but only the specific file for .json paths.',
+				);
+			});
+		});
+
+		suite('getHookSourceFolders', () => {
+			testT('returns parent directory for specific .json file paths', async () => {
+				setWorkspaceFolders(['/repos/my-project']);
+				// Use a custom .json file path (not under .claude/) plus a directory path.
+				// Disable defaults explicitly so only our configured paths appear.
+				setHookLocations({
+					'.github/hooks': true,
+					'.custom/hooks-config.json': true,
+					// disable defaults that would add extra paths
+					'.claude/settings.local.json': false,
+					'.claude/settings.json': false,
+					'~/.copilot/hooks': false,
+					'~/.claude/settings.json': false,
+				});
+				await mockFiles(fileService, [
+					{ path: '/repos/my-project/.github/hooks/pre-commit.json', contents: ['{}'] },
+					{ path: '/repos/my-project/.custom/hooks-config.json', contents: ['{}'] },
+					{ path: '/repos/my-project/.custom/other.json', contents: ['{}'] },
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
+
+				const folders = await locator.getHookSourceFolders();
+				assert.deepStrictEqual(
+					folders.map(f => f.path),
+					[
+						'/repos/my-project/.github/hooks',
+						'/repos/my-project/.custom',
+					],
+					'Must return the directory for directory-based paths and the parent dir for .json file paths.',
+				);
+			});
+
+			testT('filters out .claude paths from hook source folders', async () => {
+				setWorkspaceFolders(['/repos/my-project']);
+				setHookLocations({
+					'.github/hooks': true,
+					'.claude/settings.json': true,
+					'.claude/settings.local.json': true,
+					// disable other defaults
+					'~/.copilot/hooks': false,
+					'~/.claude/settings.json': false,
+				});
+				await mockFiles(fileService, [
+					{ path: '/repos/my-project/.github/hooks/pre-commit.json', contents: ['{}'] },
+					{ path: '/repos/my-project/.claude/settings.json', contents: ['{}'] },
+					{ path: '/repos/my-project/.claude/settings.local.json', contents: ['{}'] },
+				]);
+				const locator = instantiationService.createInstance(PromptFilesLocator);
+
+				const folders = await locator.getHookSourceFolders();
+				assert.deepStrictEqual(
+					folders.map(f => f.path),
+					[
+						'/repos/my-project/.github/hooks',
+					],
+					'Must filter out .claude paths from hook source folders.',
+				);
+			});
+		});
+	});
 });
 
 function assertOutcome(actual: readonly URI[], expected: string[], message: string) {
