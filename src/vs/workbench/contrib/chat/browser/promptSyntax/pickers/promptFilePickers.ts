@@ -532,13 +532,6 @@ export class PromptFilePickers {
 			result.push(...sortByLabel(await Promise.all(plugins.map(p => this._createPromptPickItem(p, pluginButtons, getVisibility(p), token)))));
 		}
 
-		// Internal built-in files are read-only
-		const internals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.internal, token);
-		if (internals.length) {
-			const internalButtons: IQuickInputButton[] = [];
-			result.push({ type: 'separator', label: localize('separator.builtin', "Built-in") });
-			result.push(...sortByLabel(await Promise.all(internals.map(p => this._createPromptPickItem(p, internalButtons, getVisibility(p), token)))));
-		}
 		return result;
 	}
 
@@ -586,9 +579,6 @@ export class PromptFilePickers {
 				break;
 			case PromptsStorage.plugin:
 				tooltip = promptFile.name;
-				break;
-			case PromptsStorage.internal:
-				tooltip = undefined;
 				break;
 			default:
 				assertNever(promptFile);

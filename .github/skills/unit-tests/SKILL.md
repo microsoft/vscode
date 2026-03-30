@@ -26,7 +26,25 @@ These scripts download Electron if needed and launch the Mocha test runner.
 
 ### Commonly used options
 
-#### `--run <file>` - Run tests from a specific file
+#### Bare file paths - Run tests from specific files
+
+Pass source file paths directly as positional arguments. The test runner automatically treats bare `.ts`/`.js` positional arguments as `--run` values.
+
+```bash
+./scripts/test.sh src/vs/editor/test/common/model.test.ts
+```
+
+```bat
+.\scripts\test.bat src\vs\editor\test\common\model.test.ts
+```
+
+Multiple files:
+
+```bash
+./scripts/test.sh src/vs/editor/test/common/model.test.ts src/vs/editor/test/common/range.test.ts
+```
+
+#### `--run <file>` - Run tests from a specific file (explicit form)
 
 Accepts a **source file path** (starting with `src/`). The runner strips the `src/` prefix and the `.ts`/`.js` extension automatically to resolve the compiled module.
 
@@ -80,7 +98,7 @@ Override the default Mocha timeout for long-running tests.
 
 ### Integration tests
 
-Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details on filtering and running specific integration test files.
+Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.
 
 ### Compilation requirement
 
