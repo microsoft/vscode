@@ -56,21 +56,24 @@ export class OrchestratorServiceImpl extends Disposable implements IOrchestrator
 			throw new Error(`Task not found: ${taskId}`);
 		}
 
-		// Use available agent definitions to determine what roles can handle sub-tasks
 		const availableRoles = new Set(
 			this._agentLaneService.getAgentDefinitions().map(d => d.role)
 		);
 
-		// For now, create a simple decomposition based on available roles
-		// In production, this would use an LLM call to decompose the task
-		const decomposition: ITaskDecomposition = {
-			originalTask: task.description,
-			subTasks: this._createDefaultDecomposition(task.description, availableRoles),
-			executionPlan: `Decomposed "${task.description}" into sub-tasks based on available agent roles`,
-		};
-
-		this._logService.info(`[Orchestrator] Task decomposed: ${taskId} → ${decomposition.subTasks.length} sub-tasks`);
-		return decomposition;
+		// Try LLM-based decomposition first, fallback to hardcoded pipeline
+		try {
+			const decomposition = await this._decomposeViaLLM(task.description, availableRoles);
+			this._logService.info(`[Orchestrator] LLM decomposed: ${taskId} → ${decomposition.subTasks.length} sub-tasks`);
+			return decomposition;
+		} catch (e) {
+			this._logService.warn(`[Orchestrator] LLM decomposition failed, using default pipeline: ${e}`);
+			const decomposition: ITaskDecomposition = {
+				originalTask: task.description,
+				subTasks: this._createDefaultDecomposition(task.description, availableRoles),
+				executionPlan: `Decomposed "${task.description}" into sub-tasks based on available agent roles`,
+			};
+			return decomposition;
+		}
 	}
 
 	async delegateSubTasks(taskId: string, decomposition: ITaskDecomposition): Promise<readonly IOrchestratorTask[]> {
@@ -333,8 +336,104 @@ export class OrchestratorServiceImpl extends Disposable implements IOrchestrator
 		this._onDidChangeTask.fire(task);
 	}
 
+	private static readonly DECOMPOSITION_SYSTEM_PROMPT = [
+		'You are a task decomposition engine. Given a user task and available agent roles,',
+		'break it down into focused sub-tasks. Output ONLY valid JSON (no markdown, no explanation):',
+		'{"subTasks":[{"description":"...","suggestedRole":"...","dependencies":[0,1],"priority":0}],"executionPlan":"Brief summary"}',
+		'',
+		'Rules:',
+		'- Each sub-task assigned to exactly one role from the available list',
+		'- dependencies: array of sub-task indices (0-based) that must complete first',
+		'- priority: lower number = execute first (0 is highest priority)',
+		'- Keep sub-tasks focused, actionable, and specific',
+		'- 2-6 sub-tasks for most tasks; more for complex multi-component work',
+	].join('\n');
+
 	/**
-	 * Default decomposition when LLM-based decomposition is not yet available.
+	 * Decompose a task using an LLM call for intelligent breakdown.
+	 */
+	private async _decomposeViaLLM(description: string, availableRoles: Set<string>): Promise<ITaskDecomposition> {
+		const rolesStr = [...availableRoles].join(', ');
+		const userMessage = `Available roles: ${rolesStr}\n\nTask to decompose:\n${description}`;
+
+		const cts = new CancellationTokenSource();
+		try {
+			const response = await this._chatBridge.executeAgentTask(
+				this._getOrCreateOrchestratorInstance(),
+				`${OrchestratorServiceImpl.DECOMPOSITION_SYSTEM_PROMPT}\n\n${userMessage}`,
+				cts.token,
+			);
+
+			// Parse JSON from response (may contain markdown code blocks)
+			const jsonStr = this._extractJSON(response);
+			const parsed = JSON.parse(jsonStr);
+
+			// Validate structure
+			if (!Array.isArray(parsed.subTasks) || parsed.subTasks.length === 0) {
+				throw new Error('Invalid decomposition: no subTasks array');
+			}
+
+			const validRoles = [...availableRoles];
+			const subTasks: ISubTaskSuggestion[] = parsed.subTasks.map((st: any, _idx: number) => ({
+				description: String(st.description || ''),
+				suggestedRole: validRoles.includes(st.suggestedRole) ? st.suggestedRole : validRoles[0],
+				dependencies: Array.isArray(st.dependencies) ? st.dependencies.filter((d: number) => typeof d === 'number') : [],
+				priority: typeof st.priority === 'number' ? st.priority : _idx,
+			}));
+
+			return {
+				originalTask: description,
+				subTasks,
+				executionPlan: String(parsed.executionPlan || `LLM decomposed into ${subTasks.length} sub-tasks`),
+			};
+		} finally {
+			cts.dispose();
+		}
+	}
+
+	/** Extract JSON from LLM response, handling markdown code blocks */
+	private _extractJSON(text: string): string {
+		// Try extracting from ```json ... ``` blocks
+		const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+		if (codeBlockMatch) {
+			return codeBlockMatch[1].trim();
+		}
+		// Try finding raw JSON object
+		const jsonMatch = text.match(/\{[\s\S]*\}/);
+		if (jsonMatch) {
+			return jsonMatch[0];
+		}
+		return text.trim();
+	}
+
+	/** Get or create a temporary orchestrator agent instance for decomposition calls */
+	private _getOrCreateOrchestratorInstance(): string {
+		const instances = this._agentLaneService.getAgentInstances();
+		const existing = instances.find(i => {
+			const def = this._agentLaneService.getAgentDefinition(i.definitionId);
+			return def?.role === 'planner';
+		});
+		if (existing) {
+			return existing.id;
+		}
+
+		// Spawn a planner agent for decomposition
+		const plannerDef = this._agentLaneService.getAgentDefinitions().find(d => d.role === 'planner');
+		if (plannerDef) {
+			return this._agentLaneService.spawnAgent(plannerDef.id).id;
+		}
+
+		// Fallback: use first available agent
+		const firstDef = this._agentLaneService.getAgentDefinitions()[0];
+		if (firstDef) {
+			return this._agentLaneService.spawnAgent(firstDef.id).id;
+		}
+
+		throw new Error('No agent definitions available for task decomposition');
+	}
+
+	/**
+	 * Default decomposition fallback.
 	 * Creates a plan→code→test pipeline.
 	 */
 	private _createDefaultDecomposition(description: string, availableRoles: Set<string>): ISubTaskSuggestion[] {
