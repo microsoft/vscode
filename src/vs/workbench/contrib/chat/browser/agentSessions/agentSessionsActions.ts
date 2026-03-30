@@ -664,13 +664,11 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
-		const commandService = accessor.get(ICommandService);
 
 		const rawTitle = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
 		const title = rawTitle?.trim();
 		if (title) {
 			chatService.setChatSessionTitle(session.resource, title);
-			void commandService.executeCommand('_chat.renameSessionFromProvider', session.resource, title);
 		}
 	}
 }
