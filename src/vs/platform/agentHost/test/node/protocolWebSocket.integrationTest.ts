@@ -920,4 +920,61 @@ suite('Protocol WebSocket E2E', function () {
 
 		raw.close();
 	});
+
+	// ---- Edit auto-approve patterns -----------------------------------------
+
+	test('auto-approves write to regular file (no pending confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove');
+		client.clearReceived();
+
+		// Start a turn that triggers a write permission request for a regular .ts file
+		dispatchTurnStarted(client, sessionUri, 'turn-autoapprove', 'write-file', 1);
+
+		// The write should be auto-approved — we should see tool_start, tool_complete, and turn_complete
+		// but NOT a pending-confirmation toolCallReady (one without `confirmed`).
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify no pending-confirmation toolCallReady was received
+		const pendingConfirmNotifs = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'session/toolCallReady')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { confirmed?: string };
+			return !action.confirmed;
+		});
+		assert.strictEqual(pendingConfirmNotifs.length, 0, 'should not have received pending-confirmation toolCallReady for auto-approved write');
+	});
+
+	test('blocks write to .env file (requires manual confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny');
+		client.clearReceived();
+
+		// Start a turn that tries to write .env (blocked by default patterns)
+		dispatchTurnStarted(client, sessionUri, 'turn-deny', 'write-env', 1);
+
+		// The .env write should NOT be auto-approved — we should see toolCallReady (pending confirmation)
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+
+		// Confirm it manually to let the turn complete
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/toolCallConfirmed',
+				session: sessionUri,
+				turnId: 'turn-deny',
+				toolCallId: 'tc-write-env-1',
+				approved: true,
+				confirmed: 'user-action',
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
 });

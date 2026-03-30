@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -20,7 +21,7 @@ import { IChatService, type ChatSendResult } from '../../../../../workbench/cont
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionStatus } from '../../../sessions/common/sessionData.js';
-import { IChatChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../../sessions/browser/sessionTypes.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 
@@ -69,7 +70,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; workingDirectory?: string; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilot', id),
 		startTime: opts?.startTime ?? 1000,
@@ -83,6 +84,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(INotificationService, { error: () => { } });
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: () => ({ type: 'remote-test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
@@ -99,15 +101,13 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	});
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
-		connectionInfo: {
-			address: overrides?.address ?? 'localhost:4321',
-			name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
-			clientId: 'test-client',
-		},
-		connection,
+		address: overrides?.address ?? 'localhost:4321',
+		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
 	};
 
-	return disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, config));
+	const provider = disposables.add(instantiationService.createInstance(RemoteAgentHostSessionsProvider, config));
+	provider.setConnection(connection);
+	return provider;
 }
 
 function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; workingDirectory?: string }): void {
@@ -175,7 +175,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const uri = URI.parse('vscode-agent-host://auth/home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
-		assert.strictEqual(ws.label, 'project');
+		assert.strictEqual(ws.label, 'project [Test Host]');
 		assert.strictEqual(ws.repositories.length, 1);
 		assert.strictEqual(ws.repositories[0].uri.toString(), uri.toString());
 	});
@@ -194,8 +194,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('onDidChangeSessions fires when session added notification arrives', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'notif-1', { title: 'Notif Session' });
 
@@ -206,8 +206,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('accepts session notifications from any agent provider', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'other-sess', { provider: 'other-agent', title: 'Other Session' });
 
@@ -219,8 +219,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, connection);
 		fireSessionAdded(connection, 'to-remove', { title: 'Removed' });
 
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'to-remove');
 
@@ -230,8 +230,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('duplicate session added notification is ignored', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
@@ -241,8 +241,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('removing non-existent session is no-op', () => {
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'does-not-exist');
 
@@ -254,8 +254,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		fireSessionAdded(connection, 'cross-prov', { provider: 'other-agent', title: 'Cross Provider' });
 		assert.strictEqual(provider.getSessions().length, 1);
 
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		fireSessionRemoved(connection, 'cross-prov', 'other-agent');
 
@@ -271,8 +271,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		connection.addSession(createSession('list-2', { summary: 'Second' }));
 
 		const provider = createProvider(disposables, connection);
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		provider.getSessions();
 		await new Promise(resolve => setTimeout(resolve, 50));
@@ -289,7 +289,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = {
 			label: 'my-project',
 			icon: { id: 'remote' },
-			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: false,
 		};
 
@@ -325,7 +325,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'To Delete');
 		assert.ok(target, 'Session should exist');
 
-		await provider.deleteSession(target!.chatId);
+		await provider.deleteSession(target!.id);
 
 		assert.strictEqual(connection.disposedSessions.length, 1);
 		// The disposed URI must be a backend agent session URI (copilot://del-sess),
@@ -347,7 +347,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(target, 'Session should exist');
 
 		assert.strictEqual(target!.isRead.get(), true);
-		provider.setRead(target!.chatId, false);
+		provider.setRead(target!.id, false);
 		assert.strictEqual(target!.isRead.get(), false);
 	});
 
@@ -364,7 +364,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Session data adapter -------
 
 	test('session adapter has correct workspace from working directory', async () => {
-		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: '/home/user/myrepo' }));
+		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo') }));
 
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
@@ -376,7 +376,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace, 'Workspace should be populated');
-		assert.strictEqual(workspace!.label, 'myrepo');
+		assert.strictEqual(workspace!.label, 'myrepo [Test Host]');
 	});
 
 	test('session adapter without working directory has no workspace', async () => {
@@ -417,8 +417,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// Update on connection side
 		connection.addSession(createSession('turn-sess', { summary: 'After', modifiedTime: 5000 }));
 
-		const changes: IChatChangeEvent[] = [];
-		disposables.add(provider.onDidChangeSessions((e: IChatChangeEvent) => changes.push(e)));
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
 			action: {
@@ -443,11 +443,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = {
 			label: 'project',
 			icon: { id: 'remote' },
-			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: URI.parse('vscode-agent-host://auth/home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: false,
 		};
 		const session = provider.createNewSession(workspace);
-		const types = provider.getSessionTypes(session);
+		const types = provider.getSessionTypes(session.id);
 
 		assert.strictEqual(types.length, 1);
 	});
