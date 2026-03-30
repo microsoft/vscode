@@ -312,7 +312,7 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		// - sidebar visibility changes
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		const sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
-			if (e.part === Parts.SIDEBAR_PART) {
+			if (e.partId === Parts.SIDEBAR_PART) {
 				handler(e);
 			}
 		}));
