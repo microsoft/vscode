@@ -14,7 +14,7 @@ import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -56,6 +56,7 @@ export interface ITerminalSandboxWrapResult {
 	command: string;
 	isSandboxWrapped: boolean;
 	blockedDomains?: string[];
+	deniedDomains?: string[];
 	requiresUnsandboxConfirmation?: boolean;
 }
 
@@ -204,12 +205,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
 
-		const blockedDomains = requestUnsandboxedExecution ? [] : this._getBlockedDomains(command);
-		if (!requestUnsandboxedExecution && blockedDomains.length > 0) {
+		const blockedDomainResult = requestUnsandboxedExecution ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
+		if (!requestUnsandboxedExecution && blockedDomainResult.blockedDomains.length > 0) {
 			return {
 				command: this._wrapUnsandboxedCommand(command),
 				isSandboxWrapped: false,
-				blockedDomains,
+				blockedDomains: blockedDomainResult.blockedDomains,
+				deniedDomains: blockedDomainResult.deniedDomains,
 				requiresUnsandboxConfirmation: true,
 			};
 		}
@@ -455,24 +457,29 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
 	}
 
-	private _getBlockedDomains(command: string): string[] {
+	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
 		const domains = this._extractDomains(command);
 		if (domains.length === 0) {
-			return [];
+			return { blockedDomains: [], deniedDomains: [] };
 		}
 
 		const { allowedDomains, deniedDomains } = this.getResolvedNetworkDomains();
 		const blockedDomains = new Set<string>();
+		const explicitlyDeniedDomains = new Set<string>();
 		for (const domain of domains) {
 			if (deniedDomains.some(pattern => this._matchesDomainPattern(domain, pattern))) {
 				blockedDomains.add(domain);
+				explicitlyDeniedDomains.add(domain);
 				continue;
 			}
 			if (!allowedDomains.some(pattern => this._matchesDomainPattern(domain, pattern))) {
 				blockedDomains.add(domain);
 			}
 		}
-		return [...blockedDomains];
+		return {
+			blockedDomains: [...blockedDomains],
+			deniedDomains: [...explicitlyDeniedDomains],
+		};
 	}
 
 	private _extractDomains(command: string): string[] {
@@ -520,8 +527,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			return undefined;
 		}
 
-		const normalized = value.trim().toLowerCase().replace(/^[^@]+@/, '').replace(/:\d+$/, '').replace(/\.$/, '');
+		const normalized = value.trim().toLowerCase().replace(/^[^@]+@/, '').replace(/:\d+$/, '').replace(/\.+$/, '');
 		if (!normalized || normalized.includes('/') || normalized === '.' || normalized === '..') {
+			return undefined;
+		}
+		if (normalized !== '*' && !/^\*?\.?[a-z0-9.-]+$/.test(normalized)) {
+			return undefined;
+		}
+		const domainToValidate = normalized.startsWith('*.') ? normalized.slice(2) : normalized;
+		if (!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?))*$/.test(domainToValidate)) {
 			return undefined;
 		}
 		return normalized;
@@ -704,11 +718,22 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const setting = this._configurationService.inspect<T>(settingId);
 		const deprecatedSetting = deprecatedSettingId ? this._configurationService.inspect<T>(deprecatedSettingId) : undefined;
 
-		if (setting.userValue === undefined && deprecatedSetting?.userValue !== undefined) {
+		if (!this._hasConfiguredValue(setting) && deprecatedSetting && this._hasConfiguredValue(deprecatedSetting)) {
 			this._logService.warn(`TerminalSandboxService: Using deprecated setting ${deprecatedSettingId} because ${settingId} is not set. Please update your settings to use ${settingId} instead.`);
 			return deprecatedSetting.value;
 		}
 		return setting.value;
+	}
+
+	private _hasConfiguredValue<T>(setting: IConfigurationValue<T>): boolean {
+		return setting.applicationValue !== undefined
+			|| setting.userValue !== undefined
+			|| setting.userLocalValue !== undefined
+			|| setting.userRemoteValue !== undefined
+			|| setting.workspaceValue !== undefined
+			|| setting.workspaceFolderValue !== undefined
+			|| setting.memoryValue !== undefined
+			|| setting.policyValue !== undefined;
 	}
 }
 

@@ -376,6 +376,65 @@ suite('TerminalSandboxService - network domains', () => {
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Denied domains should not stay sandboxed');
 		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
+		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
+	});
+
+	test('should match uppercase hostnames when checking allowlisted domains', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('curl https://API.GITHUB.COM/repos/microsoft/vscode');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Uppercase hostnames should still match allowlisted domains');
+		strictEqual(wrapResult.blockedDomains, undefined, 'Uppercase allowlisted domains should not be reported as blocked');
+	});
+
+	test('should ignore malformed URL authorities with trailing punctuation', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('curl https://example.com]/path');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Malformed URL authorities should not trigger blocked-domain prompts');
+		strictEqual(wrapResult.blockedDomains, undefined, 'Malformed URL authorities should be ignored');
+	});
+
+	test('should fall back to deprecated settings outside user scope', async () => {
+		const originalInspect = configurationService.inspect.bind(configurationService);
+		configurationService.inspect = <T>(key: string) => {
+			if (key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled) {
+				return {
+					value: undefined,
+					defaultValue: false,
+					userValue: undefined,
+					userLocalValue: undefined,
+					userRemoteValue: undefined,
+					workspaceValue: undefined,
+					workspaceFolderValue: undefined,
+					memoryValue: undefined,
+					policyValue: undefined,
+				} as ReturnType<typeof originalInspect<T>>;
+			}
+			if (key === TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) {
+				return {
+					value: true,
+					defaultValue: false,
+					userValue: undefined,
+					userLocalValue: undefined,
+					userRemoteValue: undefined,
+					workspaceValue: true,
+					workspaceFolderValue: undefined,
+					memoryValue: undefined,
+					policyValue: undefined,
+				} as ReturnType<typeof originalInspect<T>>;
+			}
+			return originalInspect<T>(key);
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated settings should still be respected when only non-user scopes are set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {

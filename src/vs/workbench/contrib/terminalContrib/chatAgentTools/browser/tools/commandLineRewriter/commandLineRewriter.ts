@@ -28,4 +28,5 @@ export interface ICommandLineRewriterResult {
 	isSandboxWrapped?: boolean;
 	requiresUnsandboxConfirmation?: boolean;
 	blockedDomains?: string[];
+	deniedDomains?: string[];
 }

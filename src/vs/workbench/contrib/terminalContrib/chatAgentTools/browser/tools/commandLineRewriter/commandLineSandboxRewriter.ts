@@ -28,6 +28,7 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 			isSandboxWrapped: wrappedCommand.isSandboxWrapped,
 			requiresUnsandboxConfirmation: wrappedCommand.requiresUnsandboxConfirmation,
 			blockedDomains: wrappedCommand.blockedDomains,
+			deniedDomains: wrappedCommand.deniedDomains,
 		};
 	}
 }

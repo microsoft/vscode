@@ -599,7 +599,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				if (rewriteResult.blockedDomains?.length) {
 					blockedDomains = rewriteResult.blockedDomains;
-					requestUnsandboxedExecutionReason = this._getBlockedDomainReason(rewriteResult.blockedDomains);
+					requestUnsandboxedExecutionReason = this._getBlockedDomainReason(rewriteResult.blockedDomains, rewriteResult.deniedDomains);
 				}
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
@@ -871,7 +871,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return localize('runInTerminal.unsandboxed.domain.summary', "`{0}` and {1} more domains", blockedDomains[0], blockedDomains.length - 1);
 	}
 
-	private _getBlockedDomainReason(blockedDomains: string[]): string {
+	private _getBlockedDomainReason(blockedDomains: string[], deniedDomains: string[] = []): string {
+		if (deniedDomains.length === blockedDomains.length && deniedDomains.length > 0) {
+			if (blockedDomains.length === 1) {
+				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0]);
+			}
+			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0], blockedDomains.length - 1);
+		}
+		if (deniedDomains.length > 0) {
+			if (blockedDomains.length === 1) {
+				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0]);
+			}
+			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0], blockedDomains.length - 1);
+		}
 		if (blockedDomains.length === 1) {
 			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0]);
 		}
