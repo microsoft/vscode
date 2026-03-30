@@ -309,8 +309,9 @@ export class ProtocolServerHandler extends Disposable {
 			}
 		},
 		createSession: async (_client, params) => {
+			let createdSession: URI;
 			try {
-				await this._agentService.createSession({
+				createdSession = await this._agentService.createSession({
 					provider: params.provider,
 					model: params.model,
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
@@ -321,6 +322,10 @@ export class ProtocolServerHandler extends Disposable {
 					throw err;
 				}
 				throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, err instanceof Error ? err.message : String(err));
+			}
+			// Verify the provider honored the client-chosen session URI per the protocol contract
+			if (createdSession.toString() !== URI.parse(params.session).toString()) {
+				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.session}`);
 			}
 			return null;
 		},

@@ -48,12 +48,12 @@ export interface IAgentSideEffectsOptions {
 /**
  * Shared implementation of agent side-effect handling.
  *
- * Routes client-dispatched actions to the correct agent backend, handles
- * session create/dispose/list operations, tracks pending permission requests,
+ * Routes client-dispatched actions to the correct agent backend,
+ * restores sessions from previous lifetimes, handles filesystem
+ * operations (browse/fetch/write), tracks pending permission requests,
  * and wires up agent progress events to the state manager.
  *
- * Used by both the Electron utility-process path ({@link AgentService}) and
- * the standalone WebSocket server (`agentHostServerMain`).
+ * Session create/dispose/list and auth are handled by {@link AgentService}.
  */
 export class AgentSideEffects extends Disposable {
 
