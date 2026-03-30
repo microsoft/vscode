@@ -343,11 +343,11 @@ export class WorkspacePicker extends Disposable {
 			const submenuActions = [...providerMap.values()].map(({ provider, actions }) =>
 				new SubmenuAction(
 					`workspacePicker.browse.${provider.id}`,
-					provider.label,
-					actions.map(({ action, index }) => toAction({
+					'',
+					actions.map(({ action, index }, ci) => toAction({
 						id: `workspacePicker.browse.${index}`,
 						label: localize(`workspacePicker.browse`, "{0}...", action.label),
-						tooltip: '',
+						tooltip: ci === 0 ? provider.label : '',
 						run: () => this._executeBrowseAction(index),
 					})),
 				)

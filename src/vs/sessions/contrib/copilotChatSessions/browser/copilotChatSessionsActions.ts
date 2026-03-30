@@ -13,7 +13,6 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -41,6 +40,7 @@ const IsActiveSessionCopilotCloud = ContextKeyExpr.equals('activeSessionType', C
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals('activeSessionProviderId', COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
+const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex('activeSessionProviderId', /^agenthost-/);
 
 // -- Actions --
 
@@ -109,7 +109,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: IsActiveSessionCopilotChatCLI,
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionRemoteAgentHost),
 			}],
 		});
 	}
@@ -226,7 +226,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 							}
 						}
 					},
-					getModels: () => getAvailableModels(languageModelsService),
+					getModels: () => getAvailableModels(languageModelsService, sessionsManagementService, sessionsProvidersService),
 					useGroupedModelPicker: () => true,
 					showManageModelsAction: () => false,
 					showUnavailableFeatured: () => false,
@@ -242,7 +242,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				// Initialize with remembered model or first available model
 				const rememberedModelId = storageService.get('sessions.localModelPicker.selectedModelId', StorageScope.PROFILE);
 				const initModel = () => {
-					const models = getAvailableModels(languageModelsService);
+					const models = getAvailableModels(languageModelsService, sessionsManagementService, sessionsProvidersService);
 					modelPicker.setEnabled(models.length > 0);
 					if (!currentModel.get() && models.length > 0) {
 						const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
@@ -272,13 +272,26 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 	}
 }
 
-function getAvailableModels(languageModelsService: ILanguageModelsService): ILanguageModelChatMetadataAndIdentifier[] {
+function getAvailableModels(
+	languageModelsService: ILanguageModelsService,
+	sessionsManagementService: ISessionsManagementService,
+	sessionsProvidersService: ISessionsProvidersService,
+): ILanguageModelChatMetadataAndIdentifier[] {
+	const session = sessionsManagementService.activeSession.get();
+	if (!session) {
+		return [];
+	}
+	const untitledSession = sessionsProvidersService.getUntitledSession(session.providerId);
+	const targetType = untitledSession?.resource.scheme;
+	if (!targetType) {
+		return [];
+	}
 	return languageModelsService.getLanguageModelIds()
 		.map(id => {
 			const metadata = languageModelsService.lookupLanguageModel(id);
 			return metadata ? { metadata, identifier: id } : undefined;
 		})
-		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === AgentSessionProviders.Background);
+		.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === targetType);
 }
 
 // -- Context Key Contribution --
