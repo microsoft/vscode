@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { ResourcePool } from '../../../../browser/widget/chatContentParts/chatCollections.js';
+import { ResourcePool, KeyedResourcePool } from '../../../../browser/widget/chatContentParts/chatCollections.js';
 
 class MockPoolItem implements IDisposable {
 	isDisposed = false;
@@ -52,6 +52,113 @@ suite('ResourcePool', () => {
 		assert.strictEqual(createCount, 1);
 	});
 
+	test('clear disposes idle items but not in-use items', () => {
+		const pool = createPool();
+		const a = pool.get();
+		const b = pool.get();
+		pool.release(b);
+
+		pool.clear();
+
+		assert.ok(b.isDisposed, 'idle item should be disposed');
+		assert.ok(!a.isDisposed, 'in-use item should not be disposed');
+		assert.strictEqual(pool.inUse.size, 1);
+	});
+
+	test('dispose disposes all items including in-use', () => {
+		const pool = createPool();
+		const a = pool.get();
+		const b = pool.get();
+		pool.release(b);
+
+		disposables.delete(pool);
+		pool.dispose();
+
+		assert.ok(a.isDisposed, 'in-use item should be disposed');
+		assert.ok(b.isDisposed, 'idle item should be disposed');
+	});
+
+	test('trimming disposes excess idle items after delay', async () => {
+		const pool = createPool({ maxIdleSize: 1, trimIdleDelay: 50 });
+
+		const a = pool.get();
+		const b = pool.get();
+		const c = pool.get();
+		pool.release(a);
+		pool.release(b);
+		pool.release(c);
+
+		assert.ok(!a.isDisposed);
+		assert.ok(!b.isDisposed);
+		assert.ok(!c.isDisposed);
+
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		const disposedCount = [a, b, c].filter(x => x.isDisposed).length;
+		assert.strictEqual(disposedCount, 2, 'should dispose 2 excess items');
+	});
+
+	test('trim timer is debounced on rapid releases', async () => {
+		const pool = createPool({ maxIdleSize: 0, trimIdleDelay: 100 });
+
+		const a = pool.get();
+		pool.release(a);
+		assert.ok(!a.isDisposed, 'should not be disposed immediately');
+
+		const b = pool.get();
+		pool.release(b);
+
+		await new Promise(resolve => setTimeout(resolve, 50));
+		assert.ok(!a.isDisposed, 'should not be disposed yet (timer was debounced)');
+
+		await new Promise(resolve => setTimeout(resolve, 100));
+		assert.ok(a.isDisposed, 'should be disposed after debounce completes');
+	});
+
+	test('no trimming when maxIdleSize is not set', async () => {
+		const pool = createPool();
+
+		const items = [];
+		for (let i = 0; i < 10; i++) {
+			items.push(pool.get());
+		}
+		for (const item of items) {
+			pool.release(item);
+		}
+
+		await new Promise(resolve => setTimeout(resolve, 50));
+		assert.ok(items.every(i => !i.isDisposed), 'no items should be disposed without maxIdleSize');
+	});
+});
+
+suite('KeyedResourcePool', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let disposables: DisposableStore;
+	let createCount: number;
+
+	setup(() => {
+		disposables = store.add(new DisposableStore());
+		createCount = 0;
+	});
+
+	function createPool(options?: { maxIdleSize?: number; trimIdleDelay?: number }): KeyedResourcePool<MockPoolItem> {
+		const pool = new KeyedResourcePool<MockPoolItem>(() => {
+			createCount++;
+			return new MockPoolItem();
+		}, options);
+		disposables.add(pool);
+		return pool;
+	}
+
+	test('creates new items on get', () => {
+		const pool = createPool();
+		const a = pool.get('key1');
+		const b = pool.get('key2');
+		assert.notStrictEqual(a, b);
+		assert.strictEqual(createCount, 2);
+		assert.strictEqual(pool.inUse.size, 2);
+	});
+
 	test('keyed get returns item previously released with same key', () => {
 		const pool = createPool();
 		const a = pool.get('key1');
@@ -76,116 +183,87 @@ suite('ResourcePool', () => {
 		assert.strictEqual(b, a, 'should return the idle item even with a different key');
 	});
 
-	test('keyed get creates new item when pool is empty', () => {
+	test('multiple items can share the same key', () => {
 		const pool = createPool();
-		const a = pool.get('key1');
-		assert.ok(a);
-		assert.strictEqual(createCount, 1);
-		assert.strictEqual(pool.inUse.size, 1);
-	});
-
-	test('multiple items can be checked out with the same key', () => {
-		const pool = createPool();
-		const a = pool.get('shared-key');
-		const b = pool.get('shared-key');
+		const a = pool.get('shared');
+		const b = pool.get('shared');
 		assert.notStrictEqual(a, b, 'should create separate items');
-		assert.strictEqual(createCount, 2);
-		assert.strictEqual(pool.inUse.size, 2);
+		pool.release(a, 'shared');
+		pool.release(b, 'shared');
+
+		const c = pool.get('shared');
+		assert.ok(c === a || c === b, 'should return one of the keyed items');
 	});
 
-	test('release with same key for multiple items, get returns one of them', () => {
-		const pool = createPool();
-		const a = pool.get('shared-key');
-		const b = pool.get('shared-key');
-		pool.release(a, 'shared-key');
-		pool.release(b, 'shared-key');
-
-		const c = pool.get('shared-key');
-		assert.ok(c === a || c === b, 'should return one of the items released with the key');
-	});
-
-	test('clear disposes idle items but not in-use items', () => {
-		const pool = createPool();
-		const a = pool.get();
-		const b = pool.get();
-		pool.release(b);
-
-		pool.clear();
-
-		assert.ok(b.isDisposed, 'idle item should be disposed');
-		assert.ok(!a.isDisposed, 'in-use item should not be disposed');
-		assert.strictEqual(pool.inUse.size, 1);
-	});
-
-	test('clear clears key map', () => {
+	test('key reassignment removes old key association', () => {
 		const pool = createPool();
 		const a = pool.get('key1');
+		const b = pool.get('key2');
 		pool.release(a, 'key1');
+		pool.release(b, 'key2');
+
+		// Reuse a via key1, then release it under key2
+		const reused = pool.get('key1');
+		assert.strictEqual(reused, a);
+		pool.release(reused, 'key2');
+
+		// key1 should not find a anymore — only b is associated with its original key2
+		// But a was reassigned to key2, so key2 now has both a and b
+		const c = pool.get('key1');
+		// key1 has no associations, falls back to generic — gets whatever is on top
+		pool.release(c, 'key1');
+
+		// key2 should still find one of {a, b}
+		const d = pool.get('key2');
+		assert.ok(d === a || d === b);
+	});
+
+	test('clear disposes idle items and clears key map', () => {
+		const pool = createPool();
+		const a = pool.get('key1');
+		const b = pool.get('key2');
+		pool.release(a, 'key1');
+		pool.release(b, 'key2');
+
 		pool.clear();
 
-		const b = pool.get('key1');
-		assert.notStrictEqual(a, b, 'should create new item after clear');
 		assert.ok(a.isDisposed);
+		assert.ok(b.isDisposed);
+
+		const c = pool.get('key1');
+		assert.notStrictEqual(c, a, 'should create new item after clear');
 	});
 
 	test('dispose disposes all items including in-use', () => {
 		const pool = createPool();
-		const a = pool.get();
-		const b = pool.get();
-		pool.release(b);
+		const a = pool.get('key1');
+		const b = pool.get('key2');
+		pool.release(b, 'key2');
 
-		// Remove from disposables since we're disposing manually
 		disposables.delete(pool);
 		pool.dispose();
 
-		assert.ok(a.isDisposed, 'in-use item should be disposed');
-		assert.ok(b.isDisposed, 'idle item should be disposed');
+		assert.ok(a.isDisposed);
+		assert.ok(b.isDisposed);
 	});
 
-	test('trimming disposes excess idle items after delay', async () => {
+	test('trimming disposes excess idle items', async () => {
 		const pool = createPool({ maxIdleSize: 1, trimIdleDelay: 50 });
 
-		const a = pool.get();
-		const b = pool.get();
-		const c = pool.get();
-		pool.release(a);
-		pool.release(b);
-		pool.release(c);
+		const a = pool.get('a');
+		const b = pool.get('b');
+		const c = pool.get('c');
+		pool.release(a, 'a');
+		pool.release(b, 'b');
+		pool.release(c, 'c');
 
-		// Before trim: all 3 in pool
-		assert.ok(!a.isDisposed);
-		assert.ok(!b.isDisposed);
-		assert.ok(!c.isDisposed);
-
-		// Wait for trim
 		await new Promise(resolve => setTimeout(resolve, 100));
 
-		// After trim: only 1 should remain (maxIdleSize=1), 2 disposed
 		const disposedCount = [a, b, c].filter(x => x.isDisposed).length;
 		assert.strictEqual(disposedCount, 2, 'should dispose 2 excess items');
 	});
 
-	test('trim timer is debounced on rapid releases', async () => {
-		const pool = createPool({ maxIdleSize: 0, trimIdleDelay: 100 });
-
-		const a = pool.get();
-		pool.release(a);
-		assert.ok(!a.isDisposed, 'should not be disposed immediately');
-
-		// Release another item before the timer fires
-		const b = pool.get();
-		pool.release(b);
-
-		// Wait less than the delay
-		await new Promise(resolve => setTimeout(resolve, 50));
-		assert.ok(!a.isDisposed, 'should not be disposed yet (timer was debounced)');
-
-		// Wait for the full delay
-		await new Promise(resolve => setTimeout(resolve, 100));
-		assert.ok(a.isDisposed, 'should be disposed after debounce completes');
-	});
-
-	test('trimming cleans up key map entries', async () => {
+	test('trimming cleans up key associations for disposed items', async () => {
 		const pool = createPool({ maxIdleSize: 0, trimIdleDelay: 50 });
 
 		const a = pool.get('key1');
@@ -193,27 +271,26 @@ suite('ResourcePool', () => {
 
 		await new Promise(resolve => setTimeout(resolve, 100));
 
-		assert.ok(a.isDisposed, 'item should be trimmed');
+		assert.ok(a.isDisposed);
 
-		// Getting with the same key should create a new item
 		const b = pool.get('key1');
-		assert.notStrictEqual(a, b);
+		assert.notStrictEqual(a, b, 'should create new item since keyed item was trimmed');
 		assert.strictEqual(createCount, 2);
 	});
 
-	test('no trimming when maxIdleSize is not set', async () => {
-		const pool = createPool(); // no options
+	test('repeated key reassignment does not grow stale associations', () => {
+		const pool = createPool();
+		const item = pool.get('key-0');
 
-		const items = [];
-		for (let i = 0; i < 10; i++) {
-			items.push(pool.get());
+		for (let i = 0; i < 100; i++) {
+			pool.release(item, `key-${i}`);
+			const reused = pool.get(`key-${i}`);
+			assert.strictEqual(reused, item);
 		}
-		for (const item of items) {
-			pool.release(item);
-		}
 
-		await new Promise(resolve => setTimeout(resolve, 50));
-
-		assert.ok(items.every(i => !i.isDisposed), 'no items should be disposed without maxIdleSize');
+		pool.release(item, 'final-key');
+		const result = pool.get('final-key');
+		assert.strictEqual(result, item);
+		assert.strictEqual(createCount, 1, 'should have only created one item');
 	});
 });
