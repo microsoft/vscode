@@ -86,42 +86,27 @@
 	opacity: 0.7;
 }
 
-/* Provider label (shown for untitled sessions) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	opacity: 0.7;
+/* Sidebar toggle unread badge */
+.agent-sessions-workbench .action-item.sidebar-toggle-action {
+	position: relative;
 }
 
-/* Session count widget (tasklist icon + unread count, left of pill) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count {
-	display: flex;
-	align-items: center;
-	gap: 3px;
-	flex-shrink: 0;
-	cursor: pointer;
-	padding: 0 4px;
-	height: 22px;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: inherit;
-	font: inherit;
-	outline: none;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count .codicon {
-	font-size: 16px;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count-label {
-	font-size: 12px;
+.agent-sessions-workbench .action-item.sidebar-toggle-action .sidebar-toggle-badge {
+	position: absolute;
+	top: 0;
+	right: -4px;
+	min-width: 14px;
+	height: 14px;
+	line-height: 14px;
+	padding: 0 3px;
+	box-sizing: border-box;
+	font-size: 9px;
+	font-weight: 600;
 	font-variant-numeric: tabular-nums;
-	line-height: 16px;
+	text-align: center;
+	border-radius: 4px;
+	background-color: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+	pointer-events: none;
 }
 

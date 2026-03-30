@@ -13,7 +13,12 @@ export const additionalDeps = [
 	'rpmlib(FileDigests) <= 4.6.0-1',
 	'libvulkan.so.1()(64bit)',
 	'libcurl.so.4()(64bit)',
-	'xdg-utils' // OS integration
+	'xdg-utils', // OS integration
+];
+
+export const recommendedDeps = [
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
