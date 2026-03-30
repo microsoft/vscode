@@ -762,6 +762,9 @@ export class Repository implements Disposable {
 	}
 
 	set headLabelOverride(value: string | undefined) {
+		if (value === this._headLabelOverride) {
+			return;
+		}
 		this._headLabelOverride = value;
 		this._onDidChangeStatus.fire();
 	}
@@ -772,7 +775,7 @@ export class Repository implements Disposable {
 	}
 
 	get headShortName(): string | undefined {
-		if (this._headLabelOverride) {
+		if (this._headLabelOverride !== undefined) {
 			return this._headLabelOverride;
 		}
 
@@ -3222,7 +3225,7 @@ export class Repository implements Disposable {
 	}
 
 	get headLabel(): string {
-		if (this._headLabelOverride) {
+		if (this._headLabelOverride !== undefined) {
 			return this._headLabelOverride;
 		}
 

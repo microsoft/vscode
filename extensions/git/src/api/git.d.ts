@@ -243,7 +243,9 @@ export interface Repository {
 
 	/**
 	 * Override the branch label shown in the status bar and SCM view.
-	 * When set, this string replaces the real HEAD name in display contexts.
+	 * When set, this string replaces the entire HEAD label — including
+	 * any status suffixes such as `*` (modified), `+` (staged), or
+	 * `!` (conflict) that the git extension would normally append.
 	 * Set to `undefined` to clear the override and revert to the real branch name.
 	 *
 	 * This does NOT change the actual HEAD, index, or working tree.
