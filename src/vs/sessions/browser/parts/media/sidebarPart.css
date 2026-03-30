@@ -34,6 +34,11 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
+/* Preserve toggled background when the toggle button is hovered or focused */
+.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left .action-label.checked:hover,
+.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left .action-label.checked:focus {
+	background: var(--vscode-toolbar-activeBackground);
+}
 /* Sidebar Footer Container */
 .agent-sessions-workbench .part.sidebar > .sidebar-footer {
 	display: flex;
