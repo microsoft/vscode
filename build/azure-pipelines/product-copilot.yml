@@ -9,6 +9,12 @@ jobs:
         value: true
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/copilot-vsix
+          artifactName: copilot_vsix
+          displayName: Publish Copilot VSIX
+          sbomEnabled: false
     steps:
       - checkout: self
         lfs: true
@@ -24,6 +30,7 @@ jobs:
       - template: copilot/setup-steps.yml
       - template: copilot/build-steps.yml
       - template: copilot/l10n-steps.yml
+      - template: copilot/test-steps.yml
 
       - task: notice@0
         inputs:
@@ -81,10 +88,6 @@ jobs:
           cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Package Copilot VSIX
-
-      - publish: $(Build.ArtifactStagingDirectory)/copilot-vsix
-        artifact: copilot_vsix
-        displayName: Publish Copilot VSIX
 
       - task: AzureCLI@2
         displayName: Upload source maps to CDN
@@ -149,5 +152,3 @@ jobs:
             done
 
             echo "Successfully uploaded $UPLOADED source maps"
-
-      - template: copilot/test-steps.yml
