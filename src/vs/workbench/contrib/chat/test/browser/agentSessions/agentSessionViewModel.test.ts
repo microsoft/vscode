@@ -1362,6 +1362,57 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('runBatch should fire onDidChangeSessions only once for multiple changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([
+					makeSimpleSessionItem('session-1'),
+					makeSimpleSessionItem('session-2'),
+					makeSimpleSessionItem('session-3'),
+				]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				viewModel.runBatch(() => {
+					for (const session of viewModel.sessions) {
+						session.setArchived(true);
+					}
+				});
+
+				assert.strictEqual(changeEventCount, 1);
+				assert.strictEqual(viewModel.sessions.every(s => s.isArchived()), true);
+			});
+		});
+
+		test('runBatch should not fire onDidChangeSessions when no changes are made', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = new StaticChatSessionItemController([makeSimpleSessionItem('session-1')]);
+
+				mockChatSessionsService.registerChatSessionItemController(chatSessionTestType, controller);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				viewModel.runBatch(() => {
+					// No changes inside the batch
+				});
+
+				assert.strictEqual(changeEventCount, 0);
+			});
+		});
+
 		test('should preserve archived state from provider', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = new StaticChatSessionItemController([{
@@ -1767,8 +1818,8 @@ suite('AgentSessions', () => {
 				// Archive the session (which also marks as read)
 				session.setArchived(true);
 
-				// Fires twice: once for setting read state, once for setting archived state
-				assert.strictEqual(changeEventCount, 2);
+				// Fires once: the read state change is coalesced with the archived state change
+				assert.strictEqual(changeEventCount, 1);
 			});
 		});
 

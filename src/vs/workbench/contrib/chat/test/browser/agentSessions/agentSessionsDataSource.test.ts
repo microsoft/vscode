@@ -130,6 +130,7 @@ suite('AgentSessionsDataSource', () => {
 			onDidChangeSessions: Event.None,
 			onDidChangeSessionArchivedState: Event.None,
 			resolve: async () => { },
+			runBatch: (fn: () => void) => fn(),
 		};
 	}
 

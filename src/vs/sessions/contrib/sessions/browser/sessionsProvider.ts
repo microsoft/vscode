@@ -111,8 +111,12 @@ export interface ISessionsProvider {
 	setModel(chatId: string, modelId: string): void;
 	/** Archive a session. */
 	archiveSession(chatId: string): Promise<void>;
+	/** Archive multiple sessions in batch. Implementations may optimize to reduce event noise. */
+	archiveSessions?(chatIds: string[]): Promise<void>;
 	/** Unarchive a session. */
 	unarchiveSession(chatId: string): Promise<void>;
+	/** Unarchive multiple sessions in batch. Implementations may optimize to reduce event noise. */
+	unarchiveSessions?(chatIds: string[]): Promise<void>;
 	/** Delete a session. */
 	deleteSession(chatId: string): Promise<void>;
 	/** Mark a session as read or unread. */

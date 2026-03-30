@@ -1075,6 +1075,28 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
+	async archiveSessions(chatIds: string[]): Promise<void> {
+		this.agentSessionsService.model.runBatch(() => {
+			for (const chatId of chatIds) {
+				const agentSession = this._findAgentSession(chatId);
+				if (agentSession) {
+					agentSession.setArchived(true);
+				}
+			}
+		});
+	}
+
+	async unarchiveSessions(chatIds: string[]): Promise<void> {
+		this.agentSessionsService.model.runBatch(() => {
+			for (const chatId of chatIds) {
+				const agentSession = this._findAgentSession(chatId);
+				if (agentSession) {
+					agentSession.setArchived(false);
+				}
+			}
+		});
+	}
+
 	async deleteSession(chatId: string): Promise<void> {
 		const agentSession = this._findAgentSession(chatId);
 		if (agentSession) {

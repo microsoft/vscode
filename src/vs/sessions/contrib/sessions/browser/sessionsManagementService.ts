@@ -157,8 +157,12 @@ export interface ISessionsManagementService {
 
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
+	/** Archive multiple sessions in batch. */
+	archiveSessions(sessions: ISession[]): Promise<void>;
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+	/** Unarchive multiple sessions in batch. */
+	unarchiveSessions(sessions: ISession[]): Promise<void>;
 	/** Delete a session. */
 	deleteSession(session: ISession): Promise<void>;
 	/** Delete a single chat from a session. */
@@ -719,10 +723,30 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	async archiveSessions(sessions: ISession[]): Promise<void> {
+		const chatIds: string[] = [];
+		for (const session of sessions) {
+			for (const chat of session.chats.get()) {
+				chatIds.push(chat.chatId);
+			}
+		}
+		await this.sessionsProvidersService.archiveSessions(chatIds);
+	}
+
 	async unarchiveSession(session: ISession): Promise<void> {
 		for (const chat of session.chats.get()) {
 			await this.sessionsProvidersService.unarchiveSession(chat.chatId);
 		}
+	}
+
+	async unarchiveSessions(sessions: ISession[]): Promise<void> {
+		const chatIds: string[] = [];
+		for (const session of sessions) {
+			for (const chat of session.chats.get()) {
+				chatIds.push(chat.chatId);
+			}
+		}
+		await this.sessionsProvidersService.unarchiveSessions(chatIds);
 	}
 
 	async deleteSession(session: ISession): Promise<void> {

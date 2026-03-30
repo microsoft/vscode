@@ -59,8 +59,12 @@ export interface ISessionsProvidersService {
 
 	/** Archive a session. */
 	archiveSession(sessionId: string): Promise<void>;
+	/** Archive multiple sessions in batch. Routes to providers and uses batch methods when available. */
+	archiveSessions(sessionIds: string[]): Promise<void>;
 	/** Unarchive a session. */
 	unarchiveSession(sessionId: string): Promise<void>;
+	/** Unarchive multiple sessions in batch. Routes to providers and uses batch methods when available. */
+	unarchiveSessions(sessionIds: string[]): Promise<void>;
 	/** Delete a session. */
 	deleteSession(sessionId: string): Promise<void>;
 	/** Rename a session. */
@@ -175,11 +179,53 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		}
 	}
 
+	async archiveSessions(chatIds: string[]): Promise<void> {
+		const byProvider = this._groupByProvider(chatIds);
+		for (const [provider, ids] of byProvider) {
+			if (provider.archiveSessions) {
+				await provider.archiveSessions(ids);
+			} else {
+				for (const id of ids) {
+					await provider.archiveSession(id);
+				}
+			}
+		}
+	}
+
 	async unarchiveSession(chatId: string): Promise<void> {
 		const { provider } = this._resolveProvider(chatId);
 		if (provider) {
 			await provider.unarchiveSession(chatId);
 		}
+	}
+
+	async unarchiveSessions(chatIds: string[]): Promise<void> {
+		const byProvider = this._groupByProvider(chatIds);
+		for (const [provider, ids] of byProvider) {
+			if (provider.unarchiveSessions) {
+				await provider.unarchiveSessions(ids);
+			} else {
+				for (const id of ids) {
+					await provider.unarchiveSession(id);
+				}
+			}
+		}
+	}
+
+	private _groupByProvider(chatIds: string[]): Map<ISessionsProvider, string[]> {
+		const byProvider = new Map<ISessionsProvider, string[]>();
+		for (const chatId of chatIds) {
+			const { provider } = this._resolveProvider(chatId);
+			if (provider) {
+				let ids = byProvider.get(provider);
+				if (!ids) {
+					ids = [];
+					byProvider.set(provider, ids);
+				}
+				ids.push(chatId);
+			}
+		}
+		return byProvider;
 	}
 
 	async deleteSession(chatId: string): Promise<void> {

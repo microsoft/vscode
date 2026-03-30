@@ -317,9 +317,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 			}
 		}
 
-		for (const session of context.sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
+		await sessionsManagementService.archiveSessions(context.sessions);
 	}
 });
 
@@ -367,9 +365,7 @@ registerAction2(class UnarchiveSectionAction extends Action2 {
 			}
 		}
 
-		for (const session of context.sessions) {
-			await sessionsManagementService.unarchiveSession(session);
-		}
+		await sessionsManagementService.unarchiveSessions(context.sessions);
 	}
 });
 
@@ -476,9 +472,7 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
-		}
+		await sessionsManagementService.archiveSessions(sessions);
 	}
 });
 
@@ -507,9 +501,7 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		for (const session of sessions) {
-			await sessionsManagementService.unarchiveSession(session);
-		}
+		await sessionsManagementService.unarchiveSessions(sessions);
 	}
 });
 
