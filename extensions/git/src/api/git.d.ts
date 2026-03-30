@@ -252,6 +252,11 @@ export interface Repository {
 	 */
 	headLabelOverride: string | undefined;
 
+	/**
+	 * An event that is fired when {@link Repository.headLabelOverride headLabelOverride} changes.
+	 */
+	readonly onDidChangeHeadLabel: Event<void>;
+
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
 

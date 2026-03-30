@@ -712,6 +712,9 @@ export class Repository implements Disposable {
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidRunGitStatus: Event<void> = this._onDidChangeStatus.event;
 
+	private _onDidChangeHeadLabel = new EventEmitter<void>();
+	readonly onDidChangeHeadLabel: Event<void> = this._onDidChangeHeadLabel.event;
+
 	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
 	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
 
@@ -766,7 +769,7 @@ export class Repository implements Disposable {
 			return;
 		}
 		this._headLabelOverride = value;
-		this._onDidChangeStatus.fire();
+		this._onDidChangeHeadLabel.fire();
 	}
 
 	private _refs: Ref[] = [];
