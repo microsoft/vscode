@@ -108,6 +108,7 @@ const enum IsolationMode {
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.BranchChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const isolationModeContextKey = new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace);
+const hasGitRepositoryContextKey = new RawContextKey<boolean>('sessions.hasGitRepository', true);
 const hasPullRequestContextKey = new RawContextKey<boolean>('sessions.hasPullRequest', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
@@ -265,6 +266,7 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
+	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
 
@@ -371,6 +373,19 @@ class ChangesViewModel extends Disposable {
 			return repositoryState?.HEAD?.upstream
 				? `${repositoryState.HEAD.upstream.remote}/${repositoryState.HEAD.upstream.name}`
 				: undefined;
+		});
+
+		// Active session has git repository
+		this.activeSessionHasGitRepositoryObs = derived(reader => {
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return false;
+			}
+
+			this.sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+
+			return model?.metadata?.repositoryPath !== undefined;
 		});
 
 		// Active session first checkpoint ref
@@ -834,6 +849,10 @@ export class ChangesViewPane extends ViewPane {
 				return this.viewModel.activeSessionIsolationModeObs.read(reader);
 			}));
 
+			this.renderDisposables.add(bindContextKey(hasGitRepositoryContextKey, this.scopedContextKeyService, reader => {
+				return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			}));
+
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
 				return activeSession?.workspace.read(reader)?.repositories[0]?.baseBranchProtected === true;
@@ -950,6 +969,9 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 							if (action.id === 'github.copilot.sessions.commitChanges') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
+							}
+							if (action.id === 'agentSession.markAsDone') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 
