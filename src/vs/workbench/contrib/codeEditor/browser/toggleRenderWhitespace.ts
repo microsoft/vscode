@@ -17,7 +17,8 @@ class RenderWhitespaceNoneAction extends Action2 {
 	constructor() {
 		super({
 			id: RenderWhitespaceNoneAction.ID,
-			title: localize2('renderWhitespace.none', "None"),
+			title: localize2('renderWhitespace.setNone', "Set Render Whitespace to None"),
+			shortTitle: localize2('renderWhitespace.none', "None"),
 			category: Categories.View,
 			f1: false,
 		});
@@ -32,7 +33,8 @@ class RenderWhitespaceBoundaryAction extends Action2 {
 	constructor() {
 		super({
 			id: RenderWhitespaceBoundaryAction.ID,
-			title: localize2('renderWhitespace.boundary', "Boundary"),
+			title: localize2('renderWhitespace.setBoundary', "Set Render Whitespace to Boundary"),
+			shortTitle: localize2('renderWhitespace.boundary', "Boundary"),
 			category: Categories.View,
 			f1: false,
 		});
@@ -47,7 +49,8 @@ class RenderWhitespaceSelectionAction extends Action2 {
 	constructor() {
 		super({
 			id: RenderWhitespaceSelectionAction.ID,
-			title: localize2('renderWhitespace.selection', "Selection"),
+			title: localize2('renderWhitespace.setSelection', "Set Render Whitespace to Selection"),
+			shortTitle: localize2('renderWhitespace.selection', "Selection"),
 			category: Categories.View,
 			f1: false,
 		});
@@ -62,7 +65,8 @@ class RenderWhitespaceTrailingAction extends Action2 {
 	constructor() {
 		super({
 			id: RenderWhitespaceTrailingAction.ID,
-			title: localize2('renderWhitespace.trailing', "Trailing"),
+			title: localize2('renderWhitespace.setTrailing', "Set Render Whitespace to Trailing"),
+			shortTitle: localize2('renderWhitespace.trailing', "Trailing"),
 			category: Categories.View,
 			f1: false,
 		});
@@ -77,7 +81,8 @@ class RenderWhitespaceAllAction extends Action2 {
 	constructor() {
 		super({
 			id: RenderWhitespaceAllAction.ID,
-			title: localize2('renderWhitespace.all', "All"),
+			title: localize2('renderWhitespace.setAll', "Set Render Whitespace to All"),
+			shortTitle: localize2('renderWhitespace.all', "All"),
 			category: Categories.View,
 			f1: false,
 		});
