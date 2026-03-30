@@ -45,8 +45,8 @@
 	gap: 2px;
 	padding: 2px;
 	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.06));
-	border-radius: 8px;
-	background-color: rgba(255, 255, 255, 0.02);
+	border-radius: 6px;
+	background-color: var(--vscode-input-background);
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button {
@@ -54,7 +54,7 @@
 	min-width: 76px;
 	padding: 4px 8px;
 	border: 1px solid transparent;
-	border-radius: 5px;
+	border-radius: 4px;
 	background: transparent;
 	color: var(--vscode-foreground);
 	font-size: 12px;
@@ -66,7 +66,7 @@
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:first-child,
 .run-script-action-section .monaco-custom-radio > .monaco-button:last-child {
-	border-radius: 5px;
+	border-radius: 4px;
 }
 
 .run-script-action-section .monaco-custom-radio > .monaco-button:not(.active):not(:last-child),
@@ -75,7 +75,7 @@
 	border-left: 1px solid transparent;
 }
 
-.run-script-action-section .monaco-custom-radio > .monaco-button:hover:not(.active) {
+.run-script-action-section .monaco-custom-radio > .monaco-button:hover:not(.active):not(.disabled) {
 	background-color: var(--vscode-list-hoverBackground);
 	border-color: rgba(255, 255, 255, 0.06);
 	opacity: 1;
@@ -139,7 +139,7 @@
 	border-radius: 6px;
 }
 
-.quick-input-widget.run-script-action-quick-widget .quick-input-titlebar {
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-titlebar {
 	gap: 8px;
 	height: 32px;
 	padding: 0 6px 0 0;
@@ -147,13 +147,14 @@
 	border-top-right-radius: 8px;
 	border-bottom: 1px solid var(--vscode-titleBar-border, var(--vscode-widget-border, transparent));
 	box-sizing: border-box;
+	background-color: var(--vscode-titleBar-activeBackground);
 }
 
-.quick-input-widget.run-script-action-quick-widget .quick-input-right-action-bar {
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-right-action-bar {
 	margin-right: 0;
 }
 
-.quick-input-widget.run-script-action-quick-widget .quick-input-title {
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-title {
 	padding: 0;
 	text-align: left;
 	font-size: 12px;
@@ -161,19 +162,19 @@
 	color: var(--vscode-titleBar-activeForeground);
 }
 
-.quick-input-widget.run-script-action-quick-widget {
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget {
 	border-radius: 8px;
 	box-shadow: var(--vscode-shadow-xl);
 }
 
-.quick-input-widget.run-script-action-quick-widget .quick-input-html-widget {
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-html-widget {
 	border-bottom-left-radius: 8px;
 	border-bottom-right-radius: 8px;
 	overflow: hidden;
 }
 
-.quick-input-widget.run-script-action-quick-widget .quick-input-header,
-.quick-input-widget.run-script-action-quick-widget .run-script-action-widget {
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .quick-input-header,
+.agent-sessions-workbench.run-script-action-modal-visible .quick-input-widget .run-script-action-widget {
 	background-color: var(--vscode-editor-background);
 }
 

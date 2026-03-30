@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
@@ -40,6 +40,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 
 // Menu IDs - exported for use in auxiliary bar part
 export const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdown');
+const RUN_SCRIPT_ACTION_MODAL_VISIBLE_CLASS = 'run-script-action-modal-visible';
 
 // Action IDs
 const RUN_SCRIPT_ACTION_PRIMARY_ID = 'workbench.action.agentSessions.runScriptPrimary';
@@ -409,6 +410,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				mode: isConfigureMode ? 'configure' : existingTask ? 'add-existing' : 'add',
 			}));
 			quickWidget.widget = widget.domNode;
+			this._layoutService.mainContainer.classList.add(RUN_SCRIPT_ACTION_MODAL_VISIBLE_CLASS);
 			const backdrop = append(this._layoutService.mainContainer, $('.run-script-action-modal-backdrop'));
 			disposables.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, e => {
 				e.preventDefault();
@@ -416,6 +418,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				complete(undefined);
 			}));
 			disposables.add({ dispose: () => backdrop.remove() });
+			disposables.add({ dispose: () => this._layoutService.mainContainer.classList.remove(RUN_SCRIPT_ACTION_MODAL_VISIBLE_CLASS) });
 
 			const complete = (result: IRunScriptCustomTaskWidgetResult | undefined) => {
 				if (settled) {
@@ -440,10 +443,6 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 			}));
 			disposables.add(quickWidget.onDidHide(() => {
-				const quickInputContainer = widget.domNode.closest('.quick-input-widget');
-				if (isHTMLElement(quickInputContainer)) {
-					quickInputContainer.classList.remove('run-script-action-quick-widget');
-				}
 				if (!settled) {
 					settled = true;
 					resolve(undefined);
@@ -452,10 +451,6 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			}));
 
 			quickWidget.show();
-			const quickInputContainer = widget.domNode.closest('.quick-input-widget');
-			if (isHTMLElement(quickInputContainer)) {
-				quickInputContainer.classList.add('run-script-action-quick-widget');
-			}
 			widget.focus();
 		});
 	}
