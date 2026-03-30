@@ -215,21 +215,21 @@
 }
 
 /* List container */
-.changes-view-body .chat-editing-session-list {
+.chat-editing-session-list {
 	overflow: hidden;
 }
 
 /* Make the vertical scrollbar overlay on top of content instead of shifting it */
-.changes-view-body .chat-editing-session-list .monaco-scrollable-element > .scrollbar.vertical {
+.chat-editing-session-list .monaco-scrollable-element > .scrollbar.vertical {
 	z-index: 1;
 }
 
-.changes-view-body .chat-editing-session-list .monaco-scrollable-element > .monaco-list-rows {
+.chat-editing-session-list .monaco-scrollable-element > .monaco-list-rows {
 	width: 100% !important;
 }
 
 /* Remove tree indentation padding for hidden twisties (both list and tree mode) */
-.changes-view-body .chat-editing-session-list .monaco-tl-twistie.force-no-twistie {
+.chat-editing-session-list .monaco-tl-twistie.force-no-twistie {
 	padding-left: 0 !important;
 }
 
@@ -294,7 +294,7 @@
 	font-size: 11px;
 }
 
-.changes-view-body .chat-editing-session-list .changes-review-comments-badge {
+.chat-editing-session-list .changes-review-comments-badge {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
@@ -303,11 +303,11 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.changes-view-body .chat-editing-session-list .changes-review-comments-badge .codicon {
+.chat-editing-session-list .changes-review-comments-badge .codicon {
 	font-size: 12px;
 }
 
-.changes-view-body .chat-editing-session-list .changes-agent-feedback-badge {
+.chat-editing-session-list .changes-agent-feedback-badge {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
@@ -316,7 +316,7 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.changes-view-body .chat-editing-session-list .changes-agent-feedback-badge .codicon {
+.chat-editing-session-list .changes-agent-feedback-badge .codicon {
 	font-size: 12px;
 }
 
