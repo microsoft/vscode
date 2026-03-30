@@ -538,7 +538,7 @@ export class ChangesViewPane extends ViewPane {
 		this.changesProgressBar.stop().hide();
 
 		// List container
-		this.listContainer = dom.append(this.contentContainer, $('.chat-editing-session-list'));
+		this.listContainer = dom.append(this.contentContainer, $('.changes-file-list'));
 
 		// Welcome message for empty state
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
@@ -1194,7 +1194,7 @@ export class ChangesViewPane extends ViewPane {
 	): IDisposable {
 		const disposables = new DisposableStore();
 
-		container.classList.add('chat-editing-session-list');
+		container.classList.add('changes-file-list');
 
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
 
