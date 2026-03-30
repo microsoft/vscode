@@ -638,6 +638,30 @@ suite('LocalAgentsSessionsController', () => {
 			});
 		});
 
+		test('should remove items from controller when session is disposed', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				const sessionResource = LocalChatSessionUri.forSession('dispose-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Add the session and refresh
+				mockChatService.addSession(mockModel);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel)]);
+				await controller.refresh(CancellationToken.None);
+
+				assert.strictEqual(controller.items.length, 1, 'should have one item before dispose');
+
+				// Dispose the session (simulates removeHistoryEntry)
+				mockChatService.fireDidDisposeSession([sessionResource]);
+
+				assert.strictEqual(controller.items.length, 0, 'should have no items after dispose');
+			});
+		});
+
 		test('should clean up model listeners when model is removed via chatModels observable', async () => {
 			return runWithFakedTimers({}, async () => {
 				const controller = createController();
