@@ -6,14 +6,12 @@
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AgentHostFileSystemProvider } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -26,6 +24,7 @@ import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
+import { IAgentHostFileSystemService } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -55,9 +54,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService
 	) {
 		super();
 
@@ -72,11 +71,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			'agentHostIpc.local',
 			'Agent Host (Local)'));
 
-		// Register a read-only filesystem provider for the local agent host
-		// so that agent-host-scheme URIs with 'local' authority can be resolved.
-		const fsProvider = this._register(new AgentHostFileSystemProvider());
-		this._register(fsProvider.registerAuthority('local', this._agentHostService));
-		this._register(this._fileService.registerProvider(AGENT_HOST_SCHEME, fsProvider));
+		_agentHostFileSystemService.registerAuthority('local', this._agentHostService);
 
 		// Display agent-host URIs with the original file path
 		this._register(this._labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
