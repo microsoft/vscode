@@ -13968,6 +13968,9 @@ declare module 'vscode' {
 			 * lifecycle implications and the confirmation dialog would interrupt
 			 * a programmatic flow.
 			 *
+                         * `onWillStop` listeners still fire so extensions can persist state;
+                         * only the user-facing veto dialog is bypassed.
+                         *
 			 * Defaults to `false` (the dialog is shown when applicable).
 			 */
 			readonly suppressConfirmation?: boolean;

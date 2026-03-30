@@ -30,8 +30,9 @@ export interface IDidEnterWorkspaceEvent {
 export interface IEnterWorkspaceOptions {
 	/**
 	 * When `true`, the extension host restart confirmation dialog is
-	 * suppressed. Extension hosts are still stopped and restarted
-	 * cleanly; only the user-facing veto dialog is bypassed.
+	 * suppressed. `onWillStop` listeners still fire (so extensions can
+	 * persist state and run cleanup hooks) but veto results are ignored
+	 * and the dialog is never shown.
 	 *
 	 * Callers should only set this when the user has already consented
 	 * to the operation that triggers the workspace transition.

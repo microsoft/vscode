@@ -530,7 +530,8 @@ export interface IExtensionService {
 	 *
 	 * @param auto indicates if the operation was triggered by an automatic action
 	 *
-	 * @param force when `true`, skip the `onWillStop` veto chain and stop
+	 * @param force when `true`, still fire `onWillStop` listeners (so state
+	 * persistence and cleanup hooks run) but ignore veto results and stop
 	 * extension hosts unconditionally. The confirmation dialog is not shown.
 	 * Callers should only set this when the user has already consented to the
 	 * operation that requires the restart.

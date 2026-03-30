@@ -738,11 +738,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public async stopExtensionHosts(reason: string, auto?: boolean, force?: boolean): Promise<boolean> {
 		await this._initializeIfNeeded();
-		if (force) {
-			await this._doStopExtensionHosts();
-			return true;
-		}
-		return this._doStopExtensionHostsWithVeto(reason, auto);
+		return this._doStopExtensionHostsWithVeto(reason, auto, force);
 	}
 
 	protected async _doStopExtensionHosts(): Promise<void> {
@@ -763,7 +759,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private async _doStopExtensionHostsWithVeto(reason: string, auto: boolean = false): Promise<boolean> {
+	private async _doStopExtensionHostsWithVeto(reason: string, auto: boolean = false, force: boolean = false): Promise<boolean> {
 		if (auto && this._environmentService.isExtensionDevelopment) {
 			return false;
 		}
@@ -794,6 +790,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		});
 
 		const veto = await handleVetos(vetos, error => this._logService.error(error));
+		if (force) {
+			// force mode: onWillStop fired above so listeners could persist state,
+			// but we ignore veto results and stop unconditionally.
+			await this._doStopExtensionHosts();
+			return true;
+		}
 		if (!veto) {
 			await this._doStopExtensionHosts();
 		} else {

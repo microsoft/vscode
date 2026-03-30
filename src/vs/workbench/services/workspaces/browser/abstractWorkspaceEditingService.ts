@@ -146,12 +146,12 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Add Folders
 		if (wantsToAdd && !wantsToDelete) {
-			return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+			return this.doAddFolders(foldersToAdd, index, donotNotifyError, options);
 		}
 
 		// Delete Folders
 		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(foldersToDelete);
+			return this.removeFolders(foldersToDelete, false, options);
 		}
 
 		// Add & Delete Folders
@@ -166,7 +166,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 			// if we are not in workspace-state, we just add the folders
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-				return this.doAddFolders(foldersToAdd, index, donotNotifyError);
+				return this.doAddFolders(foldersToAdd, index, donotNotifyError, options);
 			}
 
 			// finally, update folders within the workspace
@@ -194,7 +194,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		return this.doAddFolders(foldersToAdd, undefined, donotNotifyError);
 	}
 
-	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError = false): Promise<void> {
+	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError = false, options?: IEnterWorkspaceOptions): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
@@ -213,7 +213,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 				return; // return if the operation is a no-op for the current state
 			}
 
-			return this.createAndEnterWorkspace(newWorkspaceFolders);
+			return this.createAndEnterWorkspace(newWorkspaceFolders, undefined, options);
 		}
 
 		// Delegate addition of folders to workspace service otherwise
@@ -228,12 +228,12 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	async removeFolders(foldersToRemove: URI[], donotNotifyError = false): Promise<void> {
+	async removeFolders(foldersToRemove: URI[], donotNotifyError = false, options?: IEnterWorkspaceOptions): Promise<void> {
 
 		// If we are in single-folder state and the opened folder is to be removed,
 		// we create an empty workspace and enter it.
 		if (this.includesSingleFolderWorkspace(foldersToRemove)) {
-			return this.createAndEnterWorkspace([]);
+			return this.createAndEnterWorkspace([], undefined, options);
 		}
 
 		// Delegate removal of folders to workspace service otherwise
