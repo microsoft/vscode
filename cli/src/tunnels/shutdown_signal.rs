@@ -12,7 +12,7 @@ use crate::util::{
 	sync::{new_barrier, Barrier, Receivable},
 };
 
-/// Describes the signal to manully stop the server
+/// Describes the signal to manually stop the server
 #[derive(Copy, Clone)]
 pub enum ShutdownSignal {
 	CtrlC,
