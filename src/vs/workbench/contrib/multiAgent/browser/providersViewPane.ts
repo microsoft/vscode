@@ -57,6 +57,9 @@ export class ProvidersViewPane extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
+		if (this._bodyContainer) {
+			this._bodyContainer.style.height = `${height}px`;
+		}
 	}
 
 	private _renderContent(): void {

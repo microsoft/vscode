@@ -412,7 +412,7 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				if ((process as INodeProcess).isEmbeddedApp || (this.environmentMainService.args['sessions'] && this.productService.quality !== 'stable')) {
+				if (this.productService.quality !== 'stable' && ((process as INodeProcess).isEmbeddedApp || this.environmentMainService.args['sessions'])) {
 					await this.windowsMainService?.openSessionsWindow({ context: OpenContext.DOCK });
 				} else {
 					await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
@@ -905,7 +905,7 @@ export class CodeApplication extends Disposable {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
 		// Sessions app: ensure the sessions window is open, then let other handlers process the URL.
-		if ((process as INodeProcess).isEmbeddedApp) {
+		if (this.productService.quality !== 'stable' && (process as INodeProcess).isEmbeddedApp) {
 			this.logService.trace('app#handleProtocolUrl() sessions app handling protocol URL:', uri.toString(true));
 
 			// Skip window openables (file/folder/workspace) for security
