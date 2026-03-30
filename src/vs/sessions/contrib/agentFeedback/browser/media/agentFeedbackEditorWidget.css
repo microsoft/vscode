@@ -35,13 +35,13 @@
 /* Arrow pointer pointing left toward the code */
 .agent-feedback-widget-arrow {
 	position: absolute;
-	left: -8px;
-	top: 9px;
+	left: -6px;
+	top: 11px;
 	width: 0;
 	height: 0;
-	border-top: 8px solid transparent;
-	border-bottom: 8px solid transparent;
-	border-right: 8px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-top: 6px solid transparent;
+	border-bottom: 6px solid transparent;
+	border-right: 6px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 }
 
 .agent-feedback-widget.collapsed .agent-feedback-widget-arrow {
@@ -52,12 +52,12 @@
 	content: '';
 	position: absolute;
 	left: 2px;
-	top: -7px;
+	top: -5px;
 	width: 0;
 	height: 0;
-	border-top: 7px solid transparent;
-	border-bottom: 7px solid transparent;
-	border-right: 7px solid var(--vscode-editorWidget-background);
+	border-top: 5px solid transparent;
+	border-bottom: 5px solid transparent;
+	border-right: 5px solid var(--vscode-editorWidget-background);
 }
 
 /* Header */
@@ -86,6 +86,9 @@
 	font-weight: 500;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
 }
 
 /* Spacer to push buttons to the right */
