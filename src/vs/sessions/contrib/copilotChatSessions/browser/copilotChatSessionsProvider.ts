@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
@@ -77,8 +78,8 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _title = observableValue(this, '');
 	readonly title: IObservable<string> = this._title;
 
-	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
-	readonly description: IObservable<string | undefined>;
+	private readonly _description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
+	readonly description: IObservable<IMarkdownString | undefined>;
 
 	private readonly _updatedAt = observableValue(this, new Date());
 	readonly updatedAt: IObservable<Date> = this._updatedAt;
@@ -199,8 +200,12 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 		if (repoUri) {
 			try {
 				this._gitRepository = await this.gitService.openRepository(repoUri);
+				if (!this._gitRepository) {
+					this.setIsolationMode('workspace');
+				}
 			} catch {
 				// No git repository available
+				this.setIsolationMode('workspace');
 			}
 		}
 		this._loading.set(false, undefined);
@@ -377,7 +382,7 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
-	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
+	readonly description: IObservable<IMarkdownString | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = observableValue(this, undefined);
 
@@ -619,8 +624,8 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
 	readonly isRead: IObservable<boolean>;
 
-	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
-	readonly description: IObservable<string | undefined>;
+	private readonly _description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
+	readonly description: IObservable<IMarkdownString | undefined>;
 
 	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
@@ -636,7 +641,7 @@ class AgentSessionAdapter implements ISessionData {
 		this.resource = session.resource;
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
-		this.icon = session.icon;
+		this.icon = this._getSessionTypeIcon(session);
 		this.createdAt = new Date(session.timing.created);
 		this._workspace = observableValue(this, this._buildWorkspace(session));
 		this.workspace = this._workspace;
@@ -688,11 +693,22 @@ class AgentSessionAdapter implements ISessionData {
 		});
 	}
 
-	private _extractDescription(session: IAgentSession): string | undefined {
+	private _getSessionTypeIcon(session: IAgentSession): ThemeIcon {
+		switch (session.providerType) {
+			case AgentSessionProviders.Background:
+				return CopilotCLISessionType.icon;
+			case AgentSessionProviders.Cloud:
+				return CopilotCloudSessionType.icon;
+			default:
+				return session.icon;
+		}
+	}
+
+	private _extractDescription(session: IAgentSession): IMarkdownString | undefined {
 		if (!session.description) {
 			return undefined;
 		}
-		return typeof session.description === 'string' ? session.description : session.description.value;
+		return typeof session.description === 'string' ? new MarkdownString(session.description) : session.description;
 	}
 
 	private _extractGitHubInfo(session: IAgentSession): IGitHubInfo | undefined {

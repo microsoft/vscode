@@ -5,9 +5,9 @@
 
 import { localize } from '../../nls.js';
 import { getColorRegistry, registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
-import { contrastBorder, iconForeground } from '../../platform/theme/common/colorRegistry.js';
+import { contrastBorder } from '../../platform/theme/common/colorRegistry.js';
+import { editorWidgetBorder, editorBackground } from '../../platform/theme/common/colors/editorColors.js';
 import { buttonBackground } from '../../platform/theme/common/colors/inputColors.js';
-import { editorBackground } from '../../platform/theme/common/colors/editorColors.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // Sessions sidebar background color
@@ -67,7 +67,7 @@ export const chatBarTitleForeground = registerColor(
 // Agent feedback input widget border color
 export const agentFeedbackInputWidgetBorder = registerColor(
 	'agentFeedbackInputWidget.border',
-	{ dark: transparent(iconForeground, 0.8), light: transparent(iconForeground, 0.8), hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('agentFeedbackInputWidget.border', 'Border color of the agent feedback input widget shown in the editor.')
 );
 

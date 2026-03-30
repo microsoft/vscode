@@ -13,7 +13,7 @@
 	}
 
 	.pane-body & .monaco-tree-sticky-container {
-		padding: 0 6px;
+		padding: 0 10px;
 	}
 
 	.monaco-list-row {
@@ -202,6 +202,13 @@
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	.session-description p {
+		margin: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.session-description:empty {
