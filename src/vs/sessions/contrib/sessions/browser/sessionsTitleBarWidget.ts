@@ -304,6 +304,7 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 
 		// Add badge element for unread session count
 		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
+		this._countBadge.setAttribute('aria-hidden', 'true');
 		this._updateBadge();
 
 		// Single autorun that tracks all badge-relevant state:
@@ -341,6 +342,16 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 			this._countBadge.style.display = '';
 		} else {
 			this._countBadge.style.display = 'none';
+		}
+
+		// Update accessible label to include unread count for screen readers
+		if (this.label) {
+			const baseLabel = this.action.label || localize('toggleSidebarA11y', "Toggle Primary Side Bar");
+			if (unreadCount > 0 && !sidebarVisible) {
+				this.label.setAttribute('aria-label', localize('toggleSidebarUnread', "{0}, {1} unread session(s)", baseLabel, unreadCount));
+			} else {
+				this.label.setAttribute('aria-label', baseLabel);
+			}
 		}
 	}
 
