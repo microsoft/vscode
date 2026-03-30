@@ -87,11 +87,11 @@
 }
 
 /* Sidebar toggle unread badge */
-.action-item.sidebar-toggle-action {
+.agent-sessions-workbench .action-item.sidebar-toggle-action {
 	position: relative;
 }
 
-.action-item.sidebar-toggle-action .sidebar-toggle-badge {
+.agent-sessions-workbench .action-item.sidebar-toggle-action .sidebar-toggle-badge {
 	position: absolute;
 	top: 0;
 	right: -4px;

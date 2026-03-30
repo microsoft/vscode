@@ -306,7 +306,18 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
 		this._updateBadge();
 
-		// Update badge when sessions change
+		// Subscribe to observable session state (status, isRead, isArchived)
+		// so the badge updates when any session's state changes
+		this._register(autorun(reader => {
+			for (const session of this.sessionsManagementService.getSessions()) {
+				session.isArchived.read(reader);
+				session.status.read(reader);
+				session.isRead.read(reader);
+			}
+			this._updateBadge();
+		}));
+
+		// Also update when sessions are added/removed
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this._updateBadge()));
 
 		// Update badge when sidebar visibility changes

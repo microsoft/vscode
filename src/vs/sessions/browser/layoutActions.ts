@@ -23,7 +23,6 @@ const sidebarToggleIcon = registerIcon('agent-sidebar-toggle', Codicon.tasklist,
 class ToggleSidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.agentToggleSidebarVisibility';
-	static readonly LABEL = localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar");
 
 	constructor() {
 		super({
@@ -76,7 +75,6 @@ class ToggleSidebarVisibilityAction extends Action2 {
 class ToggleSecondarySidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.agentToggleSecondarySidebarVisibility';
-	static readonly LABEL = localize('compositePart.hideSecondarySideBarLabel', "Hide Secondary Side Bar");
 
 	constructor() {
 		super({
