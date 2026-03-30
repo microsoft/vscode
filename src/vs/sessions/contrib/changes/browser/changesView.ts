@@ -1339,7 +1339,7 @@ class ChangesViewActionRunner extends ActionRunner {
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
 		const args = actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]).flat();
-		await action.run(sessionResource, discardRef, ...args);
+		await action.run(sessionResource, discardRef, ...args.map(item => item.uri));
 	}
 }
 
