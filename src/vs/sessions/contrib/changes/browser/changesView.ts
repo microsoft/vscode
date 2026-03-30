@@ -7,7 +7,7 @@ import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
@@ -16,7 +16,8 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../base/common/path.js';
+import { basename } from '../../../../base/common/path.js';
+import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -131,98 +132,59 @@ interface IChangesFileItem {
 	readonly agentFeedbackCount: number;
 }
 
-interface IChangesFolderItem {
-	readonly type: 'folder';
-	readonly uri: URI;
-	readonly name: string;
-}
-
-type ChangesTreeElement = IChangesFileItem | IChangesFolderItem;
+type ChangesTreeElement = IChangesFileItem | IResourceNode<IChangesFileItem, undefined>;
 
 function isChangesFileItem(element: ChangesTreeElement): element is IChangesFileItem {
-	return element.type === 'file';
+	return !ResourceTree.isResourceNode(element);
 }
 
 /**
- * Builds a tree of `IObjectTreeElement<ChangesTreeElement>` from a flat list of file items.
- * Groups files by their directory path segments to create a hierarchical tree structure.
+ * Builds a tree of `ICompressedTreeElement<ChangesTreeElement>` from a flat list of file items
+ * using a `ResourceTree` to group files by their directory path segments.
  */
-function buildTreeChildren(items: IChangesFileItem[]): IObjectTreeElement<ChangesTreeElement>[] {
+function buildTreeChildren(items: IChangesFileItem[]): ICompressedTreeElement<ChangesTreeElement>[] {
 	if (items.length === 0) {
 		return [];
 	}
 
-	interface FolderNode {
-		name: string;
-		uri: URI;
-		children: Map<string, FolderNode>;
-		files: IChangesFileItem[];
+	// For github-remote-file URIs, set the root to /{owner}/{repo}/{ref}
+	// so the tree shows repo-relative paths instead of internal URI segments.
+	let rootUri = URI.file('/');
+	if (items[0].uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+		const parts = items[0].uri.path.split('/').filter(Boolean);
+		if (parts.length >= 3) {
+			rootUri = items[0].uri.with({ path: '/' + parts.slice(0, 3).join('/') });
+		}
 	}
 
-	const root: FolderNode = { name: '', uri: URI.file('/'), children: new Map(), files: [] };
-
+	const resourceTree = new ResourceTree<IChangesFileItem, undefined>(undefined, rootUri, extUriBiasedIgnorePathCase);
 	for (const item of items) {
-		const fullDirPath = dirname(item.uri.path);
+		resourceTree.add(item.uri, item);
+	}
 
-		// For github-remote-file URIs, strip the /{owner}/{repo}/{ref} prefix
-		// so the tree shows repo-relative paths instead of internal URI segments.
-		let displayDirPath = fullDirPath;
-		let uriBasePrefix = '';
-		if (item.uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = fullDirPath.split('/').filter(Boolean);
-			if (parts.length >= 3) {
-				uriBasePrefix = '/' + parts.slice(0, 3).join('/');
-				displayDirPath = '/' + parts.slice(3).join('/');
+	function convertChildren(parent: IResourceNode<IChangesFileItem, undefined>): ICompressedTreeElement<ChangesTreeElement>[] {
+		const result: ICompressedTreeElement<ChangesTreeElement>[] = [];
+		for (const child of parent.children) {
+			if (child.element && child.childrenCount === 0) {
+				// Leaf node — just the file item
+				result.push({
+					element: child.element,
+					collapsible: false,
+				});
 			} else {
-				uriBasePrefix = '/' + parts.join('/');
-				displayDirPath = '/';
-			}
-		}
-
-		const segments = displayDirPath.split('/').filter(Boolean);
-
-		let current = root;
-		let currentFullPath = uriBasePrefix;
-		for (const segment of segments) {
-			currentFullPath += '/' + segment;
-			if (!current.children.has(segment)) {
-				current.children.set(segment, {
-					name: segment,
-					uri: item.uri.with({ path: currentFullPath }),
-					children: new Map(),
-					files: []
+				// Folder node
+				result.push({
+					element: child,
+					children: convertChildren(child),
+					collapsible: true,
+					collapsed: false,
 				});
 			}
-			current = current.children.get(segment)!;
 		}
-		current.files.push(item);
-	}
-
-	function convert(node: FolderNode): IObjectTreeElement<ChangesTreeElement>[] {
-		const result: IObjectTreeElement<ChangesTreeElement>[] = [];
-
-		for (const [, child] of node.children) {
-			const folderElement: IChangesFolderItem = { type: 'folder', uri: child.uri, name: child.name };
-			const folderChildren = convert(child);
-			result.push({
-				element: folderElement,
-				children: folderChildren,
-				collapsible: true,
-				collapsed: false,
-			});
-		}
-
-		for (const file of node.files) {
-			result.push({
-				element: file,
-				collapsible: false,
-			});
-		}
-
 		return result;
 	}
 
-	return convert(root);
+	return convertChildren(resourceTree.root);
 }
 
 function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChangesFileItem[] {
@@ -1364,7 +1326,7 @@ class ChangesViewActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: URI): Promise<void> {
+	protected override async runAction(action: IAction, context: ChangesTreeElement): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1372,9 +1334,11 @@ class ChangesViewActionRunner extends ActionRunner {
 		const sessionResource = this.getSessionResource();
 		const discardRef = this.getSessionDiscardRef();
 		const selection = this.getSelectedFileItems();
-		const contextIsSelected = selection.some(s => isEqual(s.uri, context));
-		const actualContext = contextIsSelected ? selection.map(s => s.uri) : [context];
-		await action.run(sessionResource, discardRef, ...actualContext);
+
+		const contextIsSelected = selection.some(s => s === context);
+		const actualContext = contextIsSelected ? selection : [context];
+		const args = actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]).flat();
+		await action.run(sessionResource, discardRef, ...args);
 	}
 }
 
@@ -1466,42 +1430,36 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		const element = node.element;
 		templateData.label.element.style.display = 'flex';
 
-		if (isChangesFileItem(element)) {
-			this.renderFileElement(element, templateData);
-		} else {
+		if (ResourceTree.isResourceNode(element)) {
 			this.renderFolderElement(element, templateData);
+		} else {
+			this.renderFileElement(element, templateData);
 		}
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ChangesTreeElement>, void>, _index: number, templateData: IChangesTreeTemplate): void {
-		const compressed = node.element;
-		const lastElement = compressed.elements[compressed.elements.length - 1];
+		const compressed = node.element as ICompressedTreeNode<IResourceNode<IChangesFileItem, undefined>>;
+		const folder = compressed.elements[compressed.elements.length - 1];
 
 		templateData.label.element.style.display = 'flex';
 
-		if (isChangesFileItem(lastElement)) {
-			// Shouldn't happen in practice - files don't get compressed
-			this.renderFileElement(lastElement, templateData);
-		} else {
-			// Compressed folder chain - show joined folder names
-			const label = compressed.elements.map(e => isChangesFileItem(e) ? basename(e.uri.path) : e.name);
-			templateData.label.setResource({ resource: lastElement.uri, name: label }, {
-				fileKind: FileKind.FOLDER,
-				separator: this.labelService.getSeparator(lastElement.uri.scheme),
-			});
+		const label = compressed.elements.map(e => e.name);
+		templateData.label.setResource({ resource: folder.uri, name: label }, {
+			fileKind: FileKind.FOLDER,
+			separator: this.labelService.getSeparator(folder.uri.scheme),
+		});
 
-			// Hide file-specific decorations for folders
-			templateData.reviewCommentsBadge.style.display = 'none';
-			templateData.agentFeedbackBadge.style.display = 'none';
-			templateData.decorationBadge.style.display = 'none';
-			templateData.lineCountsContainer.style.display = 'none';
+		// Hide file-specific decorations for folders
+		templateData.reviewCommentsBadge.style.display = 'none';
+		templateData.agentFeedbackBadge.style.display = 'none';
+		templateData.decorationBadge.style.display = 'none';
+		templateData.lineCountsContainer.style.display = 'none';
 
-			if (templateData.toolbar) {
-				templateData.toolbar.context = undefined;
-			}
-			if (templateData.contextKeyService) {
-				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(undefined!);
-			}
+		if (templateData.toolbar) {
+			templateData.toolbar.context = folder;
+		}
+		if (templateData.contextKeyService) {
+			chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(undefined!);
 		}
 	}
 
@@ -1510,7 +1468,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			fileKind: FileKind.FILE,
 			fileDecorations: undefined,
 			strikethrough: data.changeType === 'deleted',
-			hidePath: true,
+			hidePath: false
 		});
 
 		// Show file-specific decorations
@@ -1567,15 +1525,15 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 
 		if (templateData.toolbar) {
-			templateData.toolbar.context = data.uri;
+			templateData.toolbar.context = data;
 		}
 		if (templateData.contextKeyService) {
 			chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
 		}
 	}
 
-	private renderFolderElement(data: IChangesFolderItem, templateData: IChangesTreeTemplate): void {
-		templateData.label.setFile(data.uri, {
+	private renderFolderElement(node: IResourceNode<IChangesFileItem, undefined>, templateData: IChangesTreeTemplate): void {
+		templateData.label.setFile(node.uri, {
 			fileKind: FileKind.FOLDER,
 		});
 
@@ -1586,7 +1544,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateData.lineCountsContainer.style.display = 'none';
 
 		if (templateData.toolbar) {
-			templateData.toolbar.context = undefined;
+			templateData.toolbar.context = node;
 		}
 		if (templateData.contextKeyService) {
 			chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(undefined!);
