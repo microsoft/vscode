@@ -66,6 +66,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 	constructor(
 		private readonly _labels: ResourceLabels,
 		private readonly _openerService: IOpenerService,
+		private readonly _getModel: () => GitHubPullRequestCIModel | undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICICheckTemplateData {
@@ -103,6 +104,18 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 		});
 
 		const actions: Action[] = [];
+
+		if (element.group === CICheckGroup.Failed) {
+			actions.push(templateData.elementDisposables.add(new Action(
+				'ci.rerunCheck',
+				localize('ci.rerunCheck', "Rerun Check"),
+				ThemeIcon.asClassName(Codicon.debugRerun),
+				true,
+				async () => {
+					await this._getModel()?.rerunFailedCheck(element.check);
+				},
+			)));
+		}
 
 		if (element.check.detailsUrl) {
 			actions.push(templateData.elementDisposables.add(new Action(
@@ -210,7 +223,7 @@ export class CIStatusWidget extends Disposable {
 			'CIStatusWidget',
 			listContainer,
 			new CICheckListDelegate(),
-			[new CICheckListRenderer(this._labels, this._openerService)],
+			[new CICheckListRenderer(this._labels, this._openerService, () => this._model)],
 			{
 				multipleSelectionSupport: false,
 				openOnSingleClick: false,
