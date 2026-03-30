@@ -82,9 +82,58 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 	},
 ], multiAgentViewContainer);
 
+// --- Auto-register spawned agents as chat participants ---
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { AgentCreationWizard } from './agentCreationWizard.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+
+class MultiAgentAutoRegisterContribution extends Disposable {
+	static readonly ID = 'workbench.contrib.multiAgentAutoRegister';
+
+	private readonly _registrations = new Map<string, IDisposable>();
+
+	constructor(
+		@IAgentLaneService private readonly _agentLaneService: IAgentLaneService,
+		@IAgentChatBridge private readonly _chatBridge: IAgentChatBridge,
+	) {
+		super();
+
+		// Auto-register when agents are spawned
+		this._register(this._agentLaneService.onDidChangeInstances((instance) => {
+			if (instance && !this._registrations.has(instance.id)) {
+				// New agent spawned — register as chat participant
+				const registration = this._chatBridge.registerAgent(instance.definitionId, instance.id);
+				this._registrations.set(instance.id, registration);
+			}
+		}));
+
+		// Auto-unregister when agents are terminated (instance = undefined means removal)
+		this._register(this._agentLaneService.onDidChangeInstances(() => {
+			const activeIds = new Set(this._agentLaneService.getAgentInstances().map(i => i.id));
+			for (const [id, registration] of this._registrations) {
+				if (!activeIds.has(id)) {
+					registration.dispose();
+					this._registrations.delete(id);
+				}
+			}
+		}));
+	}
+
+	override dispose(): void {
+		for (const registration of this._registrations.values()) {
+			registration.dispose();
+		}
+		this._registrations.clear();
+		super.dispose();
+	}
+}
+registerWorkbenchContribution2(MultiAgentAutoRegisterContribution.ID, MultiAgentAutoRegisterContribution, WorkbenchPhase.AfterRestored);
+
 // --- Commands ---
 const COMMAND_OPEN_PROVIDERS = 'workbench.action.multiAgent.openProviders';
 const COMMAND_OPEN_AGENT_LANES = 'workbench.action.multiAgent.openAgentLanes';
+const COMMAND_CREATE_AGENT = 'workbench.action.multiAgent.createAgent';
 
 CommandsRegistry.registerCommand(COMMAND_OPEN_PROVIDERS, async (accessor) => {
 	const viewsService = accessor.get(IViewsService);
@@ -94,6 +143,15 @@ CommandsRegistry.registerCommand(COMMAND_OPEN_PROVIDERS, async (accessor) => {
 CommandsRegistry.registerCommand(COMMAND_OPEN_AGENT_LANES, async (accessor) => {
 	const viewsService = accessor.get(IViewsService);
 	await viewsService.openView(AgentLanesViewPane.ID, true);
+});
+
+CommandsRegistry.registerCommand(COMMAND_CREATE_AGENT, async (accessor) => {
+	const wizard = new AgentCreationWizard(
+		accessor.get(IQuickInputService),
+		accessor.get(IAgentLaneService),
+		accessor.get(IMultiAgentProviderService),
+	);
+	await wizard.run();
 });
 
 // --- Keybindings ---
