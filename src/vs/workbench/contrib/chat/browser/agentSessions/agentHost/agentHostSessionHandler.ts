@@ -504,6 +504,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentState = this._clientState.getSessionState(sessionStr);
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
+		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
 
 		const disposables = new DisposableStore();
 
@@ -518,6 +519,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Track queued message IDs so we can detect which one was consumed
 			const currentQueuedIds = new Set((e.state.queuedMessages ?? []).map(m => m.id));
+			const currentSteeringId = e.state.steeringMessage?.id;
+
+			// Detect steering message removal or replacement regardless of turn changes
+			if (previousSteeringId && previousSteeringId !== currentSteeringId) {
+				this._chatService.removePendingRequest(sessionResource, previousSteeringId);
+			}
+			previousSteeringId = currentSteeringId;
 
 			const activeTurn = e.state.activeTurn;
 			if (!activeTurn || activeTurn.id === lastSeenTurnId) {

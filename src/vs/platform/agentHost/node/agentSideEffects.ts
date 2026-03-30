@@ -167,6 +167,16 @@ export class AgentSideEffects extends Disposable {
 			if (e.type === 'idle') {
 				this._tryConsumeNextQueuedMessage(sessionKey);
 			}
+
+			// Steering message was consumed by the agent — remove from protocol state
+			if (e.type === 'steering_consumed') {
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionPendingMessageRemoved,
+					session: sessionKey,
+					kind: PendingMessageKind.Steering,
+					id: e.id,
+				});
+			}
 		}));
 		return disposables;
 	}
@@ -258,16 +268,9 @@ export class AgentSideEffects extends Disposable {
 			[],
 		);
 
-		// Steering messages are consumed immediately by the agent;
-		// remove from protocol state so clients see the consumption.
-		if (state.steeringMessage) {
-			this._stateManager.dispatchServerAction({
-				type: ActionType.SessionPendingMessageRemoved,
-				session,
-				kind: PendingMessageKind.Steering,
-				id: state.steeringMessage.id,
-			});
-		}
+		// Steering message removal is now dispatched by the agent
+		// via the 'steering_consumed' progress event once the message
+		// has actually been sent to the model.
 
 		// If the session is idle, try to consume the next queued message
 		this._tryConsumeNextQueuedMessage(session);
