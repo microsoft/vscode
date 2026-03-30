@@ -521,8 +521,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const currentQueuedIds = new Set((e.state.queuedMessages ?? []).map(m => m.id));
 			const currentSteeringId = e.state.steeringMessage?.id;
 
-			// Detect steering message removal regardless of turn changes
-			if (previousSteeringId && !currentSteeringId) {
+			// Detect steering message removal or replacement regardless of turn changes
+			if (previousSteeringId && previousSteeringId !== currentSteeringId) {
 				this._chatService.removePendingRequest(sessionResource, previousSteeringId);
 			}
 			previousSteeringId = currentSteeringId;
