@@ -307,7 +307,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap = new Map</* chatSessionType */ string, number>();
 	private readonly _sessionTypeOptions = new Map<string, IChatSessionProviderOptionGroup[]>();
-	private readonly _sessionTypeNewSessionOptions = new Map</* sessionType */string, ChatSessionOptionsMap>();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
@@ -1037,13 +1036,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
-		if (isUntitledChatSession(sessionResource) && newSessionOptions) {
+		const newSessionOptionGroups = await this.getNewChatSessionInputState(resolvedType);
+		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
+			const options: ChatSessionOptionsMap = new Map();
+			for (const group of newSessionOptionGroups) {
+				const selected = group.selected ?? group.items.find(item => item.default) ?? group.items[0];
+				if (selected) {
+					options.set(group.id, selected);
+				}
+			}
 			session = {
 				sessionResource: sessionResource,
 				onWillDispose: Event.None,
 				history: [],
-				options: newSessionOptions ?? {},
+				options: options.size > 0 ? options : undefined,
 				dispose: () => { }
 			};
 		} else {
@@ -1163,16 +1169,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	public getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined {
-		const options = this._sessionTypeNewSessionOptions.get(chatSessionType);
-		if (!options || options.size === 0) {
+	public async getNewChatSessionInputState(chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+		const controllerData = this._itemControllers.get(chatSessionType);
+		if (controllerData?.controller.getNewChatSessionInputState) {
+			const groups = await controllerData.controller.getNewChatSessionInputState(CancellationToken.None);
+			if (groups?.length) {
+				this._sessionTypeOptions.set(chatSessionType, [...groups]);
+				this._onDidChangeOptionGroups.fire(chatSessionType);
+			}
+			return groups;
+		}
+
+		const groups = this._sessionTypeOptions.get(chatSessionType);
+		if (!groups?.length) {
 			return undefined;
 		}
-		return new Map(options);
-	}
-
-	public setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void {
-		this._sessionTypeNewSessionOptions.set(chatSessionType, new Map(options));
+		return groups;
 	}
 
 	/**

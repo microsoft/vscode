@@ -22,7 +22,7 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/co
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './fixCIChecksAction.js';
 
 const $ = dom.$;
@@ -105,7 +105,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 
 		const actions: Action[] = [];
 
-		if (element.group === CICheckGroup.Failed) {
+		if (element.group === CICheckGroup.Failed && parseWorkflowRunId(element.check.detailsUrl) !== undefined) {
 			actions.push(templateData.elementDisposables.add(new Action(
 				'ci.rerunCheck',
 				localize('ci.rerunCheck', "Rerun Check"),

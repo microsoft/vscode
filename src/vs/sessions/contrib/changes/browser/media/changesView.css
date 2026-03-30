@@ -243,21 +243,21 @@
 }
 
 /* Action bar in list rows */
-.changes-view-body .monaco-list-row .chat-collapsible-list-action-bar {
+.chat-editing-session-list .monaco-list-row .chat-collapsible-list-action-bar {
 	padding-left: 5px;
 	display: none;
 }
 
-.changes-view-body .monaco-list-row:hover .chat-collapsible-list-action-bar:not(.has-no-actions),
-.changes-view-body .monaco-list-row.focused .chat-collapsible-list-action-bar:not(.has-no-actions),
-.changes-view-body .monaco-list-row.selected .chat-collapsible-list-action-bar:not(.has-no-actions) {
+.chat-editing-session-list .monaco-list-row:hover .chat-collapsible-list-action-bar:not(.has-no-actions),
+.chat-editing-session-list .monaco-list-row.focused .chat-collapsible-list-action-bar:not(.has-no-actions),
+.chat-editing-session-list .monaco-list-row.selected .chat-collapsible-list-action-bar:not(.has-no-actions) {
 	display: inherit;
 }
 
-/* Hide diff stats on hover/focus/select when toolbar is visible */
-.changes-view-body .monaco-list-row:hover .working-set-line-counts,
-.changes-view-body .monaco-list-row.focused .working-set-line-counts,
-.changes-view-body .monaco-list-row.selected .working-set-line-counts {
+/* Hide diff stats on hover/focus/select when toolbar has actions */
+.chat-editing-session-list .monaco-list-row:hover .monaco-icon-label:has(.chat-collapsible-list-action-bar:not(.has-no-actions)) .working-set-line-counts,
+.chat-editing-session-list .monaco-list-row.focused .monaco-icon-label:has(.chat-collapsible-list-action-bar:not(.has-no-actions)) .working-set-line-counts,
+.chat-editing-session-list .monaco-list-row.selected .monaco-icon-label:has(.chat-collapsible-list-action-bar:not(.has-no-actions)) .working-set-line-counts {
 	display: none;
 }
 

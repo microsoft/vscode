@@ -29,12 +29,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'extensions.ignoreRecommendations': true,
 
 		'files.autoSave': 'afterDelay',
-		'files.watcherExclude': {
-			'**/.git/objects/**': true,
-			'**/.git/subtree-cache/**': true,
-			'**/node_modules/*/**': true,
-			'**/.hg/store/**': true
-		},
 
 		'git.autofetch': true,
 		'git.branchRandomName.enable': true,
