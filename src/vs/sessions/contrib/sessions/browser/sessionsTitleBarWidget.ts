@@ -22,7 +22,7 @@ import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -306,25 +306,21 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
 		this._updateBadge();
 
-		// Subscribe to observable session state (status, isRead, isArchived)
-		// so the badge updates when any session's state changes
+		// Single autorun that tracks all badge-relevant state:
+		// - session list changes (add/remove) via observableSignalFromEvent
+		// - individual session observable state (status, isRead, isArchived)
+		// - sidebar visibility changes
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		const partVisibilityChanged = observableSignalFromEvent(this, this.layoutService.onDidChangePartVisibility);
 		this._register(autorun(reader => {
+			sessionsChanged.read(reader);
+			partVisibilityChanged.read(reader);
 			for (const session of this.sessionsManagementService.getSessions()) {
 				session.isArchived.read(reader);
 				session.status.read(reader);
 				session.isRead.read(reader);
 			}
 			this._updateBadge();
-		}));
-
-		// Also update when sessions are added/removed
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => this._updateBadge()));
-
-		// Update badge when sidebar visibility changes
-		this._register(this.layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.SIDEBAR_PART) {
-				this._updateBadge();
-			}
 		}));
 	}
 
