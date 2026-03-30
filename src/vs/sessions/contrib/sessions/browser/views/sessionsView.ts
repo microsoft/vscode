@@ -224,7 +224,7 @@ export class SessionsView extends ViewPane {
 
 		// AI Customization toolbar (bottom, fixed height)
 		this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
-			onDidToggleCollapse: () => {
+			onDidChangeLayout: () => {
 				if (this.viewPaneContainer) {
 					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
 					this.layoutBody(offsetHeight, offsetWidth);
