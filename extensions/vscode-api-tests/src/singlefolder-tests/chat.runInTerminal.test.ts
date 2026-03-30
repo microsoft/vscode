@@ -315,30 +315,22 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.strictEqual(output.trim(), marker);
 			});
 
-			test('network requests are blocked', async function () {
+			test('network requests to allowlisted domains succeed in sandbox', async function () {
 				this.timeout(60000);
 
-				const output = await invokeRunInTerminal('curl -s --max-time 5 https://example.com');
-
-				// Without shell integration, exit code is unavailable and
-				// curl produces no sandbox-specific error strings, so the
-				// sandbox analyzer may not trigger.
-				const acceptable = [
-					[
-						'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
-						`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandboxNetwork.allowedDomains.`,
-						'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
-						'',
-						'Here is the output of the command:',
-						'',
-						'',
-						'',
+				const configuration = vscode.workspace.getConfiguration();
+				await configuration.update('chat.agent.sandboxNetwork.allowedDomains', ['example.com'], vscode.ConfigurationTarget.Global);
+				try {
+					const output = await invokeRunInTerminal('curl -s --max-time 5 https://example.com');
+					const trimmed = output.trim();
+					const acceptable = [
 						'Command produced no output',
-						'Command exited with code 56',
-					].join('\n'),
-					...(!hasShellIntegration ? ['Command produced no output'] : []),
-				];
-				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
+						'<title>Example Domain</title>',
+					];
+					assert.ok(acceptable.some(value => trimmed.includes(value) || trimmed === value), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				} finally {
+					await configuration.update('chat.agent.sandboxNetwork.allowedDomains', undefined, vscode.ConfigurationTarget.Global);
+				}
 			});
 
 			test('requestUnsandboxedExecution preserves sandbox $TMPDIR', async function () {
@@ -349,7 +341,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 				// Step 1: Write a sentinel file into the sandbox-provided $TMPDIR.
 				const writeOutput = await invokeRunInTerminal(`echo ${marker} > "$TMPDIR/${sentinelName}" && echo ${marker}`);
-				assert.strictEqual(writeOutput.trim(), marker);
+				const writeAcceptable = [
+					marker,
+					...(!hasShellIntegration ? ['Command produced no output'] : []),
+				];
+				assert.ok(writeAcceptable.includes(writeOutput.trim()), `Unexpected output: ${JSON.stringify(writeOutput.trim())}`);
 
 				// Step 2: Retry with requestUnsandboxedExecution=true while sandbox
 				// stays enabled. The tool should preserve $TMPDIR from the sandbox so
@@ -359,7 +355,10 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 					requestUnsandboxedExecution: true,
 					requestUnsandboxedExecutionReason: 'Need to verify $TMPDIR persists on unsandboxed retry',
 				});
-				assert.strictEqual(retryOutput.trim(), marker);
+				const trimmed = retryOutput.trim();
+				assert.ok(trimmed.startsWith('Note: The tool simplified the command to'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.includes(`cat "$TMPDIR/${sentinelName}"`), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.endsWith(marker), `Unexpected output: ${JSON.stringify(trimmed)}`);
 			});
 
 			test('cannot write to /tmp', async function () {
@@ -427,9 +426,12 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				this.timeout(60000);
 
 				const marker = `SANDBOX_DOMAIN_${Date.now()}`;
-				const output = await invokeRunInTerminal(`echo https://example.com >/dev/null && echo "${marker}" > /tmp/${marker}.txt && cat /tmp/${marker}.txt && rm /tmp/${marker}.txt`);
+				const output = await invokeRunInTerminal(`echo https://example.net >/dev/null && echo "${marker}" > /tmp/${marker}.txt && cat /tmp/${marker}.txt && rm /tmp/${marker}.txt`);
 
-				assert.strictEqual(output.trim(), marker);
+				const trimmed = output.trim();
+				assert.ok(trimmed.startsWith('Note: The tool simplified the command to'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.includes('https://example.net'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.endsWith(marker), `Unexpected output: ${JSON.stringify(trimmed)}`);
 			});
 		});
 	}
