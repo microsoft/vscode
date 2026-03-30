@@ -2155,6 +2155,14 @@ export class Repository implements Disposable {
 					}
 				}
 
+				// Skip the git checkout command when the branch is already
+				// checked out. The operation lifecycle still runs, which
+				// updates model state and fires onDidCheckout so that
+				// extensions (e.g. GitHub PR) can react to the checkout.
+				if (!opts?.detached && this._HEAD?.name === treeish) {
+					return;
+				}
+
 				await this.repository.checkout(treeish, [], opts);
 
 				// Clear all AI contribution tracking on branch switch
