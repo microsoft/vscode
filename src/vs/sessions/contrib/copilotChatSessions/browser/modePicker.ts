@@ -13,13 +13,13 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -112,7 +112,7 @@ export class ModePicker extends Disposable {
 	}
 
 	private _getAvailableModes(): IChatMode[] {
-		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(AgentSessionProviders.Background);
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(CopilotCLISessionType.id);
 		const effectiveTarget = customAgentTarget && customAgentTarget !== Target.Undefined ? customAgentTarget : Target.GitHubCopilot;
 		const modes = this.chatModeService.getModes();
 

@@ -205,7 +205,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	/**
 	 * an optional anchor for the picker
 	 */
-	anchor?: HTMLElement | { x: number; y: number };
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -366,7 +366,7 @@ export interface IQuickInput extends IDisposable {
 	/**
 	 * An optional anchor for the quick input.
 	 */
-	anchor?: HTMLElement | { x: number; y: number };
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
 
 	/**
 	 * Shows the quick input.
@@ -401,7 +401,7 @@ export interface IQuickWidget extends IQuickInput {
 	/**
 	 * A HTML element that will be rendered inside the quick input.
 	 */
-	widget: HTMLElement | undefined;
+	widget: unknown /* HTMLElement */ | undefined;
 }
 
 export interface IQuickPickWillAcceptEvent {

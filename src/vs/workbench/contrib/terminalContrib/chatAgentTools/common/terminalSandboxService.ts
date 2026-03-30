@@ -14,7 +14,7 @@ import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationChangeEvent, IConfigurationService, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -718,22 +718,11 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const setting = this._configurationService.inspect<T>(settingId);
 		const deprecatedSetting = deprecatedSettingId ? this._configurationService.inspect<T>(deprecatedSettingId) : undefined;
 
-		if (!this._hasConfiguredValue(setting) && deprecatedSetting && this._hasConfiguredValue(deprecatedSetting)) {
+		if (setting.userValue === undefined && deprecatedSetting?.userValue !== undefined) {
 			this._logService.warn(`TerminalSandboxService: Using deprecated setting ${deprecatedSettingId} because ${settingId} is not set. Please update your settings to use ${settingId} instead.`);
 			return deprecatedSetting.value;
 		}
 		return setting.value;
-	}
-
-	private _hasConfiguredValue<T>(setting: IConfigurationValue<T>): boolean {
-		return setting.applicationValue !== undefined
-			|| setting.userValue !== undefined
-			|| setting.userLocalValue !== undefined
-			|| setting.userRemoteValue !== undefined
-			|| setting.workspaceValue !== undefined
-			|| setting.workspaceFolderValue !== undefined
-			|| setting.memoryValue !== undefined
-			|| setting.policyValue !== undefined;
 	}
 }
 

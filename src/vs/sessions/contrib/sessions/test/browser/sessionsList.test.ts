@@ -43,7 +43,7 @@ function createSession(id: string, opts: {
 		isRead: observableValue(`isRead-${id}`, true),
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
-		pullRequest: observableValue(`pullRequest-${id}`, undefined),
+		gitHubInfo: observableValue(`gitHubInfo-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		activeChat: observableValue<IChat>(`activeChat-${id}`, undefined!),
 		mainChat: undefined!,
