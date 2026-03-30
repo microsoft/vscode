@@ -1063,7 +1063,7 @@ export class ChangesViewPane extends ViewPane {
 				}
 
 				const items = combinedEntriesObs.get();
-				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, true);
+				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
 			}));
 		}
 
