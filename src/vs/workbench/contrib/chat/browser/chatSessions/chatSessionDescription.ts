@@ -5,6 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
@@ -60,5 +61,5 @@ export function getInProgressSessionDescription(chatModel: IChatModel): string |
 		}
 	}
 
-	return description ? renderAsPlaintext(description, { useLinkFormatter: true }) : '';
+	return description ? stripIcons(renderAsPlaintext(description, { useLinkFormatter: true })) : '';
 }

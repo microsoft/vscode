@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
@@ -707,7 +708,7 @@ class AgentSessionAdapter implements ISessionData {
 		if (!session.description) {
 			return undefined;
 		}
-		return typeof session.description === 'string' ? session.description : session.description.value;
+		return typeof session.description === 'string' ? stripIcons(session.description) : stripIcons(session.description.value);
 	}
 
 	private _extractGitHubInfo(session: IAgentSession): IGitHubInfo | undefined {

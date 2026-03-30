@@ -25,6 +25,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../../../plat
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -323,7 +324,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				: undefined;
 
 			const attentionText = attentionSession?.description
-				? (typeof attentionSession.description === 'string'
+				? stripIcons(typeof attentionSession.description === 'string'
 					? attentionSession.description
 					: renderAsPlaintext(attentionSession.description))
 				: attentionSession?.label;
@@ -1369,9 +1370,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		}
 
 		// Convert markdown to plain text if needed
-		const progress = typeof mostRecent.description === 'string'
+		const rawProgress = typeof mostRecent.description === 'string'
 			? mostRecent.description
 			: renderAsPlaintext(mostRecent.description);
+		const progress = stripIcons(rawProgress);
 
 		return { session: mostRecent, progress };
 	}

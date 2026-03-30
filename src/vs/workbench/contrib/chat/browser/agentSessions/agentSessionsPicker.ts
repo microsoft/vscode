@@ -5,6 +5,7 @@
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -43,7 +44,8 @@ export const deleteButton: IQuickInputButton = {
 };
 
 export function getSessionDescription(session: IAgentSession): string {
-	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
+	const rawDescription = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
+	const descriptionText = rawDescription ? stripIcons(rawDescription) : undefined;
 	const timeAgo = sessionDateFromNow(session.timing.created);
 	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
 
