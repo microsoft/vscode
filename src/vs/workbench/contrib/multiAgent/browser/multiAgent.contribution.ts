@@ -281,5 +281,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('multiAgent.orchestrator.enabled', 'Enable orchestrator for automatic task decomposition and delegation'),
 			scope: ConfigurationScope.APPLICATION,
 		},
+		'multiAgent.quotaRefreshInterval': {
+			type: 'number',
+			default: 60000,
+			minimum: 10000,
+			description: localize('multiAgent.quotaRefreshInterval', 'Quota refresh interval in milliseconds (default: 60 seconds)'),
+			scope: ConfigurationScope.APPLICATION,
+		},
 	},
 });

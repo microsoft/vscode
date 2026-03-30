@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ApiFormat, IMultiAgentProviderService, IProviderAccount, IProviderQuotaSummary, ITokenUsage } from './multiAgentProviderService.js';
@@ -41,6 +41,25 @@ export class ProviderRotationServiceImpl extends Disposable implements IProvider
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._startAutoRefresh();
+	}
+
+	/** Periodically check exhausted accounts and reset when retry-after time has passed */
+	private _startAutoRefresh(): void {
+		const intervalMs = this._configService.getValue<number>('multiAgent.quotaRefreshInterval') ?? 60_000;
+		const timer = setInterval(() => this._refreshExhaustedAccounts(), intervalMs);
+		this._register(toDisposable(() => clearInterval(timer)));
+	}
+
+	private _refreshExhaustedAccounts(): void {
+		const now = Date.now();
+		for (const [accountId, retryAt] of this._exhaustedAccounts) {
+			if (retryAt <= now) {
+				this._exhaustedAccounts.delete(accountId);
+				this._providerService.resetAccountHealth(accountId);
+				this._onDidUpdateQuota.fire(accountId);
+			}
+		}
 	}
 
 	getNextAccount(modelId: string, providerIds: readonly string[]): IProviderAccount | undefined {
