@@ -10,6 +10,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { ResourcePool } from '../../../../browser/widget/chatContentParts/chatCollections.js';
 
 suite('ChatInlineAnchorWidget Metadata Validation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -141,5 +142,31 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 
 		const widget = element.querySelector('.chat-inline-anchor-widget');
 		assert.ok(!widget, 'Widget should not be rendered for malformed URI');
+	});
+});
+
+suite('ResourcePool', () => {
+	test('disposes idle items beyond the configured cap', () => {
+		class TestResource {
+			public disposed = false;
+			dispose(): void {
+				this.disposed = true;
+			}
+		}
+
+		const pool = new ResourcePool(() => new TestResource(), 1);
+		const first = pool.get();
+		const second = pool.get();
+
+		pool.release(first);
+		assert.strictEqual(first.disposed, false);
+
+		pool.release(second);
+		assert.strictEqual(second.disposed, true);
+
+		const reused = pool.get();
+		assert.strictEqual(reused, first);
+
+		pool.dispose();
 	});
 });
