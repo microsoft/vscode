@@ -170,6 +170,7 @@ function buildTreeChildren(items: IChangesFileItem[]): ICompressedTreeElement<Ch
 				result.push({
 					element: child.element,
 					collapsible: false,
+					incompressible: true,
 				});
 			} else {
 				// Folder node
