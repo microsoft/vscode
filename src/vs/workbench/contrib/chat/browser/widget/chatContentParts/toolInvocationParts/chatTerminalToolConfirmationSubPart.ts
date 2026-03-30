@@ -36,7 +36,7 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
-import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
@@ -144,7 +144,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
-		const editor = this._register(this.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, this.codeBlockStartIndex);
+		const editor = this._register(this.editorPool.get(key));
 		editor.object.render({
 			codeBlockIndex: this.codeBlockStartIndex,
 			element: this.context.element,
