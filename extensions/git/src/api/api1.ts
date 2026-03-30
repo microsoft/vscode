@@ -81,6 +81,14 @@ export class ApiRepository implements Repository {
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 
+	get headLabelOverride(): string | undefined {
+		return this.#repository.headLabelOverride;
+	}
+
+	set headLabelOverride(value: string | undefined) {
+		this.#repository.headLabelOverride = value;
+	}
+
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
 

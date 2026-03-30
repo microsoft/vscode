@@ -241,6 +241,15 @@ export interface Repository {
 	readonly ui: RepositoryUIState;
 	readonly kind: RepositoryKind;
 
+	/**
+	 * Override the branch label shown in the status bar and SCM view.
+	 * When set, this string replaces the real HEAD name in display contexts.
+	 * Set to `undefined` to clear the override and revert to the real branch name.
+	 *
+	 * This does NOT change the actual HEAD, index, or working tree.
+	 */
+	headLabelOverride: string | undefined;
+
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
 

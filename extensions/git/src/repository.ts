@@ -755,12 +755,27 @@ export class Repository implements Disposable {
 		return this._HEAD;
 	}
 
+	private _headLabelOverride: string | undefined;
+
+	get headLabelOverride(): string | undefined {
+		return this._headLabelOverride;
+	}
+
+	set headLabelOverride(value: string | undefined) {
+		this._headLabelOverride = value;
+		this._onDidChangeStatus.fire();
+	}
+
 	private _refs: Ref[] = [];
 	get refs(): Ref[] {
 		return this._refs;
 	}
 
 	get headShortName(): string | undefined {
+		if (this._headLabelOverride) {
+			return this._headLabelOverride;
+		}
+
 		if (!this.HEAD) {
 			return;
 		}
@@ -3207,6 +3222,10 @@ export class Repository implements Disposable {
 	}
 
 	get headLabel(): string {
+		if (this._headLabelOverride) {
+			return this._headLabelOverride;
+		}
+
 		const HEAD = this.HEAD;
 
 		if (!HEAD) {
