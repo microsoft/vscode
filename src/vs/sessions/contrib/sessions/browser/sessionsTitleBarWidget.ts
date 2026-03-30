@@ -21,11 +21,11 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
+import { ISessionsManagementService } from './sessionsManagementService.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ChatSessionProviderIdContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionStatus } from '../common/sessionData.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
