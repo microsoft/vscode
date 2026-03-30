@@ -45,16 +45,9 @@ export class CommandLineBackgroundDetachRewriter extends Disposable implements I
 		return this._rewriteForPosix(options);
 	}
 
-	private _quoteForPosixShell(commandLine: string): string {
-		const singleQuote = '\'';
-		const escapedSingleQuote = singleQuote + '\\' + singleQuote + singleQuote;
-		return singleQuote + commandLine.replace(/'/g, escapedSingleQuote) + singleQuote;
-	}
-
 	private _rewriteForPosix(options: ICommandLineRewriterOptions): ICommandLineRewriterResult {
-		const shell = options.shell ?? '/bin/sh';
 		return {
-			rewritten: `nohup ${shell} -c ${this._quoteForPosixShell(options.commandLine)} &`,
+			rewritten: `nohup ${options.commandLine} &`,
 			reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
 			forDisplay: options.commandLine,
 		};
