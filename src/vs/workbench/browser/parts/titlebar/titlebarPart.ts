@@ -55,7 +55,7 @@ import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
-stantimport { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 
 export interface ITitleVariable {
 	readonly name: string;
