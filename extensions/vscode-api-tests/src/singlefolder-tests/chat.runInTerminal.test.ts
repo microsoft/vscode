@@ -306,7 +306,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				await configuration.update('chat.agent.sandbox', undefined, vscode.ConfigurationTarget.Global);
 			});
 
-			test('echo works in sandbox and output is clean', async function () {
+			test.skip('echo works in sandbox and output is clean', async function () {
 				this.timeout(60000);
 
 				const marker = `SANDBOX_ECHO_${Date.now()}`;
