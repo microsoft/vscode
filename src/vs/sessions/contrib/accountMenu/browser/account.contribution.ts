@@ -26,10 +26,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { URI } from '../../../../base/common/uri.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
 
 // --- Account Menu Items --- //
@@ -105,9 +102,7 @@ export class AccountWidget extends ActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IProductService private readonly productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
@@ -261,27 +256,14 @@ export class AccountWidget extends ActionViewItem {
 	private async update(): Promise<void> {
 		const state = this.updateService.state;
 		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
-			const { confirmed } = await this.dialogService.confirm({
-				message: localize('updateFromVSCode.title', "Update from VS Code"),
-				detail: localize('updateFromVSCode.detail', "This will close the Sessions app and open VS Code so you can install the update.\n\nLaunch Sessions again after the update is complete."),
-				primaryButton: localize('updateFromVSCode.open', "Close and Open VS Code"),
-			});
-			if (confirmed) {
-				await this.openVSCode();
-				await this.hostService.close();
-			}
+			await this.dialogService.info(
+				localize('sessionsUpdateAvailable.title', "Update Available"),
+				localize('sessionsUpdateAvailable.detail', "An update is available. Close Sessions and update from VS Code."),
+			);
 			return;
 		}
 		await this.updateService.quitAndInstall();
 	}
-
-	private async openVSCode(): Promise<void> {
-		await this.openerService.open(URI.from({
-			scheme: this.productService.urlProtocol,
-			query: 'windowId=_blank',
-		}), { openExternal: true });
-	}
-
 
 	override onClick(): void {
 		// Handled by custom click handlers
