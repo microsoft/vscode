@@ -7,6 +7,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAgentChatBridge } from './agentChatBridge.js';
 import { AgentState, IAgentLaneService } from './agentLaneService.js';
@@ -19,7 +20,6 @@ import {
 } from './orchestratorService.js';
 
 const DEFAULT_MAX_CONCURRENT = 5;
-const DEFAULT_TASK_TIMEOUT_MS = 300_000; // 5 minutes
 
 export class OrchestratorServiceImpl extends Disposable implements IOrchestratorService {
 	declare readonly _serviceBrand: undefined;
@@ -35,6 +35,7 @@ export class OrchestratorServiceImpl extends Disposable implements IOrchestrator
 	constructor(
 		@IAgentLaneService private readonly _agentLaneService: IAgentLaneService,
 		@IAgentChatBridge private readonly _chatBridge: IAgentChatBridge,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -294,7 +295,8 @@ export class OrchestratorServiceImpl extends Disposable implements IOrchestrator
 		}
 
 		const cts = new CancellationTokenSource();
-		const timeoutHandle = setTimeout(() => cts.cancel(), DEFAULT_TASK_TIMEOUT_MS);
+		const taskTimeout = this._configService.getValue<number>('multiAgent.taskTimeout') ?? 300_000;
+		const timeoutHandle = setTimeout(() => cts.cancel(), taskTimeout);
 
 		try {
 			let result: string;

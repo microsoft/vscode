@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import {
 	AgentState,
@@ -23,7 +24,6 @@ import { BUILT_IN_AGENT_DEFINITIONS } from './builtInAgents.js';
 import { IMultiAgentProviderService } from './multiAgentProviderService.js';
 
 const STORAGE_KEY_DEFINITIONS = 'multiAgent.agentDefinitions';
-const MAX_CONCURRENT_AGENTS = 20;
 
 export class AgentLaneServiceImpl extends Disposable implements IAgentLaneService {
 	declare readonly _serviceBrand: undefined;
@@ -42,6 +42,7 @@ export class AgentLaneServiceImpl extends Disposable implements IAgentLaneServic
 
 	constructor(
 		@IMultiAgentProviderService private readonly _providerService: IMultiAgentProviderService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -142,8 +143,9 @@ export class AgentLaneServiceImpl extends Disposable implements IAgentLaneServic
 			throw new Error(`Agent definition not found: ${definitionId}`);
 		}
 
-		if (this._instances.size >= MAX_CONCURRENT_AGENTS) {
-			throw new Error(`Maximum concurrent agents reached (${MAX_CONCURRENT_AGENTS})`);
+		const maxAgents = this._configService.getValue<number>('multiAgent.maxConcurrentAgents') ?? 10;
+		if (this._instances.size >= maxAgents) {
+			throw new Error(`Maximum concurrent agents reached (${maxAgents})`);
 		}
 
 		const instance = new MutableAgentInstance(generateUuid(), definitionId);

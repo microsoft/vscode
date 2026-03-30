@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ApiFormat, IMultiAgentProviderService, IProviderAccount, IProviderQuotaSummary, ITokenUsage } from './multiAgentProviderService.js';
 import { IProviderRotationService, IRotationEvent, IUsageEntry, IUsageStats, UsagePeriod } from './providerRotationService.js';
@@ -23,6 +24,8 @@ export class ProviderRotationServiceImpl extends Disposable implements IProvider
 
 	/** Account IDs temporarily exhausted, mapped to their retry-after timestamp */
 	private readonly _exhaustedAccounts = new Map<string, number>();
+	/** Round-robin counter for round-robin strategy */
+	private _roundRobinIndex = 0;
 	/** Usage history for stats aggregation */
 	private readonly _usageHistory: UsageRecord[] = [];
 
@@ -34,6 +37,7 @@ export class ProviderRotationServiceImpl extends Disposable implements IProvider
 
 	constructor(
 		@IMultiAgentProviderService private readonly _providerService: IMultiAgentProviderService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -63,14 +67,13 @@ export class ProviderRotationServiceImpl extends Disposable implements IProvider
 				continue;
 			}
 
-			// Get active accounts sorted by priority
+			// Get active accounts sorted by configured strategy
 			const accounts = this._providerService.getAccounts(providerId)
 				.filter(a => a.isActive)
-				.filter(a => !this._exhaustedAccounts.has(a.id))
-				.sort((a, b) => a.priority - b.priority);
+				.filter(a => !this._exhaustedAccounts.has(a.id));
 
 			if (accounts.length > 0) {
-				return accounts[0];
+				return this._selectByStrategy(accounts);
 			}
 		}
 
@@ -203,6 +206,30 @@ export class ProviderRotationServiceImpl extends Disposable implements IProvider
 
 	getAllQuotaSummaries(): readonly IProviderQuotaSummary[] {
 		return this._providerService.getAllQuotaSummaries();
+	}
+
+	/** Select account based on configured rotation strategy */
+	private _selectByStrategy(accounts: readonly IProviderAccount[]): IProviderAccount {
+		const strategy = this._configService.getValue<string>('multiAgent.rotationStrategy') ?? 'priority';
+
+		switch (strategy) {
+			case 'round-robin': {
+				const idx = this._roundRobinIndex % accounts.length;
+				this._roundRobinIndex++;
+				return accounts[idx];
+			}
+			case 'cost-optimized': {
+				// Pick cheapest account with remaining quota
+				const sorted = [...accounts].sort((a, b) => (a.costPer1MTokens ?? 0) - (b.costPer1MTokens ?? 0));
+				return sorted[0];
+			}
+			case 'priority':
+			default: {
+				// Sort by priority (lower = higher priority)
+				const sorted = [...accounts].sort((a, b) => a.priority - b.priority);
+				return sorted[0];
+			}
+		}
 	}
 
 	private _periodToMs(period: UsagePeriod): number {
