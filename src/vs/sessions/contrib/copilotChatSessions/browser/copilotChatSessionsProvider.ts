@@ -199,8 +199,12 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 		if (repoUri) {
 			try {
 				this._gitRepository = await this.gitService.openRepository(repoUri);
+				if (!this._gitRepository) {
+					this.setIsolationMode('workspace');
+				}
 			} catch {
 				// No git repository available
+				this.setIsolationMode('workspace');
 			}
 		}
 		this._loading.set(false, undefined);
