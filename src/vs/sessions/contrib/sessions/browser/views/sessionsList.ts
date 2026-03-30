@@ -959,7 +959,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
-		const selectedSessions = selection.includes(element) ? selection : [element];
+		const selectedSessions = selection.includes(element) ? [element, ...selection.filter(s => s !== element)] : [element];
 
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
