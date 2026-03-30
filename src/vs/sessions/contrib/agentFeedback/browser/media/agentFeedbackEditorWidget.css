@@ -134,7 +134,7 @@
 .agent-feedback-widget-item {
 	display: flex;
 	flex-direction: column;
-	padding: 4px 4px 4px 8px;
+	padding: 4px 4px 8px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
 	cursor: pointer;
 	position: relative;
