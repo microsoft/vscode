@@ -7,7 +7,7 @@
 	position: absolute;
 	z-index: 10000;
 	background-color: var(--vscode-panel-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border: 1px solid var(--vscode-agentFeedbackInputWidget-border, var(--vscode-editorWidget-border, var(--vscode-contrastBorder)));
 	box-shadow: var(--vscode-shadow-lg);
 	border-radius: 8px;
 	padding: 4px;
@@ -39,7 +39,6 @@
 	border: none;
 	color: var(--vscode-input-foreground);
 	font: inherit;
-	font-size: 13px;
 	border-radius: 4px;
 	padding: 0 0 0 6px;
 	outline: none;
