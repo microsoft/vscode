@@ -107,7 +107,7 @@ export class GitHubPullRequestCIModel extends Disposable {
  * Extract the GitHub Actions workflow run ID from a check run's details URL.
  * URLs follow the pattern: `https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}`
  */
-function parseWorkflowRunId(detailsUrl: string | undefined): number | undefined {
+export function parseWorkflowRunId(detailsUrl: string | undefined): number | undefined {
 	if (!detailsUrl) {
 		return undefined;
 	}
