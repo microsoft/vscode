@@ -11,11 +11,10 @@ import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import * as os from 'os';
-import { AgentHostIpcChannels, AgentSession } from '../common/agentService.js';
-import { SessionStatus } from '../common/state/sessionState.js';
+import { AgentHostIpcChannels } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { ProtocolServerHandler, type IProtocolSideEffectHandler } from './protocolServerHandler.js';
+import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
@@ -144,58 +143,13 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		logService,
 	));
 
-	// Create a side-effect handler that delegates to AgentService
-	const sideEffects: IProtocolSideEffectHandler = {
-		handleAction(action) {
-			agentService.dispatchAction(action, 'ws-server', 0);
-		},
-		async handleCreateSession(command) {
-			await agentService.createSession({
-				provider: command.provider,
-				model: command.model,
-				workingDirectory: command.workingDirectory ? URI.parse(command.workingDirectory) : undefined,
-				session: URI.parse(command.session),
-			});
-		},
-		handleDisposeSession(session) {
-			agentService.disposeSession(URI.parse(session));
-		},
-		async handleListSessions() {
-			const sessions = await agentService.listSessions();
-			return sessions.map(s => ({
-				resource: s.session.toString(),
-				provider: AgentSession.provider(s.session) ?? 'copilot',
-				title: s.summary ?? 'Session',
-				status: SessionStatus.Idle,
-				createdAt: s.startTime,
-				modifiedAt: s.modifiedTime,
-				workingDirectory: s.workingDirectory?.toString(),
-			}));
-		},
-		handleGetResourceMetadata() {
-			return agentService.getResourceMetadataSync();
-		},
-		async handleAuthenticate(params) {
-			return agentService.authenticate(params);
-		},
-		handleBrowseDirectory(uri) {
-			return agentService.browseDirectory(URI.parse(uri));
-		},
-		handleWriteFile(params) {
-			return agentService.writeFile(params);
-		},
-		async handleRestoreSession(session) {
-			return agentService.restoreSession(URI.parse(session));
-		},
-		handleFetchContent(uri) {
-			return agentService.fetchContent(URI.parse(uri));
-		},
-		getDefaultDirectory() {
-			return URI.file(os.homedir()).toString();
-		},
-	};
-
-	const protocolHandler = disposables.add(new ProtocolServerHandler(agentService.stateManager, wsServer, sideEffects, logService));
+	const protocolHandler = disposables.add(new ProtocolServerHandler(
+		agentService,
+		agentService.stateManager,
+		wsServer,
+		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		logService,
+	));
 	disposables.add(protocolHandler.onDidChangeConnectionCount(onConnectionCountChanged));
 
 	const listenTarget = socketPath ?? `${host}:${port}`;
