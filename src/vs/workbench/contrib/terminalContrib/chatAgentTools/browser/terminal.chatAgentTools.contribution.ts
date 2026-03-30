@@ -31,7 +31,6 @@ import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/cre
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 import { isNumber } from '../../../../../base/common/types.js';
 
@@ -87,7 +86,6 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		super();
 
@@ -141,16 +139,15 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		// sandbox state.
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkDeniedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowTrustedDomains)
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains)
 			) {
 				this._registerRunInTerminalTool();
 			}
-		}));
-		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
-			this._registerRunInTerminalTool();
 		}));
 	}
 

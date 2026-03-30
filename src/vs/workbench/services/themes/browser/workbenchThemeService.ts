@@ -249,6 +249,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		await this.migrateAutoDetectColorScheme();
 		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
 		this.showNewDefaultThemeNotification();
+		this.showThemeAutoUpdatedNotification();
 		return result;
 	}
 
@@ -272,6 +273,56 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			}]
 		);
 		this._register(Event.once(handle.onDidClose)(() => {
+			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		}));
+	}
+
+	private static readonly THEME_AUTO_UPDATED_NOTIFICATION_KEY = 'workbench.themeAutoUpdatedNotification';
+
+	/**
+	 * Shows a one-time notification to existing users whose color theme changed
+	 * because the product default was updated (e.g. Dark Modern → VS Code Dark).
+	 * Offers the option to browse themes or revert to the previous default.
+	 */
+	private showThemeAutoUpdatedNotification(): void {
+		if (this.storageService.getBoolean(WorkbenchThemeService.THEME_AUTO_UPDATED_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
+			return; // already shown
+		}
+		if (this.storageService.isNew(StorageScope.APPLICATION)) {
+			return; // new user, no migration happened
+		}
+
+		// Target existing users whose theme changed because the default changed.
+		// These users have no explicit user-scoped theme value — they inherited the default.
+		const newDefaultThemes = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
+		if (!newDefaultThemes.has(this.currentColorTheme.settingsId)) {
+			return; // not using a new default theme
+		}
+		if (!this.settings.isDefaultColorTheme()) {
+			return; // user explicitly chose this theme
+		}
+
+		const previousSettingsId = this.currentColorTheme.type === ColorScheme.LIGHT ? 'Light Modern' : 'Dark Modern';
+
+		const handle = this.notificationService.prompt(
+			Severity.Info,
+			nls.localize({ key: 'newDefaultThemeAutoUpdated', comment: ['{0} is the name of the current color theme, e.g. "VS Code Dark"'] }, "VS Code has a new look! You can keep {0}, switch to another theme, or go back to your previous one.", this.currentColorTheme.label),
+			[{
+				label: nls.localize('browseThemes', "Browse Themes"),
+				run: () => this.commandService.executeCommand('workbench.action.selectTheme')
+			}, {
+				label: nls.localize('revertTheme', "Revert"),
+				run: () => {
+					const previousTheme = this.colorThemeRegistry.findThemeBySettingsId(previousSettingsId);
+					if (previousTheme) {
+						this.setColorTheme(previousTheme.id, 'auto');
+					}
+				}
+			}]
+		);
+		this._register(Event.once(handle.onDidClose)(() => {
+			this.storageService.store(WorkbenchThemeService.THEME_AUTO_UPDATED_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+			// Also suppress the "try new themes" notification — this user is already aware of the new themes.
 			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}));
 	}

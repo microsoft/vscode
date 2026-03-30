@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
@@ -349,17 +350,18 @@ class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchCo
 			this._bridgedIds.add(commandId);
 
 			const wrapperId = `sessionsViewPane.bridge.${commandId}`;
-			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, sessionData?: ISession) => {
-				if (!sessionData) {
+			this._register(CommandsRegistry.registerCommand(wrapperId, (accessor, context?: ISession | ISession[]) => {
+				if (!context) {
 					return;
 				}
-				const agentSession = this.agentSessionsService.getSession(sessionData.resource);
-				if (!agentSession) {
+				const sessions = Array.isArray(context) ? context : [context];
+				const agentSessions = coalesce(sessions.map(s => this.agentSessionsService.getSession(s.resource)));
+				if (agentSessions.length === 0) {
 					return;
 				}
 				return this.commandService.executeCommand(commandId, {
-					session: agentSession,
-					sessions: [agentSession],
+					session: agentSessions[0],
+					sessions: agentSessions,
 					$mid: MarshalledId.AgentSessionContext,
 				});
 			}));

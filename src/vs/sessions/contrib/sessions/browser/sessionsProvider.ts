@@ -104,7 +104,7 @@ export interface ISessionsProvider {
 	/** Update the session type for a session. */
 	setSessionType(chatId: string, type: ISessionType): ISessionData;
 	/** Returns session types available for the given session. */
-	getSessionTypes(session: ISessionData): ISessionType[];
+	getSessionTypes(chatId: string): ISessionType[];
 	/** Rename a session. */
 	renameSession(chatId: string, title: string): Promise<void>;
 	/** Set the model for a session. */

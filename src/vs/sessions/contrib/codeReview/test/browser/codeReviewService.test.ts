@@ -126,6 +126,7 @@ suite('CodeReviewService', () => {
 				resource,
 				changes: changesObs,
 				isArchived: isArchivedObs,
+				gitHubInfo: observableValue('test.gitHubInfo', undefined),
 			} as unknown as ISession;
 			this._sessions.set(resource.toString(), sessionData);
 			return sessionData;
@@ -148,14 +149,6 @@ suite('CodeReviewService', () => {
 
 		override getSessions(): ISession[] {
 			return [...this._sessions.values()];
-		}
-
-		override getGitHubContextForSession(): undefined {
-			return undefined;
-		}
-
-		override resolveSessionFileUri(): undefined {
-			return undefined;
 		}
 
 		fireSessionsChanged(event?: Partial<ISessionsChangeEvent>): void {

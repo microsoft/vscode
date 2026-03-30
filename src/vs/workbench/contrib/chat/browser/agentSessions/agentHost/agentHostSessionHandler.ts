@@ -151,7 +151,7 @@ export interface IAgentHostSessionHandlerConfig {
 	 * Optional callback to resolve a working directory for a new session.
 	 * If not provided, falls back to the first workspace folder.
 	 */
-	readonly resolveWorkingDirectory?: (resourceKey: string) => string | undefined;
+	readonly resolveWorkingDirectory?: (resourceKey: string) => URI | undefined;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -1189,7 +1189,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const rawModelId = this._extractRawModelId(modelId);
 		const resourceKey = sessionResource.path.substring(1);
 		const workingDirectory = this._config.resolveWorkingDirectory?.(resourceKey)
-			?? this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}`);
 
