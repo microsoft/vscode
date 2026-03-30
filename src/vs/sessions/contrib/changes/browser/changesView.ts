@@ -1218,9 +1218,16 @@ export class ChangesViewPane extends ViewPane {
 
 		container.classList.add('changes-file-list');
 
+		const viewMode = this.viewModel.viewModeObs.get();
+		container.classList.toggle('list-mode', viewMode === ChangesViewMode.List);
+
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
 
-		tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
+		if (viewMode === ChangesViewMode.Tree) {
+			tree.setChildren(null, buildTreeChildren(items));
+		} else {
+			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
+		}
 
 		// Open file on selection. The `updatingSelection` guard relies on
 		// `tree.setFocus`/`setSelection` firing events synchronously.
