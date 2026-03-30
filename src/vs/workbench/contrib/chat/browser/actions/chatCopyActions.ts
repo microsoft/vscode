@@ -104,6 +104,45 @@ export function registerChatCopyActions() {
 		}
 	});
 
+	registerAction2(class CopyFinalResponseAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.copyFinalResponse',
+				title: localize2('interactive.copyFinalResponse.label', "Copy Final Response"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				menu: {
+					id: MenuId.ChatContext,
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.responseIsFiltered.negate()),
+					group: 'copy',
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const clipboardService = accessor.get(IClipboardService);
+
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0] as ChatTreeItem | undefined;
+			if (!isChatTreeItem(item)) {
+				item = widget?.getFocus();
+				if (!item) {
+					return;
+				}
+			}
+
+			if (!isResponseVM(item)) {
+				return;
+			}
+
+			const text = item.response.getFinalResponse();
+			if (text) {
+				await clipboardService.writeText(text);
+			}
+		}
+	});
+
 	registerAction2(class CopyKatexMathSourceAction extends Action2 {
 		constructor() {
 			super({

@@ -48,7 +48,6 @@ import type { IMarkdownString } from '../../../../../../base/common/htmlContent.
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession } from '../../../../chat/browser/agentSessions/agentSessionsModel.js';
 import { isDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ITrustedDomainService } from '../../../../url/common/trustedDomainService.js';
 import { ChatAgentToolsContribution } from '../../browser/terminal.chatAgentTools.contribution.js';
 import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -154,7 +153,10 @@ suite('RunInTerminalTool', () => {
 		terminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
-			wrapCommand: (command: string, requestUnsandboxedExecution?: boolean) => requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
+			wrapCommand: (command: string, requestUnsandboxedExecution?: boolean) => ({
+				command: requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
+				isSandboxWrapped: !requestUnsandboxedExecution,
+			}),
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			checkForSandboxingPrereqs: async () => sandboxPrereqResult,
 			getTempDir: () => undefined,
@@ -364,7 +366,10 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
 				failedCheck: undefined,
 			};
-			terminalSandboxService.wrapCommand = (command: string) => `sandbox-runtime ${command}`;
+			terminalSandboxService.wrapCommand = (command: string) => ({
+				command: `sandbox-runtime ${command}`,
+				isSandboxWrapped: true,
+			});
 
 			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
 
@@ -614,6 +619,33 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('sandbox bypass requests', () => {
+		test('should mention denied domains when sandbox denies network access explicitly', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			terminalSandboxService.wrapCommand = (command: string) => ({
+				command: `unsandboxed:${command}`,
+				isSandboxWrapped: false,
+				requiresUnsandboxConfirmation: true,
+				blockedDomains: ['evil.com'],
+				deniedDomains: ['evil.com'],
+			});
+
+			const result = await executeToolTest({ command: 'curl https://evil.com' });
+
+			assertConfirmationRequired(result, 'Run `bash` command outside the [sandbox](https://aka.ms/vscode-sandboxing) to access `evil.com`?');
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandboxNetwork.deniedDomains.'));
+		});
+
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {
 			sandboxEnabled = true;
 			sandboxPrereqResult = {
@@ -1987,13 +2019,11 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let registeredToolData: Map<string, IToolData>;
-	let trustedDomainsEmitter: Emitter<void>;
 	let sandboxEnabled: boolean;
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
 		registeredToolData = new Map();
-		trustedDomainsEmitter = store.add(new Emitter<void>());
 		sandboxEnabled = false;
 
 		const logService = new NullLogService();
@@ -2028,7 +2058,10 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const terminalSandboxService: ITerminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
-			wrapCommand: (command: string) => `sandbox:${command}`,
+			wrapCommand: (command: string) => ({
+				command: `sandbox:${command}`,
+				isSandboxWrapped: true,
+			}),
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			checkForSandboxingPrereqs: async () => ({ enabled: sandboxEnabled, sandboxConfigPath: sandboxEnabled ? '/tmp/sandbox.json' : undefined, failedCheck: undefined }),
 			getTempDir: () => undefined,
@@ -2050,13 +2083,6 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		});
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
-		});
-
-		instantiationService.stub(ITrustedDomainService, {
-			_serviceBrand: undefined,
-			onDidChangeTrustedDomains: trustedDomainsEmitter.event,
-			isValid: () => true,
-			trustedDomains: [],
 		});
 
 		const contextKeyService = instantiationService.get(IContextKeyService);
@@ -2120,10 +2146,10 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Enable sandbox and fire config change
 		sandboxEnabled = true;
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled, true);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxEnabled,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxEnabled]),
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxEnabled]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});
@@ -2137,23 +2163,6 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		ok(propertiesAfter?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution after enabling sandbox');
 	});
 
-	test('should refresh run_in_terminal tool data when trusted domains change', async () => {
-		await createContribution();
-
-		const toolDataBefore = registeredToolData.get(TerminalToolId.RunInTerminal);
-		ok(toolDataBefore, 'Expected run_in_terminal tool to be registered');
-
-		// Fire trusted domains change
-		trustedDomainsEmitter.fire();
-
-		// Wait for async registration
-		await flushAsync();
-
-		// Tool should still be registered (re-registered with fresh data)
-		const toolDataAfter = registeredToolData.get(TerminalToolId.RunInTerminal);
-		ok(toolDataAfter, 'Expected run_in_terminal tool to still be registered after trusted domains change');
-	});
-
 	test('should refresh run_in_terminal tool data when sandbox network setting changes', async () => {
 		sandboxEnabled = true;
 		await createContribution();
@@ -2163,8 +2172,8 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Fire network config change
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.TerminalSandboxNetworkAllowedDomains]),
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});

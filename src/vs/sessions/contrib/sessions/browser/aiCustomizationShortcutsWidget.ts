@@ -29,7 +29,7 @@ const $ = DOM.$;
 const CUSTOMIZATIONS_COLLAPSED_KEY = 'agentSessions.customizationsCollapsed';
 
 export interface IAICustomizationShortcutsWidgetOptions {
-	readonly onDidToggleCollapse?: () => void;
+	readonly onDidChangeLayout?: () => void;
 }
 
 export class AICustomizationShortcutsWidget extends Disposable {
@@ -86,10 +86,15 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		// Toolbar container
 		const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content.sidebar-action-list'));
 
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizations, {
+		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizations, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'sidebarCustomizations',
+		}));
+
+		// Re-layout when toolbar items change (e.g., Plugins item appearing after extension activation)
+		this._register(toolbar.onDidChangeMenuItems(() => {
+			options?.onDidChangeLayout?.();
 		}));
 
 		let updateCountRequestId = 0;
@@ -130,7 +135,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			// Re-layout after the transition
 			transitionListener.value = DOM.addDisposableListener(toolbarContainer, 'transitionend', () => {
 				transitionListener.clear();
-				options?.onDidToggleCollapse?.();
+				options?.onDidChangeLayout?.();
 			});
 		};
 
