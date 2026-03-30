@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/multiAgent.css';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';

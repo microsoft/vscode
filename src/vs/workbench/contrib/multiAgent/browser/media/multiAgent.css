@@ -1,0 +1,380 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ===== Shared ===== */
+
+.multi-agent-providers-view,
+.multi-agent-lanes-view {
+	padding: 8px;
+	overflow-y: auto;
+}
+
+/* ===== Quota Dashboard ===== */
+
+.quota-dashboard {
+	margin-bottom: 12px;
+	padding: 8px;
+	border-radius: 4px;
+	background: var(--vscode-sideBar-background);
+}
+
+.quota-dashboard-header {
+	font-weight: 600;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-sideBarSectionHeader-foreground);
+	margin-bottom: 8px;
+}
+
+.quota-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+	font-size: 12px;
+}
+
+.quota-provider-name {
+	min-width: 80px;
+	color: var(--vscode-foreground);
+	font-weight: 500;
+}
+
+.quota-bar-container {
+	flex: 1;
+	height: 6px;
+	background: var(--vscode-progressBar-background, rgba(128, 128, 128, 0.2));
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.quota-bar {
+	height: 100%;
+	border-radius: 3px;
+	transition: width 0.3s ease;
+}
+
+.quota-bar-healthy {
+	background: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.quota-bar-warning {
+	background: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.quota-bar-critical {
+	background: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.quota-stats {
+	min-width: 32px;
+	text-align: right;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.quota-accounts {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.quota-reset-timer {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.quota-empty {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 12px;
+	padding: 8px 0;
+}
+
+/* ===== Provider Tree ===== */
+
+.providers-tree {
+	margin-top: 4px;
+}
+
+.provider-node {
+	margin-bottom: 4px;
+	border-radius: 4px;
+	border: 1px solid var(--vscode-panel-border, transparent);
+}
+
+.provider-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px;
+	cursor: pointer;
+	border-radius: 4px;
+}
+
+.provider-header:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.provider-health-badge {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.badge-healthy {
+	background: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.badge-warning {
+	background: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.badge-critical {
+	background: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.provider-name {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.provider-accounts {
+	padding-left: 22px;
+}
+
+.account-node {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	font-size: 12px;
+}
+
+.account-status {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.status-active {
+	background: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.status-inactive {
+	background: var(--vscode-descriptionForeground, #888);
+}
+
+.status-error {
+	background: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.account-label {
+	color: var(--vscode-foreground);
+}
+
+.account-quota {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-left: auto;
+}
+
+.account-quota.quota-warning {
+	color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.account-quota.quota-critical {
+	color: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.account-priority {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	padding: 1px 4px;
+	border-radius: 2px;
+	background: var(--vscode-badge-background, rgba(128, 128, 128, 0.15));
+}
+
+/* ===== Tracking Board ===== */
+
+.tracking-board {
+	margin-bottom: 12px;
+}
+
+.tracking-board-header {
+	font-weight: 600;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-sideBarSectionHeader-foreground);
+	margin-bottom: 8px;
+}
+
+.tracking-board-empty {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 12px;
+	padding: 8px 0;
+}
+
+.agent-cards-grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 6px;
+}
+
+/* ===== Agent Card ===== */
+
+.agent-card {
+	padding: 8px 10px;
+	border-radius: 4px;
+	border-left: 3px solid transparent;
+	background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.05));
+}
+
+.agent-card-running {
+	border-left-color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.agent-card-queued {
+	border-left-color: var(--vscode-editorInfo-foreground, #3794ff);
+}
+
+.agent-card-blocked {
+	border-left-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.agent-card-error {
+	border-left-color: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.agent-card-done {
+	border-left-color: var(--vscode-testing-iconPassed, #73c991);
+	opacity: 0.7;
+}
+
+.agent-card-idle {
+	border-left-color: var(--vscode-descriptionForeground, #888);
+}
+
+.agent-card-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 4px;
+}
+
+.agent-state-icon {
+	font-size: 10px;
+	font-weight: 700;
+	min-width: 16px;
+	text-align: center;
+}
+
+.state-running {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.state-queued {
+	color: var(--vscode-editorInfo-foreground, #3794ff);
+}
+
+.state-blocked {
+	color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.state-error {
+	color: var(--vscode-editorError-foreground, #f14c4c);
+}
+
+.state-done {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.state-idle {
+	color: var(--vscode-descriptionForeground, #888);
+}
+
+.agent-card-name {
+	font-weight: 600;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+}
+
+.agent-card-role {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-left: auto;
+}
+
+.agent-card-model,
+.agent-card-provider {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-card-task {
+	font-size: 11px;
+	color: var(--vscode-foreground);
+	margin-top: 4px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-card-tokens {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+}
+
+.agent-card-error {
+	font-size: 11px;
+	color: var(--vscode-editorError-foreground, #f14c4c);
+	margin-top: 4px;
+}
+
+/* ===== Available Agents ===== */
+
+.available-agents {
+	margin-top: 8px;
+}
+
+.available-agents-header {
+	font-weight: 600;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-sideBarSectionHeader-foreground);
+	margin-bottom: 6px;
+}
+
+.available-agents-empty {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 12px;
+}
+
+.available-agents-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.available-agent-item {
+	font-size: 11px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	background: var(--vscode-badge-background, rgba(128, 128, 128, 0.15));
+	color: var(--vscode-badge-foreground, var(--vscode-foreground));
+	cursor: pointer;
+}
+
+.available-agent-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
