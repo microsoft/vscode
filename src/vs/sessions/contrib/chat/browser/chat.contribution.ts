@@ -16,7 +16,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
@@ -40,6 +39,7 @@ import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetH
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -71,7 +71,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 
 		const workspace = activeSession.workspace.get();
 		const repo = workspace?.repositories[0];
-		const folderUri = activeSession.sessionType === AgentSessionProviders.Background ? repo?.workingDirectory ?? repo?.uri : undefined;
+		const folderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
 
 		if (!folderUri) {
 			return;

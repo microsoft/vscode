@@ -5,12 +5,14 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import type { IAgentDescriptor, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { AgentSession, type IAgentService, type IAuthenticateParams } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
+	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
 	isJsonRpcNotification,
@@ -18,17 +20,12 @@ import {
 	JSON_RPC_INTERNAL_ERROR,
 	ProtocolError,
 	type IAhpServerNotification,
-	type IBrowseDirectoryResult,
-	type ICreateSessionParams,
-	type IFetchContentResult,
 	type IInitializeParams,
 	type IJsonRpcResponse,
 	type IReconnectParams,
 	type IStateSnapshot,
-	type IWriteFileParams,
-	type IWriteFileResult,
 } from '../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, type ISessionSummary, type URI } from '../common/state/sessionState.js';
+import { ROOT_STATE_URI, SessionStatus } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
@@ -81,8 +78,16 @@ interface IConnectedClient {
 }
 
 /**
+ * Configuration for protocol-level concerns outside of IAgentService.
+ */
+export interface IProtocolServerConfig {
+	/** Default directory returned to clients during the initialize handshake. */
+	readonly defaultDirectory?: string;
+}
+
+/**
  * Server-side handler that manages protocol connections, routes JSON-RPC
- * messages to the state manager, and broadcasts actions/notifications
+ * messages to the agent service, and broadcasts actions/notifications
  * to subscribed clients.
  */
 export class ProtocolServerHandler extends Disposable {
@@ -96,9 +101,10 @@ export class ProtocolServerHandler extends Disposable {
 	readonly onDidChangeConnectionCount = this._onDidChangeConnectionCount.event;
 
 	constructor(
+		private readonly _agentService: IAgentService,
 		private readonly _stateManager: SessionStateManager,
 		private readonly _server: IProtocolServer,
-		private readonly _sideEffectHandler: IProtocolSideEffectHandler,
+		private readonly _config: IProtocolServerConfig,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -168,10 +174,8 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const origin = { clientId: client.clientId, clientSeq: msg.params.clientSeq };
 							const action = msg.params.action as ISessionAction;
-							this._stateManager.dispatchClientAction(action, origin);
-							this._sideEffectHandler.handleAction(action);
+							this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
 						}
 						break;
 				}
@@ -234,7 +238,7 @@ export class ProtocolServerHandler extends Disposable {
 				protocolVersion: PROTOCOL_VERSION,
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
-				defaultDirectory: this._sideEffectHandler.getDefaultDirectory?.(),
+				defaultDirectory: this._config.defaultDirectory,
 			},
 		};
 	}
@@ -293,33 +297,56 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
-			let snapshot = this._stateManager.getSnapshot(params.resource);
-			if (!snapshot) {
-				// Session may exist on the agent backend but not in the
-				// current state manager (e.g. from a previous server
-				// lifetime). Try to restore it.
-				await this._sideEffectHandler.handleRestoreSession(params.resource);
-				snapshot = this._stateManager.getSnapshot(params.resource);
-			}
-			if (!snapshot) {
+			try {
+				const snapshot = await this._agentService.subscribe(URI.parse(params.resource));
+				client.subscriptions.add(params.resource);
+				return { snapshot };
+			} catch (err) {
+				if (err instanceof ProtocolError) {
+					throw err;
+				}
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not found: ${params.resource}`);
 			}
-			client.subscriptions.add(params.resource);
-			return { snapshot };
 		},
 		createSession: async (_client, params) => {
-			await this._sideEffectHandler.handleCreateSession(params);
+			let createdSession: URI;
+			try {
+				createdSession = await this._agentService.createSession({
+					provider: params.provider,
+					model: params.model,
+					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+					session: URI.parse(params.session),
+				});
+			} catch (err) {
+				if (err instanceof ProtocolError) {
+					throw err;
+				}
+				throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, err instanceof Error ? err.message : String(err));
+			}
+			// Verify the provider honored the client-chosen session URI per the protocol contract
+			if (createdSession.toString() !== URI.parse(params.session).toString()) {
+				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.session}`);
+			}
 			return null;
 		},
 		disposeSession: async (_client, params) => {
-			this._sideEffectHandler.handleDisposeSession(params.session);
+			await this._agentService.disposeSession(URI.parse(params.session));
 			return null;
 		},
 		writeFile: async (_client, params) => {
-			return this._sideEffectHandler.handleWriteFile(params);
+			return this._agentService.writeFile(params);
 		},
 		listSessions: async () => {
-			const items = await this._sideEffectHandler.handleListSessions();
+			const sessions = await this._agentService.listSessions();
+			const items = sessions.map(s => ({
+				resource: s.session.toString(),
+				provider: AgentSession.provider(s.session) ?? 'copilot',
+				title: s.summary ?? 'Session',
+				status: SessionStatus.Idle,
+				createdAt: s.startTime,
+				modifiedAt: s.modifiedTime,
+				workingDirectory: s.workingDirectory?.toString(),
+			}));
 			return { items };
 		},
 		fetchTurns: async (_client, params) => {
@@ -345,10 +372,10 @@ export class ProtocolServerHandler extends Disposable {
 			};
 		},
 		browseDirectory: async (_client, params) => {
-			return this._sideEffectHandler.handleBrowseDirectory(params.uri);
+			return this._agentService.browseDirectory(URI.parse(params.uri));
 		},
 		fetchContent: async (_client, params) => {
-			return this._sideEffectHandler.handleFetchContent(params.uri);
+			return this._agentService.fetchContent(URI.parse(params.uri));
 		},
 	};
 
@@ -388,15 +415,20 @@ export class ProtocolServerHandler extends Disposable {
 	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
 			case 'getResourceMetadata':
-				return Promise.resolve(this._sideEffectHandler.handleGetResourceMetadata());
-			case 'authenticate':
-				return this._sideEffectHandler.handleAuthenticate(params as IAuthenticateParams);
+				return this._agentService.getResourceMetadata();
+			case 'authenticate': {
+				const authParams = params as IAuthenticateParams;
+				if (!authParams || typeof authParams.resource !== 'string' || typeof authParams.token !== 'string') {
+					return Promise.reject(new ProtocolError(-32602, 'Invalid authenticate params'));
+				}
+				return this._agentService.authenticate(authParams);
+			}
 			case 'refreshModels':
-				return this._sideEffectHandler.handleRefreshModels?.() ?? Promise.resolve(null);
+				return this._agentService.refreshModels();
 			case 'listAgents':
-				return Promise.resolve(this._sideEffectHandler.handleListAgents?.() ?? []);
+				return this._agentService.listAgents();
 			case 'shutdown':
-				return this._sideEffectHandler.handleShutdown?.() ?? Promise.resolve(null);
+				return this._agentService.shutdown();
 			default:
 				return undefined;
 		}
@@ -440,30 +472,4 @@ export class ProtocolServerHandler extends Disposable {
 		this._replayBuffer.length = 0;
 		super.dispose();
 	}
-}
-
-/**
- * Interface for side effects that the protocol server delegates to.
- * These are operations that involve I/O, agent backends, etc.
- */
-export interface IProtocolSideEffectHandler {
-	handleAction(action: ISessionAction): void;
-	handleCreateSession(command: ICreateSessionParams): Promise<void>;
-	handleDisposeSession(session: URI): void;
-	handleListSessions(): Promise<ISessionSummary[]>;
-	/** Restore a session from a previous server lifetime into the state manager. */
-	handleRestoreSession(session: URI): Promise<void>;
-	handleGetResourceMetadata(): IResourceMetadata;
-	handleAuthenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
-	handleBrowseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
-	handleFetchContent(uri: URI): Promise<IFetchContentResult>;
-	handleWriteFile(params: IWriteFileParams): Promise<IWriteFileResult>;
-	/** Returns the server's default browsing directory, if available. */
-	getDefaultDirectory?(): URI;
-	/** Refresh models from all providers (VS Code extension method). */
-	handleRefreshModels?(): Promise<void>;
-	/** List agent descriptors (VS Code extension method). */
-	handleListAgents?(): IAgentDescriptor[];
-	/** Shut down all providers (VS Code extension method). */
-	handleShutdown?(): Promise<void>;
 }

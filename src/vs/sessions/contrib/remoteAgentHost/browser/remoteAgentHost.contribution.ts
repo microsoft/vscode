@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { AgentHostFileSystemProvider } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -306,11 +306,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const displayName = configuredName || `${agent.displayName} (${address})`;
 
 		// Per-agent working directory cache, scoped to the agent store lifetime
-		const sessionWorkingDirs = new Map<string, string>();
+		const sessionWorkingDirs = new Map<string, URI>();
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
 
 		// Capture the working directory from the active session for new sessions
-		const resolveWorkingDirectory = (resourceKey: string): string | undefined => {
+		const resolveWorkingDirectory = (resourceKey: string): URI | undefined => {
 			const cached = sessionWorkingDirs.get(resourceKey);
 			if (cached) {
 				return cached;
@@ -318,12 +318,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const activeSession = this._sessionsManagementService.activeSession.get();
 			const repoUri = activeSession?.workspace.get()?.repositories[0]?.uri;
 			if (repoUri) {
-				// The repository URI may be wrapped as a vscode-agent-host:// URI.
-				// Unwrap to get the original filesystem path.
-				const originalUri = repoUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(repoUri) : repoUri;
-				const dir = originalUri.path;
-				sessionWorkingDirs.set(resourceKey, dir);
-				return dir;
+				sessionWorkingDirs.set(resourceKey, repoUri);
+				return repoUri;
 			}
 			return undefined;
 		};

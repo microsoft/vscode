@@ -37,10 +37,10 @@ import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../.
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Separator } from '../../../../../base/common/actions.js';
-import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { CopilotCLISessionType } from '../sessionTypes.js';
 
 const $ = DOM.$;
 
@@ -234,9 +234,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const sessionStatus = element.status.read(reader);
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
-			const pullRequest = element.pullRequest.read(reader);
+			const gitHubInfo = element.gitHubInfo.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, pullRequest?.icon);
+			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
@@ -269,7 +269,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			// Session type icon in details row
 			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
-			if (element.sessionType !== AgentSessionProviders.Background) {
+			if (element.sessionType !== CopilotCLISessionType.id) {
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
 				parts.push(typeIconEl);
@@ -689,11 +689,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 
+		const delegate = new SessionsTreeDelegate(approvalModel);
+
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsListTree',
 			this.listContainer,
-			new SessionsTreeDelegate(approvalModel),
+			delegate,
 			[
 				sessionRenderer,
 				new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService),
@@ -751,7 +753,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (this.tree.hasElement(session)) {
-				this.tree.updateElementHeight(session, undefined);
+				this.tree.updateElementHeight(session, delegate.getHeight(session));
 			}
 		}));
 
