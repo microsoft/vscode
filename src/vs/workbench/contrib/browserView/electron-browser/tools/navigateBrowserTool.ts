@@ -9,10 +9,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import {
-	createBrowserPageLink,
-	errorResult, playwrightInvoke
-} from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, playwrightInvoke } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const NavigateBrowserToolData: IToolData = {
