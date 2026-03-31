@@ -110,15 +110,25 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			return;
 		}
 
-		// Sign-in button row inside the right column. We intentionally use the
-		// default GitHub provider flow here because it already exposes Apple/Google
-		// social sign-in options on the hosted auth page. Direct social-provider
-		// preselection currently routes to a different GitHub page.
+		// Sign-in button row inside the right column. We keep the dedicated
+		// Google/Apple affordances in the UI, but intentionally route all of them
+		// through the default GitHub provider flow because it already exposes
+		// Apple/Google social sign-in options on the hosted auth page.
 		const providerRow = append(right, $('.sessions-walkthrough-providers-row'));
 
 		// Primary sign-in button
 		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.provider-github')) as HTMLButtonElement;
 		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.githubCopilot', "Continue with GitHub Copilot")));
+
+		// Google: icon-only
+		const googleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-google')) as HTMLButtonElement;
+		googleBtn.setAttribute('aria-label', localize('walkthrough.signin.google', "Continue with Google"));
+		googleBtn.title = localize('walkthrough.signin.google', "Continue with Google");
+
+		// Apple: icon-only
+		const appleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-apple')) as HTMLButtonElement;
+		appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
+		appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
 
 		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
@@ -131,15 +141,17 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			}
 		}, 0, stepDisposables);
 
-		const providerButtons = [githubBtn];
-		stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => this._runSignIn(
-			providerButtons,
-			errorContainer,
-			ChatSetupStrategy.SetupWithoutEnterpriseProvider,
-			titleEl,
-			subtitleEl,
-			providerRow
-		)));
+		const providerButtons = [githubBtn, googleBtn, appleBtn];
+		for (const button of providerButtons) {
+			stepDisposables.add(addDisposableListener(button, EventType.CLICK, () => this._runSignIn(
+				providerButtons,
+				errorContainer,
+				ChatSetupStrategy.SetupWithoutEnterpriseProvider,
+				titleEl,
+				subtitleEl,
+				providerRow
+			)));
+		}
 	}
 
 	private _isAlreadySetUp(): boolean {

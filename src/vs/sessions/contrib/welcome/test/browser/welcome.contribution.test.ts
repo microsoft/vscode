@@ -250,7 +250,7 @@ suite('SessionsWelcomeContribution', () => {
 		}
 	});
 
-	test('walkthrough uses only the default sign-in route', async () => {
+	test('walkthrough keeps provider buttons while using the default sign-in route', async () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
 		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
 
@@ -276,11 +276,13 @@ suite('SessionsWelcomeContribution', () => {
 		try {
 			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
 			const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
+			const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
+			const appleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-apple');
 			assert.ok(githubButton);
-			assert.strictEqual(container.querySelector('.sessions-walkthrough-provider-btn.provider-google'), null);
-			assert.strictEqual(container.querySelector('.sessions-walkthrough-provider-btn.provider-apple'), null);
+			assert.ok(googleButton);
+			assert.ok(appleButton);
 
-			githubButton.click();
+			appleButton.click();
 			await new Promise(resolve => setTimeout(resolve, 250));
 
 			assert.ok(commandArgs);
