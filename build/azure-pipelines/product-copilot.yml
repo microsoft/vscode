@@ -85,20 +85,6 @@ jobs:
 
       - script: |
           set -e
-          VSCODE_VERSION=$(node -p "require('$(Build.SourcesDirectory)/package.json').version")
-          echo "Setting Copilot extension version to $VSCODE_VERSION"
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            pkg.version = '$VSCODE_VERSION';
-            pkg.engines.vscode = '^$VSCODE_VERSION';
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, '\t') + '\n');
-          "
-        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-        displayName: Set Copilot version to VS Code version
-
-      - script: |
-          set -e
           npx vsce package -o copilot-chat.vsix --allow-package-secrets sendgrid
           mkdir -p $(Build.ArtifactStagingDirectory)/copilot-vsix
           cp copilot-chat.vsix $(Build.ArtifactStagingDirectory)/copilot-vsix/
