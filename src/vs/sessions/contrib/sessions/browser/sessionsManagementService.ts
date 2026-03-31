@@ -467,6 +467,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[SessionsManagement] openChat: ${chatResource.toString()} provider=${chat?.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		if (sessionData) {
+			this.setRead(sessionData, true); // mark as read when opened
+		}
 
 		await this.chatWidgetService.openSession(chatResource, ChatViewPaneTarget);
 	}
@@ -480,6 +483,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		this.setRead(sessionData, true); // mark as read when opened
 
 		const activeChatResource = sessionData.activeChat.get().resource;
 		await this.chatWidgetService.openSession(activeChatResource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
