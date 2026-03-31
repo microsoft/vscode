@@ -38,7 +38,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
+import { buildCommandDisplayText, extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
@@ -530,10 +530,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async handleToolStream(context: IToolInvocationStreamContext, _token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
 		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
 		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
-			const normalizedCommand = normalizeTerminalCommandForDisplay(partialInput.command).replace(/\r\n|\r|\n/g, ' ');
-			const truncatedCommand = normalizedCommand.length > 80
-				? normalizedCommand.substring(0, 77) + '...'
-				: normalizedCommand;
+			const truncatedCommand = buildCommandDisplayText(partialInput.command);
 			const invocationMessage = partialInput.isBackground
 				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", truncatedCommand))
 				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));

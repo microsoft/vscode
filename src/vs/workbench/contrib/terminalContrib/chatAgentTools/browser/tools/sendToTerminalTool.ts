@@ -9,7 +9,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
-import { normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
+import { buildCommandDisplayText, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { TerminalToolId } from './toolIds.js';
 
@@ -48,10 +48,7 @@ export interface ISendToTerminalInputParams {
 export class SendToTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as ISendToTerminalInputParams;
-		const normalizedCommand = normalizeTerminalCommandForDisplay(args.command).replace(/[\r\n]+/g, ' ');
-		const displayCommand = normalizedCommand.length > 80
-			? normalizedCommand.substring(0, 77) + '...'
-			: normalizedCommand;
+		const displayCommand = buildCommandDisplayText(args.command);
 
 		const invocationMessage = new MarkdownString();
 		invocationMessage.appendText(localize('send.progressive', "Sending {0} to terminal", displayCommand));
@@ -85,7 +82,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		await execution.instance.sendText(args.command, true);
+		await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
 
 		return {
 			content: [{
