@@ -1240,6 +1240,11 @@ export class TryNewModelAction extends Action2 {
 					w.input.switchModel(model);
 				}
 				languageModelsService.markModelsAsSeen([targetModelId]);
+			} else {
+				// Model not resolved (e.g. admin-disabled featured model,
+				// version-gated) — fall back to the picker
+				await widgetService.reveal(widget);
+				widget.input.openModelPicker();
 			}
 		}
 	}

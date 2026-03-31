@@ -134,7 +134,7 @@ export class ChatTipContentPart extends Disposable {
 			button.label = tip.actionButton.label;
 			const commandId = tip.actionButton.commandId;
 			store.add(button.onDidClick(() => {
-				this._commandService.executeCommand(commandId);
+				void this._commandService.executeCommand(commandId).catch(onUnexpectedError);
 			}));
 			this.domNode.appendChild(buttonContainer);
 			this._actionButton.value = store;
@@ -151,9 +151,14 @@ export class ChatTipContentPart extends Disposable {
 
 		const textContent = markdownContent.element.textContent ?? localize('chatTip', "Chat tip");
 		const hasLink = /\[.*?\]\(.*?\)/.test(tip.content.value);
-		const ariaLabel = hasLink
-			? localize('chatTipWithAction', "{0} Tab to reach the action.", textContent)
-			: textContent;
+		const hasActionButton = !!tip.actionButton;
+		const ariaLabel = hasLink && hasActionButton
+			? localize('chatTipWithLinkAndButton', "{0} Tab to reach the action and button.", textContent)
+			: hasLink
+				? localize('chatTipWithAction', "{0} Tab to reach the action.", textContent)
+				: hasActionButton
+					? localize('chatTipWithButton', "{0} Tab to reach the button.", textContent)
+					: textContent;
 		this.domNode.setAttribute('aria-label', ariaLabel);
 	}
 
