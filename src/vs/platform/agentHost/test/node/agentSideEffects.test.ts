@@ -397,8 +397,9 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-wait');
 		});
 
-		test('dispatches SessionPendingMessageRemoved for steering messages', () => {
+		test('dispatches SessionPendingMessageRemoved for steering messages on steering_consumed', () => {
 			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
 
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
@@ -413,7 +414,21 @@ suite('AgentSideEffects', () => {
 			stateManager.dispatchClientAction(action, { clientId: 'test', clientSeq: 1 });
 			sideEffects.handleAction(action);
 
-			const removal = envelopes.find(e =>
+			// Removal is not dispatched synchronously; it waits for the agent
+			let removal = envelopes.find(e =>
+				e.action.type === ActionType.SessionPendingMessageRemoved &&
+				(e.action as { kind: PendingMessageKind }).kind === PendingMessageKind.Steering
+			);
+			assert.strictEqual(removal, undefined, 'should not dispatch removal until steering_consumed');
+
+			// Simulate the agent consuming the steering message
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'steering_consumed',
+				id: 'steer-rm',
+			});
+
+			removal = envelopes.find(e =>
 				e.action.type === ActionType.SessionPendingMessageRemoved &&
 				(e.action as { kind: PendingMessageKind }).kind === PendingMessageKind.Steering
 			);

@@ -210,6 +210,32 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	// ---- sendSteering ----
+
+	suite('sendSteering', () => {
+
+		test('fires steering_consumed after send resolves', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+
+			const consumed = progressEvents.find(e => e.type === 'steering_consumed');
+			assert.ok(consumed, 'should fire steering_consumed event');
+			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
+		});
+
+		test('does not fire steering_consumed when send fails', async () => {
+			const { session, mockSession, progressEvents } = await createAgentSession(disposables);
+
+			mockSession.send = async () => { throw new Error('send failed'); };
+
+			await session.sendSteering({ id: 'steer-fail', userMessage: { text: 'will fail' } });
+
+			const consumed = progressEvents.find(e => e.type === 'steering_consumed');
+			assert.strictEqual(consumed, undefined, 'should not fire steering_consumed on failure');
+		});
+	});
+
 	// ---- event mapping ----
 
 	suite('event mapping', () => {
