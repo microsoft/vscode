@@ -35,7 +35,7 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { consumeSidebarToggleFocusRequest, logSidebarToggleFocus, peekSidebarToggleFocusRequest, SidebarToggleFocusTarget } from '../../../browser/sidebarToggleFocus.js';
+import { consumeSidebarToggleFocusRequest, SidebarToggleFocusTarget } from '../../../browser/sidebarToggleFocus.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -293,13 +293,15 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 /**
  * Custom action view item for the sidebar toggle button.
- * Renders the tasklist icon with an unread session count badge.
+ * Renders the sidebar toggle icon with an unread session count badge.
  */
 class SidebarToggleActionViewItem extends ActionViewItem {
 
 	private _countBadge: HTMLElement | undefined;
 	private _focusTarget: SidebarToggleFocusTarget | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _sessionsChanged: ReturnType<typeof observableSignalFromEvent>;
+	private readonly _sidebarVisibilityChanged: ReturnType<typeof observableSignalFromEvent>;
 
 	constructor(
 		context: unknown,
@@ -310,6 +312,12 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 	) {
 		super(context, action, { ...options, icon: true, label: false });
+		this._sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		this._sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART) {
+				handler(e);
+			}
+		}));
 	}
 
 	override render(container: HTMLElement): void {
@@ -317,29 +325,9 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		super.render(container);
 
 		container.classList.add('sidebar-toggle-action');
-		this._focusTarget = container.closest('.part.sidebar')
-			? SidebarToggleFocusTarget.Sidebar
-			: SidebarToggleFocusTarget.Titlebar;
-		logSidebarToggleFocus('view-item-render', {
-			focusTarget: this._focusTarget,
-			pending: peekSidebarToggleFocusRequest(),
-			sidebarVisible: this.layoutService.isVisible(Parts.SIDEBAR_PART),
-		});
-		if (this.label) {
-			this._renderDisposables.add(addDisposableListener(this.label, EventType.FOCUS, () => {
-				logSidebarToggleFocus('label-focus', { focusTarget: this._focusTarget });
-			}));
-			this._renderDisposables.add(addDisposableListener(this.label, EventType.BLUR, () => {
-				logSidebarToggleFocus('label-blur', { focusTarget: this._focusTarget });
-			}));
-		}
 		this._restoreFocusIfRequested(container);
 		this._renderDisposables.add(this.paneCompositePartService.onDidPaneCompositeOpen(e => {
 			if (e.viewContainerLocation === ViewContainerLocation.Sidebar) {
-				logSidebarToggleFocus('pane-composite-open', {
-					focusTarget: this._focusTarget,
-					pending: peekSidebarToggleFocusRequest(),
-				});
 				this._restoreFocusIfRequested(container, true);
 			}
 		}));
@@ -353,15 +341,9 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		// - session list changes (add/remove) via observableSignalFromEvent
 		// - individual session observable state (status, isRead, isArchived)
 		// - sidebar visibility changes
-		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
-		const sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.SIDEBAR_PART) {
-				handler(e);
-			}
-		}));
 		this._renderDisposables.add(autorun(reader => {
-			sessionsChanged.read(reader);
-			sidebarVisibilityChanged.read(reader);
+			this._sessionsChanged.read(reader);
+			this._sidebarVisibilityChanged.read(reader);
 			for (const session of this.sessionsManagementService.getSessions()) {
 				session.isArchived.read(reader);
 				session.status.read(reader);
@@ -373,75 +355,42 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		}));
 	}
 
+	private _getFocusTarget(container: HTMLElement): SidebarToggleFocusTarget | undefined {
+		const focusTarget = container.closest('.part.sidebar')
+			? SidebarToggleFocusTarget.Sidebar
+			: container.closest('.part.titlebar')
+				? SidebarToggleFocusTarget.Titlebar
+				: this._focusTarget;
+
+		if (focusTarget !== this._focusTarget) {
+			this._focusTarget = focusTarget;
+		}
+
+		return this._focusTarget;
+	}
+
 	private _restoreFocusIfRequested(container: HTMLElement, fromSidebarOpen: boolean = false): void {
-		if (!this._focusTarget) {
-			logSidebarToggleFocus('restore-skip-no-target', { fromSidebarOpen });
+		const focusTarget = this._getFocusTarget(container);
+		if (!focusTarget) {
 			return;
 		}
 
-		if (this._focusTarget === SidebarToggleFocusTarget.Titlebar) {
+		if (focusTarget === SidebarToggleFocusTarget.Titlebar) {
 			if (fromSidebarOpen) {
-				logSidebarToggleFocus('restore-skip-titlebar-from-sidebar-open', {
-					focusTarget: this._focusTarget,
-					pending: peekSidebarToggleFocusRequest(),
-				});
 				return;
 			}
 		} else if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			logSidebarToggleFocus('restore-skip-sidebar-hidden', {
-				focusTarget: this._focusTarget,
-				fromSidebarOpen,
-				pending: peekSidebarToggleFocusRequest(),
-			});
 			return;
 		}
 
-		if (!consumeSidebarToggleFocusRequest(this._focusTarget)) {
-			logSidebarToggleFocus('restore-skip-no-pending-match', {
-				focusTarget: this._focusTarget,
-				fromSidebarOpen,
-				pending: peekSidebarToggleFocusRequest(),
-			});
+		if (!consumeSidebarToggleFocusRequest(focusTarget)) {
 			return;
 		}
 
 		const targetWindow = getWindow(container);
-		logSidebarToggleFocus('restore-scheduled', {
-			focusTarget: this._focusTarget,
-			fromSidebarOpen,
-			activeElementBeforeSchedule: targetWindow.document.activeElement instanceof targetWindow.HTMLElement ? {
-				tagName: targetWindow.document.activeElement.tagName,
-				className: targetWindow.document.activeElement.className,
-				ariaLabel: targetWindow.document.activeElement.getAttribute('aria-label')
-			} : String(targetWindow.document.activeElement)
-		});
 		this._renderDisposables.add(scheduleAtNextAnimationFrame(targetWindow, () => {
-			logSidebarToggleFocus('restore-first-frame', {
-				focusTarget: this._focusTarget,
-				activeElement: targetWindow.document.activeElement instanceof targetWindow.HTMLElement ? {
-					tagName: targetWindow.document.activeElement.tagName,
-					className: targetWindow.document.activeElement.className,
-					ariaLabel: targetWindow.document.activeElement.getAttribute('aria-label')
-				} : String(targetWindow.document.activeElement)
-			});
 			this._renderDisposables.add(scheduleAtNextAnimationFrame(targetWindow, () => {
-				logSidebarToggleFocus('restore-second-frame-before-focus', {
-					focusTarget: this._focusTarget,
-					activeElement: targetWindow.document.activeElement instanceof targetWindow.HTMLElement ? {
-						tagName: targetWindow.document.activeElement.tagName,
-						className: targetWindow.document.activeElement.className,
-						ariaLabel: targetWindow.document.activeElement.getAttribute('aria-label')
-					} : String(targetWindow.document.activeElement)
-				});
 				this.focus();
-				logSidebarToggleFocus('restore-second-frame-after-focus', {
-					focusTarget: this._focusTarget,
-					activeElement: targetWindow.document.activeElement instanceof targetWindow.HTMLElement ? {
-						tagName: targetWindow.document.activeElement.tagName,
-						className: targetWindow.document.activeElement.className,
-						ariaLabel: targetWindow.document.activeElement.getAttribute('aria-label')
-					} : String(targetWindow.document.activeElement)
-				});
 			}));
 		}));
 	}
