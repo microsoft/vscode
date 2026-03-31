@@ -406,7 +406,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			if (productMajorMinor && autoUpdateBuiltinExtensions?.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
 				const extensionMajorMinor = `${semver.major(extension.manifest.version)}.${semver.minor(extension.manifest.version)}`;
 				if (productMajorMinor !== extensionMajorMinor) {
-					this.logService.info(`Skipping auto-update builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it does not match the product version ${productVersion.version}`);
+					this.logService.info(`Skipping auto-update builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it does not match the product version ${productVersion!.version}`);
 					return;
 				}
 			}

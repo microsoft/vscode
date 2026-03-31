@@ -348,7 +348,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-			const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: false });
+			const actual = await testObject.scanUserExtensions({ profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource });
 
 			assert.deepStrictEqual(actual.length, 1);
 			assert.deepStrictEqual(actual[0].manifest.version, '1.66.1');
@@ -359,7 +359,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-			const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: false });
+			const actual = await testObject.scanUserExtensions({ profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource });
 
 			assert.deepStrictEqual(actual.length, 0);
 		});
@@ -369,7 +369,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-			const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: false });
+			const actual = await testObject.scanUserExtensions({ profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource });
 
 			assert.deepStrictEqual(actual.length, 1);
 		});
@@ -380,7 +380,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
-			const actual = await testObject.scanAllUserExtensions({ includeAllVersions: false, includeInvalid: false });
+			const actual = await testObject.scanUserExtensions({ profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource });
 
 			assert.deepStrictEqual(actual.length, 1);
 			assert.deepStrictEqual(actual[0].manifest.version, '1.66.1');
