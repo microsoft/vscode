@@ -4,19 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir, platform } from 'os';
+import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
 import { mkdirSync, rmSync } from 'fs';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 
-suite('SessionDatabase', () => {
-	if (platform() === 'win32') {
-		return; // flaky (Error: EBUSY: resource busy or locked, unlink 'C:\Users\RUNNER~1\AppData\Local\Temp\vscode-session-db-test-969c850d-158a-4c55-9ac3-bb1cc0873f08\session.db')
-	}
-
+(isWindows ? suite.skip /* flaky */ : suite)('SessionDatabase', () => {
 	const disposables = new DisposableStore();
 	let testDir: string;
 	let db: SessionDatabase | undefined;
