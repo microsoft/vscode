@@ -49,6 +49,7 @@ interface IModalEditorPartState {
 	readonly maximized: boolean;
 	readonly size?: { readonly width: number; readonly height: number };
 	readonly position?: { readonly left: number; readonly top: number };
+	readonly sidebarWidth?: number;
 }
 
 interface IEditorPartsMemento {
@@ -87,6 +88,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			this.modalEditorMaximized = modalState.maximized;
 			this.modalEditorSize = modalState.size;
 			this.modalEditorPosition = modalState.position;
+			this.modalEditorSidebarWidth = modalState.sidebarWidth;
 		}
 
 		this.mainPart = this._register(this.createMainEditorPart());
@@ -175,6 +177,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private modalEditorMaximized = false;
 	private modalEditorSize: IDimension | undefined;
 	private modalEditorPosition: { readonly left: number; readonly top: number } | undefined;
+	private modalEditorSidebarWidth: number | undefined;
 
 	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
@@ -190,6 +193,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			maximized: options?.maximized ?? this.modalEditorMaximized,
 			size: options?.size ?? this.modalEditorSize,
 			position: options?.position ?? this.modalEditorPosition,
+			sidebar: options?.sidebar ? {
+				...options.sidebar,
+				sidebarWidth: options.sidebar.sidebarWidth ?? this.modalEditorSidebarWidth
+			} : undefined
 		});
 
 		// Keep instantiation service and reference to reuse
@@ -201,6 +208,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			this.modalEditorMaximized = part.maximized;
 			this.modalEditorSize = part.size;
 			this.modalEditorPosition = part.position;
+			this.modalEditorSidebarWidth = part.sidebarWidth;
 
 			this.modalPartInstantiationService = undefined;
 			this.modalEditorPart = undefined;
@@ -416,17 +424,19 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			this.modalEditorMaximized = this.modalEditorPart.maximized;
 			this.modalEditorSize = this.modalEditorPart.size;
 			this.modalEditorPosition = this.modalEditorPart.position;
+			this.modalEditorSidebarWidth = this.modalEditorPart.sidebarWidth;
 		}
 
 		// Only persist when there is meaningful state to restore.
 		// When all values are at their defaults (not maximized, no
 		// custom size or position), we delete the key to avoid
 		// storing unnecessary data.
-		if (this.modalEditorMaximized || this.modalEditorSize || this.modalEditorPosition) {
+		if (this.modalEditorMaximized || this.modalEditorSize || this.modalEditorPosition || this.modalEditorSidebarWidth) {
 			this.profileMemento[EditorParts.MODAL_EDITOR_STATE_STORAGE_KEY] = {
 				maximized: this.modalEditorMaximized,
 				size: this.modalEditorSize ? { width: this.modalEditorSize.width, height: this.modalEditorSize.height } : undefined,
 				position: this.modalEditorPosition,
+				sidebarWidth: this.modalEditorSidebarWidth,
 			};
 		} else {
 			delete this.profileMemento[EditorParts.MODAL_EDITOR_STATE_STORAGE_KEY];

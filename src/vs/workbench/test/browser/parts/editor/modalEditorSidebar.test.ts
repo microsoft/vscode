@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IModalEditorPartOptions, IModalEditorSidebarContent } from '../../../../../platform/editor/common/editor.js';
+import { IModalEditorPartOptions, IModalEditorSidebar } from '../../../../../platform/editor/common/editor.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_SIDEBAR_MIN_WIDTH = 160;
@@ -38,15 +38,24 @@ class TestModalEditorSidebarHost extends Disposable {
 	/** Container width the modal occupies (simulates container.clientWidth). */
 	containerWidth = 800;
 
+	/** Remembered sidebar width from previous modal session (mirrors editorPart.sidebarWidth). */
+	private _customWidth: number | undefined;
+	get customWidth(): number | undefined { return this._customWidth; }
+
+	constructor(customWidth?: number) {
+		super();
+		this._customWidth = customWidth;
+	}
+
 	// --- sidebar management (mirrors createSidebar / updateContent) ---------
 
-	addSidebar(content: IModalEditorSidebarContent): void {
+	addSidebar(content: IModalEditorSidebar): void {
 		this._hasSidebar = true;
-		this._sidebarWidth = MODAL_SIDEBAR_DEFAULT_WIDTH;
+		this._sidebarWidth = this._customWidth ?? MODAL_SIDEBAR_DEFAULT_WIDTH;
 		this.renderContent(content);
 	}
 
-	updateSidebarContent(content: IModalEditorSidebarContent): void {
+	updateSidebarContent(content: IModalEditorSidebar): void {
 		this.contentDisposable.clear();
 		this.renderContent(content);
 	}
@@ -57,7 +66,7 @@ class TestModalEditorSidebarHost extends Disposable {
 		this.contentDisposable.clear();
 	}
 
-	private renderContent(content: IModalEditorSidebarContent): void {
+	private renderContent(content: IModalEditorSidebar): void {
 		this._renderCount++;
 		this.contentDisposable.value = content.render({} /* stub container */, this._onDidLayout.event);
 	}
@@ -67,12 +76,14 @@ class TestModalEditorSidebarHost extends Disposable {
 	resizeSidebar(delta: number): void {
 		const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, this.containerWidth - MODAL_MIN_WIDTH);
 		this._sidebarWidth = Math.min(maxWidth, Math.max(MODAL_SIDEBAR_MIN_WIDTH, this._sidebarWidth + delta));
+		this._customWidth = this._sidebarWidth;
 		this._onDidResize.fire();
 	}
 
 	resetSidebarWidth(): void {
 		const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, this.containerWidth - MODAL_MIN_WIDTH);
 		this._sidebarWidth = Math.min(maxWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
+		this._customWidth = undefined;
 		this._onDidResize.fire();
 	}
 
@@ -101,7 +112,7 @@ class TestModalEditorSidebarHost extends Disposable {
 	}
 }
 
-function stubSidebarContent(): IModalEditorSidebarContent {
+function stubSidebarContent(): IModalEditorSidebar {
 	return {
 		render: (_container: unknown, _onDidLayout: Event<{ readonly height: number; readonly width: number }>): IDisposable => {
 			return { dispose: () => { } };
@@ -146,13 +157,13 @@ suite('Modal Editor Sidebar', () => {
 		const host = disposables.add(new TestModalEditorSidebarHost());
 
 		let firstDisposed = false;
-		const firstContent: IModalEditorSidebarContent = {
+		const firstContent: IModalEditorSidebar = {
 			render: () => ({ dispose: () => { firstDisposed = true; } })
 		};
 		host.addSidebar(firstContent);
 
 		let secondRendered = false;
-		const secondContent: IModalEditorSidebarContent = {
+		const secondContent: IModalEditorSidebar = {
 			render: () => { secondRendered = true; return { dispose: () => { } }; }
 		};
 		host.updateSidebarContent(secondContent);
@@ -277,6 +288,46 @@ suite('Modal Editor Sidebar', () => {
 		assert.strictEqual(host.sidebarWidth, MODAL_SIDEBAR_MIN_WIDTH);
 	});
 
+	// --- width persistence ---------------------------------------------------
+
+	test('addSidebar restores custom width when present', () => {
+		const host = disposables.add(new TestModalEditorSidebarHost(300));
+		host.containerWidth = 1000;
+
+		host.addSidebar(stubSidebarContent());
+
+		assert.strictEqual(host.sidebarWidth, 300);
+	});
+
+	test('addSidebar uses default width when no custom width', () => {
+		const host = disposables.add(new TestModalEditorSidebarHost());
+
+		host.addSidebar(stubSidebarContent());
+
+		assert.strictEqual(host.sidebarWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
+	});
+
+	test('resizeSidebar sets custom width', () => {
+		const host = disposables.add(new TestModalEditorSidebarHost());
+		host.containerWidth = 1000;
+		host.addSidebar(stubSidebarContent());
+
+		host.resizeSidebar(50);
+
+		assert.strictEqual(host.customWidth, MODAL_SIDEBAR_DEFAULT_WIDTH + 50);
+	});
+
+	test('resetSidebarWidth clears custom width', () => {
+		const host = disposables.add(new TestModalEditorSidebarHost());
+		host.containerWidth = 1000;
+		host.addSidebar(stubSidebarContent());
+
+		host.resizeSidebar(50);
+		host.resetSidebarWidth();
+
+		assert.strictEqual(host.customWidth, undefined);
+	});
+
 	// --- layout propagation -------------------------------------------------
 
 	test('layout fires onDidLayout with current dimensions', () => {
@@ -285,7 +336,7 @@ suite('Modal Editor Sidebar', () => {
 
 		// Capture layout event by re-adding content that tracks it
 		const layouts: { height: number; width: number }[] = [];
-		const trackedContent: IModalEditorSidebarContent = {
+		const trackedContent: IModalEditorSidebar = {
 			render: (_container, onDidLayout) => {
 				const sub = onDidLayout(e => layouts.push(e));
 				return sub;

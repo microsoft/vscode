@@ -554,6 +554,11 @@ export interface IModalEditorPart extends IEditorPart {
 	readonly position: { left: number; top: number } | undefined;
 
 	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth: number | undefined;
+
+	/**
 	 * The current navigation context, if any.
 	 */
 	readonly navigation: IModalEditorNavigation | undefined;

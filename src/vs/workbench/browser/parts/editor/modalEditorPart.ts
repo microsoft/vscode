@@ -36,7 +36,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID } from './editorCommands.js';
-import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebarContent } from '../../../../platform/editor/common/editor.js';
+import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar } from '../../../../platform/editor/common/editor.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
@@ -115,13 +115,15 @@ export interface ICreateModalEditorPartResult {
 	readonly disposables: DisposableStore;
 }
 
-interface IModalEditorSidebar {
+interface IModalEditorSidebarController {
 
 	readonly onDidResize: Event<void>;
 
 	getWidth(): number;
+	hasCustomWidth(): boolean;
+
 	layout(height: number): void;
-	updateContent(content: IModalEditorSidebarContent): void;
+	updateContent(content: IModalEditorSidebar): void;
 }
 
 export class ModalEditorPart {
@@ -265,6 +267,11 @@ export class ModalEditorPart {
 				hide(navigationContainer);
 			}
 		}), editorPart.navigation));
+		if (sidebarResult) {
+			disposables.add(Event.runAndSubscribe(sidebarResult.onDidResize, () => {
+				editorPart.sidebarWidth = sidebarResult.hasCustomWidth() ? sidebarResult.getWidth() : undefined;
+			}));
+		}
 
 		// Create scoped instantiation service
 		const modalEditorService = this.editorService.createScoped(editorPart, disposables);
@@ -612,12 +619,13 @@ export class ModalEditorPart {
 		};
 	}
 
-	private createSidebar(container: HTMLElement, content: IModalEditorSidebarContent | undefined, disposables: DisposableStore): IModalEditorSidebar | undefined {
+	private createSidebar(container: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
 		if (!content) {
 			return undefined;
 		}
 
-		let sidebarWidth = MODAL_SIDEBAR_DEFAULT_WIDTH;
+		let sidebarWidth = content.sidebarWidth ?? MODAL_SIDEBAR_DEFAULT_WIDTH;
+		let customWidth = content.sidebarWidth !== undefined;
 
 		const sidebarContainer = append(container, $('div.modal-editor-sidebar.show-file-icons'));
 		sidebarContainer.style.width = `${sidebarWidth}px`;
@@ -647,6 +655,7 @@ export class ModalEditorPart {
 			const delta = e.currentX - e.startX;
 			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
 			sidebarWidth = Math.min(maxWidth, Math.max(MODAL_SIDEBAR_MIN_WIDTH, sashStartWidth + delta));
+			customWidth = true;
 			sidebarContainer.style.width = `${sidebarWidth}px`;
 			sash.layout();
 			onDidResizeEmitter.fire();
@@ -654,6 +663,7 @@ export class ModalEditorPart {
 		disposables.add(sash.onDidReset(() => {
 			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
 			sidebarWidth = Math.min(maxWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
+			customWidth = false;
 			sidebarContainer.style.width = `${sidebarWidth}px`;
 			sash.layout();
 			onDidResizeEmitter.fire();
@@ -662,11 +672,12 @@ export class ModalEditorPart {
 		return {
 			onDidResize: onDidResizeEmitter.event,
 			getWidth: () => sidebarWidth,
+			hasCustomWidth: () => customWidth,
 			layout: (height: number) => {
 				onDidLayoutEmitter.fire({ height, width: sidebarWidth });
 				sash.layout();
 			},
-			updateContent: (newContent: IModalEditorSidebarContent) => {
+			updateContent: (newContent: IModalEditorSidebar) => {
 				contentDisposable.clear();
 				sidebarContainer.textContent = '';
 				contentDisposable.value = newContent.render(sidebarContainer, onDidLayoutEmitter.event);
@@ -706,6 +717,10 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	private _position: IPosition | undefined;
 	get position(): IPosition | undefined { return this._position; }
 	set position(value: IPosition | undefined) { this._position = value; }
+
+	private _sidebarWidth: number | undefined;
+	get sidebarWidth(): number | undefined { return this._sidebarWidth; }
+	set sidebarWidth(value: number | undefined) { this._sidebarWidth = value; }
 
 	private savedSize: IDimension | undefined;
 	private savedPosition: IPosition | undefined;
