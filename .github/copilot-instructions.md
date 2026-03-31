@@ -24,7 +24,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
   - `workbench/api/` - Extension host and VS Code API implementation
 - `src/vs/code/` - Electron main process specific implementation
 - `src/vs/server/` - Server specific implementation
-- `src/vs/sessions/` - Agents window, a dedicated workbench layer for agentic workflows (sits alongside `vs/workbench`, may import from it but not vice versa)
+- `src/vs/sessions/` - Agent sessions window, a dedicated workbench layer for agentic workflows (sits alongside `vs/workbench`, may import from it but not vice versa)
 
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
