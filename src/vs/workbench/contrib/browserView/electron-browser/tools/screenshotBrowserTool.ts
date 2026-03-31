@@ -77,8 +77,8 @@ export class ScreenshotBrowserTool implements IToolImpl {
 			};
 		}
 		return {
-			invocationMessage: localize('browser.screenshot.invocation', "Capturing screenshot"),
-			pastTenseMessage: localize('browser.screenshot.past', "Captured screenshot"),
+			invocationMessage: localize('browser.screenshot.invocation', "Capturing browser screenshot"),
+			pastTenseMessage: localize('browser.screenshot.past', "Captured browser screenshot"),
 		};
 	}
 
