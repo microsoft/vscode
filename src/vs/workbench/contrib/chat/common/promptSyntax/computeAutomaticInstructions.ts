@@ -462,7 +462,7 @@ export class ComputeAutomaticInstructions {
 					// Built-in General Purpose agent, always available when experiment is on
 					entries.push('<agent>');
 					entries.push(`<name>${GeneralPurposeAgentName}</name>`);
-					entries.push(`<description>Full-capability agent for complex multi-step tasks requiring the complete toolset and high-quality reasoning. Has access to all tools. Inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
+					entries.push(`<description>Full-capability agent for complex multi-step tasks requiring high-quality reasoning. Has access to the same tools and capabilities as the current agent and inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
 					entries.push('</agent>');
 				}
 				}
