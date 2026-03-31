@@ -270,7 +270,7 @@
 	border-radius: 4px;
 	overflow-x: auto;
 	white-space: pre-wrap;
-	font-family: monospace;
+	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
 	line-height: 1.45;
 	background: var(--vscode-editorWidget-background);
