@@ -4,14 +4,15 @@ parameters:
     default: true
 
 steps:
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: 'VS Code Development WIF'
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: npm run setup
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Setup copilot test environment
+  - ${{ if eq(parameters.runIntegrationTests, true) }}:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'VS Code Development WIF'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: npm run setup
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: Setup copilot test environment
 
   - script: npm run setup:dotnet
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
@@ -25,9 +26,9 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Lint
 
-  - script: npm run compile
+  - script: npm run build
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Compile
+    displayName: Build
 
   - script: npm run test:unit
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
