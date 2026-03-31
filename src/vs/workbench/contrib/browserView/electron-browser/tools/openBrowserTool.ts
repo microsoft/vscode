@@ -5,9 +5,11 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
+import { createBrowserPageLink } from './browserToolHelpers.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
@@ -69,8 +71,12 @@ export class OpenBrowserTool implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Page ID: ${pageId}\n${summary}`,
+				value: `Page ID: ${pageId}\n\nSummary:\n`,
+			}, {
+				kind: 'text',
+				value: summary,
 			}],
+			toolResultMessage: new MarkdownString(localize('browser.open.result', "Opened {0}", createBrowserPageLink(pageId)))
 		};
 	}
 }

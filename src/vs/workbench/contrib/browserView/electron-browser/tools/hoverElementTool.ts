@@ -5,10 +5,11 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, playwrightInvoke } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const HoverElementToolData: IToolData = {
@@ -51,9 +52,10 @@ export class HoverElementTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const link = createBrowserPageLink(_context.parameters.pageId);
 		return {
-			invocationMessage: localize('browser.hover.invocation', "Hovering over element in browser"),
-			pastTenseMessage: localize('browser.hover.past', "Hovered over element in browser"),
+			invocationMessage: new MarkdownString(localize('browser.hover.invocation', "Hovering over element in {0}", link)),
+			pastTenseMessage: new MarkdownString(localize('browser.hover.past', "Hovered over element in {0}", link)),
 		};
 	}
 
