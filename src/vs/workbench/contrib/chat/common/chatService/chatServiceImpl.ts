@@ -10,10 +10,10 @@ import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, autorunIterableDelta, derived, IObservable, ISettableObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -56,7 +56,6 @@ import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_COMMAND_NAME, TROUBLESHOOT_SKILL_PATH, COPILOT_SKILL_URI_SCHEME } from '../promptSyntax/promptTypes.js';
 import { ChatRequestHooks, mergeHooks } from '../promptSyntax/hookSchema.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { ChatMode } from '../chatModes.js';
 
@@ -126,7 +125,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>());
 	public readonly onDidReceiveQuestionCarouselAnswer = this._onDidReceiveQuestionCarouselAnswer.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI[]; reason: 'cleared' }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
@@ -195,7 +194,7 @@ export class ChatService extends Disposable implements IChatService {
 		this._register(this._sessionModels.onDidDisposeModel(model => {
 			clearChatMarks(model.sessionResource);
 			this.chatDebugService.endSession(model.sessionResource);
-			this._onDidDisposeSession.fire({ sessionResource: [model.sessionResource], reason: 'cleared' });
+			this._onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'cleared' });
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
@@ -400,18 +399,7 @@ export class ChatService extends Disposable implements IChatService {
 	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		return await Promise.all(Array.from(this._sessionModels.values())
 			.filter(session => this.shouldBeInHistory(session))
-			.map(async (session): Promise<IChatDetail> => {
-				const title = session.title || localize('newChat', "New Chat");
-				return {
-					sessionResource: session.sessionResource,
-					title,
-					lastMessageDate: session.lastMessageDate,
-					timing: session.timing,
-					isActive: true,
-					stats: await awaitStatsForSession(session),
-					lastResponseState: session.lastRequest?.response?.state ?? ResponseModelState.Pending,
-				};
-			}));
+			.map(chatModelToChatDetail));
 	}
 
 	/**
@@ -452,7 +440,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
 		await this._chatSessionStore.deleteSession(this.toLocalSessionId(sessionResource));
-		this._onDidDisposeSession.fire({ sessionResource: [sessionResource], reason: 'cleared' });
+		this._onDidDisposeSession.fire({ sessionResources: [sessionResource], reason: 'cleared' });
 	}
 
 	async clearAllHistoryEntries(): Promise<void> {
@@ -1845,39 +1833,17 @@ export class ChatService extends Disposable implements IChatService {
 		}
 		return localSessionId;
 	}
+}
 
-	public registerChatModelChangeListeners(chatSessionType: string, onChange: (chatSessionResource: URI) => void): IDisposable {
-		const disposableStore = new DisposableStore();
-		const chatModelsICareAbout = this.chatModels.map(models =>
-			Array.from(models).filter((model: IChatModel) => model.sessionResource.scheme === chatSessionType)
-		);
-
-		const listeners = new ResourceMap<IDisposable>();
-		const autoRunDisposable = autorunIterableDelta(
-			reader => chatModelsICareAbout.read(reader),
-			({ addedValues, removedValues }) => {
-				removedValues.forEach((removed) => {
-					const listener = listeners.get(removed.sessionResource);
-					if (listener) {
-						listeners.delete(removed.sessionResource);
-						listener.dispose();
-					}
-				});
-				addedValues.forEach((added) => {
-					const requestChangeListener = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelRequestChangeListener', last.response.onDidChange));
-					const modelChangeListener = observableSignalFromEvent('chatSessions.modelChangeListener', added.onDidChange);
-					listeners.set(added.sessionResource, autorun(reader => {
-						requestChangeListener.read(reader)?.read(reader);
-						modelChangeListener.read(reader);
-						onChange(added.sessionResource);
-					}));
-				});
-			}
-		);
-		disposableStore.add(toDisposable(() => {
-			for (const listener of listeners.values()) { listener.dispose(); }
-		}));
-		disposableStore.add(autoRunDisposable);
-		return disposableStore;
-	}
+export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDetail> {
+	const title = model.title || localize('newChat', "New Chat");
+	return {
+		sessionResource: model.sessionResource,
+		title,
+		lastMessageDate: model.lastMessageDate,
+		timing: model.timing,
+		isActive: true,
+		stats: await awaitStatsForSession(model),
+		lastResponseState: model.lastRequest?.response?.state ?? ResponseModelState.Pending,
+	};
 }

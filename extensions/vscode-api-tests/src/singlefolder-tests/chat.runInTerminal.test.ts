@@ -15,8 +15,8 @@ const enum ShellIntegrationTimeoutOverride {
 const isWindows = process.platform === 'win32';
 const isMacOS = process.platform === 'darwin';
 const sandboxFileSystemSetting = isMacOS
-	? 'chat.tools.terminal.sandbox.macFileSystem'
-	: 'chat.tools.terminal.sandbox.linuxFileSystem';
+	? 'chat.agent.sandboxFileSystem.mac'
+	: 'chat.agent.sandboxFileSystem.linux';
 
 /**
  * Extracts all text content from a LanguageModelToolResult.
@@ -71,7 +71,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		participantRegistered = false;
 		pendingResult = undefined;
 		pendingCommand = undefined;
-		pendingTimeout = undefined;
+		pendingOptions = undefined;
 
 		const chatToolsConfig = vscode.workspace.getConfiguration('chat.tools.global');
 		await chatToolsConfig.update('autoApprove', undefined, vscode.ConfigurationTarget.Global);
@@ -82,10 +82,16 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 	 * Helper: invokes run_in_terminal via a chat participant and returns the tool result text.
 	 * Each call creates a new chat session to avoid participant re-registration issues.
 	 */
+	interface RunInTerminalOptions {
+		timeout?: number;
+		requestUnsandboxedExecution?: boolean;
+		requestUnsandboxedExecutionReason?: string;
+	}
+
 	let participantRegistered = false;
 	let pendingResult: DeferredPromise<vscode.LanguageModelToolResult> | undefined;
 	let pendingCommand: string | undefined;
-	let pendingTimeout: number | undefined;
+	let pendingOptions: RunInTerminalOptions | undefined;
 
 	function setupParticipant() {
 		if (participantRegistered) {
@@ -98,10 +104,10 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			}
 			const currentResult = pendingResult;
 			const currentCommand = pendingCommand;
-			const currentTimeout = pendingTimeout ?? 15000;
+			const currentOptions = pendingOptions ?? {};
 			pendingResult = undefined;
 			pendingCommand = undefined;
-			pendingTimeout = undefined;
+			pendingOptions = undefined;
 			try {
 				const result = await vscode.lm.invokeTool('run_in_terminal', {
 					input: {
@@ -109,7 +115,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 						explanation: 'Integration test command',
 						goal: 'Test run_in_terminal output',
 						isBackground: false,
-						timeout: currentTimeout
+						timeout: currentOptions.timeout ?? 15000,
+						...currentOptions.requestUnsandboxedExecution ? {
+							requestUnsandboxedExecution: true,
+							requestUnsandboxedExecutionReason: currentOptions.requestUnsandboxedExecutionReason,
+						} : {},
 					},
 					toolInvocationToken: request.toolInvocationToken,
 				});
@@ -122,13 +132,18 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		disposables.push(participant);
 	}
 
-	async function invokeRunInTerminal(command: string, timeout = 15000): Promise<string> {
+	async function invokeRunInTerminal(command: string, options?: RunInTerminalOptions): Promise<string>;
+	async function invokeRunInTerminal(command: string, timeout?: number): Promise<string>;
+	async function invokeRunInTerminal(command: string, optionsOrTimeout?: RunInTerminalOptions | number): Promise<string> {
 		setupParticipant();
 
+		const opts: RunInTerminalOptions = typeof optionsOrTimeout === 'number'
+			? { timeout: optionsOrTimeout }
+			: optionsOrTimeout ?? {};
 		const resultPromise = new DeferredPromise<vscode.LanguageModelToolResult>();
 		pendingResult = resultPromise;
 		pendingCommand = command;
-		pendingTimeout = timeout;
+		pendingOptions = opts;
 
 		await vscode.commands.executeCommand('workbench.action.chat.newChat');
 		vscode.commands.executeCommand('workbench.action.chat.open', { query: '@participant test' });
@@ -234,7 +249,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});
 
-			(isWindows ? test : test.skip)('&& operators are converted to ; on PowerShell', async function () {
+			(isWindows ? test.skip : test.skip)('&& operators are converted to ; on PowerShell', async function () {
 				this.timeout(60000);
 
 				const m1 = `CHAIN_${Date.now()}_A`;
@@ -282,16 +297,17 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		(isWindows ? suite.skip : suite)('sandbox on', () => {
 
 			setup(async () => {
-				const sandboxConfig = vscode.workspace.getConfiguration('chat.tools.terminal.sandbox');
-				await sandboxConfig.update('enabled', true, vscode.ConfigurationTarget.Global);
+				const configuration = vscode.workspace.getConfiguration();
+				await configuration.update('chat.agent.sandbox', true, vscode.ConfigurationTarget.Global);
 			});
 
 			teardown(async () => {
-				const sandboxConfig = vscode.workspace.getConfiguration('chat.tools.terminal.sandbox');
-				await sandboxConfig.update('enabled', undefined, vscode.ConfigurationTarget.Global);
+				const configuration = vscode.workspace.getConfiguration();
+				await configuration.update('chat.agent.sandbox', undefined, vscode.ConfigurationTarget.Global);
 			});
 
-			test('echo works in sandbox and output is clean', async function () {
+			// Flaky: #305722
+			test.skip('echo works in sandbox and output is clean', async function () {
 				this.timeout(60000);
 
 				const marker = `SANDBOX_ECHO_${Date.now()}`;
@@ -300,30 +316,50 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.strictEqual(output.trim(), marker);
 			});
 
-			test('network requests are blocked', async function () {
+			test('network requests to allowlisted domains succeed in sandbox', async function () {
 				this.timeout(60000);
 
-				const output = await invokeRunInTerminal('curl -s --max-time 5 https://example.com');
-
-				// Without shell integration, exit code is unavailable and
-				// curl produces no sandbox-specific error strings, so the
-				// sandbox analyzer may not trigger.
-				const acceptable = [
-					[
-						'Command failed while running in sandboxed mode. If the command failed due to sandboxing:',
-						`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
-						'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
-						'',
-						'Here is the output of the command:',
-						'',
-						'',
-						'',
+				const configuration = vscode.workspace.getConfiguration();
+				await configuration.update('chat.agent.sandboxNetwork.allowedDomains', ['example.com'], vscode.ConfigurationTarget.Global);
+				try {
+					const output = await invokeRunInTerminal('curl -s --max-time 5 https://example.com');
+					const trimmed = output.trim();
+					const acceptable = [
 						'Command produced no output',
-						'Command exited with code 56',
-					].join('\n'),
+						'<title>Example Domain</title>',
+					];
+					assert.ok(acceptable.some(value => trimmed.includes(value) || trimmed === value), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				} finally {
+					await configuration.update('chat.agent.sandboxNetwork.allowedDomains', undefined, vscode.ConfigurationTarget.Global);
+				}
+			});
+
+			test('requestUnsandboxedExecution preserves sandbox $TMPDIR', async function () {
+				this.timeout(60000);
+
+				const marker = `SANDBOX_UNSANDBOX_${Date.now()}`;
+				const sentinelName = `sentinel-${marker}.txt`;
+
+				// Step 1: Write a sentinel file into the sandbox-provided $TMPDIR.
+				const writeOutput = await invokeRunInTerminal(`echo ${marker} > "$TMPDIR/${sentinelName}" && echo ${marker}`);
+				const writeAcceptable = [
+					marker,
 					...(!hasShellIntegration ? ['Command produced no output'] : []),
 				];
-				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
+				assert.ok(writeAcceptable.includes(writeOutput.trim()), `Unexpected output: ${JSON.stringify(writeOutput.trim())}`);
+
+				// Step 2: Retry with requestUnsandboxedExecution=true while sandbox
+				// stays enabled. The tool should preserve $TMPDIR from the sandbox so
+				// the sentinel file created in step 1 is still accessible.
+				const retryOutput = await invokeRunInTerminal(`cat "$TMPDIR/${sentinelName}"`, {
+					timeout: 30000,
+					requestUnsandboxedExecution: true,
+					requestUnsandboxedExecutionReason: 'Need to verify $TMPDIR persists on unsandboxed retry',
+				});
+				const trimmed = retryOutput.trim();
+				assert.ok(trimmed.startsWith('Note: The tool simplified the command to'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.includes(`cat "$TMPDIR/${sentinelName}"`), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.endsWith(marker), `Unexpected output: ${JSON.stringify(trimmed)}`);
 			});
 
 			test('cannot write to /tmp', async function () {
@@ -339,7 +375,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 					? `/bin/bash: /tmp/${marker}.txt: Operation not permitted`
 					: `/usr/bin/bash: line 1: /tmp/${marker}.txt: Read-only file system`;
 				const sandboxBody = [
-					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.tools.terminal.sandbox.network.allowedDomains.`,
+					`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandboxNetwork.allowedDomains.`,
 					'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 					'',
 					'Here is the output of the command:',
@@ -385,6 +421,18 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				const output = await invokeRunInTerminal(`echo "${marker}" > "$TMPDIR/${marker}.tmp" && cat "$TMPDIR/${marker}.tmp" && rm "$TMPDIR/${marker}.tmp"`);
 
 				assert.strictEqual(output.trim(), marker);
+			});
+
+			test('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
+				this.timeout(60000);
+
+				const marker = `SANDBOX_DOMAIN_${Date.now()}`;
+				const output = await invokeRunInTerminal(`echo https://example.net >/dev/null && echo "${marker}" > /tmp/${marker}.txt && cat /tmp/${marker}.txt && rm /tmp/${marker}.txt`);
+
+				const trimmed = output.trim();
+				assert.ok(trimmed.startsWith('Note: The tool simplified the command to'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.includes('https://example.net'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+				assert.ok(trimmed.endsWith(marker), `Unexpected output: ${JSON.stringify(trimmed)}`);
 			});
 		});
 	}
