@@ -194,7 +194,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config = config;
 
 		// Create shared client state manager for this handler instance
-		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService));
+		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService, () => config.connection.nextClientSeq()));
 
 		// Register an editing session provider for this handler's session type
 		this._register(this._chatEditingService.registerEditingSessionProvider(
