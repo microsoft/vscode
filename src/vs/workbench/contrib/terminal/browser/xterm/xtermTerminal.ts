@@ -109,6 +109,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
 	private _selectionGapAnimationFrame: number | undefined;
+	private _viewportSyncAnimationFrame: number | undefined;
+	private _viewportSyncAnimationFrameWindow: Window | undefined;
+	private _viewportSyncAnimationFrameReason: string | undefined;
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 	private _lastInputEvent: string | undefined;
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
@@ -551,7 +554,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!targetWindow) {
 			return;
 		}
-		targetWindow.requestAnimationFrame(() => {
+		this._viewportSyncAnimationFrameReason = reason;
+		this._viewportSyncAnimationFrameWindow = targetWindow;
+		if (this._viewportSyncAnimationFrame !== undefined) {
+			return;
+		}
+		this._viewportSyncAnimationFrame = targetWindow.requestAnimationFrame(() => {
+			this._viewportSyncAnimationFrame = undefined;
+			const rafReason = this._viewportSyncAnimationFrameReason ?? reason;
+			this._viewportSyncAnimationFrameReason = undefined;
+			this._viewportSyncAnimationFrameWindow = undefined;
 			if (!this.raw.element) {
 				return;
 			}
@@ -560,7 +572,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this._updateViewportRightOffset();
 			this.forceRefresh();
 			this._onDidRequestRefreshDimensions.fire();
-			this._scheduleSelectionGapMetrics(`${reason}:raf`);
+			this._scheduleSelectionGapMetrics(`${rafReason}:raf`);
 		});
 	}
 
@@ -1237,6 +1249,12 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	override dispose(): void {
+		if (this._viewportSyncAnimationFrame !== undefined && this._viewportSyncAnimationFrameWindow) {
+			this._viewportSyncAnimationFrameWindow.cancelAnimationFrame(this._viewportSyncAnimationFrame);
+			this._viewportSyncAnimationFrame = undefined;
+			this._viewportSyncAnimationFrameWindow = undefined;
+			this._viewportSyncAnimationFrameReason = undefined;
+		}
 		if (this._selectionGapAnimationFrame !== undefined && this.raw.element) {
 			dom.getWindow(this.raw.element).cancelAnimationFrame(this._selectionGapAnimationFrame);
 			this._selectionGapAnimationFrame = undefined;
