@@ -161,6 +161,16 @@ export interface IChatContentInlineReference {
 	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
+	/**
+	 * Optional code snippet content extracted from the referenced file/location.
+	 * When present, this content should be displayed alongside the reference link.
+	 */
+	snippet?: string;
+	/**
+	 * Optional language identifier for syntax highlighting the code snippet.
+	 * If not provided, will be inferred from the file extension.
+	 */
+	languageId?: string;
 	kind: 'inlineReference';
 }
 

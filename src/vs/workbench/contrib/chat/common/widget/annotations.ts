@@ -12,6 +12,68 @@ import { IChatAgentVulnerabilityDetails } from '../chatService/chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
+/**
+ * Infers the language identifier from a file name or label.
+ * Common language mappings based on file extensions.
+ */
+function inferLanguageFromLabel(label: string): string | undefined {
+	if (!label) {
+		return undefined;
+	}
+
+	const ext = label.substring(label.lastIndexOf('.') + 1).toLowerCase();
+	const languageMap: Record<string, string> = {
+		// Programming languages
+		'js': 'javascript',
+		'jsx': 'javascript',
+		'ts': 'typescript',
+		'tsx': 'typescript',
+		'py': 'python',
+		'java': 'java',
+		'c': 'c',
+		'cpp': 'cpp',
+		'cc': 'cpp',
+		'cxx': 'cpp',
+		'h': 'c',
+		'hpp': 'cpp',
+		'cs': 'csharp',
+		'go': 'go',
+		'rs': 'rust',
+		'rb': 'ruby',
+		'php': 'php',
+		'swift': 'swift',
+		'kt': 'kotlin',
+		'scala': 'scala',
+		'pl': 'perl',
+		'sh': 'bash',
+		'bash': 'bash',
+		'zsh': 'bash',
+		'fish': 'bash',
+		'ps1': 'powershell',
+		'psm1': 'powershell',
+		'lua': 'lua',
+		'r': 'r',
+		'R': 'r',
+		'sql': 'sql',
+		'html': 'html',
+		'htm': 'html',
+		'xml': 'xml',
+		'css': 'css',
+		'scss': 'scss',
+		'sass': 'sass',
+		'less': 'less',
+		'json': 'json',
+		'jsonc': 'jsonc',
+		'yaml': 'yaml',
+		'yml': 'yaml',
+		'toml': 'toml',
+		'md': 'markdown',
+		'markdown': 'markdown',
+	};
+
+	return languageMap[ext];
+}
+
 export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
 	let refIdPool = 0;
 
@@ -46,7 +108,13 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 			} else {
 				const refId = refIdPool++;
 				const printUri = URI.parse(contentRefUrl).with({ path: String(refId) });
-				const markdownText = `[${label}](${printUri.toString()})`;
+				let markdownText = `[${label}](${printUri.toString()})`;
+				
+				// If the inline reference includes a code snippet, append it as a code block
+				if (item.snippet) {
+					const languageId = item.languageId || inferLanguageFromLabel(label) || '';
+					markdownText += `\n\`\`\`${languageId}\n${item.snippet}\n\`\`\``;
+				}
 
 				const annotationMetadata = { [refId]: item };
 
