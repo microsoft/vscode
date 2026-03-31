@@ -44,8 +44,8 @@
 		let shellForeground = '#CCCCCC';
 		if (data) {
 			baseTheme = data.baseTheme;
-			shellBackground = data.colorInfo.editorBackground;
-			shellForeground = data.colorInfo.foreground;
+			shellBackground = data.colorInfo.editorBackground ?? data.colorInfo.background;
+			shellForeground = data.colorInfo.foreground ?? shellForeground;
 		} else if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
 			if (configuration.colorScheme.dark) {
 				baseTheme = 'hc-black';
