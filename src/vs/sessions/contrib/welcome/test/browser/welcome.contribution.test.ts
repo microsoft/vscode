@@ -16,6 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatSetupStrategy } from '../../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
@@ -242,6 +243,50 @@ suite('SessionsWelcomeContribution', () => {
 			overlayElement.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
 			assert.strictEqual(overlayElement.isConnected, true, 'Backdrop click should not dismiss the walkthrough');
 			assert.strictEqual(overlayElement.classList.contains('sessions-walkthrough-dismissed'), false);
+
+			overlay.dispose();
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('walkthrough uses only the default sign-in route', async () => {
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
+		let commandArgs: unknown[] | undefined;
+		instantiationService.stub(ICommandService, {
+			executeCommand: (...args: unknown[]) => {
+				commandArgs = args;
+				return Promise.resolve(false);
+			}
+		} as unknown as ICommandService);
+		instantiationService.stub(IExtensionService, {
+			stopExtensionHosts: () => Promise.resolve(false),
+			startExtensionHosts: () => Promise.resolve()
+		} as unknown as IExtensionService);
+		instantiationService.stub(IDefaultAccountService, {
+			getDefaultAccount: () => Promise.resolve(undefined)
+		} as unknown as IDefaultAccountService);
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		try {
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
+			assert.ok(githubButton);
+			assert.strictEqual(container.querySelector('.sessions-walkthrough-provider-btn.provider-google'), null);
+			assert.strictEqual(container.querySelector('.sessions-walkthrough-provider-btn.provider-apple'), null);
+
+			githubButton.click();
+			await new Promise(resolve => setTimeout(resolve, 250));
+
+			assert.ok(commandArgs);
+			assert.deepStrictEqual(commandArgs?.[1], {
+				setupStrategy: ChatSetupStrategy.SetupWithoutEnterpriseProvider
+			});
 
 			overlay.dispose();
 		} finally {
