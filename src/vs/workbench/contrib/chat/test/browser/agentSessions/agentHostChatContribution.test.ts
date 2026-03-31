@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -349,7 +350,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('session ID resolution', () => {
 
-		test('creates new SDK session for untitled resource', async () => {
+		test('creates new SDK session for untitled resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, { message: 'Hello' });
@@ -360,9 +361,9 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.dispatchedActions[0].action.type, 'session/turnStarted');
 			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
 			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
-		});
+		}));
 
-		test('reuses SDK session for same resource on second message', async () => {
+		test('reuses SDK session for same resource on second message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-reuse' });
@@ -399,9 +400,9 @@ suite('AgentHostChatContribution', () => {
 				(agentHostService.dispatchedActions[0].action as ITurnStartedAction).session.toString(),
 				(agentHostService.dispatchedActions[1].action as ITurnStartedAction).session.toString(),
 			);
-		});
+		}));
 
-		test('uses sessionId from agent-host scheme resource', async () => {
+		test('uses sessionId from agent-host scheme resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -412,9 +413,9 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(AgentSession.id(URI.parse(session)), 'existing-session-42');
-		});
+		}));
 
-		test('agent-host scheme with untitled path creates new session via mapping', async () => {
+		test('agent-host scheme with untitled path creates new session via mapping', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -426,8 +427,8 @@ suite('AgentHostChatContribution', () => {
 
 			// Should create a new SDK session, not use "untitled-abc123" literally
 			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
-		});
-		test('passes raw model id extracted from language model identifier', async () => {
+		}));
+		test('passes raw model id extracted from language model identifier', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -439,9 +440,9 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].model, 'claude-sonnet-4-20250514');
-		});
+		}));
 
-		test('passes model id as-is when no vendor prefix', async () => {
+		test('passes model id as-is when no vendor prefix', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -453,7 +454,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].model, 'gpt-4o');
-		});
+		}));
 
 		test('does not create backend session eagerly for untitled sessions', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -471,7 +472,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('progress routing', () => {
 
-		test('delta events become markdownContent progress', async () => {
+		test('delta events become markdownContent progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -486,9 +487,9 @@ suite('AgentHostChatContribution', () => {
 			const markdownParts = collected.flat().filter((p): p is IChatMarkdownContent => p.kind === 'markdownContent');
 			const totalContent = markdownParts.map(p => p.content.value).join('');
 			assert.strictEqual(totalContent, 'hello world');
-		});
+		}));
 
-		test('tool_start events become toolInvocation progress', async () => {
+		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -501,9 +502,9 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
-		});
+		}));
 
-		test('tool_complete event transitions toolInvocation to completed', async () => {
+		test('tool_complete event transitions toolInvocation to completed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -523,9 +524,9 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(invocation.kind, 'toolInvocation');
 			assert.strictEqual(invocation.toolCallId, 'tc-2');
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
-		});
+		}));
 
-		test('tool_complete with failure sets error state', async () => {
+		test('tool_complete with failure sets error state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -544,9 +545,9 @@ suite('AgentHostChatContribution', () => {
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.strictEqual(invocation.kind, 'toolInvocation');
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
-		});
+		}));
 
-		test('malformed toolArguments does not throw', async () => {
+		test('malformed toolArguments does not throw', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -559,9 +560,9 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
-		});
+		}));
 
-		test('outstanding tool invocations are completed on idle', async () => {
+		test('outstanding tool invocations are completed on idle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -577,9 +578,9 @@ suite('AgentHostChatContribution', () => {
 			const invocation = collected[0][0] as IChatToolInvocation;
 			assert.strictEqual(invocation.kind, 'toolInvocation');
 			assert.strictEqual(IChatToolInvocation.isComplete(invocation), true);
-		});
+		}));
 
-		test('events from other sessions are ignored', async () => {
+		test('events from other sessions are ignored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -597,14 +598,14 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'right');
-		});
+		}));
 	});
 
 	// ---- Cancellation -----------------------------------------------------
 
 	suite('cancellation', () => {
 
-		test('cancellation resolves the agent invoke', async () => {
+		test('cancellation resolves the agent invoke', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const cts = new CancellationTokenSource();
@@ -618,9 +619,9 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.ok(agentHostService.dispatchedActions.some(a => a.action.type === 'session/turnCancelled'));
-		});
+		}));
 
-		test('cancellation force-completes outstanding tool invocations', async () => {
+		test('cancellation force-completes outstanding tool invocations', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const cts = new CancellationTokenSource();
@@ -642,9 +643,9 @@ suite('AgentHostChatContribution', () => {
 			for (const inv of toolInvocations) {
 				assert.strictEqual(IChatToolInvocation.isComplete(inv as IChatToolInvocation), true);
 			}
-		});
+		}));
 
-		test('cancellation calls abortSession on the agent host service', async () => {
+		test('cancellation calls abortSession on the agent host service', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const cts = new CancellationTokenSource();
@@ -659,14 +660,14 @@ suite('AgentHostChatContribution', () => {
 
 			// Cancellation now dispatches session/turnCancelled action
 			assert.ok(agentHostService.dispatchedActions.some(a => a.action.type === 'session/turnCancelled'));
-		});
+		}));
 	});
 
 	// ---- Error events -------------------------------------------------------
 
 	suite('error events', () => {
 
-		test('error event renders error message and finishes the request', async () => {
+		test('error event renders error message and finishes the request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -688,14 +689,14 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(collected.length >= 1);
 			const errorPart = collected.flat().find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong'));
 			assert.ok(errorPart, 'Should have found a markdownContent part containing the error message');
-		});
+		}));
 	});
 
 	// ---- Permission requests -----------------------------------------------
 
 	suite('permission requests', () => {
 
-		test('permission_request event shows confirmation and responds when confirmed', async () => {
+		test('permission_request event shows confirmation and responds when confirmed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -735,9 +736,9 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
-		});
+		}));
 
-		test('permission_request denied when user skips', async () => {
+		test('permission_request denied when user skips', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -769,9 +770,9 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
-		});
+		}));
 
-		test('shell permission shows terminal-style confirmation data', async () => {
+		test('shell permission shows terminal-style confirmation data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -793,9 +794,9 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
-		});
+		}));
 
-		test('read permission shows input-style confirmation data', async () => {
+		test('read permission shows input-style confirmation data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -813,7 +814,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
-		});
+		}));
 	});
 
 	// ---- History loading ---------------------------------------------------
@@ -871,7 +872,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('tool invocation rendering', () => {
 
-		test('bash tool renders as terminal command block with output', async () => {
+		test('bash tool renders as terminal command block with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -907,9 +908,9 @@ suite('AgentHostChatContribution', () => {
 				outputText: 'hello\n',
 				exitCode: 0,
 			});
-		});
+		}));
 
-		test('bash tool failure sets exit code 1 and error output', async () => {
+		test('bash tool failure sets exit code 1 and error output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -935,9 +936,9 @@ suite('AgentHostChatContribution', () => {
 				outputText: 'command not found: bad_cmd',
 				exitCode: 1,
 			});
-		});
+		}));
 
-		test('generic tool has invocation message and no toolSpecificData', async () => {
+		test('generic tool has invocation message and no toolSpecificData', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -962,9 +963,9 @@ suite('AgentHostChatContribution', () => {
 				pastTenseMessage: 'Used "custom_tool"',
 				toolSpecificData: undefined,
 			});
-		});
+		}));
 
-		test('bash tool without arguments has no terminal data', async () => {
+		test('bash tool without arguments has no terminal data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -989,9 +990,9 @@ suite('AgentHostChatContribution', () => {
 				pastTenseMessage: 'Ran Bash command',
 				toolSpecificData: undefined,
 			});
-		});
+		}));
 
-		test('view tool shows file path in messages', async () => {
+		test('view tool shows file path in messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -1014,7 +1015,7 @@ suite('AgentHostChatContribution', () => {
 				invocationMessage: 'Reading /tmp/test.txt',
 				pastTenseMessage: 'Read /tmp/test.txt',
 			});
-		});
+		}));
 	});
 
 	// ---- History with tool events ----------------------------------------
@@ -1149,7 +1150,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('server error handling', () => {
 
-		test('server-side error resolves the agent invoke without throwing', async () => {
+		test('server-side error resolves the agent invoke without throwing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
@@ -1167,7 +1168,7 @@ suite('AgentHostChatContribution', () => {
 			});
 
 			await turnPromise;
-		});
+		}));
 	});
 
 	// ---- Session list provider filtering --------------------------------
@@ -1242,7 +1243,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('attachment context', () => {
 
-		test('file variable with file:// URI becomes file attachment', async () => {
+		test('file variable with file:// URI becomes file attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -1261,9 +1262,9 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'file', path: URI.file('/workspace/test.ts').fsPath, displayName: 'test.ts' },
 			]);
-		});
+		}));
 
-		test('directory variable with file:// URI becomes directory attachment', async () => {
+		test('directory variable with file:// URI becomes directory attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -1282,9 +1283,9 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'directory', path: URI.file('/workspace/src').fsPath, displayName: 'src' },
 			]);
-		});
+		}));
 
-		test('implicit selection variable becomes selection attachment', async () => {
+		test('implicit selection variable becomes selection attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -1303,9 +1304,9 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'selection', path: URI.file('/workspace/foo.ts').fsPath, displayName: 'selection' },
 			]);
-		});
+		}));
 
-		test('non-file URIs are skipped', async () => {
+		test('non-file URIs are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -1323,9 +1324,9 @@ suite('AgentHostChatContribution', () => {
 			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
 			// No attachments because it's not a file:// URI
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
-		});
+		}));
 
-		test('tool variables are skipped', async () => {
+		test('tool variables are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -1342,9 +1343,9 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
-		});
+		}));
 
-		test('mixed variables extracts only supported types', async () => {
+		test('mixed variables extracts only supported types', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -1367,9 +1368,9 @@ suite('AgentHostChatContribution', () => {
 				{ type: 'file', path: URI.file('/workspace/a.ts').fsPath, displayName: 'a.ts' },
 				{ type: 'directory', path: URI.file('/workspace/lib').fsPath, displayName: 'lib' },
 			]);
-		});
+		}));
 
-		test('no variables results in no attachments argument', async () => {
+		test('no variables results in no attachments argument', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
@@ -1381,14 +1382,14 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
-		});
+		}));
 	});
 
 	// ---- AgentHostContribution discovery ---------------------------------
 
 	suite('dynamic discovery', () => {
 
-		test('setting gate prevents registration', async () => {
+		test('setting gate prevents registration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService } = createTestServices(disposables);
 			instantiationService.stub(IConfigurationService, { getValue: () => false });
 
@@ -1397,7 +1398,7 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(contribution);
 			// Let async work settle
 			await timeout(10);
-		});
+		}));
 	});
 
 	// ---- IAgentConnection unification -------------------------------------
@@ -1444,7 +1445,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(registered.data.extensionDisplayName, 'Agent Host');
 		});
 
-		test('handler uses resolveWorkingDirectory callback', async () => {
+		test('handler uses resolveWorkingDirectory callback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -1464,7 +1465,39 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), URI.file('/custom/working/dir').toString());
-		});
+		}));
+
+		test('handler passes vscode-agent-host URI as-is to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			// The workspace repository URI in the Sessions app is a
+			// vscode-agent-host:// URI. It must be passed through unchanged
+			// because the connection's createSession already converts it via
+			// fromAgentHostUri before sending to the remote server.
+			const agentHostUri = URI.from({
+				scheme: 'vscode-agent-host',
+				authority: 'my-server',
+				path: '/file/-/home/user/project',
+			});
+
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'workdir-agenthost-test',
+				sessionType: 'workdir-agenthost-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'my-server',
+				resolveWorkingDirectory: () => agentHostUri,
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), agentHostUri.toString());
+		}));
 
 		test('list controller includes description in items', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
@@ -1492,7 +1525,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(controller.items[0].description, undefined);
 		});
 
-		test('handler works with any IAgentConnection, not just IAgentHostService', async () => {
+		test('handler works with any IAgentConnection, not just IAgentHostService', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 			// Create handler with agentHostService as IAgentConnection (not IAgentHostService)
@@ -1521,7 +1554,7 @@ suite('AgentHostChatContribution', () => {
 			// Turn dispatched via connection.dispatchAction
 			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
-		});
+		}));
 	});
 
 	// ---- Reconnection to active turn ----------------------------------------
@@ -1638,7 +1671,7 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(cancelAction, 'Should dispatch session/turnCancelled');
 		});
 
-		test('streams new text deltas into progressObs after reconnection', async () => {
+		test('streams new text deltas into progressObs after reconnection', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-stream');
@@ -1666,9 +1699,9 @@ suite('AgentHostChatContribution', () => {
 			const lastMarkdown = [...progress].reverse().find(p => p.kind === 'markdownContent') as IChatMarkdownContent;
 			assert.ok(lastMarkdown, 'Should have a new markdown delta');
 			assert.strictEqual(lastMarkdown.content.value, ' and more');
-		});
+		}));
 
-		test('marks session complete when turn finishes', async () => {
+		test('marks session complete when turn finishes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-complete');
@@ -1690,7 +1723,7 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			assert.strictEqual(session.isCompleteObs?.get(), true, 'Should be complete after turnComplete');
-		});
+		}));
 
 		test('handles active turn with running tool call', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -1720,7 +1753,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(toolInvocation!.toolCallId, 'tc-running');
 		});
 
-		test('handles active turn with pending tool confirmation', async () => {
+		test('handles active turn with pending tool confirmation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const sessionUri = AgentSession.uri('copilot', 'reconnect-perm');
@@ -1755,7 +1788,7 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 			await timeout(10);
-		});
+		}));
 
 		test('no active turn loads completed history only with isComplete true', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -1808,7 +1841,7 @@ suite('AgentHostChatContribution', () => {
 
 	suite('server-initiated turns', () => {
 
-		test('detects server-initiated turn and fires onDidStartServerRequest', async () => {
+		test('detects server-initiated turn and fires onDidStartServerRequest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			// Create and subscribe a session
@@ -1854,9 +1887,9 @@ suite('AgentHostChatContribution', () => {
 
 			// isCompleteObs should be false (turn in progress)
 			assert.strictEqual(chatSession.isCompleteObs!.get(), false);
-		});
+		}));
 
-		test('server-initiated turn streams progress through progressObs', async () => {
+		test('server-initiated turn streams progress through progressObs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-progress' });
@@ -1909,9 +1942,9 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
-		});
+		}));
 
-		test('client-dispatched turns are not treated as server-initiated', async () => {
+		test('client-dispatched turns are not treated as server-initiated', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-no-dupe' });
@@ -1934,6 +1967,121 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(serverRequestEvents.length, 0, 'Client-dispatched turns should not trigger onDidStartServerRequest');
-		});
+		}));
+
+		test('server-initiated turn does not duplicate tool calls on repeated state changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-tool-dedup' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// First, do a normal turn so the backend session is created
+			const turn1Promise = chatSession.requestHandler!(
+				makeRequest({ message: 'Init', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch1 = agentHostService.dispatchedActions[0];
+			const action1 = dispatch1.action as ITurnStartedAction;
+			const session = action1.session;
+			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
+			await turn1Promise;
+
+			// Server-initiated turn
+			const serverTurnId = 'server-turn-tool-dedup';
+			agentHostService.fireAction({
+				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'queued' } } as ISessionAction,
+				serverSeq: 3, origin: undefined,
+			});
+			await timeout(10);
+
+			// Tool start + ready (auto-confirmed)
+			agentHostService.fireAction({
+				action: { type: 'session/toolCallStart', session, turnId: serverTurnId, toolCallId: 'tc-srv-1', toolName: 'bash', displayName: 'Bash' } as ISessionAction,
+				serverSeq: 4, origin: undefined,
+			});
+			agentHostService.fireAction({
+				action: { type: 'session/toolCallReady', session, turnId: serverTurnId, toolCallId: 'tc-srv-1', invocationMessage: 'Running Bash', confirmed: 'not-needed' } as ISessionAction,
+				serverSeq: 5, origin: undefined,
+			});
+			await timeout(50);
+
+			// Tool complete
+			agentHostService.fireAction({
+				action: { type: 'session/toolCallComplete', session, turnId: serverTurnId, toolCallId: 'tc-srv-1', result: { success: true, pastTenseMessage: 'Ran Bash' } } as ISessionAction,
+				serverSeq: 6, origin: undefined,
+			});
+			await timeout(50);
+
+			// Fire additional state changes that might cause re-processing
+			agentHostService.fireAction({
+				action: { type: 'session/responsePart', session, turnId: serverTurnId, part: { kind: 'markdown', id: 'md-after', content: 'Done.' } } as ISessionAction,
+				serverSeq: 7, origin: undefined,
+			});
+			agentHostService.fireAction({
+				action: { type: 'session/turnComplete', session, turnId: serverTurnId } as ISessionAction,
+				serverSeq: 8, origin: undefined,
+			});
+			await timeout(50);
+
+			// Count tool invocations in progressObs — should be exactly 1
+			const progress = chatSession.progressObs!.get();
+			const toolInvocations = progress.filter(p => p.kind === 'toolInvocation');
+			assert.strictEqual(toolInvocations.length, 1, 'Tool call should not be duplicated');
+		}));
+
+		test('server-initiated turn picks up markdown arriving with turnStarted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-md-initial' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			// First, do a normal turn so the backend session is created
+			const turn1Promise = chatSession.requestHandler!(
+				makeRequest({ message: 'Init', sessionResource }),
+				() => { }, [], CancellationToken.None,
+			);
+			await timeout(10);
+			const dispatch1 = agentHostService.dispatchedActions[0];
+			const action1 = dispatch1.action as ITurnStartedAction;
+			const session = action1.session;
+			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
+			agentHostService.fireAction({ action: { type: 'session/turnComplete', session, turnId: action1.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
+			await turn1Promise;
+
+			// Fire turnStarted followed immediately by a response part.
+			// In production, these can arrive in rapid succession from the
+			// WebSocket, and the immediate reconciliation in
+			// _trackServerTurnProgress ensures content already in the state
+			// is not missed.
+			const serverTurnId = 'server-turn-md-initial';
+			agentHostService.fireAction({
+				action: { type: 'session/turnStarted', session, turnId: serverTurnId, userMessage: { text: 'queued' } } as ISessionAction,
+				serverSeq: 3, origin: undefined,
+			});
+			agentHostService.fireAction({
+				action: { type: 'session/responsePart', session, turnId: serverTurnId, part: { kind: 'markdown', id: 'md-init', content: 'Initial text' } } as ISessionAction,
+				serverSeq: 4, origin: undefined,
+			});
+			await timeout(50);
+
+			// The markdown should appear in progressObs
+			const progress = chatSession.progressObs!.get();
+			const markdownParts = progress.filter((p): p is IChatMarkdownContent => p.kind === 'markdownContent');
+			const totalContent = markdownParts.map(p => p.content.value).join('');
+			assert.strictEqual(totalContent, 'Initial text', 'Markdown arriving with/right after turnStarted should be picked up');
+
+			// Complete the turn
+			agentHostService.fireAction({
+				action: { type: 'session/turnComplete', session, turnId: serverTurnId } as ISessionAction,
+				serverSeq: 5, origin: undefined,
+			});
+			await timeout(10);
+
+			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
+		}));
 	});
 });
