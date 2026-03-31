@@ -1,0 +1,18 @@
+[package]
+name = "allow-scripts"
+version = "0.1.0"
+edition = "2021"
+description = "Enforces an allowlist for npm lifecycle scripts in the VS Code repo"
+
+[[bin]]
+name = "allow-scripts"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

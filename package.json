@@ -9,6 +9,14 @@
   "main": "./out/main.js",
   "type": "module",
   "private": true,
+  "allowScripts": {
+    "@parcel/watcher": "2.5.6",
+    "@playwright/browser-chromium": "1.56.1",
+    "@vscode/ripgrep": "1.17.1",
+    "electron": "39.8.5",
+    "kerberos": "2.1.1",
+    "node-pty": "1.2.0-beta.12"
+  },
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
@@ -19,6 +27,7 @@
     "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
     "postinstall": "node build/npm/postinstall.ts",
+    "setup": "npm install && npm run postinstall",
     "compile": "npm run gulp compile",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions",

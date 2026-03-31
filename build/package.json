@@ -2,6 +2,15 @@
   "name": "code-oss-dev-build",
   "version": "1.0.0",
   "license": "MIT",
+  "allowScripts": {
+    "@vscode/ripgrep": "1.17.1",
+    "@vscode/vsce-sign": "2.0.x",
+    "esbuild": "0.27.2",
+    "keytar": "7.9.0",
+    "tree-sitter": "0.22.4",
+    "tree-sitter-javascript": "0.23.1",
+    "tree-sitter-typescript": "0.23.2"
+  },
   "devDependencies": {
     "@azure/core-auth": "^1.9.0",
     "@azure/cosmos": "^3",

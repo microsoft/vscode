@@ -2,6 +2,12 @@
   "name": "vscode-reh",
   "version": "0.0.0",
   "private": true,
+  "allowScripts": {
+    "@parcel/watcher": "2.5.6",
+    "@vscode/ripgrep": "1.17.1",
+    "kerberos": "2.1.1",
+    "node-pty": "1.2.0-beta.12"
+  },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.42",
     "@github/copilot": "^1.0.11",

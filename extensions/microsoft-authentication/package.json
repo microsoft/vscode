@@ -2,6 +2,10 @@
   "name": "microsoft-authentication",
   "publisher": "vscode",
   "license": "MIT",
+  "allowScripts": {
+    "@azure/msal-node-extensions": "1.5.25",
+    "@azure/msal-node-runtime": "0.20.1"
+  },
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "0.0.1",

@@ -60,7 +60,10 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		shell: true,
 	};
 
-	const command = process.env['npm_command'] || 'install';
+	// When invoked via explicit `npm run postinstall`, npm_command is 'run-script'
+	// but sub-directory installs always need 'install' (or 'ci' when propagated).
+	const npmCommand = process.env['npm_command'];
+	const command = (npmCommand && npmCommand !== 'run-script') ? npmCommand : 'install';
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const syncOpts: child_process.SpawnSyncOptions = {
@@ -96,6 +99,7 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		}
 	}
 	removeParcelWatcherPrebuild(dir);
+	runAllowedScripts(dir);
 }
 
 function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
@@ -233,6 +237,31 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 	}
 }
 
+function runAllowedScripts(dir: string) {
+	const allowScriptsBin = path.join(root, 'build', 'npm-allowscripts', 'target', 'release', 'allow-scripts');
+	if (!fs.existsSync(allowScriptsBin)) {
+		log(dir || '.', 'allow-scripts binary not found, skipping lifecycle script enforcement.');
+		log(dir || '.', 'Build it with: cd build/npm-allowscripts && cargo build --release');
+		return;
+	}
+
+	const cwd = path.join(root, dir);
+	if (!fs.existsSync(path.join(cwd, 'node_modules'))) {
+		return;
+	}
+
+	log(dir || '.', 'Running allowed lifecycle scripts...');
+	const result = child_process.spawnSync(allowScriptsBin, ['exec'], {
+		cwd,
+		stdio: 'inherit',
+	});
+
+	if (result.status !== 0) {
+		console.error(`ERR allow-scripts failed for ${dir || '.'}.`);
+		process.exit(result.status ?? 1);
+	}
+}
+
 async function main() {
 	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 		log('.', 'All dependencies up to date, skipping postinstall.');
@@ -240,6 +269,11 @@ async function main() {
 		child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
 		return;
 	}
+
+	// Run approved lifecycle scripts for root node_modules (since .npmrc has
+	// ignore-scripts=true, dependency lifecycle scripts don't run during
+	// npm install — we run only the explicitly approved ones here).
+	runAllowedScripts('');
 
 	const _state = computeState();
 

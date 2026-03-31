@@ -28,7 +28,7 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runProcess(npm, ['ci']);
+		await runProcess(npm, ['run', 'setup']);
 	}
 }
 

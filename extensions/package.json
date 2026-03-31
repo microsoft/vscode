@@ -2,6 +2,10 @@
   "name": "vscode-extensions",
   "version": "0.0.1",
   "license": "MIT",
+  "allowScripts": {
+    "@parcel/watcher": "2.5.6",
+    "esbuild": "0.27.2"
+  },
   "description": "Dependencies shared by all extensions",
   "dependencies": {
     "typescript": "^6.0.2"
