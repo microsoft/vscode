@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { join } from 'path';
 import { CancellationTokenSource, commands, MarkdownString, TabInputNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabInputText, Uri, ViewColumn, window, workspace, TabInputTextDiff, UIKind, env } from 'vscode';
-import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
+import { assertNoRpc, asPromise, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
 suite('vscode API - window', () => {
@@ -1060,4 +1060,21 @@ suite('vscode API - window', () => {
 
 		item.dispose();
 	});
+
+	test('activeChatSessionUri and onDidChangeActiveChatSession', async function () {
+		// Verify the API surface exists
+		assert.strictEqual(typeof window.onDidChangeActiveChatSession, 'function');
+
+		// Open a new chat and verify the event fires with a URI
+		const sessionChanged = asPromise(window.onDidChangeActiveChatSession);
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const uri = await sessionChanged;
+		assert.ok(uri === undefined || uri instanceof Uri, 'activeChatSession event payload should be Uri or undefined');
+
+		// After the event, activeChatSessionUri should match
+		if (uri) {
+			assert.strictEqual(window.activeChatSessionUri?.toString(), uri.toString());
+		}
+	});
+
 });
