@@ -1037,8 +1037,17 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 
-							// Unknown actions (e.g. extension-contributed): icon-only secondary
-							return { showIcon: true, showLabel: false, isSecondary: true };
+							// Unknown actions (e.g. extension-contributed): only hide the label when an icon is present.
+							if (action instanceof MenuItemAction) {
+								const icon = action.item.icon;
+								if (icon) {
+									// Icon-only button (no forced secondary state so primary/secondary can be inferred).
+									return { showIcon: true, showLabel: false };
+								}
+							}
+
+							// Fall back to default button behavior for actions without an icon.
+							return undefined;
 						}
 					}
 				));
