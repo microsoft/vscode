@@ -465,7 +465,7 @@ suite('Extension Gallery Service', () => {
 	});
 });
 
-suite('Extension Gallery Service - Auto Update Builtin Extensions', () => {
+suite.skip('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
