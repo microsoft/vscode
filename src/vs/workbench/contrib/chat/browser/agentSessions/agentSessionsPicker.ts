@@ -15,7 +15,7 @@ import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, sessionDateFromNow } from './agentSessionsViewer.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, isAgentHostTarget } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 interface ISessionPickItem extends IQuickPickItem {
@@ -56,8 +56,6 @@ export function getSessionButtons(session: IAgentSession): IQuickInputButton[] {
 	if (isLocalAgentSessionItem(session)) {
 		buttons.push(renameButton);
 		buttons.push(deleteButton);
-	} else if (isAgentHostTarget(session.providerType)) {
-		buttons.push(renameButton);
 	}
 	buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
 

@@ -638,20 +638,14 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ContextKeyExpr.or(
-						ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
-						ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
-					),
+					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 				),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 3,
-				when: ContextKeyExpr.or(
-					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
-					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
-				),
+				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
 			}
 		});
 	}
@@ -665,8 +659,7 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
 
-		const rawTitle = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
-		const title = rawTitle?.trim();
+		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
 		if (title) {
 			chatService.setChatSessionTitle(session.resource, title);
 		}
