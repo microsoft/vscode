@@ -22,7 +22,7 @@ export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openAgentsWindow',
-			title: localize2('openAgentsWindow', "Open Agents Window"),
+			title: localize2('openAgentsWindow', "Open Agents Application"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate()),
 			f1: true,
