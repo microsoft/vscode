@@ -1381,7 +1381,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			// Plugins are handled separately down below because they do their own parsing+interpolation
 			if (hookFile.storage === PromptsStorage.plugin) {
-				return {};
+				return {
+					file: {
+						status: 'loaded',
+						promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+					},
+				};
 			}
 
 			try {
