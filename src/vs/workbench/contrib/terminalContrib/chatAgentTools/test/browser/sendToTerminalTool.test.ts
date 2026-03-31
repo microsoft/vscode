@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SendToTerminalTool, SendToTerminalToolData } from '../../browser/tools/sendToTerminalTool.js';
 import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/tools/runInTerminalTool.js';
@@ -54,10 +55,15 @@ suite('SendToTerminalTool', () => {
 		};
 	}
 
+	test('tool description warns against using for prompt replies', () => {
+		assert.ok(SendToTerminalToolData.modelDescription.includes('Do NOT use this tool to reply to interactive prompts'));
+		assert.ok(SendToTerminalToolData.modelDescription.includes('handled automatically'));
+	});
+
 	test('tool description documents terminal IDs and use cases', () => {
 		const idProperty = SendToTerminalToolData.inputSchema?.properties?.id as { description?: string; pattern?: string } | undefined;
 		assert.ok(SendToTerminalToolData.modelDescription.includes('existing background terminal'));
-		assert.ok(SendToTerminalToolData.modelDescription.includes('SSH sessions'));
+		assert.ok(SendToTerminalToolData.modelDescription.includes('SSH'));
 		assert.ok(idProperty?.pattern?.includes('[0-9a-fA-F]{8}'));
 	});
 
@@ -118,14 +124,36 @@ suite('SendToTerminalTool', () => {
 		assert.strictEqual(mockExecution.sentTexts[0].shouldExecute, true);
 	});
 
-	test('prepareToolInvocation returns correct messages', async () => {
+	function createPreparationContext(id: string, command: string): IToolInvocationPreparationContext {
+		return {
+			parameters: { id, command },
+			toolCallId: 'test-call',
+		} as unknown as IToolInvocationPreparationContext;
+	}
+
+	test('prepareToolInvocation shows command in messages', async () => {
 		const prepared = await tool.prepareToolInvocation(
-			{} as unknown as IToolInvocationPreparationContext,
+			createPreparationContext(KNOWN_TERMINAL_ID, 'ls -la'),
 			CancellationToken.None,
 		);
 
 		assert.ok(prepared);
-		assert.ok(prepared.invocationMessage?.includes('Sending'));
-		assert.ok(prepared.pastTenseMessage?.includes('Sent'));
+		assert.ok(prepared.invocationMessage);
+		assert.ok(prepared.pastTenseMessage);
+		assert.ok(prepared.confirmationMessages);
+		assert.ok(prepared.confirmationMessages.title);
+		assert.ok(prepared.confirmationMessages.message);
+	});
+
+	test('prepareToolInvocation truncates long commands', async () => {
+		const longCommand = 'a'.repeat(100);
+		const prepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, longCommand),
+			CancellationToken.None,
+		);
+
+		assert.ok(prepared);
+		const message = prepared.invocationMessage as IMarkdownString;
+		assert.ok(message.value.includes('...'));
 	});
 });

@@ -5,6 +5,7 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
@@ -15,7 +16,7 @@ export const SendToTerminalToolData: IToolData = {
 	id: TerminalToolId.SendToTerminal,
 	toolReferenceName: 'sendToTerminal',
 	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
-	modelDescription: `Send a command or input to an existing background terminal. Use this to interact with long-running processes (e.g., SSH sessions, REPLs, servers) that were started with ${TerminalToolId.RunInTerminal}. The command will be sent as keyboard input to the terminal. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal}.`,
+	modelDescription: `Send a command to an existing background terminal that was started with ${TerminalToolId.RunInTerminal}. Use this to send new commands to long-running terminal sessions such as SSH connections or REPLs. Do NOT use this tool to reply to interactive prompts or confirmations — those are handled automatically by the terminal. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal}. After sending, use ${TerminalToolId.GetTerminalOutput} to check for updated output.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -23,12 +24,12 @@ export const SendToTerminalToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: `The ID of the background terminal to send input to (returned by ${TerminalToolId.RunInTerminal}).`,
+				description: `The ID of the background terminal to send a command to (returned by ${TerminalToolId.RunInTerminal}).`,
 				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
 			},
 			command: {
 				type: 'string',
-				description: 'The command or input text to send to the terminal. The text will be sent followed by Enter (executed). Use this to type commands, answer prompts, or send input to interactive programs.'
+				description: 'The command to send to the terminal. The text will be sent followed by Enter to execute it.'
 			},
 		},
 		required: [
@@ -44,10 +45,19 @@ export interface ISendToTerminalInputParams {
 }
 
 export class SendToTerminalTool extends Disposable implements IToolImpl {
-	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const args = context.parameters as ISendToTerminalInputParams;
+		const displayCommand = args.command.length > 80
+			? args.command.substring(0, 77) + '...'
+			: args.command;
+
 		return {
-			invocationMessage: localize('send.progressive', "Sending command to terminal"),
-			pastTenseMessage: localize('send.past', "Sent command to terminal"),
+			invocationMessage: new MarkdownString(localize('send.progressive', "Sending `{0}` to terminal", displayCommand)),
+			pastTenseMessage: new MarkdownString(localize('send.past', "Sent `{0}` to terminal", displayCommand)),
+			confirmationMessages: {
+				title: localize('send.confirm.title', "Send to Terminal"),
+				message: new MarkdownString(localize('send.confirm.message', "Run `{0}` in background terminal `{1}`", args.command, args.id)),
+			},
 		};
 	}
 
@@ -64,7 +74,6 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
-		// Send the command text to the terminal, executing it (shouldExecute=true adds Enter)
 		await execution.instance.sendText(args.command, true);
 
 		const output = execution.getOutput();
