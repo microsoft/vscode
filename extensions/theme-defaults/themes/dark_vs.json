@@ -87,7 +87,7 @@
 		{
 			"scope": "constant.regexp",
 			"settings": {
-				"foreground": "#646695"
+				"foreground": "#d16969"
 			}
 		},
 		{
