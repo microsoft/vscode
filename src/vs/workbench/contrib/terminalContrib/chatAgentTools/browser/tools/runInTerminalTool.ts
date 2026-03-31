@@ -66,7 +66,6 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
-import { ChatConfiguration, isAutoApproveLevel } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
@@ -75,6 +74,7 @@ import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
+import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 
 // #region Tool data
 
@@ -663,24 +663,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// commands that would be auto approved if it were enabled.
 		const commandLine = rewrittenCommand ?? args.command;
 
-		const isEligibleForAutoApproval = () => {
-			const config = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
-			if (config && typeof config === 'object') {
-				if (Object.prototype.hasOwnProperty.call(config, TOOL_REFERENCE_NAME)) {
-					return config[TOOL_REFERENCE_NAME];
-				}
-				for (const legacyName of LEGACY_TOOL_REFERENCE_FULL_NAMES) {
-					if (Object.prototype.hasOwnProperty.call(config, legacyName)) {
-						return config[legacyName];
-					}
-				}
-			}
-			// Default
-			return true;
-		};
+		const isEligibleForAutoApproval = () => isToolEligibleForTerminalAutoApproval(TOOL_REFERENCE_NAME, this._configurationService, LEGACY_TOOL_REFERENCE_FULL_NAMES);
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
-		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		const isAutoApproveAllowed = isEligibleForAutoApproval() && isAutoApproveEnabled && isAutoApproveWarningAccepted;
+		const isAutoApproveAllowed = isTerminalAutoApproveAllowed(TOOL_REFERENCE_NAME, this._configurationService, this._storageService, LEGACY_TOOL_REFERENCE_FULL_NAMES);
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			commandLine,
@@ -695,7 +680,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// In Autopilot/Bypass Approvals modes, do not interact with terminal auto-approve rules.
 		// Commands should flow through directly based on the chat permission level.
-		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+		const isSessionAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 		const commandLineAnalyzers = isSessionAutoApproved
 			? this._commandLineAnalyzers.filter(e => !(e instanceof CommandLineAutoApproveAnalyzer))
 			: this._commandLineAnalyzers;
@@ -892,30 +877,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0]);
 		}
 		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0], blockedDomains.length - 1);
-	}
-
-	/**
-	 * Returns true if the chat session's permission level (Autopilot/Bypass Approvals)
-	 * auto-approves all tool calls, unless enterprise policy restricts it.
-	 * Checks both the request-stamped level and the live picker level.
-	 */
-	private _isSessionAutoApproveLevel(chatSessionResource: URI): boolean {
-		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-		if (inspected.policyValue === false) {
-			return false;
-		}
-		// Check the live widget picker level (handles mid-session switches).
-		// Fall back to lastFocusedWidget if the session-specific widget isn't found
-		// (e.g., widget was backgrounded or URI mismatch).
-		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)
-			?? this._chatWidgetService.lastFocusedWidget;
-		if (widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel)) {
-			return true;
-		}
-		// Fall back to the request-stamped level
-		const model = this._chatService.getSession(chatSessionResource);
-		const request = model?.getRequests().at(-1);
-		return isAutoApproveLevel(request?.modeInfo?.permissionLevel);
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
