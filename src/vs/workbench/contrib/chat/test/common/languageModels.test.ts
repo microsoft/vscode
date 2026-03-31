@@ -1170,36 +1170,6 @@ suite('LanguageModels - New Model Detection', function () {
 		);
 	}
 
-	function registerCopilotModels(service: LanguageModelsService, models: { id: string; name: string }[]): void {
-		service.deltaLanguageModelChatProviderDescriptors([
-			{ vendor: 'copilot', displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined }
-		], []);
-
-		disposables.add(service.registerLanguageModelProvider('copilot', {
-			onDidChange: Event.None,
-			provideLanguageModelChatInfo: async () => {
-				return models.map(m => ({
-					metadata: {
-						extension: nullExtensionDescription.identifier,
-						name: m.name,
-						vendor: 'copilot',
-						family: 'copilot',
-						version: '1.0',
-						id: m.id.replace('copilot/', ''),
-						maxInputTokens: 100,
-						maxOutputTokens: 100,
-						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
-						isDefaultForLocation: {},
-						isUserSelectable: true,
-					} satisfies ILanguageModelChatMetadata,
-					identifier: m.id,
-				}));
-			},
-			sendChatRequest: async () => { throw new Error(); },
-			provideTokenCount: async () => { throw new Error(); }
-		}));
-	}
-
 	setup(function () {
 		storageService = new TestStorageService();
 	});
