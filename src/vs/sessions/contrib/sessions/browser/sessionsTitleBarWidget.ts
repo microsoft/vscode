@@ -296,6 +296,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 class SidebarToggleActionViewItem extends ActionViewItem {
 
 	private _countBadge: HTMLElement | undefined;
+	private _focusTarget: SidebarToggleFocusTarget | undefined;
 
 	constructor(
 		context: unknown,
@@ -311,12 +312,10 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		super.render(container);
 
 		container.classList.add('sidebar-toggle-action');
-		const focusTarget = container.closest('.part.sidebar')
+		this._focusTarget = container.closest('.part.sidebar')
 			? SidebarToggleFocusTarget.Sidebar
 			: SidebarToggleFocusTarget.Titlebar;
-		if (consumeSidebarToggleFocusRequest(focusTarget)) {
-			this._register(scheduleAtNextAnimationFrame(getWindow(container), () => this.focus()));
-		}
+		this._restoreFocusIfRequested(container);
 
 		// Add badge element for unread session count
 		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
@@ -343,7 +342,16 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 			}
 			this.updateClass();
 			this._updateBadge();
+			this._restoreFocusIfRequested(container);
 		}));
+	}
+
+	private _restoreFocusIfRequested(container: HTMLElement): void {
+		if (!this._focusTarget || !consumeSidebarToggleFocusRequest(this._focusTarget)) {
+			return;
+		}
+
+		this._register(scheduleAtNextAnimationFrame(getWindow(container), () => this.focus()));
 	}
 
 	protected override getClass(): string | undefined {
