@@ -16,8 +16,6 @@ import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { INativeWorkbenchEnvironmentService } from '../../services/environment/electron-browser/environmentService.js';
 import { URI } from '../../../base/common/uri.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
-import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
-import { INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 
 export class ToggleDevToolsAction extends Action2 {
@@ -140,12 +138,12 @@ export class ShowContentTracingAction extends Action2 {
 	}
 }
 
-export class RecordPerformanceTrace extends Action2 {
+export class StartTracing extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.recordPerformanceTrace',
-			title: localize2('recordPerformanceTrace', 'Record Performance Trace'),
+			id: 'workbench.action.startTracing',
+			title: localize2('startTracing', 'Start Tracing'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -153,31 +151,9 @@ export class RecordPerformanceTrace extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
-		const dialogService = accessor.get(IDialogService);
-		const progressService = accessor.get(IProgressService);
 
-		await nativeHostService.startTracingRenderer(`session-${Date.now()}`);
-
-		let stopResolve: ((path: string) => void) | undefined;
-		const path = await progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: localize('recordPerformanceTrace.recording', "Recording performance trace... Click cancel to stop."),
-			cancellable: true
-		}, () => new Promise<string>(resolve => {
-			stopResolve = resolve;
-		}), () => {
-			nativeHostService.stopTracingRenderer().then(p => stopResolve?.(p));
-		});
-
-		const { confirmed } = await dialogService.confirm({
-			message: localize('recordPerformanceTrace.done', "Performance trace saved"),
-			detail: localize('recordPerformanceTrace.detail', "Trace file saved to:\n{0}\n\nYou can load this file in chrome://tracing or the DevTools Performance tab.", path),
-			primaryButton: localize({ key: 'recordPerformanceTrace.reveal', comment: ['&& denotes a mnemonic'] }, "&&Reveal in Finder")
-		});
-
-		if (confirmed) {
-			nativeHostService.showItemInFolder(path);
-		}
+		const categories = 'content,renderer_host,browser,renderer,blink,blink.user_timing,net,v8,disabled-by-default-v8.cpu_profiler,disabled-by-default-devtools.timeline,disabled-by-default-network,disabled-by-default-net,disabled-by-default-v8.gc_stats,disabled-by-default-v8.stack_trace';
+		await nativeHostService.startTracing(categories);
 	}
 }
 
@@ -195,21 +171,8 @@ export class StopTracing extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const environmentService = accessor.get(INativeEnvironmentService);
-		const dialogService = accessor.get(IDialogService);
 		const nativeHostService = accessor.get(INativeHostService);
 		const progressService = accessor.get(IProgressService);
-
-		if (!environmentService.args.trace) {
-			const { confirmed } = await dialogService.confirm({
-				message: localize('stopTracing.message', "Tracing requires to launch with a '--trace' argument"),
-				primaryButton: localize({ key: 'stopTracing.button', comment: ['&& denotes a mnemonic'] }, "&&Relaunch and Enable Tracing"),
-			});
-
-			if (confirmed) {
-				return nativeHostService.relaunch({ addArgs: ['--trace'] });
-			}
-		}
 
 		await progressService.withProgress({
 			location: ProgressLocation.Dialog,
