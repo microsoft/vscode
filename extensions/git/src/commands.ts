@@ -1041,7 +1041,7 @@ export class CommandCenter {
 			...options,
 			providerName: 'GitHub',
 			title: l10n.t('Clone from GitHub'),
-			placeholder: l10n.t('Search public GitHub repositories or paste a URL')
+			placeholder: l10n.t('Search GitHub repositories or paste a URL')
 		});
 	}
 
