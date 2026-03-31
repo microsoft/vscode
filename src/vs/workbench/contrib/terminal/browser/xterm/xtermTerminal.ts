@@ -112,7 +112,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 	private _lastInputEvent: string | undefined;
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
-	get viewportRightOffset(): number { return this.raw.options.scrollbar?.width ?? 0; }
+	get viewportRightOffset(): number {
+		const configuredScrollbarWidth = this.raw.options.scrollbar?.width ?? 0;
+		const viewportScrollbarWidth = this._core.viewport?.scrollBarWidth ?? 0;
+		return Math.max(configuredScrollbarWidth, viewportScrollbarWidth);
+	}
 	private _progressState: IProgressState = { state: 0, value: 0 };
 	get progressState(): IProgressState { return this._progressState; }
 	get buffer() { return this.raw.buffer; }

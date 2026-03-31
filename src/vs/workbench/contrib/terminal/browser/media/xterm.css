@@ -278,28 +278,13 @@
 	pointer-events: none;
 }
 
-/* Always show the scrollbar lane so the terminal's right edge stays consistent across zoom and DPI changes. */
-.xterm.always-show-scrollbar .xterm-scrollable-element > .xterm-scrollbar {
-	display: block !important;
-	opacity: 1 !important;
-	pointer-events: auto !important;
-}
-
-.xterm.always-show-scrollbar .xterm-scrollable-element > .xterm-scrollbar > .xterm-slider {
-	opacity: 1 !important;
-}
-
-.xterm.always-show-scrollbar .xterm-scrollable-element > .xterm-invisible {
-	opacity: 1;
-	pointer-events: auto;
+/* Reserve a stable right lane for the scrollbar without forcing visibility. */
+.xterm.always-show-scrollbar .xterm-viewport {
+	right: 14px;
 }
 
 .xterm .xterm-scrollable-element > .xterm-invisible.xterm-fade {
 	transition: opacity 800ms linear;
-}
-
-.xterm.always-show-scrollbar .xterm-scrollable-element > .xterm-invisible.xterm-fade {
-	transition: none;
 }
 
 /* Scrollable Content Inset Shadow */

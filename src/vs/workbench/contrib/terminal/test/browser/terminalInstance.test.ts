@@ -325,8 +325,8 @@ suite('Workbench - TerminalInstance', () => {
 
 			strictEqual(recordingInstanceService.createProcessArgs?.cols, 80, 'process should be created with base cols');
 			strictEqual(recordingInstanceService.createProcessArgs?.rows, 30, 'process should be created with default rows');
-    });
-    
+		});
+
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
 			const instance = await createTerminalInstance();
 			const keybindingService = instance['_keybindingService'];
@@ -378,7 +378,7 @@ suite('Workbench - TerminalInstance', () => {
 			}
 		});
 	});
-  
+
 	suite('DEFAULT_COMMANDS_TO_SKIP_SHELL', () => {
 		test('should include zoom commands so they are not consumed by kitty keyboard protocol', () => {
 			deepStrictEqual(
