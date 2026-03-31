@@ -27,6 +27,7 @@ import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatPerfMark, markChat } from '../../common/chatPerf.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -60,11 +61,9 @@ import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } fro
 import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
-import { IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
@@ -259,7 +258,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	get domNode() { return this.container; }
 
 	private listWidget!: ChatListWidget;
-	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
+	private inputPartMaxHeightOverride: number | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly visibilityAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
@@ -409,7 +408,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IChatArtifactsService private readonly chatArtifactsService: IChatArtifactsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
@@ -509,7 +507,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
-		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
 		this._register(autorun(r => {
@@ -608,11 +605,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(this.chatArtifactsService.onDidUpdateArtifacts((sessionResource) => {
-			if (isEqual(this.viewModel?.sessionResource, sessionResource)) {
-				this.inputPart.renderArtifactsWidget(sessionResource);
-			}
-		}));
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -927,6 +919,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		await this.viewOptions.clear?.();
 	}
@@ -1507,7 +1500,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				},
 				currentChatMode: () => this.input.currentModeKind,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions) } : undefined,
-				codeBlockModelCollection: this._codeBlockModelCollection,
 				viewModel: this.viewModel,
 				editorOptions: this.editorOptions,
 				location: this.location,
@@ -1835,7 +1827,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 
 				if (this.bodyDimension) {
-					this.layout(this.bodyDimension.height, this.bodyDimension.width);
+					// Only re-layout the list/containers to match the new input
+					// height. Do NOT re-call this.layout() here: the input part
+					// has already laid itself out and re-entering inputPart.layout
+					// creates a layout loop when the viewPane also reacts.
+					this._layoutListForInputHeight();
 				}
 
 				this._onDidChangeContentHeight.fire();
@@ -1985,6 +1981,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.finishedEditing();
 		}
 		this.inputPart.clearTodoListWidget(model.sessionResource, false);
+		this.inputPart.clearArtifactsWidget();
 		this.chatSuggestNextWidget.hide();
 		this.chatTipService.resetSession();
 
@@ -1996,14 +1993,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		dom.clearNode(tipContainer);
 		dom.setVisibility(false, tipContainer);
 
-		this._codeBlockModelCollection.clear();
-
 		// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel
 		// fires onDidChangeViewModel, which ChatInputPart listens to and expects the input model to be initialized.
 		// Pass input model reference to input part for state syncing
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
 
-		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection, undefined);
+		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 
 		this.listWidget.setViewModel(this.viewModel);
 
@@ -2205,6 +2200,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+		if (this.viewModel) {
+			markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
+		}
 		return this._acceptInput(query ? { query } : undefined, options);
 	}
 
@@ -2364,7 +2362,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
+		markChat(this.viewModel.sessionResource, ChatPerfMark.WillCollectInstructions);
 		await this._autoAttachInstructions(requestInputs);
+		markChat(this.viewModel.sessionResource, ChatPerfMark.DidCollectInstructions);
 
 		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
@@ -2580,6 +2580,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.focusLastItem(lastFocused);
 	}
 
+	setInputPartMaxHeightOverride(maxHeight: number | undefined): void {
+		this.inputPartMaxHeightOverride = maxHeight;
+	}
+
 	layout(height: number, width: number): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
 
@@ -2589,10 +2593,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inlineInputPart?.layout(width);
 		}
 
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+		const inputMaxHeight = this._dynamicMessageLayoutData || this.location !== ChatAgentLocation.Chat
+			? undefined
+			: this.inputPartMaxHeightOverride !== undefined
+				? Math.max(0, this.inputPartMaxHeightOverride - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT)
+				: Math.max(0, height - chatSuggestNextWidgetHeight - MIN_LIST_HEIGHT);
+		this.inputPart.setMaxHeight(inputMaxHeight);
 		this.inputPart.layout(width);
 
-		const inputHeight = this.inputPart.height.get();
+		this._layoutListForInputHeight();
+	}
+
+	/**
+	 * Re-layout just the list, welcome container, and list container to match
+	 * the current input-part height. Called both from {@link layout} and from
+	 * the inputPart.height autorun so we never re-enter inputPart.layout when
+	 * only the input height changed.
+	 */
+	private _layoutListForInputHeight(): void {
+		if (!this.bodyDimension) {
+			return;
+		}
+
+		const { height, width } = this.bodyDimension;
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+
+		const inputHeight = this.inputPart.height.get();
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
 
@@ -2786,16 +2813,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug(`ChatWidget#_autoAttachInstructions: skipped, autoAttachReferences is disabled`);
 			return;
 		}
-
-		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are enabled`);
-		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
-		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
-		const sessionResource = this._viewModel?.model.sessionResource;
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents, sessionResource);
-		await computer.collect(attachedContext, CancellationToken.None);
+		try {
+			this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are enabled`);
+			const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
+			const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
+			const sessionResource = this._viewModel?.model.sessionResource;
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents, sessionResource);
+			await computer.collect(attachedContext, CancellationToken.None);
+		} catch (err) {
+			this.logService.error(`ChatWidget#_autoAttachInstructions: failed to compute automatic instructions`, err);
+		}
 	}
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 }
+
+const MIN_LIST_HEIGHT = 50;

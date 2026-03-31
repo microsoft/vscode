@@ -4,27 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from '../../../../base/browser/window.js';
+import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
+import { AgentPluginItemKind, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences } from '../common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { decodeBase64 } from '../../../../base/common/buffer.js';
 
 /**
- * Handles `vscode://chat-plugin/install?source=<base64>` and
+ * Handles `vscode://chat-plugin/install?source=<base64>[&plugin=<base64>]` and
  * `vscode://chat-plugin/add-marketplace?ref=<base64>` URLs.
  *
  * The `source` / `ref` query parameter is a base64-encoded `owner/repo` or
- * git clone URL. A confirmation dialog is always shown before any action.
+ * git clone URL. When `plugin` is provided on the `/install` route, the handler
+ * targets that specific plugin within the marketplace, installs it, and opens
+ * its details in the editor. Otherwise, a confirmation dialog is shown before
+ * any action.
  */
 export class PluginUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
@@ -35,8 +43,11 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHostService private readonly _hostService: IHostService,
 		@ILogService private readonly _logService: ILogService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -79,6 +90,11 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 
 		await this._hostService.focus(mainWindow);
 
+		const pluginName = this._decodeStringParam(uri, 'plugin');
+		if (pluginName) {
+			return this._handleInstallTargetedPlugin(source, ref.displayLabel, pluginName);
+		}
+
 		const { confirmed } = await this._dialogService.confirm({
 			type: 'question',
 			message: localize('confirmInstallPlugin', "Install Plugin from '{0}'?", ref.displayLabel),
@@ -92,6 +108,47 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 
 		await this._pluginInstallService.installPluginFromSource(source);
+		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+		return true;
+	}
+
+	/**
+	 * Handles the case where a specific plugin is targeted within a
+	 * marketplace. Delegates trust and discovery to the install service,
+	 * then opens the plugin details in a modal editor.
+	 */
+	private async _handleInstallTargetedPlugin(source: string, displayLabel: string, pluginName: string): Promise<boolean> {
+		const result = await this._pluginInstallService.installPluginFromValidatedSource(source, { plugin: pluginName });
+
+		if (!result.success) {
+			if (result.message) {
+				this._logService.warn(`[PluginUrlHandler] ${result.message}`);
+			}
+			this._extensionsWorkbenchService.openSearch(`@agentPlugins ${displayLabel}`);
+			return true;
+		}
+
+		if (!result.matchedPlugin) {
+			this._extensionsWorkbenchService.openSearch(`@agentPlugins ${displayLabel}`);
+			return true;
+		}
+
+		const plugin = result.matchedPlugin;
+		const item: IMarketplacePluginItem = {
+			kind: AgentPluginItemKind.Marketplace,
+			name: plugin.name,
+			description: plugin.description,
+			source: plugin.source,
+			sourceDescriptor: plugin.sourceDescriptor,
+			marketplace: plugin.marketplace,
+			marketplaceReference: plugin.marketplaceReference,
+			marketplaceType: plugin.marketplaceType,
+			readmeUri: plugin.readmeUri,
+		};
+
+		const input = this._instantiationService.createInstance(AgentPluginEditorInput, item);
+		await this._editorService.openEditor(input);
+
 		return true;
 	}
 
@@ -134,6 +191,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			);
 		}
 
+		this._extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
 		return true;
 	}
 
@@ -151,16 +209,28 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			return undefined;
 		}
 
-		// Try base64 first; if the decoded string is a valid reference, use it.
+		const decoded = this._tryBase64Decode(raw);
+		if (decoded && parseMarketplaceReference(decoded)) {
+			return decoded;
+		}
+		return parseMarketplaceReference(raw) ? raw : undefined;
+	}
+
+	/**
+	 * Reads a query parameter and decodes it. Tries base64-decoding first,
+	 * then falls back to the raw value.
+	 */
+	private _decodeStringParam(uri: URI, key: string): string | undefined {
+		const params = new URLSearchParams(uri.query);
+		return params.get(key) ?? undefined;
+	}
+
+	private _tryBase64Decode(raw: string): string | undefined {
 		try {
 			const decoded = decodeBase64(raw).toString();
-			if (parseMarketplaceReference(decoded)) {
-				return decoded;
-			}
+			return decoded || undefined;
 		} catch {
-			// not valid base64
+			return undefined;
 		}
-
-		return raw;
 	}
 }
