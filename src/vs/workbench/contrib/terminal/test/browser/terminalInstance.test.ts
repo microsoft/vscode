@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { Color } from '../../../../../base/common/color.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, ImmortalReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,19 +16,15 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { TestColorTheme } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../common/theme.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
-import { parseExitResult, TerminalInstance, TerminalInstanceColorProvider, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
-import { TERMINAL_BACKGROUND_COLOR } from '../../common/terminalColorRegistry.js';
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -634,106 +629,5 @@ suite('Workbench - TerminalInstance', () => {
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);
 		});
-	});
-});
-
-suite('TerminalInstanceColorProvider', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	let configurationService: TestConfigurationService;
-	let viewDescriptorService: TestViewDescriptorService;
-
-	function createColorProvider(location: TerminalLocation | undefined): TerminalInstanceColorProvider {
-		const instantiationService = workbenchInstantiationService({
-			configurationService: () => configurationService,
-		}, store);
-		viewDescriptorService = new TestViewDescriptorService();
-		instantiationService.stub(IViewDescriptorService, viewDescriptorService as Partial<IViewDescriptorService>);
-		return instantiationService.createInstance(TerminalInstanceColorProvider, new ImmortalReference(location));
-	}
-
-	setup(() => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: true
-				}
-			}
-		});
-	});
-
-	test('editor terminal with editorUseEditorBackground=true returns editor background', () => {
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#1e1e1e'));
-	});
-
-	test('editor terminal with editorUseEditorBackground=false and TERMINAL_BACKGROUND_COLOR defined returns terminal background', () => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: false
-				}
-			}
-		});
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#ff0000'));
-	});
-
-	test('editor terminal with editorUseEditorBackground=false and no TERMINAL_BACKGROUND_COLOR falls back to editor background', () => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: false
-				}
-			}
-		});
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#1e1e1e'));
-	});
-
-	test('panel terminal ignores editorUseEditorBackground and uses TERMINAL_BACKGROUND_COLOR', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#ff0000'));
-	});
-
-	test('panel terminal without TERMINAL_BACKGROUND_COLOR falls back to panel background', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Panel);
-		const theme = new TestColorTheme({
-			[PANEL_BACKGROUND]: '#00ff00',
-			[SIDE_BAR_BACKGROUND]: '#0000ff',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#00ff00'));
-	});
-
-	test('sidebar terminal without TERMINAL_BACKGROUND_COLOR falls back to sidebar background', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
-		const theme = new TestColorTheme({
-			[PANEL_BACKGROUND]: '#00ff00',
-			[SIDE_BAR_BACKGROUND]: '#0000ff',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#0000ff'));
 	});
 });
