@@ -556,7 +556,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						let attachedContext = chatOptions.attachedContext;
 
 						const resource = URI.revive(chatOptions.resource);
-						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatSessionsContribution#sendPrompt');
 						try {
 							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
 							if (promptFile) {
@@ -1394,7 +1394,7 @@ async function resolvePromptSlashCommand(prompt: string, promptsService: IPrompt
 		if (slashCommand) {
 			const parseResult = slashCommand.parsedPromptFile;
 			// add the prompt file to the context
-			const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+			const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
 			const toolReferences = toolsService.toToolReferences(refs);
 			return toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences);
 		}

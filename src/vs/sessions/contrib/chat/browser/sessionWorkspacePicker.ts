@@ -367,7 +367,7 @@ export class WorkspacePicker extends Disposable {
 				const remoteStatus = remoteProvider?.connectionStatus?.get();
 				const actionItems = actions.map(({ action, index }, ci) => toAction({
 					id: `workspacePicker.browse.${index}`,
-					label: localize(`workspacePicker.browse`, "{0}...", action.label),
+					label: localize(`workspacePicker.browseAction`, "{0}...", action.label),
 					tooltip: ci === 0 ? provider.label : '',
 					enabled: remoteStatus !== RemoteAgentHostConnectionStatus.Disconnected && remoteStatus !== RemoteAgentHostConnectionStatus.Connecting,
 					run: () => this._executeBrowseAction(index),
@@ -382,7 +382,7 @@ export class WorkspacePicker extends Disposable {
 
 			items.push({
 				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.browse', "Select..."),
+				label: localize('workspacePicker.browseSelect', "Select..."),
 				group: { title: '', icon: Codicon.folderOpened },
 				item: {},
 				submenuActions,
@@ -392,7 +392,7 @@ export class WorkspacePicker extends Disposable {
 				const action = allBrowseActions[i];
 				items.push({
 					kind: ActionListItemKind.Action,
-					label: localize(`workspacePicker.browse`, "Select {0}...", action.label),
+					label: localize(`workspacePicker.browseSelectAction`, "Select {0}...", action.label),
 					group: { title: '', icon: action.icon },
 					item: { browseActionIndex: i },
 				});
