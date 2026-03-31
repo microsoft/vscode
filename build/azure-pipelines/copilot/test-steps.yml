@@ -25,9 +25,9 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Lint
 
-  - script: npm run build
+  - script: npm run compile
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Build
+    displayName: Compile
 
   - script: npm run test:unit
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot

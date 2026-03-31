@@ -28,11 +28,11 @@ jobs:
         displayName: Initialize copilot submodule
 
       - template: copilot/setup-steps.yml
-      - template: copilot/build-steps.yml
-      - template: copilot/l10n-steps.yml
       - template: copilot/test-steps.yml
         parameters:
           runIntegrationTests: false
+      - template: copilot/build-steps.yml
+      - template: copilot/l10n-steps.yml
 
       - task: notice@0
         inputs:
