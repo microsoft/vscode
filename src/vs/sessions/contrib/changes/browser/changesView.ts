@@ -1585,7 +1585,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			fileKind: FileKind.FILE,
 			fileDecorations: undefined,
 			strikethrough: data.changeType === 'deleted',
-			hidePath: false
+			hidePath: this.viewModel.viewModeObs.get() === ChangesViewMode.Tree
 		});
 
 		const showChangeDecorations = data.changeType !== 'none';
