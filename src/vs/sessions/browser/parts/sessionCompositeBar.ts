@@ -6,18 +6,23 @@
 import './media/sessionCompositeBar.css';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { $, addDisposableListener, EventType, reset } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getWindow, reset } from '../../../base/browser/dom.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND } from '../../../workbench/common/theme.js';
+import { Action } from '../../../base/common/actions.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { localize } from '../../../nls.js';
+import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 // TODO: we should move the sessions management service to a more core location so that we don't have to depend on the entire sessions contrib in this common/browser component
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../contrib/sessions/browser/sessionsManagementService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IChatData } from '../../contrib/sessions/common/sessionData.js';
+import { IChat } from '../../contrib/sessions/common/sessionData.js';
 
 interface ISessionTab {
-	readonly chat: IChatData;
+	readonly chat: IChat;
 	readonly element: HTMLElement;
 }
 
@@ -50,6 +55,8 @@ export class SessionCompositeBar extends Disposable {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -61,13 +68,14 @@ export class SessionCompositeBar extends Disposable {
 		this._register(autorun(reader => {
 			const activeSession = this._sessionsManagementService.activeSession.read(reader);
 			if (!activeSession) {
-				this._rebuildTabs([], '');
+				this._rebuildTabs([], '', undefined);
 				return;
 			}
 
 			const chats = activeSession.chats.read(reader);
 			const activeChatId = activeSession.activeChat.map(c => c.chatId).read(reader);
-			this._rebuildTabs(chats, activeChatId);
+			const mainChatId = activeSession.mainChat.chatId;
+			this._rebuildTabs(chats, activeChatId, mainChatId);
 		}));
 
 
@@ -75,20 +83,20 @@ export class SessionCompositeBar extends Disposable {
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
 	}
 
-	private _rebuildTabs(chats: readonly IChatData[], activeChatId: string): void {
+	private _rebuildTabs(chats: readonly IChat[], activeChatId: string, mainChatId?: string): void {
 		this._tabDisposables.clear();
 		this._tabs.length = 0;
 		reset(this._tabsContainer);
 
 		for (const chat of chats) {
-			this._createTab(chat);
+			this._createTab(chat, chat.chatId === mainChatId);
 		}
 
 		this._updateActiveTab(activeChatId);
 		this._updateVisibility();
 	}
 
-	private _createTab(chat: IChatData): void {
+	private _createTab(chat: IChat, isMainChat: boolean): void {
 		const tab = $('.session-composite-bar-tab');
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
@@ -116,10 +124,35 @@ export class SessionCompositeBar extends Disposable {
 			}
 		}));
 
+		const renameAction = this._tabDisposables.add(new Action('sessionCompositeBar.renameChat', localize('renameChat', "Rename"), undefined, true, async () => {
+			const newTitle = await this._quickInputService.input({
+				value: chat.title.get(),
+				prompt: localize('renameChat.prompt', "Rename Chat"),
+			});
+			if (newTitle) {
+				await this._sessionsManagementService.renameChat(chat, newTitle);
+			}
+		}));
+
+		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete"), undefined, !isMainChat, () => this._sessionsManagementService.deleteChat(chat)));
+
+		this._tabDisposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const event = new StandardMouseEvent(getWindow(tab), e);
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => event,
+				getActions: () => [
+					renameAction,
+					deleteAction,
+				]
+			});
+		}));
+
 		this._tabs.push({ chat: chat, element: tab });
 	}
 
-	private _onTabClicked(chat: IChatData): void {
+	private _onTabClicked(chat: IChat): void {
 		this._sessionsManagementService.openChat(chat.resource);
 	}
 

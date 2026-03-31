@@ -16,6 +16,7 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -69,6 +70,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { ISCMService } from '../../../../scm/common/scm.js';
 import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
@@ -81,7 +83,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, MAX_IMAGES_PER_REQUEST, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
 import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
@@ -545,6 +547,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISCMService private readonly scmService: ISCMService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IChatAttachmentWidgetRegistry private readonly _chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
@@ -1379,16 +1382,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.navigateHistory(false);
 	}
 
-	private async navigateHistory(previous: boolean): Promise<void> {
-		const historyEntry = previous ?
-			this.history.previous() : this.history.next();
+	/**
+	 * Restores attachments to the input, re-fetching image binary data as needed.
+	 */
+	async restoreAttachments(attachments: readonly IChatRequestVariableEntry[]): Promise<void> {
+		let restored = [...attachments];
 
-		let historyAttachments = historyEntry?.attachments ?? [];
-
-		// Check for images in history to restore the value.
-		if (historyAttachments.length > 0) {
-			historyAttachments = (await Promise.all(historyAttachments.map(async (attachment) => {
-				if (isImageVariableEntry(attachment) && attachment.references?.length && URI.isUri(attachment.references[0].reference)) {
+		if (restored.length > 0) {
+			restored = (await Promise.all(restored.map(async (attachment) => {
+				if (isImageVariableEntry(attachment) && !attachment.value && attachment.references?.length && URI.isUri(attachment.references[0].reference)) {
 					const currReference = attachment.references[0].reference;
 					try {
 						const imageBinary = currReference.toString(true).startsWith('http') ? await this.sharedWebExtracterService.readImage(currReference, CancellationToken.None) : (await this.fileService.readFile(currReference)).value;
@@ -1396,7 +1398,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							return undefined;
 						}
 						const newAttachment = { ...attachment };
-						newAttachment.value = (isImageVariableEntry(attachment) && attachment.isPasted) ? imageBinary.buffer : await resizeImage(imageBinary.buffer); // if pasted image, we do not need to resize.
+						newAttachment.value = (isImageVariableEntry(attachment) && attachment.isPasted) ? imageBinary.buffer : await resizeImage(imageBinary.buffer);
 						return newAttachment;
 					} catch (err) {
 						this.logService.error('Failed to fetch and reference.', err);
@@ -1404,10 +1406,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 				return attachment;
-			}))).filter(attachment => attachment !== undefined);
+			}))).filter(isDefined);
 		}
 
-		this._attachmentModel.clearAndSetContext(...historyAttachments);
+		this._attachmentModel.clearAndSetContext(...restored);
+	}
+
+	private async navigateHistory(previous: boolean): Promise<void> {
+		const historyEntry = previous ?
+			this.history.previous() : this.history.next();
+
+		await this.restoreAttachments(historyEntry?.attachments ?? []);
 
 		const inputText = historyEntry?.inputText ?? '';
 		const contribData = historyEntry?.contrib ?? {};
@@ -1818,6 +1827,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return currentOptionValue as IChatSessionProviderOptionItem;
 		}
 
+	}
+
+	private hasWorkspaceScmRepository(): boolean {
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		if (folders.length === 0) {
+			return false;
+		}
+		for (const repo of this.scmService.repositories) {
+			if (repo.provider.rootUri && this.workspaceContextService.getWorkspaceFolder(repo.provider.rootUri)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private getEffectiveSessionType(ctx: IChatSessionContext | undefined, delegate: ISessionTypePickerDelegate | undefined): string {
@@ -2288,6 +2310,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.updateAgentSessionTypeContextKey();
 							this.refreshChatSessionPickers();
 						},
+						hasGitRepository: () => this.hasWorkspaceScmRepository(),
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
@@ -2387,6 +2410,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.updateAgentSessionTypeContextKey();
 							this.refreshChatSessionPickers();
 						},
+						hasGitRepository: () => this.hasWorkspaceScmRepository(),
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
@@ -2555,6 +2579,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 			this._indexOfLastOpenedContext = -1;
+		}
+
+		// Mark images that exceed the per-request limit so they render with a warning
+		const imageAttachments = attachments.filter(([, a]) => isImageVariableEntry(a));
+		if (imageAttachments.length > MAX_IMAGES_PER_REQUEST) {
+			const excessCount = imageAttachments.length - MAX_IMAGES_PER_REQUEST;
+			for (let i = 0; i < excessCount; i++) {
+				const attachment = imageAttachments[i][1];
+				if (attachment.omittedState === OmittedState.NotOmitted || attachment.omittedState === OmittedState.ImageLimitExceeded) {
+					attachment.omittedState = OmittedState.ImageLimitExceeded;
+				}
+			}
+			for (let i = excessCount; i < imageAttachments.length; i++) {
+				if (imageAttachments[i][1].omittedState === OmittedState.ImageLimitExceeded) {
+					imageAttachments[i][1].omittedState = OmittedState.NotOmitted;
+				}
+			}
+		} else {
+			for (const [, a] of imageAttachments) {
+				if (a.omittedState === OmittedState.ImageLimitExceeded) {
+					a.omittedState = OmittedState.NotOmitted;
+				}
+			}
 		}
 
 
