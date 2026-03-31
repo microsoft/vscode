@@ -11,7 +11,7 @@ export const enum SidebarToggleFocusTarget {
 let pendingSidebarToggleFocusTarget: SidebarToggleFocusTarget | undefined;
 
 export function logSidebarToggleFocus(message: string, details?: Record<string, unknown>): void {
-	console.debug('[sessions][sidebar-toggle-focus]', message, details ?? {});
+	console.warn('[sessions][sidebar-toggle-focus]', message, details ?? {});
 }
 
 export function peekSidebarToggleFocusRequest(): SidebarToggleFocusTarget | undefined {
