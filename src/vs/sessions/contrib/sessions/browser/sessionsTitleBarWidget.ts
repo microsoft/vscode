@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableListener, append, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getActiveWindow, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -33,6 +33,7 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { consumeSidebarToggleFocusRequest, SidebarToggleFocusTarget } from '../../../browser/sidebarToggleFocus.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -310,6 +311,12 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		super.render(container);
 
 		container.classList.add('sidebar-toggle-action');
+		const focusTarget = container.closest('.part.sidebar')
+			? SidebarToggleFocusTarget.Sidebar
+			: SidebarToggleFocusTarget.Titlebar;
+		if (consumeSidebarToggleFocusRequest(focusTarget)) {
+			this._register(scheduleAtNextAnimationFrame(getWindow(container), () => this.focus()));
+		}
 
 		// Add badge element for unread session count
 		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
