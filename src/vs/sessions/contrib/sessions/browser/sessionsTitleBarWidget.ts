@@ -24,6 +24,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -335,6 +336,21 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 			}
 			this._updateBadge();
 		}));
+	}
+
+	protected override getClass(): string | undefined {
+		// Show layout-sidebar-left when sidebar is visible (checked),
+		// layout-sidebar-left-off when sidebar is hidden (unchecked).
+		return this.action.checked
+			? ThemeIcon.asClassName(Codicon.layoutSidebarLeft)
+			: ThemeIcon.asClassName(Codicon.layoutSidebarLeftOff);
+	}
+
+	protected override updateChecked(): void {
+		super.updateChecked();
+		// Re-apply the icon class whenever the checked state changes so
+		// the open/closed codicon stays in sync with sidebar visibility.
+		this.updateClass();
 	}
 
 	private _updateBadge(): void {
