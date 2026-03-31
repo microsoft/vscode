@@ -1000,7 +1000,7 @@ export class ChangesViewPane extends ViewPane {
 						menuOptions: sessionResource
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
-						buttonConfigProvider: (action, index) => {
+						buttonConfigProvider: (action) => {
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
 								const customLabel = outgoingChanges > 0
 									? `${action.label} ${outgoingChanges}↑`
@@ -1025,6 +1025,8 @@ export class ChangesViewPane extends ViewPane {
 							if (
 								action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR' ||
 								action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge' ||
+								action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
+								action.id === 'pr.checkoutFromChat' ||
 								action.id === 'github.copilot.sessions.initializeRepository' ||
 								action.id === 'github.copilot.sessions.commitChanges' ||
 								action.id === 'agentSession.markAsDone'
@@ -1032,10 +1034,8 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 
-							// Unknown actions (e.g. extension-contributed):
-							// first action is primary, rest are icon-only secondary
-							const isSecondary = index > 0;
-							return { showIcon: true, showLabel: !isSecondary, isSecondary };
+							// Unknown actions (e.g. extension-contributed): icon-only secondary
+							return { showIcon: true, showLabel: false, isSecondary: true };
 						}
 					}
 				));
