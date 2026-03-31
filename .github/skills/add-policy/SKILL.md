@@ -124,10 +124,10 @@ npm run compile-check-ts-native
 Regenerate the auto-generated policy catalog:
 
 ```bash
-npm run transpile-client && ./scripts/code.sh --export-policy-data && node build/lib/policies/mergeExtensionPolicies.ts
+npm run transpile-client && ./scripts/code.sh --export-policy-data && GITHUB_TOKEN=$(gh auth token) node build/lib/policies/mergeExtensionPolicies.ts
 ```
 
-The first command exports policies from the configuration registry. The merge step fetches `extensionConfigurationPolicy` entries from the distro's stable `product.json` (via `.build/distro/` or the GitHub API with `GITHUB_TOKEN`) and adds them to the output.
+The first command exports policies from the configuration registry. The merge step fetches `extensionConfigurationPolicy` entries from the distro's stable `product.json` and adds them to the output. It checks `.build/distro/` first; if unavailable, it uses `GITHUB_TOKEN` to fetch from the GitHub API. The `gh auth token` command provides the token from your authenticated GitHub CLI session.
 
 This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
 
