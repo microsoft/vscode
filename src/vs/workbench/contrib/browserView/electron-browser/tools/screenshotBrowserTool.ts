@@ -5,7 +5,10 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import {
+	escapeMarkdownSyntaxTokens,
+	MarkdownString
+} from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -66,8 +69,8 @@ export class ScreenshotBrowserTool implements IToolImpl {
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = _context.parameters as IScreenshotBrowserToolParams;
-		const element = params.element;
-		if (element) {
+		if (params.element) {
+			const element = escapeMarkdownSyntaxTokens(params.element);
 			return {
 				invocationMessage: new MarkdownString(localize('browser.screenshot.invocation.element', "Capturing screenshot of {0}", element)),
 				pastTenseMessage: new MarkdownString(localize('browser.screenshot.past.element', "Captured screenshot of {0}", element)),

@@ -5,7 +5,10 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import {
+	escapeMarkdownSyntaxTokens,
+	MarkdownString
+} from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -85,22 +88,25 @@ export class TypeBrowserTool implements IToolImpl {
 		const hasTarget = params.ref || params.selector;
 
 		if (params.key) {
+			const key = escapeMarkdownSyntaxTokens(params.key);
 			if (hasTarget && params.element) {
+				const element = escapeMarkdownSyntaxTokens(params.element);
 				return {
-					invocationMessage: new MarkdownString(localize('browser.pressKey.invocation.element', "Pressing key `{0}` in {1} in {2}", params.key, params.element, link)),
-					pastTenseMessage: new MarkdownString(localize('browser.pressKey.past.element', "Pressed key `{0}` in {1} in {2}", params.key, params.element, link)),
+					invocationMessage: new MarkdownString(localize('browser.pressKey.invocation.element', "Pressing key `{0}` in {1} in {2}", key, element, link)),
+					pastTenseMessage: new MarkdownString(localize('browser.pressKey.past.element', "Pressed key `{0}` in {1} in {2}", key, element, link)),
 				};
 			}
 			return {
-				invocationMessage: new MarkdownString(localize('browser.pressKey.invocation', "Pressing key `{0}` in {1}", params.key, link)),
-				pastTenseMessage: new MarkdownString(localize('browser.pressKey.past', "Pressed key `{0}` in {1}", params.key, link)),
+				invocationMessage: new MarkdownString(localize('browser.pressKey.invocation', "Pressing key `{0}` in {1}", key, link)),
+				pastTenseMessage: new MarkdownString(localize('browser.pressKey.past', "Pressed key `{0}` in {1}", key, link)),
 			};
 		}
 
 		if (hasTarget && params.element) {
+			const element = escapeMarkdownSyntaxTokens(params.element);
 			return {
-				invocationMessage: new MarkdownString(localize('browser.type.invocation.element', "Typing text in {0} in {1}", params.element, link)),
-				pastTenseMessage: new MarkdownString(localize('browser.type.past.element', "Typed text in {0} in {1}", params.element, link)),
+				invocationMessage: new MarkdownString(localize('browser.type.invocation.element', "Typing text in {0} in {1}", element, link)),
+				pastTenseMessage: new MarkdownString(localize('browser.type.past.element', "Typed text in {0} in {1}", element, link)),
 			};
 		}
 		return {
