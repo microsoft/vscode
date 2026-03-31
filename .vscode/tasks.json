@@ -228,7 +228,7 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run Dev Sessions",
+			"label": "Run Dev Agents",
 			"type": "shell",
 			"command": "./scripts/code.sh",
 			"windows": {
@@ -248,8 +248,8 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Sessions - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev Sessions"],
+			"label": "Run and Compile Agents - OSS",
+			"dependsOn": ["Transpile Client", "Run Dev Agents"],
 			"dependsOrder": "sequence",
 			"inSessions": true,
 			"problemMatcher": []
