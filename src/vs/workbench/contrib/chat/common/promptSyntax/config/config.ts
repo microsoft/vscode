@@ -5,8 +5,8 @@
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { PromptsType } from '../promptTypes.js';
-import { getPromptFileDefaultLocations, IPromptSourceFolder, PromptFileSource } from './promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../promptTypes.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder } from './promptFileLocations.js';
 import { PromptsStorage } from '../service/promptsService.js';
 
 /**
@@ -134,6 +134,11 @@ export namespace PromptsConfig {
 	 * Configuration key for including referenced instructions.
 	 */
 	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
+
+	/**
+	 * Search for configuration files in parent repositories of the workspace folder
+	 */
+	export const USE_CUSTOMIZATIONS_IN_PARENT_REPOS = 'chat.useCustomizationsInParentRepositories';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.

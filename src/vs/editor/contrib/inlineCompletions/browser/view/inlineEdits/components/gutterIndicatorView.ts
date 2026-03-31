@@ -391,7 +391,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			let widthUntilLineNumberEnd;
 			if (layout.lineNumbersWidth === 0) {
-				widthUntilLineNumberEnd = Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth);
+				widthUntilLineNumberEnd = Math.max(0, Math.min(Math.max(layout.lineNumbersLeft - gutterViewPortWithStickyScroll.left, 0), pillRect.width - idealIconAreaWidth));
 			} else {
 				widthUntilLineNumberEnd = Math.max(layout.lineNumbersLeft + layout.lineNumbersWidth - gutterViewPortWithStickyScroll.left, 0);
 			}

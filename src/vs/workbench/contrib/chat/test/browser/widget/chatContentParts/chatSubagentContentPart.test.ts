@@ -19,7 +19,6 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -42,7 +41,6 @@ suite('ChatSubagentContentPart', () => {
 	let mockHoverService: IHoverService;
 	let mockListPool: CollapsibleListPool;
 	let mockEditorPool: EditorPool;
-	let mockCodeBlockModelCollection: CodeBlockModelCollection;
 	let announcedToolProgressKeys: Set<string>;
 
 	function createMockRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
@@ -64,7 +62,6 @@ suite('ChatSubagentContentPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: mockCodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
@@ -144,13 +141,14 @@ suite('ChatSubagentContentPart', () => {
 				prompt: 'Test prompt'
 			},
 			originMessage: undefined,
-			invocationMessage: options.invocationMessage ?? 'Running subagent...',
+			invocationMessage: options.invocationMessage ?? 'Running subagent',
 			pastTenseMessage: undefined,
 			source: ToolDataSource.Internal,
 			toolId: options.toolId ?? RunSubagentTool.Id,
 			toolCallId: toolCallId,
 			subAgentInvocationId: options.subAgentInvocationId,
 			state: observableValue('state', stateValue),
+			isAttachedToThinking: false,
 			kind: 'toolInvocation',
 			toJSON: () => createMockSerializedToolInvocation({
 				toolId: options.toolId ?? RunSubagentTool.Id,
@@ -179,7 +177,7 @@ suite('ChatSubagentContentPart', () => {
 				result: 'Test result text'
 			},
 			originMessage: undefined,
-			invocationMessage: 'Running subagent...',
+			invocationMessage: 'Running subagent',
 			pastTenseMessage: undefined,
 			resultDetails: undefined,
 			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
@@ -234,7 +232,6 @@ suite('ChatSubagentContentPart', () => {
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
 		mockEditorPool = {} as EditorPool;
-		mockCodeBlockModelCollection = {} as CodeBlockModelCollection;
 		announcedToolProgressKeys = new Set();
 	});
 
@@ -256,7 +253,6 @@ suite('ChatSubagentContentPart', () => {
 			mockListPool,
 			mockEditorPool,
 			() => 500,
-			mockCodeBlockModelCollection,
 			announcedToolProgressKeys
 		));
 

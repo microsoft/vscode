@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
@@ -21,7 +22,9 @@ suite('ChatDebugServiceImpl', () => {
 	const sessionA = LocalChatSessionUri.forSession('a');
 	const sessionB = LocalChatSessionUri.forSession('b');
 	const sessionGeneric = URI.parse('vscode-chat-session://local/session');
-	const nonLocalSession = URI.parse('vscode-chat-session://remote-provider/session-1');
+	const nonLocalSession = URI.parse('some-other-scheme://authority/session-1');
+	const copilotCliSession = URI.parse('copilotcli:/test-session-id');
+	const claudeCodeSession = URI.parse('claude-code:/test-session-id');
 
 	setup(() => {
 		service = disposables.add(new ChatDebugServiceImpl());
@@ -148,7 +151,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(event.parentEventId, 'parent-1');
 		});
 
-		test('should not log events for non-local sessions', () => {
+		test('should not log events for ineligible session schemes', () => {
 			const firedEvents: IChatDebugEvent[] = [];
 			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
 
@@ -156,6 +159,26 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.strictEqual(firedEvents.length, 0);
 			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
+		});
+
+		test('should log events for copilotcli sessions', () => {
+			const firedEvents: IChatDebugEvent[] = [];
+			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
+
+			service.log(copilotCliSession, 'cli-event', 'details');
+
+			assert.strictEqual(firedEvents.length, 1);
+			assert.strictEqual(service.getEvents(copilotCliSession).length, 1);
+		});
+
+		test('should log events for claude-code sessions', () => {
+			const firedEvents: IChatDebugEvent[] = [];
+			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
+
+			service.log(claudeCodeSession, 'claude-event', 'details');
+
+			assert.strictEqual(firedEvents.length, 1);
+			assert.strictEqual(service.getEvents(claudeCodeSession).length, 1);
 		});
 	});
 
@@ -185,20 +208,60 @@ suite('ChatDebugServiceImpl', () => {
 		});
 	});
 
-	suite('MAX_EVENTS cap', () => {
-		test('should evict oldest events when exceeding cap', () => {
-			// The max is 10_000. Add more than that and verify trimming.
-			// We'll test with a smaller count by adding events and checking boundary behavior.
+	suite('MAX_EVENTS_PER_SESSION cap', () => {
+		test('should evict oldest events when exceeding per-session cap', () => {
+			// The max per session is 10_000. Add more than that to a single session.
 			for (let i = 0; i < 10_001; i++) {
 				service.addEvent({ kind: 'generic', sessionResource: sessionGeneric, created: new Date(), name: `event-${i}`, level: ChatDebugLogLevel.Info });
 			}
 
 			const events = service.getEvents();
-			assert.ok(events.length <= 10_000, 'Should not exceed MAX_EVENTS');
+			assert.ok(events.length <= 10_000, 'Should not exceed MAX_EVENTS_PER_SESSION');
 			// The first event should have been evicted
 			assert.ok(!(events as IChatDebugGenericEvent[]).find(e => e.name === 'event-0'), 'Event-0 should have been evicted');
 			// The last event should be present
 			assert.ok((events as IChatDebugGenericEvent[]).find(e => e.name === 'event-10000'), 'Last event should be present');
+		});
+
+		test('should evict oldest session when exceeding MAX_SESSIONS', () => {
+			// MAX_SESSIONS is 5 — add events to 6 different sessions
+			const sessions: URI[] = [];
+			for (let i = 0; i < 6; i++) {
+				const uri = URI.parse(`vscode-chat-session://local/session-lru-${i}`);
+				sessions.push(uri);
+				service.addEvent({ kind: 'generic', sessionResource: uri, created: new Date(), name: `event-${i}`, level: ChatDebugLogLevel.Info });
+			}
+
+			const resources = service.getSessionResources();
+			assert.strictEqual(resources.length, 5, 'Should not exceed MAX_SESSIONS');
+			// The first session should have been evicted
+			assert.ok(!resources.some(r => r.toString() === sessions[0].toString()), 'Session-0 should have been evicted');
+			assert.strictEqual(service.getEvents(sessions[0]).length, 0, 'Events from evicted session should be gone');
+			// The last session should be present
+			assert.ok(resources.some(r => r.toString() === sessions[5].toString()), 'Session-5 should be present');
+		});
+
+		test('should use LRU eviction — recently-used sessions are kept', () => {
+			// Fill to MAX_SESSIONS (5)
+			const sessions: URI[] = [];
+			for (let i = 0; i < 5; i++) {
+				const uri = URI.parse(`vscode-chat-session://local/session-lru2-${i}`);
+				sessions.push(uri);
+				service.addEvent({ kind: 'generic', sessionResource: uri, created: new Date(), name: `init-${i}`, level: ChatDebugLogLevel.Info });
+			}
+
+			// Touch session-0 so it moves to the back of the LRU order
+			service.addEvent({ kind: 'generic', sessionResource: sessions[0], created: new Date(), name: 'touch', level: ChatDebugLogLevel.Info });
+
+			// Add a 6th session — session-1 (the true LRU) should be evicted, not session-0
+			const session6 = URI.parse('vscode-chat-session://local/session-lru2-5');
+			service.addEvent({ kind: 'generic', sessionResource: session6, created: new Date(), name: 'new', level: ChatDebugLogLevel.Info });
+
+			const resources = service.getSessionResources();
+			assert.strictEqual(resources.length, 5);
+			assert.ok(resources.some(r => r.toString() === sessions[0].toString()), 'Session-0 should be kept (recently used)');
+			assert.ok(!resources.some(r => r.toString() === sessions[1].toString()), 'Session-1 should be evicted (LRU)');
+			assert.ok(resources.some(r => r.toString() === session6.toString()), 'Session-5 should be present');
 		});
 	});
 
@@ -293,8 +356,14 @@ suite('ChatDebugServiceImpl', () => {
 			};
 
 			disposables.add(service.registerProvider(provider));
-			// Should not throw
-			await service.invokeProviders(errorSession);
+			// Suppress the expected onUnexpectedError from _invokeProvider
+			const origHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(() => { });
+			try {
+				await service.invokeProviders(errorSession);
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(origHandler);
+			}
 			assert.strictEqual(service.getEvents(errorSession).length, 0);
 		});
 	});
@@ -395,7 +464,7 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(tokenA.isCancellationRequested, false, 'session-a token should not be cancelled');
 		});
 
-		test('should not invoke providers for non-local sessions', async () => {
+		test('should not invoke providers for ineligible session schemes', async () => {
 			let providerCalled = false;
 
 			const provider: IChatDebugLogProvider = {
@@ -416,6 +485,52 @@ suite('ChatDebugServiceImpl', () => {
 
 			assert.strictEqual(providerCalled, false);
 			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
+		});
+
+		test('should invoke providers for copilotcli sessions', async () => {
+			let providerCalled = false;
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => {
+					providerCalled = true;
+					return [{
+						kind: 'generic',
+						sessionResource: copilotCliSession,
+						created: new Date(),
+						name: 'cli-provider-event',
+						level: ChatDebugLogLevel.Info,
+					}];
+				},
+			};
+
+			disposables.add(service.registerProvider(provider));
+			await service.invokeProviders(copilotCliSession);
+
+			assert.strictEqual(providerCalled, true);
+			assert.ok(service.getEvents(copilotCliSession).length > 0);
+		});
+
+		test('should invoke providers for claude-code sessions', async () => {
+			let providerCalled = false;
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => {
+					providerCalled = true;
+					return [{
+						kind: 'generic',
+						sessionResource: claudeCodeSession,
+						created: new Date(),
+						name: 'claude-provider-event',
+						level: ChatDebugLogLevel.Info,
+					}];
+				},
+			};
+
+			disposables.add(service.registerProvider(provider));
+			await service.invokeProviders(claudeCodeSession);
+
+			assert.strictEqual(providerCalled, true);
+			assert.ok(service.getEvents(claudeCodeSession).length > 0);
 		});
 
 		test('newly registered provider should be invoked for active sessions', async () => {

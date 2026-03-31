@@ -3,24 +3,94 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
 import { LocalChatSessionUri } from './model/chatUri.js';
 
+/**
+ * Per-session circular buffer for debug events.
+ * Stores up to `capacity` events using a ring buffer.
+ */
+class SessionEventBuffer {
+	private readonly _buffer: (IChatDebugEvent | undefined)[];
+	private _head = 0;
+	private _size = 0;
+
+	constructor(readonly capacity: number) {
+		this._buffer = new Array(capacity);
+	}
+
+	get size(): number {
+		return this._size;
+	}
+
+	push(event: IChatDebugEvent): void {
+		const idx = (this._head + this._size) % this.capacity;
+		this._buffer[idx] = event;
+		if (this._size < this.capacity) {
+			this._size++;
+		} else {
+			this._head = (this._head + 1) % this.capacity;
+		}
+	}
+
+	/** Return events in insertion order. */
+	toArray(): IChatDebugEvent[] {
+		const result: IChatDebugEvent[] = [];
+		for (let i = 0; i < this._size; i++) {
+			const event = this._buffer[(this._head + i) % this.capacity];
+			if (event) {
+				result.push(event);
+			}
+		}
+		return result;
+	}
+
+	/** Remove events matching the predicate and compact in-place. */
+	removeWhere(predicate: (event: IChatDebugEvent) => boolean): void {
+		let write = 0;
+		for (let i = 0; i < this._size; i++) {
+			const idx = (this._head + i) % this.capacity;
+			const event = this._buffer[idx];
+			if (event && predicate(event)) {
+				continue;
+			}
+			if (write !== i) {
+				const writeIdx = (this._head + write) % this.capacity;
+				this._buffer[writeIdx] = event;
+			}
+			write++;
+		}
+		for (let i = write; i < this._size; i++) {
+			this._buffer[(this._head + i) % this.capacity] = undefined;
+		}
+		this._size = write;
+	}
+
+	clear(): void {
+		this._buffer.fill(undefined);
+		this._head = 0;
+		this._size = 0;
+	}
+}
+
 export class ChatDebugServiceImpl extends Disposable implements IChatDebugService {
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly MAX_EVENTS = 10_000;
+	static readonly MAX_EVENTS_PER_SESSION = 10_000;
+	static readonly MAX_SESSIONS = 5;
 
-	// Circular buffer: fixed-size array with head/size tracking for O(1) append.
-	private readonly _buffer: (IChatDebugEvent | undefined)[] = new Array(ChatDebugServiceImpl.MAX_EVENTS);
-	private _head = 0;  // index of the oldest element
-	private _size = 0;  // number of elements currently stored
+	/** Per-session event buffers. Ordered from oldest to newest session (LRU). */
+	private readonly _sessionBuffers = new ResourceMap<SessionEventBuffer>();
+	/** Ordered list of session URIs for LRU eviction. */
+	private readonly _sessionOrder: URI[] = [];
 
 	private readonly _onDidAddEvent = this._register(new Emitter<IChatDebugEvent>());
 	readonly onDidAddEvent: Event<IChatDebugEvent> = this._onDidAddEvent.event;
@@ -39,10 +109,28 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Events that were returned by providers (not internally logged). */
 	private readonly _providerEvents = new WeakSet<IChatDebugEvent>();
 
+	/** Session URIs created via import. */
+	private readonly _importedSessions = new ResourceMap<boolean>();
+
+	/** Human-readable titles for imported sessions. */
+	private readonly _importedSessionTitles = new ResourceMap<string>();
+
 	activeSessionResource: URI | undefined;
 
+	/** Schemes eligible for debug logging and provider invocation. */
+	private static readonly _debugEligibleSchemes = new Set([
+		LocalChatSessionUri.scheme,	// vscode-chat-session (local sessions)
+		'copilotcli',				// Copilot CLI background sessions
+		'claude-code',				// Claude Code CLI sessions
+	]);
+
+	private _isDebugEligibleSession(sessionResource: URI): boolean {
+		return ChatDebugServiceImpl._debugEligibleSchemes.has(sessionResource.scheme)
+			|| this._importedSessions.has(sessionResource);
+	}
+
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
-		if (!LocalChatSessionUri.isLocalSession(sessionResource)) {
+		if (!this._isDebugEligibleSession(sessionResource)) {
 			return;
 		}
 		this.addEvent({
@@ -59,13 +147,25 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	addEvent(event: IChatDebugEvent): void {
-		const idx = (this._head + this._size) % ChatDebugServiceImpl.MAX_EVENTS;
-		this._buffer[idx] = event;
-		if (this._size < ChatDebugServiceImpl.MAX_EVENTS) {
-			this._size++;
+		let buffer = this._sessionBuffers.get(event.sessionResource);
+		if (!buffer) {
+			// Evict least-recently-used session if we are at the session cap.
+			if (this._sessionOrder.length >= ChatDebugServiceImpl.MAX_SESSIONS) {
+				const evicted = this._sessionOrder.shift()!;
+				this._evictSession(evicted);
+			}
+			buffer = new SessionEventBuffer(ChatDebugServiceImpl.MAX_EVENTS_PER_SESSION);
+			this._sessionBuffers.set(event.sessionResource, buffer);
+			this._sessionOrder.push(event.sessionResource);
 		} else {
-			this._head = (this._head + 1) % ChatDebugServiceImpl.MAX_EVENTS;
+			// Move to end of LRU order so actively-used sessions are not evicted.
+			const idx = this._sessionOrder.findIndex(u => extUri.isEqual(u, event.sessionResource));
+			if (idx !== -1 && idx !== this._sessionOrder.length - 1) {
+				this._sessionOrder.splice(idx, 1);
+				this._sessionOrder.push(event.sessionResource);
+			}
 		}
+		buffer.push(event);
 		this._onDidAddEvent.fire(event);
 	}
 
@@ -75,15 +175,14 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	getEvents(sessionResource?: URI): readonly IChatDebugEvent[] {
-		const result: IChatDebugEvent[] = [];
-		const key = sessionResource?.toString();
-		for (let i = 0; i < this._size; i++) {
-			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS];
-			if (!event) {
-				continue;
-			}
-			if (!key || event.sessionResource.toString() === key) {
-				result.push(event);
+		let result: IChatDebugEvent[];
+		if (sessionResource) {
+			const buffer = this._sessionBuffers.get(sessionResource);
+			result = buffer ? buffer.toArray() : [];
+		} else {
+			result = [];
+			for (const buffer of this._sessionBuffers.values()) {
+				result.push(...buffer.toArray());
 			}
 		}
 		result.sort((a, b) => a.created.getTime() - b.created.getTime());
@@ -91,26 +190,29 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	getSessionResources(): readonly URI[] {
-		const seen = new ResourceMap<boolean>();
-		const result: URI[] = [];
-		for (let i = 0; i < this._size; i++) {
-			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS];
-			if (!event) {
-				continue;
-			}
-			if (!seen.has(event.sessionResource)) {
-				seen.set(event.sessionResource, true);
-				result.push(event.sessionResource);
-			}
-		}
-		return result;
+		return [...this._sessionOrder];
 	}
 
 	clear(): void {
-		this._buffer.fill(undefined);
-		this._head = 0;
-		this._size = 0;
+		this._sessionBuffers.clear();
+		this._sessionOrder.length = 0;
 		this._debugDataAttachedSessions.clear();
+		this._importedSessions.clear();
+		this._importedSessionTitles.clear();
+	}
+
+	/** Remove all ancillary state for an evicted session. */
+	private _evictSession(sessionResource: URI): void {
+		this._sessionBuffers.delete(sessionResource);
+		this._importedSessions.delete(sessionResource);
+		this._importedSessionTitles.delete(sessionResource);
+		this._debugDataAttachedSessions.delete(sessionResource);
+		const cts = this._invocationCts.get(sessionResource);
+		if (cts) {
+			cts.cancel();
+			cts.dispose();
+			this._invocationCts.delete(sessionResource);
+		}
 	}
 
 	registerProvider(provider: IChatDebugLogProvider): IDisposable {
@@ -135,10 +237,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	async invokeProviders(sessionResource: URI): Promise<void> {
-		if (!LocalChatSessionUri.isLocalSession(sessionResource)) {
+
+		if (!this._isDebugEligibleSession(sessionResource)) {
 			return;
 		}
-
 		// Cancel only the previous invocation for THIS session, not others.
 		// Each session has its own pipeline so events from multiple sessions
 		// can be streamed concurrently.
@@ -174,11 +276,21 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		try {
 			const events = await provider.provideChatDebugLog(sessionResource, token);
 			if (events) {
-				for (const event of events) {
+				// Yield to the event loop periodically so the UI stays
+				// responsive when a provider returns a large batch of events
+				// (e.g. importing a multi-MB log file).
+				const BATCH_SIZE = 500;
+				for (let i = 0; i < events.length; i++) {
+					if (token.isCancellationRequested) {
+						break;
+					}
 					this.addProviderEvent({
-						...event,
-						sessionResource: event.sessionResource ?? sessionResource,
+						...events[i],
+						sessionResource: events[i].sessionResource ?? sessionResource,
 					});
+					if (i > 0 && i % BATCH_SIZE === 0) {
+						await timeout(0);
+					}
 				}
 			}
 		} catch (err) {
@@ -197,26 +309,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	private _clearProviderEvents(sessionResource: URI): void {
-		const key = sessionResource.toString();
-		// Compact the ring buffer in-place, removing matching provider events.
-		let write = 0;
-		for (let i = 0; i < this._size; i++) {
-			const idx = (this._head + i) % ChatDebugServiceImpl.MAX_EVENTS;
-			const event = this._buffer[idx];
-			if (event && this._providerEvents.has(event) && event.sessionResource.toString() === key) {
-				continue; // skip — this event is removed
-			}
-			if (write !== i) {
-				const writeIdx = (this._head + write) % ChatDebugServiceImpl.MAX_EVENTS;
-				this._buffer[writeIdx] = event;
-			}
-			write++;
+		const buffer = this._sessionBuffers.get(sessionResource);
+		if (buffer) {
+			buffer.removeWhere(event => this._providerEvents.has(event));
 		}
-		// Clear trailing slots and update size
-		for (let i = write; i < this._size; i++) {
-			this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS] = undefined;
-		}
-		this._size = write;
 		this._onDidClearProviderEvents.fire(sessionResource);
 	}
 
@@ -247,12 +343,59 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		return undefined;
 	}
 
+	isCoreEvent(event: IChatDebugEvent): boolean {
+		return !this._providerEvents.has(event);
+	}
+
+	setImportedSessionTitle(sessionResource: URI, title: string): void {
+		this._importedSessionTitles.set(sessionResource, title);
+	}
+
+	getImportedSessionTitle(sessionResource: URI): string | undefined {
+		return this._importedSessionTitles.get(sessionResource);
+	}
+
+	async exportLog(sessionResource: URI): Promise<Uint8Array | undefined> {
+		for (const provider of this._providers) {
+			if (provider.provideChatDebugLogExport) {
+				try {
+					const data = await provider.provideChatDebugLogExport(sessionResource, CancellationToken.None);
+					if (data !== undefined) {
+						return data;
+					}
+				} catch (err) {
+					onUnexpectedError(err);
+				}
+			}
+		}
+		return undefined;
+	}
+
+	async importLog(data: Uint8Array): Promise<URI | undefined> {
+		for (const provider of this._providers) {
+			if (provider.resolveChatDebugLogImport) {
+				try {
+					const sessionUri = await provider.resolveChatDebugLogImport(data, CancellationToken.None);
+					if (sessionUri !== undefined) {
+						this._importedSessions.set(sessionUri, true);
+						return sessionUri;
+					}
+				} catch (err) {
+					onUnexpectedError(err);
+				}
+			}
+		}
+		return undefined;
+	}
+
 	override dispose(): void {
 		for (const cts of this._invocationCts.values()) {
 			cts.cancel();
 			cts.dispose();
 		}
 		this._invocationCts.clear();
+		this.clear();
+		this._providers.clear();
 		super.dispose();
 	}
 }

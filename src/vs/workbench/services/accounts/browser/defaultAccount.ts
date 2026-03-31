@@ -644,7 +644,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching token entitlements from:', tokenEntitlementsUrl);
-		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.tokenEntitlements');
 		if (!response) {
 			return undefined;
 		}
@@ -663,8 +663,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						// Editor preview features are disabled if the flag is present and set to 0
 						chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
-						// MCP is disabled if the flag is present and set to 0
-						mcp: tokenMap.get('mcp') !== '0',
+						// MCP is only enabled if the flag is explicitly present and set to 1
+						mcp: tokenMap.get('mcp') === '1',
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),
@@ -688,7 +688,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching entitlements from:', entitlementUrl);
-		const response = await this.request(entitlementUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(entitlementUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.entitlements');
 		if (!response) {
 			return undefined;
 		}
@@ -731,7 +731,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
-		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider');
 		if (!response) {
 			return undefined;
 		}
@@ -759,9 +759,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined> {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined> {
 		let lastResponse: IRequestContext | undefined;
 
 		for (const session of sessions) {
@@ -777,7 +777,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					disableCache: true,
 					headers: {
 						'Authorization': `Bearer ${session.accessToken}`
-					}
+					},
+					callSite
 				}, token);
 
 				const status = response.res.statusCode;

@@ -81,7 +81,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 		// Clear session auto-approve rules when chat sessions end
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				this._sessionAutoApproveRules.delete(resource);
 				this._sessionAutoApprovalEnabled.delete(resource);
 			}
@@ -105,7 +105,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
 					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 					this._toolSessionIdByTerminalInstance.delete(instance);

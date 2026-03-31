@@ -48,6 +48,7 @@ import { Color } from '../../../../../base/common/color.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -235,12 +236,15 @@ export class ChatStatusDashboard extends DomWidget {
 					}
 				}));
 
-				for (const { displayName, count } of inProgress) {
+				for (const { chatSessionType, count } of inProgress) {
 					if (count > 0) {
-						const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
-						const chatSessionsElement = this.element.appendChild($('div.description'));
-						const parts = renderLabelWithIcons(text);
-						chatSessionsElement.append(...parts);
+						const displayName = this.getDisplayNameForChatSessionType(chatSessionType);
+						if (displayName) {
+							const text = '$(loading~spin) ' + localize('inProgressChatSession', "{0} in progress", displayName);
+							const chatSessionsElement = this.element.appendChild($('div.description'));
+							const parts = renderLabelWithIcons(text);
+							chatSessionsElement.append(...parts);
+						}
 					}
 				}
 			}
@@ -402,6 +406,18 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 	}
 
+	private getDisplayNameForChatSessionType(chatSessionType: string): string | undefined {
+		if (chatSessionType === AgentSessionProviders.Local) {
+			return localize('chat.session.inProgress.local', "Local Agent");
+		} else if (chatSessionType === AgentSessionProviders.Background) {
+			return localize('chat.session.inProgress.background', "Background Agent");
+		} else if (chatSessionType === AgentSessionProviders.Cloud) {
+			return localize('chat.session.inProgress.cloud', "Cloud Agent");
+		} else {
+			return this.chatSessionsService.getChatSessionContribution(chatSessionType)?.displayName;
+		}
+	}
+
 	private canUseChat(): boolean {
 		if (!this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
 			return false; // chat not installed or not enabled
@@ -500,7 +516,7 @@ export class ChatStatusDashboard extends DomWidget {
 			)
 		));
 
-		if (supportsOverage && (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus)) {
+		if (supportsOverage && (this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus)) {
 			const manageOverageButton = disposables.add(new Button(quotaIndicator, { ...defaultButtonStyles, secondary: true, hoverDelegate: nativeHoverDelegate }));
 			manageOverageButton.label = localize('enableAdditionalUsage', "Manage paid premium requests");
 			disposables.add(manageOverageButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));

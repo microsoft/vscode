@@ -19,6 +19,11 @@
 	min-width: 0;
 }
 
+/* Hide the default action-label rendered by the toolbar — the account widget provides its own button */
+.account-widget > .action-label {
+	display: none;
+}
+
 /* Account Button */
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account {
 	overflow: hidden;
@@ -47,6 +52,10 @@
 	overflow: hidden;
 }
 
+.account-widget-update:has(.account-widget-update-button.hidden) {
+	display: none;
+}
+
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button {
 	width: auto;
 	max-width: none;
@@ -70,7 +79,7 @@
 /* Boxed hint style for embedded app update indicator — outlined, no fill */
 .account-widget-update .account-widget-update-button.account-widget-update-button-hint {
 	background-color: transparent !important;
-	color: var(--vscode-button-foreground) !important;
+	color: var(--vscode-button-background) !important;
 	border: 1px solid var(--vscode-button-background) !important;
 }
 
@@ -106,6 +115,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
+	font-weight: 500;
 }
 
 .account-widget-account .account-widget-account-button {

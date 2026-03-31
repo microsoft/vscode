@@ -6,18 +6,29 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Event } from '../../../../../base/common/event.js';
-import { CodeReviewService, CodeReviewStateKind, ICodeReviewService } from '../../browser/codeReviewService.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { ISession } from '../../../sessions/common/sessionData.js';
+import { ICodeReviewService, CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion } from '../../browser/codeReviewService.js';
 
 suite('CodeReviewService', () => {
 
 	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
 	let service: ICodeReviewService;
 	let commandService: MockCommandService;
+	let storageService: InMemoryStorageService;
+	let sessionsManagement: MockSessionsManagementService;
 
 	let session: URI;
 	let fileA: URI;
@@ -87,11 +98,81 @@ suite('CodeReviewService', () => {
 		}
 	}
 
+	class MockSessionsManagementService extends mock<ISessionsManagementService>() {
+		private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
+		override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+		override readonly activeSession: IObservable<ISession | undefined>;
+
+		private readonly _sessions = new Map<string, ISession>();
+
+		constructor(disposables: DisposableStore) {
+			super();
+			this._onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
+			this.onDidChangeSessions = this._onDidChangeSessions.event;
+			this.activeSession = observableValue<ISession | undefined>('test.activeSession', undefined);
+		}
+
+		override getSession(resource: URI): ISession | undefined {
+			return this._sessions.get(resource.toString());
+		}
+
+		addSession(resource: URI, changes?: readonly IChatSessionFileChange2[], archived = false): ISession {
+			const changesObs = observableValue<readonly IChatSessionFileChange[]>('test.changes',
+				(changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }))
+			);
+			const isArchivedObs = observableValue<boolean>('test.isArchived', archived);
+			const sessionData: ISession = {
+				sessionId: `test:${resource.toString()}`,
+				resource,
+				changes: changesObs,
+				isArchived: isArchivedObs,
+				gitHubInfo: observableValue('test.gitHubInfo', undefined),
+			} as unknown as ISession;
+			this._sessions.set(resource.toString(), sessionData);
+			return sessionData;
+		}
+
+		updateSessionChanges(resource: URI, changes: readonly IChatSessionFileChange2[] | undefined): void {
+			const session = this._sessions.get(resource.toString());
+			if (session) {
+				const obs = session.changes as ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
+				obs.set(
+					(changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions })),
+					undefined
+				);
+			}
+		}
+
+		removeSession(resource: URI): void {
+			this._sessions.delete(resource.toString());
+		}
+
+		override getSessions(): ISession[] {
+			return [...this._sessions.values()];
+		}
+
+		fireSessionsChanged(event?: Partial<ISessionsChangeEvent>): void {
+			this._onDidChangeSessions.fire({
+				added: event?.added ?? [],
+				removed: event?.removed ?? [],
+				changed: event?.changed ?? [],
+			});
+		}
+	}
+
 	setup(() => {
-		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService = store.add(new TestInstantiationService());
 
 		commandService = new MockCommandService();
 		instantiationService.stub(ICommandService, commandService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IGitHubService, new class extends mock<IGitHubService>() { }());
+
+		sessionsManagement = new MockSessionsManagementService(store);
+		instantiationService.stub(ISessionsManagementService, sessionsManagement);
+
+		storageService = store.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, storageService);
 
 		service = store.add(instantiationService.createInstance(CodeReviewService));
 		session = URI.parse('test://session/1');
@@ -161,6 +242,7 @@ suite('CodeReviewService', () => {
 		assert.strictEqual(state.kind, CodeReviewStateKind.Loading);
 		if (state.kind === CodeReviewStateKind.Loading) {
 			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
 		}
 
 		// Resolve to avoid leaking
@@ -213,6 +295,7 @@ suite('CodeReviewService', () => {
 		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
 		if (state.kind === CodeReviewStateKind.Result) {
 			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
 			assert.strictEqual(state.comments.length, 2);
 			assert.strictEqual(state.comments[0].body, 'Bug found');
 			assert.strictEqual(state.comments[0].kind, 'bug');
@@ -232,6 +315,7 @@ suite('CodeReviewService', () => {
 		assert.strictEqual(state.kind, CodeReviewStateKind.Error);
 		if (state.kind === CodeReviewStateKind.Error) {
 			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
 			assert.strictEqual(state.reason, 'Auth failed');
 		}
 	});
@@ -266,6 +350,7 @@ suite('CodeReviewService', () => {
 		const state = service.getReviewState(session).get();
 		assert.strictEqual(state.kind, CodeReviewStateKind.Error);
 		if (state.kind === CodeReviewStateKind.Error) {
+			assert.strictEqual(state.reviewCount, 1);
 			assert.ok(state.reason.includes('Network error'));
 		}
 	});
@@ -284,8 +369,8 @@ suite('CodeReviewService', () => {
 		commandService.resolveExecution({ type: 'success', comments: [] });
 	});
 
-	test('requestReview is a no-op when result exists for the same version', async () => {
-		commandService.result = { type: 'success', comments: [] };
+	test('requestReview is a no-op when unresolved comments exist for the same version', async () => {
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' }] };
 		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
 		await tick();
 
@@ -295,6 +380,71 @@ suite('CodeReviewService', () => {
 		// Should still have the result
 		const state = service.getReviewState(session).get();
 		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
+		if (state.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(state.comments.length, 1);
+		}
+	});
+
+	test('requestReview reruns when previous result for the same version had no comments', async () => {
+		commandService.result = { type: 'success', comments: [] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		commandService.deferNextExecution();
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+
+		const state = service.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Loading);
+
+		commandService.resolveExecution({ type: 'success', comments: [] });
+		await tick();
+	});
+
+	test('requestReview reruns when all comments for the same version were removed', async () => {
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' }] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		const initialState = service.getReviewState(session).get();
+		assert.strictEqual(initialState.kind, CodeReviewStateKind.Result);
+		if (initialState.kind !== CodeReviewStateKind.Result) {
+			return;
+		}
+
+		service.removeComment(session, initialState.comments[0].id);
+
+		commandService.deferNextExecution();
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+
+		const state = service.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Loading);
+
+		commandService.resolveExecution({ type: 'success', comments: [] });
+		await tick();
+	});
+
+	test('requestReview is a no-op after five reviews for the same version', async () => {
+		commandService.result = { type: 'success', comments: [] };
+
+		for (let i = 0; i < 5; i++) {
+			service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+			await tick();
+		}
+
+		const stateBefore = service.getReviewState(session).get();
+		assert.strictEqual(stateBefore.kind, CodeReviewStateKind.Result);
+		if (stateBefore.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(stateBefore.reviewCount, 5);
+		}
+
+		commandService.deferNextExecution();
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+
+		const stateAfter = service.getReviewState(session).get();
+		assert.strictEqual(stateAfter.kind, CodeReviewStateKind.Result);
+		if (stateAfter.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(stateAfter.reviewCount, 5);
+		}
 	});
 
 	test('requestReview for a new version replaces loading state', async () => {
@@ -653,6 +803,228 @@ suite('CodeReviewService', () => {
 			CodeReviewStateKind.Result,
 			CodeReviewStateKind.Idle,
 		]);
+	});
+
+	// --- Storage persistence ---
+
+	test('review results are persisted to storage', async () => {
+		commandService.result = {
+			type: 'success',
+			comments: [{ uri: fileA, range: new Range(1, 1, 5, 1), body: 'Persisted comment', kind: 'bug', severity: 'high' }],
+		};
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		const raw = storageService.get('codeReview.reviews', StorageScope.WORKSPACE);
+		assert.ok(raw, 'Storage should contain review data');
+		const stored = JSON.parse(raw!);
+		const reviewData = stored[session.toString()];
+		assert.ok(reviewData);
+		assert.strictEqual(reviewData.version, 'v1');
+		assert.strictEqual(reviewData.reviewCount, 1);
+		assert.strictEqual(reviewData.comments.length, 1);
+		assert.strictEqual(reviewData.comments[0].body, 'Persisted comment');
+	});
+
+	test('reviews are restored from storage on service creation', async () => {
+		commandService.result = {
+			type: 'success',
+			comments: [{ uri: fileA, range: new Range(1, 1, 5, 1), body: 'Restored comment', kind: 'bug', severity: 'high' }],
+		};
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		// Create a second service with the same storage
+		const service2 = store.add(instantiationService.createInstance(CodeReviewService));
+		const state = service2.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
+		if (state.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(state.version, 'v1');
+			assert.strictEqual(state.reviewCount, 1);
+			assert.strictEqual(state.comments.length, 1);
+			assert.strictEqual(state.comments[0].body, 'Restored comment');
+			assert.strictEqual(state.comments[0].uri.toString(), fileA.toString());
+			assert.deepStrictEqual(state.comments[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 5, endColumn: 1 });
+		}
+	});
+
+	test('suggestions are persisted and restored correctly', async () => {
+		commandService.result = {
+			type: 'success',
+			comments: [{
+				uri: fileA,
+				range: new Range(1, 1, 5, 1),
+				body: 'suggestion comment',
+				suggestion: {
+					edits: [{
+						range: new Range(2, 1, 3, 10),
+						oldText: 'let x = 1;',
+						newText: 'const x = 1;',
+					}],
+				},
+			}],
+		};
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		const service2 = store.add(instantiationService.createInstance(CodeReviewService));
+		const state = service2.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
+		if (state.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(state.comments[0].suggestion?.edits.length, 1);
+			assert.strictEqual(state.comments[0].suggestion?.edits[0].oldText, 'let x = 1;');
+			assert.strictEqual(state.comments[0].suggestion?.edits[0].newText, 'const x = 1;');
+		}
+	});
+
+	test('removeComment updates storage', async () => {
+		commandService.result = {
+			type: 'success',
+			comments: [
+				{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment1' },
+				{ uri: fileA, range: new Range(5, 1, 5, 1), body: 'comment2' },
+			],
+		};
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		const state = service.getReviewState(session).get();
+		if (state.kind !== CodeReviewStateKind.Result) { return; }
+
+		service.removeComment(session, state.comments[0].id);
+
+		const raw = storageService.get('codeReview.reviews', StorageScope.WORKSPACE);
+		const stored = JSON.parse(raw!);
+		assert.strictEqual(stored[session.toString()].comments.length, 1);
+		assert.strictEqual(stored[session.toString()].comments[0].body, 'comment2');
+	});
+
+	test('dismissReview removes session from storage', async () => {
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'c' }] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		assert.ok(storageService.get('codeReview.reviews', StorageScope.WORKSPACE));
+
+		service.dismissReview(session);
+
+		assert.strictEqual(storageService.get('codeReview.reviews', StorageScope.WORKSPACE), undefined);
+	});
+
+	test('corrupted storage is handled gracefully', () => {
+		storageService.store('codeReview.reviews', 'not-valid-json{{{', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		const service2 = store.add(instantiationService.createInstance(CodeReviewService));
+		const state = service2.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Idle);
+	});
+
+	// --- Session lifecycle cleanup ---
+
+	test('archived session reviews are cleaned up', async () => {
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' }] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Result);
+
+		const mockSession = sessionsManagement.addSession(session, undefined, true);
+		sessionsManagement.fireSessionsChanged({ changed: [mockSession] });
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Idle);
+		assert.strictEqual(storageService.get('codeReview.reviews', StorageScope.WORKSPACE), undefined);
+	});
+
+	test('non-archived session change does not clean up review', async () => {
+		const changes: IChatSessionFileChange2[] = [
+			{ uri: fileA, modifiedUri: fileA, insertions: 1, deletions: 0 },
+		];
+		const files = getCodeReviewFilesFromSessionChanges(changes);
+		const version = getCodeReviewVersion(files);
+
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' }] };
+		service.requestReview(session, version, files);
+		await tick();
+
+		const mockSession = sessionsManagement.addSession(session, changes, false);
+		sessionsManagement.fireSessionsChanged({ changed: [mockSession] });
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Result);
+	});
+
+	test('session with changed version has review cleaned up', async () => {
+		const changes: IChatSessionFileChange2[] = [
+			{ uri: fileA, modifiedUri: fileA, insertions: 1, deletions: 0 },
+		];
+		sessionsManagement.addSession(session, changes);
+
+		const files = getCodeReviewFilesFromSessionChanges(changes);
+		const version = getCodeReviewVersion(files);
+
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'stale comment' }] };
+		service.requestReview(session, version, files);
+		await tick();
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Result);
+
+		const newChanges: IChatSessionFileChange2[] = [
+			{ uri: fileA, modifiedUri: fileA, insertions: 1, deletions: 0 },
+			{ uri: fileB, modifiedUri: fileB, insertions: 2, deletions: 0 },
+		];
+		sessionsManagement.updateSessionChanges(session, newChanges);
+		sessionsManagement.fireSessionsChanged();
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Idle);
+		assert.strictEqual(storageService.get('codeReview.reviews', StorageScope.WORKSPACE), undefined);
+	});
+
+	test('session that no longer exists has review cleaned up', async () => {
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'orphaned comment' }] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Result);
+
+		sessionsManagement.fireSessionsChanged();
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Idle);
+	});
+
+	test('session with no changes has review cleaned up', async () => {
+		sessionsManagement.addSession(session, [
+			{ uri: fileA, modifiedUri: fileA, insertions: 1, deletions: 0 },
+		]);
+
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' }] };
+		service.requestReview(session, 'v1', [{ currentUri: fileA }]);
+		await tick();
+
+		sessionsManagement.updateSessionChanges(session, undefined);
+		sessionsManagement.fireSessionsChanged();
+
+		assert.strictEqual(service.getReviewState(session).get().kind, CodeReviewStateKind.Idle);
+	});
+
+	test('session with matching version keeps review intact', async () => {
+		const changes: IChatSessionFileChange2[] = [
+			{ uri: fileA, modifiedUri: fileA, insertions: 1, deletions: 0 },
+		];
+		sessionsManagement.addSession(session, changes);
+
+		const files = getCodeReviewFilesFromSessionChanges(changes);
+		const version = getCodeReviewVersion(files);
+
+		commandService.result = { type: 'success', comments: [{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'valid comment' }] };
+		service.requestReview(session, version, files);
+		await tick();
+
+		sessionsManagement.fireSessionsChanged();
+
+		const state = service.getReviewState(session).get();
+		assert.strictEqual(state.kind, CodeReviewStateKind.Result);
+		if (state.kind === CodeReviewStateKind.Result) {
+			assert.strictEqual(state.comments[0].body, 'valid comment');
+		}
 	});
 });
 

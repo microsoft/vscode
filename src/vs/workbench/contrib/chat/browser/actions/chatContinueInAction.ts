@@ -36,10 +36,12 @@ import { ChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
-import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ResolvedChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { ISCMService } from '../../../scm/common/scm.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
@@ -163,10 +165,12 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ISCMService scmService: ISCMService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, scmService, workspaceContextService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
 			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
 		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -186,11 +190,21 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}];
 	}
 
-	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownActionProvider {
+	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, scmService: ISCMService, workspaceContextService: IWorkspaceContextService, location: ActionLocation): IActionWidgetDropdownActionProvider {
 		return {
 			getActions: () => {
 				const actions: IActionWidgetDropdownAction[] = [];
 				const contributions = chatSessionsService.getAllChatSessionContributions();
+				const folders = workspaceContextService.getWorkspace().folders;
+				let hasGitRepo = false;
+				if (folders.length > 0) {
+					for (const repo of scmService.repositories) {
+						if (repo.provider.rootUri && workspaceContextService.getWorkspaceFolder(repo.provider.rootUri)) {
+							hasGitRepo = true;
+							break;
+						}
+					}
+				}
 
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
@@ -198,10 +212,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
 				}
 
-				// Continue in Cloud
+				// Continue in Cloud (disabled when no git repository)
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
 				if (cloudContrib && cloudContrib.canDelegate) {
-					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location));
+					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
 				}
 
 				// Offer actions to enter setup if we have no contributions
@@ -215,10 +229,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		};
 	}
 
-	private static toAction(provider: AgentSessionProviders, contrib: IChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownAction {
+	private static toAction(provider: AgentSessionProviders, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
 		return {
 			id: contrib.type,
-			enabled: true,
+			enabled,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
 			description: `@${contrib.name}`,
@@ -271,7 +285,7 @@ const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
 export class CreateRemoteAgentJobAction {
 	constructor() { }
 
-	private openUntitledEditor(commandService: ICommandService, continuationTarget: IChatSessionsExtensionPoint) {
+	private openUntitledEditor(commandService: ICommandService, continuationTarget: ResolvedChatSessionsExtensionPoint) {
 		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`);
 	}
 
@@ -367,7 +381,7 @@ export class CreateRemoteAgentJobAction {
 		return undefined;
 	}
 
-	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint, _widget?: IChatWidget) {
+	async run(accessor: ServicesAccessor, continuationTarget: ResolvedChatSessionsExtensionPoint, _widget?: IChatWidget) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
@@ -512,7 +526,7 @@ export class CreateRemoteAgentJobAction {
 class CreateRemoteAgentJobFromEditorAction {
 	constructor() { }
 
-	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
+	async run(accessor: ServicesAccessor, continuationTarget: ResolvedChatSessionsExtensionPoint) {
 
 		try {
 			const editorService = accessor.get(IEditorService);

@@ -3,34 +3,116 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalSandboxNetworkSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
-import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ChatElicitationRequestPart } from '../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatModel } from '../../../chat/common/model/chatModel.js';
+import { ElicitationState, IChatService } from '../../../chat/common/chatService/chatService.js';
+import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
+
+export interface ITerminalSandboxResolvedNetworkDomains {
+	allowedDomains: string[];
+	deniedDomains: string[];
+}
+
+export const enum TerminalSandboxPrerequisiteCheck {
+	Config = 'config',
+	Dependencies = 'dependencies',
+}
+
+export interface ITerminalSandboxPrerequisiteCheckResult {
+	enabled: boolean;
+	sandboxConfigPath: string | undefined;
+	failedCheck: TerminalSandboxPrerequisiteCheck | undefined;
+	missingDependencies?: string[];
+}
+
+export interface ITerminalSandboxWrapResult {
+	command: string;
+	isSandboxWrapped: boolean;
+	blockedDomains?: string[];
+	deniedDomains?: string[];
+	requiresUnsandboxConfirmation?: boolean;
+}
+
+/**
+ * Abstraction over terminal operations needed by the install flow.
+ * Provided by the browser-layer caller so the common-layer service
+ * does not import browser types directly.
+ */
+export interface ISandboxDependencyInstallTerminal {
+	sendText(text: string, addNewLine?: boolean): Promise<void>;
+	focus(): void;
+	capabilities: {
+		get(id: TerminalCapability.CommandDetection): { onCommandFinished: Event<{ exitCode: number | undefined }> } | undefined;
+		onDidAddCapability: Event<{ id: TerminalCapability }>;
+	};
+	onDidInputData: Event<string>;
+	onDisposed: Event<unknown>;
+}
+
+/**
+ * Context passed to the password prompt during dependency installation.
+ */
+interface ISandboxDependencyInstallTerminalContext {
+	focusTerminal(): Promise<void>;
+	onDidInputData: Event<string>;
+	onDisposed: Event<unknown>;
+	didSendInstallCommand(): boolean;
+}
+
+export interface ISandboxDependencyInstallOptions {
+	/**
+	 * Creates or obtains a terminal for running the install command.
+	 */
+	createTerminal(): Promise<ISandboxDependencyInstallTerminal>;
+	/**
+	 * Focuses the terminal for password entry.
+	 */
+	focusTerminal(terminal: ISandboxDependencyInstallTerminal): Promise<void>;
+}
+
+export interface ISandboxDependencyInstallResult {
+	exitCode: number | undefined;
+}
 
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): Promise<boolean>;
-	wrapCommand(command: string): string;
+	getOS(): Promise<OperatingSystem>;
+	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
+	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;
+	getMissingSandboxDependencies(): Promise<string[]>;
+	installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult>;
 }
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
@@ -40,6 +122,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _srtPathResolved = false;
 	private _execPath?: string;
 	private _sandboxConfigPath: string | undefined;
+	private _sandboxDependencyStatus: ISandboxDependencyStatus | undefined;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
@@ -48,6 +131,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _appRoot: string;
 	private _os: OperatingSystem = OS;
 	private _defaultWritePaths: string[] = ['~/.npm'];
+	private static readonly _sandboxTempDirName = 'tmp';
+	private static readonly _urlRegex = /(?:https?|wss?):\/\/[^\s'"`|&;<>]+/gi;
+	private static readonly _sshRemoteRegex = /(?:^|[\s'"`])(?:[^\s@:'"`]+@)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::[^\s'"`|&;<>]+)(?=$|[\s'"`|&;<>])/gi;
+	private static readonly _hostRegex = /(?:^|[\s'"`(=])([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::\d+)?(?=(?:\/[^\s'"`|&;<>]*)?(?:$|[\s'"`)\]|,;|&<>]))/gi;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -55,7 +142,11 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IProductService private readonly _productService: IProductService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@ISandboxHelperService private readonly _sandboxHelperService: ISandboxHelperService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -68,33 +159,71 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
 			// If terminal sandbox settings changed, update sandbox config.
 			if (
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxLinuxFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxMacFileSystem)
 			) {
 				this.setNeedsForceUpdateConfigFile();
 			}
 		}));
 
-		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this.setNeedsForceUpdateConfigFile();
+		}));
+
+		this._register(this._lifecycleService.onWillShutdown(e => {
+			if (!this._tempDir) {
+				return;
+			}
+			e.join(this._cleanupSandboxTempDir(), {
+				id: 'join.deleteFilesInSandboxTempDir',
+				label: localize('deleteFilesInSandboxTempDir', "Delete Files in Sandbox Temp Dir"),
+				order: WillShutdownJoinerOrder.Default
+			});
 		}));
 	}
 
 	public async isEnabled(): Promise<boolean> {
-		this._remoteEnvDetails = await this._remoteEnvDetailsPromise;
-		this._os = this._remoteEnvDetails ? this._remoteEnvDetails.os : OS;
-		if (this._os === OperatingSystem.Windows) {
-			return false;
-		}
-		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
+		return await this._isSandboxConfiguredEnabled();
 	}
 
-	public wrapCommand(command: string): string {
+	public async getOS(): Promise<OperatingSystem> {
+		this._remoteEnvDetails = await this._remoteEnvDetailsPromise;
+		this._os = this._remoteEnvDetails ? this._remoteEnvDetails.os : OS;
+		return this._os;
+	}
+
+	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
+
+		const blockedDomainResult = requestUnsandboxedExecution ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
+		if (!requestUnsandboxedExecution && blockedDomainResult.blockedDomains.length > 0) {
+			return {
+				command: this._wrapUnsandboxedCommand(command),
+				isSandboxWrapped: false,
+				blockedDomains: blockedDomainResult.blockedDomains,
+				deniedDomains: blockedDomainResult.deniedDomains,
+				requiresUnsandboxConfirmation: true,
+			};
+		}
+
+		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
+		if (requestUnsandboxedExecution) {
+			return {
+				command: this._wrapUnsandboxedCommand(command),
+				isSandboxWrapped: false,
+			};
+		}
+
 		if (!this._execPath) {
 			throw new Error('Executable path not set to run sandbox commands');
 		}
@@ -107,11 +236,17 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
 		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
-		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
+		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" CLAUDE_TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
-			return `${wrappedCommand}`;
+			return {
+				command: wrappedCommand,
+				isSandboxWrapped: true,
+			};
 		}
-		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
+		return {
+			command: `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`,
+			isSandboxWrapped: true,
+		};
 	}
 
 	public getTempDir(): URI | undefined {
@@ -122,7 +257,44 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		this._needsForceUpdateConfigFile = true;
 	}
 
+	public async checkForSandboxingPrereqs(forceRefresh: boolean = false): Promise<ITerminalSandboxPrerequisiteCheckResult> {
+		if (!(await this._isSandboxConfiguredEnabled())) {
+			return {
+				enabled: false,
+				sandboxConfigPath: undefined,
+				failedCheck: undefined,
+			};
+		}
+
+		const sandboxConfigPath = await this.getSandboxConfigPath(forceRefresh);
+		if (!sandboxConfigPath) {
+			return {
+				enabled: true,
+				sandboxConfigPath,
+				failedCheck: TerminalSandboxPrerequisiteCheck.Config,
+			};
+		}
+
+		if (!(await this._checkSandboxDependencies(forceRefresh))) {
+			return {
+				enabled: true,
+				sandboxConfigPath,
+				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+				missingDependencies: await this.getMissingSandboxDependencies(),
+			};
+		}
+
+		return {
+			enabled: true,
+			sandboxConfigPath,
+			failedCheck: undefined,
+		};
+	}
+
 	public async getSandboxConfigPath(forceRefresh: boolean = false): Promise<string | undefined> {
+		if (!(await this._isSandboxConfiguredEnabled())) {
+			return undefined;
+		}
 		await this._resolveSrtPath();
 		if (!this._sandboxConfigPath || forceRefresh || this._needsForceUpdateConfigFile) {
 			this._sandboxConfigPath = await this._createSandboxConfig();
@@ -131,8 +303,304 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._sandboxConfigPath;
 	}
 
+	private async _checkSandboxDependencies(forceRefresh = false): Promise<boolean> {
+		const os = await this.getOS();
+		if (os === OperatingSystem.Windows) {
+			return false;
+		}
+
+		const sandboxDependencyStatus = await this._resolveSandboxDependencyStatus(forceRefresh);
+		this._sandboxDependencyStatus = sandboxDependencyStatus;
+
+		if (sandboxDependencyStatus && !sandboxDependencyStatus.bubblewrapInstalled) {
+			this._logService.warn('TerminalSandboxService: bubblewrap (bwrap) is not installed');
+		}
+		if (sandboxDependencyStatus && !sandboxDependencyStatus.socatInstalled) {
+			this._logService.warn('TerminalSandboxService: socat is not installed');
+		}
+
+		return sandboxDependencyStatus ? sandboxDependencyStatus.bubblewrapInstalled && sandboxDependencyStatus.socatInstalled : true;
+	}
+
+	public async getMissingSandboxDependencies(): Promise<string[]> {
+		const os = await this.getOS();
+		if (os === OperatingSystem.Windows) {
+			return [];
+		}
+
+		if (!this._sandboxDependencyStatus || !this._sandboxDependencyStatus.bubblewrapInstalled || !this._sandboxDependencyStatus.socatInstalled) {
+			this._sandboxDependencyStatus = await this._resolveSandboxDependencyStatus(true);
+		}
+
+		const missing: string[] = [];
+		if (this._sandboxDependencyStatus && !this._sandboxDependencyStatus.bubblewrapInstalled) {
+			missing.push('bubblewrap');
+		}
+		if (this._sandboxDependencyStatus && !this._sandboxDependencyStatus.socatInstalled) {
+			missing.push('socat');
+		}
+		return missing;
+	}
+
+	public async installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
+		const depsList = missingDependencies.join(' ');
+		const installCommand = `sudo apt install -y ${depsList}`;
+		const instance = await options.createTerminal();
+
+		// Wait for the install command to finish so the chat can proceed automatically.
+		let installCommandSent = false;
+		const completionPromise = new Promise<number | undefined>(resolve => {
+			const store = new DisposableStore();
+			let resolved = false;
+			const resolveOnce = (code: number | undefined) => {
+				if (resolved) {
+					return;
+				}
+				resolved = true;
+				store.dispose();
+				resolve(code);
+			};
+
+			const attachListener = () => {
+				const detection = instance.capabilities.get(TerminalCapability.CommandDetection);
+				if (detection) {
+					store.add(detection.onCommandFinished(cmd => resolveOnce(cmd.exitCode)));
+				}
+			};
+
+			attachListener();
+			store.add(instance.capabilities.onDidAddCapability(e => {
+				if (e.id === TerminalCapability.CommandDetection) {
+					attachListener();
+				}
+			}));
+
+			// Handle terminal disposal
+			store.add(instance.onDisposed(() => resolveOnce(undefined)));
+
+			// Handle cancellation
+			store.add(token.onCancellationRequested(() => resolveOnce(undefined)));
+
+			// Safety timeout — 5 minutes should be more than enough for apt install
+			const safetyTimeout = timeout(5 * 60 * 1000);
+			store.add({ dispose: () => safetyTimeout.cancel() });
+			safetyTimeout.then(() => resolveOnce(undefined));
+
+			const passwordPrompt = this._createMissingDependencyPasswordPrompt(sessionResource, {
+				focusTerminal: () => options.focusTerminal(instance),
+				onDidInputData: instance.onDidInputData,
+				onDisposed: instance.onDisposed,
+				didSendInstallCommand: () => installCommandSent,
+			}, token);
+			store.add(passwordPrompt);
+		});
+
+		// Send the command after listeners are attached so we never miss the event.
+		// Set installCommandSent only after sendText completes because sendText
+		// fires onDidInputData internally, and the password-prompt listener would
+		// dismiss the elicitation prematurely if the flag were already true.
+		await instance.sendText(installCommand, true);
+		installCommandSent = true;
+
+		return { exitCode: await completionPromise };
+	}
+
+	/**
+	 * Shows a chat elicitation that keeps the "Install" flow grounded in chat while
+	 * the user focuses the terminal and types a sudo password.
+	 */
+	private _createMissingDependencyPasswordPrompt(sessionResource: URI | undefined, promptContext: ISandboxDependencyInstallTerminalContext, token: CancellationToken): DisposableStore {
+		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
+		if (!(chatModel instanceof ChatModel)) {
+			return new DisposableStore();
+		}
+
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return new DisposableStore();
+		}
+
+		const part = new ChatElicitationRequestPart(
+			localize('runInTerminal.missingDeps.passwordPromptTitle', "The terminal is awaiting input."),
+			new MarkdownString(localize(
+				'runInTerminal.missingDeps.passwordPromptMessage',
+				"Installing missing sandbox dependencies may prompt for your sudo password. Select Focus Terminal to type it in the terminal."
+			)),
+			'',
+			localize('runInTerminal.missingDeps.focusTerminal', 'Focus Terminal'),
+			undefined,
+			async () => {
+				await promptContext.focusTerminal();
+				return ElicitationState.Pending;
+			}
+		);
+		chatModel.acceptResponseProgress(request, part);
+
+		const store = new DisposableStore();
+		const disposePrompt = () => store.dispose();
+		store.add({ dispose: () => part.hide() });
+		store.add(token.onCancellationRequested(disposePrompt));
+		store.add(promptContext.onDisposed(disposePrompt));
+		store.add(promptContext.onDidInputData(data => {
+			if (promptContext.didSendInstallCommand() && data.length > 0) {
+				disposePrompt();
+			}
+		}));
+		return store;
+	}
+
 	private _quoteShellArgument(value: string): string {
 		return `'${value.replace(/'/g, `'\\''`)}'`;
+	}
+
+	private _wrapUnsandboxedCommand(command: string): string {
+		return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
+	}
+
+	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
+		const domains = this._extractDomains(command);
+		if (domains.length === 0) {
+			return { blockedDomains: [], deniedDomains: [] };
+		}
+
+		const { allowedDomains, deniedDomains } = this.getResolvedNetworkDomains();
+		const blockedDomains = new Set<string>();
+		const explicitlyDeniedDomains = new Set<string>();
+		for (const domain of domains) {
+			if (deniedDomains.some(pattern => this._matchesDomainPattern(domain, pattern))) {
+				blockedDomains.add(domain);
+				explicitlyDeniedDomains.add(domain);
+				continue;
+			}
+			if (!allowedDomains.some(pattern => this._matchesDomainPattern(domain, pattern))) {
+				blockedDomains.add(domain);
+			}
+		}
+		return {
+			blockedDomains: [...blockedDomains],
+			deniedDomains: [...explicitlyDeniedDomains],
+		};
+	}
+
+	private _extractDomains(command: string): string[] {
+		const domains = new Set<string>();
+		let match: RegExpExecArray | null;
+
+		TerminalSandboxService._urlRegex.lastIndex = 0;
+		while ((match = TerminalSandboxService._urlRegex.exec(command)) !== null) {
+			const domain = this._extractDomainFromUrl(match[0]);
+			if (domain) {
+				domains.add(domain);
+			}
+		}
+
+		TerminalSandboxService._sshRemoteRegex.lastIndex = 0;
+		while ((match = TerminalSandboxService._sshRemoteRegex.exec(command)) !== null) {
+			const domain = this._normalizeDomain(match[1]);
+			if (domain) {
+				domains.add(domain);
+			}
+		}
+
+		TerminalSandboxService._hostRegex.lastIndex = 0;
+		while ((match = TerminalSandboxService._hostRegex.exec(command)) !== null) {
+			const domain = this._normalizeDomain(match[1]);
+			if (domain) {
+				domains.add(domain);
+			}
+		}
+
+		return [...domains];
+	}
+
+	private _extractDomainFromUrl(value: string): string | undefined {
+		try {
+			const authority = URI.parse(value).authority;
+			return this._normalizeDomain(authority);
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _normalizeDomain(value: string | undefined): string | undefined {
+		if (!value) {
+			return undefined;
+		}
+
+		const normalized = value.trim().toLowerCase().replace(/^[^@]+@/, '').replace(/:\d+$/, '').replace(/\.+$/, '');
+		if (!normalized || normalized.includes('/') || normalized === '.' || normalized === '..') {
+			return undefined;
+		}
+		if (normalized !== '*' && !/^\*?\.?[a-z0-9.-]+$/.test(normalized)) {
+			return undefined;
+		}
+		const domainToValidate = normalized.startsWith('*.') ? normalized.slice(2) : normalized;
+		if (!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?))*$/.test(domainToValidate)) {
+			return undefined;
+		}
+
+		// Strip common trailing punctuation that may follow a domain in text, e.g. "example.com,".
+		const stripped = normalized.replace(/[),;:!?]+$/, '');
+		if (!stripped) {
+			return undefined;
+		}
+
+		// Allow a bare wildcard pattern.
+		if (stripped === '*') {
+			return stripped;
+		}
+
+		// Support wildcard domain patterns like "*.example.com".
+		const hasWildcardPrefix = stripped.startsWith('*.');
+		const host = hasWildcardPrefix ? stripped.slice(2) : stripped;
+		if (!host) {
+			return undefined;
+		}
+
+		// Validate that the host part only contains valid hostname characters.
+		if (!/^[a-z0-9.-]+$/.test(host)) {
+			return undefined;
+		}
+
+		return hasWildcardPrefix ? `*.${host}` : host;
+	}
+
+	private _matchesDomainPattern(domain: string, pattern: string): boolean {
+		const normalizedPattern = this._normalizeDomain(this._extractDomainPattern(pattern));
+		if (!normalizedPattern) {
+			return false;
+		}
+		if (normalizedPattern === '*') {
+			return true;
+		}
+		if (normalizedPattern.startsWith('*.')) {
+			const suffix = normalizedPattern.slice(2);
+			return domain === suffix || domain.endsWith(`.${suffix}`);
+		}
+		return domain === normalizedPattern;
+	}
+
+	private _extractDomainPattern(pattern: string): string {
+		const trimmed = pattern.trim();
+		if (trimmed === '*') {
+			return trimmed;
+		}
+		if (!trimmed.includes('://')) {
+			return trimmed;
+		}
+		try {
+			return URI.parse(trimmed).authority;
+		} catch {
+			return trimmed;
+		}
+	}
+
+	private async _isSandboxConfiguredEnabled(): Promise<boolean> {
+		const os = await this.getOS();
+		if (os === OperatingSystem.Windows) {
+			return false;
+		}
+		return this._getSettingValue<boolean>(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) ?? false;
 	}
 
 	private async _resolveSrtPath(): Promise<void> {
@@ -142,9 +610,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		this._srtPathResolved = true;
 		const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
 		if (remoteEnv) {
-
 			this._appRoot = remoteEnv.appRoot.path;
-			this._execPath = this._pathJoin(this._appRoot, 'node');
+			this._execPath = remoteEnv.execPath;
 		}
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
 		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
@@ -156,27 +623,22 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			await this._initTempDir();
 		}
 		if (this._tempDir) {
-			const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+			const allowedDomainsSetting = this._getSettingValue<string[]>(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains) ?? [];
+			const deniedDomainsSetting = this._getSettingValue<string[]>(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains) ?? [];
 			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
+				? this._getSettingValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxLinuxFileSystem) ?? {}
 				: {};
 			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
+				? this._getSettingValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem, TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
-			const defaultAllowWrite = [...this._defaultWritePaths];
-			const linuxAllowWrite = [...new Set([...(linuxFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
-			const macAllowWrite = [...new Set([...(macFileSystemSetting.allowWrite ?? []), ...defaultAllowWrite])];
-
-			let allowedDomains = networkSetting.allowedDomains ?? [];
-			if (networkSetting.allowTrustedDomains) {
-				allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
-			}
+			const linuxAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite);
+			const macAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite);
 
 			const sandboxSettings = {
 				network: {
-					allowedDomains,
-					deniedDomains: networkSetting.deniedDomains ?? []
+					allowedDomains: allowedDomainsSetting,
+					deniedDomains: deniedDomainsSetting
 				},
 				filesystem: {
 					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
@@ -201,13 +663,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (await this.isEnabled()) {
 			this._needsForceUpdateConfigFile = true;
 			const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
-			if (remoteEnv) {
-				this._tempDir = remoteEnv.tmpDir;
-			} else {
-				const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
-				this._tempDir = environmentService.tmpDir;
-			}
+			this._tempDir = this._getSandboxTempDirPath(remoteEnv);
 			if (this._tempDir) {
+				await this._fileService.createFolder(this._tempDir);
 				this._defaultWritePaths.push(this._tempDir.path);
 			}
 			if (!this._tempDir) {
@@ -216,18 +674,79 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 	}
 
-	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {
-		const allowedDomainsSet = new Set(allowedDomains);
-		for (const domain of this._trustedDomainService.trustedDomains) {
-			try {
-				const uri = new URL(domain);
-				allowedDomainsSet.add(uri.hostname);
-			} catch {
-				if (domain !== '*') {
-					allowedDomainsSet.add(domain);
-				}
-			}
+	private async _cleanupSandboxTempDir(): Promise<void> {
+		if (!this._tempDir) {
+			return;
 		}
-		return Array.from(allowedDomainsSet);
+		try {
+			await this._fileService.del(this._tempDir, { recursive: true, useTrash: false });
+		} catch (error) {
+			this._logService.warn('TerminalSandboxService: Failed to delete sandbox temp dir', error);
+		}
+	}
+
+	private _getSandboxTempDirPath(remoteEnv: IRemoteAgentEnvironment | null): URI | undefined {
+		const sandboxTempDirName = this._getSandboxWindowTempDirName();
+		if (remoteEnv?.userHome) {
+			const sandboxRoot = URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
+		}
+
+		const nativeEnv = this._environmentService as IEnvironmentService & { userHome?: URI };
+		if (nativeEnv.userHome) {
+			const sandboxRoot = URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, TerminalSandboxService._sandboxTempDirName);
+			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
+		}
+
+		return undefined;
+	}
+
+	private _getSandboxWindowTempDirName(): string | undefined {
+		const workbenchEnv = this._environmentService as IEnvironmentService & { window?: { id?: number } };
+		const windowId = workbenchEnv.window?.id;
+		return typeof windowId === 'number' ? `tmp_vscode_${windowId}` : undefined;
+	}
+
+	public getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
+		const allowedDomains = this._getSettingValue<string[]>(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains) ?? [];
+		const deniedDomains = this._getSettingValue<string[]>(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains) ?? [];
+		return {
+			allowedDomains,
+			deniedDomains
+		};
+	}
+
+	private _updateAllowWritePathsWithWorkspaceFolders(configuredAllowWrite: string[] | undefined): string[] {
+		const workspaceFolderPaths = this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri.path);
+		return [...new Set([...workspaceFolderPaths, ...this._defaultWritePaths, ...(configuredAllowWrite ?? [])])];
+	}
+
+	private async _resolveSandboxDependencyStatus(forceRefresh = false): Promise<ISandboxDependencyStatus | undefined> {
+		if (!forceRefresh && this._sandboxDependencyStatus) {
+			return this._sandboxDependencyStatus;
+		}
+
+		const connection = this._remoteAgentService.getConnection();
+		if (connection) {
+			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
+				const sandboxHelper = new SandboxHelperChannelClient(channel);
+				return sandboxHelper.checkSandboxDependencies();
+			});
+		}
+
+		return this._sandboxHelperService.checkSandboxDependencies();
+	}
+
+
+	private _getSettingValue<T>(settingId: TerminalChatAgentToolsSettingId, deprecatedSettingId?: TerminalChatAgentToolsSettingId): T | undefined {
+		const setting = this._configurationService.inspect<T>(settingId);
+		const deprecatedSetting = deprecatedSettingId ? this._configurationService.inspect<T>(deprecatedSettingId) : undefined;
+
+		if (setting.userValue === undefined && deprecatedSetting?.userValue !== undefined) {
+			this._logService.warn(`TerminalSandboxService: Using deprecated setting ${deprecatedSettingId} because ${settingId} is not set. Please update your settings to use ${settingId} instead.`);
+			return deprecatedSetting.value;
+		}
+		return setting.value;
 	}
 }
+

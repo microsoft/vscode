@@ -11,7 +11,9 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../workbench/common/theme.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../workbench/common/theme.js';
+import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
+import { sessionsChatBarBackground } from '../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -19,6 +21,7 @@ import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
+import { Part } from '../../../workbench/browser/part.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneCompositeBar.js';
 import { IMenuService } from '../../../platform/actions/common/actions.js';
@@ -26,8 +29,10 @@ import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
 import { ActiveChatBarContext, ChatBarFocusContext } from '../../common/contextkeys.js';
+import { SessionCompositeBar } from './sessionCompositeBar.js';
+import { prepend } from '../../../base/browser/dom.js';
 
-export class ChatBarPart extends AbstractPaneCompositePart {
+export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not be a AbstractPaneCompositePart but instead a custom Part with a CompositeBar
 
 	static readonly activeViewSettingsKey = 'workbench.chatbar.activepanelid';
 	static readonly pinnedViewsKey = 'workbench.chatbar.pinnedPanels';
@@ -38,6 +43,22 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	/** Visual margin values for the card-like appearance */
+	static readonly MARGIN_TOP = 10;
+	static readonly MARGIN_LEFT = 10;
+	static readonly MARGIN_RIGHT = 10;
+	static readonly MARGIN_BOTTOM = 0;
+
+	/** Border width on the card (1px each side) */
+	static readonly BORDER_WIDTH = 1;
+
+	/** Height of the session composite bar when visible */
+	private static readonly SESSION_BAR_HEIGHT = 35;
+
+	private _sessionCompositeBar: SessionCompositeBar | undefined;
+
+	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
@@ -92,12 +113,54 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 		);
 	}
 
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+
+		// Create the session composite bar and prepend it before the content area
+		this._sessionCompositeBar = this._register(this.instantiationService.createInstance(SessionCompositeBar));
+		prepend(parent, this._sessionCompositeBar.element);
+
+		// Relayout when session bar visibility changes
+		this._register(this._sessionCompositeBar.onDidChangeVisibility(() => {
+			if (this._lastLayout) {
+				this.layout(this._lastLayout.width, this._lastLayout.height, this._lastLayout.top, this._lastLayout.left);
+			}
+		}));
+	}
+
 	override updateStyles(): void {
 		super.updateStyles();
 
 		const container = assertReturnsDefined(this.getContainer());
-		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
+
+		// Store background and border as CSS variables for the card styling on .part
+		container.style.setProperty('--part-background', this.getColor(sessionsChatBarBackground) || '');
+		container.style.setProperty('--part-border-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || 'transparent');
+		container.style.backgroundColor = this.getColor(sessionsChatBarBackground) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
+	}
+
+	override layout(width: number, height: number, top: number, left: number): void {
+		if (!this.layoutService.isVisible(Parts.CHATBAR_PART)) {
+			return;
+		}
+
+		this._lastLayout = { width, height, top, left };
+
+		// Account for the session composite bar height when visible
+		const sessionBarHeight = this._sessionCompositeBar?.visible ? ChatBarPart.SESSION_BAR_HEIGHT : 0;
+
+		// Layout content with reduced dimensions to account for visual margins and border
+		const borderTotal = ChatBarPart.BORDER_WIDTH * 2;
+		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : ChatBarPart.MARGIN_LEFT;
+		super.layout(
+			width - marginLeft - ChatBarPart.MARGIN_RIGHT - borderTotal,
+			height - ChatBarPart.MARGIN_TOP - ChatBarPart.MARGIN_BOTTOM - borderTotal - sessionBarHeight,
+			top, left
+		);
+
+		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
+		Part.prototype.layout.call(this, width, height, top, left);
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
@@ -117,8 +180,8 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 			iconSize: 16,
 			overflowActionSize: 30,
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
+				activeBackgroundColor: theme.getColor(sessionsChatBarBackground),
+				inactiveBackgroundColor: theme.getColor(sessionsChatBarBackground),
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
