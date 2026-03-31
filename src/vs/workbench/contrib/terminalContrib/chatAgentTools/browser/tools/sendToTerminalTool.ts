@@ -16,7 +16,7 @@ export const SendToTerminalToolData: IToolData = {
 	id: TerminalToolId.SendToTerminal,
 	toolReferenceName: 'sendToTerminal',
 	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
-	modelDescription: `Send a command to an existing background terminal that was started with ${TerminalToolId.RunInTerminal}. Use this to send new commands to long-running terminal sessions such as SSH connections or REPLs. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal}. After sending, use ${TerminalToolId.GetTerminalOutput} to check for updated output.`,
+	modelDescription: `Send a command to an existing background terminal that was started with ${TerminalToolId.RunInTerminal}. Use this to send commands to long-running terminal sessions. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal}. After sending, use ${TerminalToolId.GetTerminalOutput} to check for updated output.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
