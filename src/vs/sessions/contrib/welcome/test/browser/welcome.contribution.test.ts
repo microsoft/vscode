@@ -190,7 +190,7 @@ suite('SessionsWelcomeContribution', () => {
 		assert.strictEqual(isOverlayVisible(), true, 'should show overlay when extension is disabled');
 	});
 
-	test('overlay dismisses when setup completes', () => {
+	test('setup completion persists welcome completion without dismissing overlay', () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
 		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
 
@@ -204,7 +204,9 @@ suite('SessionsWelcomeContribution', () => {
 			mockEntitlementService.sentimentObs.set({ installed: true } as IChatSentiment, tx);
 		});
 
-		assert.strictEqual(isOverlayVisible(), false, 'should dismiss after setup completes');
+		const storageService = instantiationService.get(IStorageService);
+		assert.strictEqual(storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false), true);
+		assert.strictEqual(isOverlayVisible(), true, 'should remain visible until the walkthrough completes');
 	});
 
 	test('dismissing walkthrough does not mark welcome complete', async () => {
