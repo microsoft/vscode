@@ -1572,6 +1572,44 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 1');
 		});
 
+		test('should include General Purpose agent even without custom agents config', async () => {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/gp-only-test')));
+
+			// Explicitly do NOT set chat.customAgentInSubagent.enabled
+
+			// Override the assignment service to enable the GP experiment
+			instaService.stub(IWorkbenchAssignmentService, {
+				_serviceBrand: undefined,
+				onDidRefetchAssignments: Event.None,
+				async getCurrentExperiments() { return []; },
+				async getTreatment<T>(name: string): Promise<T | undefined> {
+					return (name === 'chat.generalPurposeAgent' ? true : undefined) as T | undefined;
+				},
+				addTelemetryAssignmentFilter() { },
+			} as IWorkbenchAssignmentService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_runSubagent': true },
+				['*'],
+				undefined
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for agents list');
+
+			const agentsList = xmlContents(textVariables[0].value, 'agents');
+			assert.equal(agentsList.length, 1, 'There should be one agents list');
+
+			const agents = xmlContents(agentsList[0], 'agent');
+			assert.equal(agents.length, 1, 'There should be only the GP agent');
+			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
+		});
+
 		test('should include skills list when readFile tool available', async () => {
 			const rootFolderName = 'skills-list-test';
 			const rootFolder = `/${rootFolderName}`;

@@ -433,7 +433,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
 		}
-		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+		if (runSubagentTool) {
 			let generalPurposeAgentEnabled = false;
 			try {
 				generalPurposeAgentEnabled = !!(await this._assignmentService.getTreatment<boolean>('chat.generalPurposeAgent'));
@@ -441,19 +441,7 @@ export class ComputeAutomaticInstructions {
 				this._logService.error('[AutomaticInstructions] Failed to resolve treatment chat.generalPurposeAgent', error);
 			}
 
-			if (generalPurposeAgentEnabled) {
-				entries.push('<agents>');
-				entries.push('Here is a list of agents that can be used when running a subagent.');
-				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
-
-				// Built-in General Purpose agent, always available
-				entries.push('<agent>');
-				entries.push(`<name>${GeneralPurposeAgentName}</name>`);
-				entries.push(`<description>Full-capability agent for complex multi-step tasks requiring the complete toolset and high-quality reasoning. Has access to all tools. Inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
-				entries.push('</agent>');
-			}
-
+			const customAgentsEnabled = !!this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
@@ -462,17 +450,23 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
-			if (!generalPurposeAgentEnabled && agents.length === 0) {
-				// No agents to show at all when experiment is off and no custom agents
-			} else {
-				if (!generalPurposeAgentEnabled) {
-					// Only render the agents block header when not already rendered by GP
-					entries.push('<agents>');
-					entries.push('Here is a list of agents that can be used when running a subagent.');
-					entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-					entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+			const agents = customAgentsEnabled ? await this._promptsService.getCustomAgents(token) : [];
+
+			if (generalPurposeAgentEnabled || agents.length > 0) {
+				entries.push('<agents>');
+				entries.push('Here is a list of agents that can be used when running a subagent.');
+				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
+				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+
+				if (generalPurposeAgentEnabled) {
+					// Built-in General Purpose agent, always available when experiment is on
+					entries.push('<agent>');
+					entries.push(`<name>${GeneralPurposeAgentName}</name>`);
+					entries.push(`<description>Full-capability agent for complex multi-step tasks requiring the complete toolset and high-quality reasoning. Has access to all tools. Inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
+					entries.push('</agent>');
 				}
+				}
+
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
 						entries.push('<agent>');

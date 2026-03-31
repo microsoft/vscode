@@ -94,7 +94,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e =>
 			e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents)
-		)((() => this._onDidUpdateToolData.fire())));
+		)(() => this._onDidUpdateToolData.fire()));
 
 		// Resolve the experiment value asynchronously and re-resolve on refetch
 		this._resolveExperiment();
@@ -108,6 +108,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			if (changed) {
 				this._onDidUpdateToolData.fire();
 			}
+		}, (error: unknown) => {
+			this.logService.error(`[RunSubagentTool] Failed to resolve treatment chat.generalPurposeAgent: ${error}`);
 		});
 	}
 
