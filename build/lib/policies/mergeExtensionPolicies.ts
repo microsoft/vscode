@@ -10,18 +10,12 @@ import type { ExportedPolicyDataDto, PolicyDto } from './policyDto.ts';
 
 /**
  * Extension configuration policy entry as defined in the distro's product.json.
- * Supports both the simplified format (flat `description` string) and the full
- * localization format (`localization.description: { key, value }`).
  */
 interface ExtensionConfigurationPolicyEntry {
 	readonly name: string;
 	readonly category: string;
 	readonly minimumVersion: `${number}.${number}`;
-	readonly description?: string;
-	readonly localization?: {
-		readonly description: { readonly key: string; readonly value: string };
-		readonly enumDescriptions?: { readonly key: string; readonly value: string }[];
-	};
+	readonly description: string;
 }
 
 const root = path.resolve(import.meta.dirname, '../../..');
@@ -77,25 +71,23 @@ async function getDistroProductJson(): Promise<Record<string, unknown>> {
 
 /**
  * Converts a distro extensionConfigurationPolicy entry into a PolicyDto.
- * All extension configuration policies are assumed to be boolean with a default of `true`
- * unless the distro format is extended to include type information.
+ * The localization key/value pair is synthesized from the setting key and description,
+ * since extension configuration policies are not localized in the distro.
  */
 function toPolicy(key: string, entry: ExtensionConfigurationPolicyEntry): PolicyDto {
-	if (!entry.localization?.description && !entry.description) {
-		throw new Error(`Extension policy '${key}' must have either 'localization.description' or 'description'`);
+	if (!entry.description) {
+		throw new Error(`Extension policy '${key}' must have a 'description'`);
 	}
 	if (!entry.category) {
 		throw new Error(`Extension policy '${key}' must have a 'category'`);
 	}
-	const description = entry.localization?.description ?? { key, value: entry.description ?? '' };
 	return {
 		key,
 		name: entry.name,
 		category: entry.category,
 		minimumVersion: entry.minimumVersion,
 		localization: {
-			description,
-			enumDescriptions: entry.localization?.enumDescriptions,
+			description: { key, value: entry.description },
 		},
 		type: 'boolean',
 		default: true

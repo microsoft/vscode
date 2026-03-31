@@ -152,13 +152,7 @@ Each entry in `extensionConfigurationPolicy` must include:
         "name": "PolicyName",
         "category": "InteractiveSession",
         "minimumVersion": "1.99",
-        "description": "Human-readable description.",
-        "localization": {
-            "description": {
-                "key": "publisher.extension.settingName",
-                "value": "Human-readable description."
-            }
-        }
+        "description": "Human-readable description."
     }
 }
 ```
@@ -166,8 +160,7 @@ Each entry in `extensionConfigurationPolicy` must include:
 - `name`: PascalCase policy name, unique across all policies
 - `category`: Must be a valid `PolicyCategory` enum value (e.g., `InteractiveSession`, `Extensions`)
 - `minimumVersion`: The VS Code version that first shipped this policy
-- `description`: Flat description string (backwards compatibility)
-- `localization.description`: `{ key, value }` pair used by `policyGenerator.ts` for ADMX/ADML/macOS/Linux policy artifacts and by `vscode-website` for the enterprise policy reference page
+- `description`: Human-readable description string used by `mergeExtensionPolicies.ts` to generate localization key/value pairs for ADMX/ADML/macOS/Linux policy artifacts
 
 ### Adding a new extension policy
 
