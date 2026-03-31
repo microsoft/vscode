@@ -124,6 +124,7 @@ export const LLM_RANKED_SEARCH_PROVIDER_NAME = 'llmRanked';
 export enum WorkbenchSettingsEditorSettings {
 	ShowAISearchToggle = 'workbench.settings.showAISearchToggle',
 	EnableNaturalLanguageSearch = 'workbench.settings.enableNaturalLanguageSearch',
+	PreserveDefaultValues = 'workbench.settings.preserveDefaultValues',
 }
 
 export type ExtensionToggleData = {

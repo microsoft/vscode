@@ -115,6 +115,12 @@ registry.registerConfiguration({
 			'scope': ConfigurationScope.WINDOW,
 			'tags': ['usesOnlineServices']
 		},
+		'workbench.settings.preserveDefaultValues': {
+			'type': 'boolean',
+			'description': nls.localize('preserveDefaultValues', "Controls whether settings that are set to their default value are preserved in the settings file. When enabled, changing a setting to its default value will keep the entry in the settings file instead of removing it."),
+			'default': false,
+			'scope': ConfigurationScope.WINDOW
+		},
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',
 			'enum': ['hide', 'filter'],
