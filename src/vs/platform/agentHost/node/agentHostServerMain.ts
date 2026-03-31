@@ -42,6 +42,8 @@ import { SessionDataService } from './sessionDataService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
+import { AgentPluginManager } from './agentPluginManager.js';
+import { IAgentPluginManager } from '../common/agentPluginManager.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -159,11 +161,13 @@ async function main(): Promise<void> {
 	if (!options.quiet) {
 		// Production agents (require DI)
 		const diServices = new ServiceCollection();
+		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IProductService, productService);
 		diServices.set(INativeEnvironmentService, environmentService);
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
+		diServices.set(IAgentPluginManager, pluginManager);
 		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);

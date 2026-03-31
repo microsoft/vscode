@@ -18,7 +18,7 @@ import { SessionStatus, type ISessionSummary } from '../../common/state/sessionS
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
-import { AgentHostFileSystemProvider, AHPFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 

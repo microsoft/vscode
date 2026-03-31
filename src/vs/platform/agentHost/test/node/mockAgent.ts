@@ -322,6 +322,14 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
+	async setClientCustomizations() {
+		return [];
+	}
+
+	setCustomizationEnabled() {
+
+	}
+
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return this._preExistingMessages;

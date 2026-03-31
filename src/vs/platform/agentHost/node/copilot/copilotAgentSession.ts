@@ -228,6 +228,16 @@ export class CopilotAgentSession extends Disposable {
 		await this._wrapper.session.abort();
 	}
 
+	/**
+	 * Explicitly destroys the underlying SDK session and waits for cleanup
+	 * to complete. Call this before {@link dispose} when you need to ensure
+	 * the session's on-disk data is no longer locked (e.g. before
+	 * truncation or fork operations that modify the session files).
+	 */
+	async destroySession(): Promise<void> {
+		await this._wrapper.session.destroy();
+	}
+
 	async setModel(model: string): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		await this._wrapper.session.setModel(model);
