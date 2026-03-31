@@ -39,7 +39,8 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
+import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
+import { type IParsedHookCommand } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -1374,7 +1375,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Process each hook file in parallel
 		const fileResults = await Promise.all(hookFiles.map(async (hookFile): Promise<{
 			file?: IPromptFileDiscoveryResult;
-			hooks?: Map<HookType, IHookCommand[]>;
+			hooks?: Map<HookType, IParsedHookCommand[]>;
 			hasDisabledClaudeHooks?: boolean;
 		}> => {
 			const name = basename(hookFile.uri);
@@ -1439,7 +1440,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					};
 				}
 
-				const hooks = new Map<HookType, IHookCommand[]>();
+				const hooks = new Map<HookType, IParsedHookCommand[]>();
 				for (const [hookType, { hooks: commands }] of parsedHooks) {
 					for (const command of commands) {
 						let bucket = hooks.get(hookType);
@@ -1473,7 +1474,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Merge results from parallel processing
 		const files: IPromptFileDiscoveryResult[] = [];
 		let hasDisabledClaudeHooks = false;
-		const collectedHooks = new Map<HookType, IHookCommand[]>();
+		const collectedHooks = new Map<HookType, IParsedHookCommand[]>();
 
 		for (const { file, hooks, hasDisabledClaudeHooks: disabled } of fileResults) {
 			if (file) {

@@ -3791,7 +3791,7 @@ suite('PromptsService', () => {
 			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				hooks: [{ command: 'echo from-plugin' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
@@ -3801,7 +3801,6 @@ suite('PromptsService', () => {
 			assert.ok(result, 'Expected hooks result');
 
 			assert.deepStrictEqual(result.hooks[HookType.PreToolUse], [{
-				type: 'command',
 				command: 'echo from-plugin',
 			}], 'Expected plugin hooks to be included in computed hooks');
 		});
@@ -3813,7 +3812,7 @@ suite('PromptsService', () => {
 			const { plugin, hooks } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo before' }],
+				hooks: [{ command: 'echo before' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
@@ -3821,18 +3820,18 @@ suite('PromptsService', () => {
 
 			const before = await service.getHooks(CancellationToken.None);
 			assert.ok(before, 'Expected hooks result before plugin update');
-			assert.deepStrictEqual(before.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo before' }]);
+			assert.deepStrictEqual(before.hooks[HookType.PreToolUse], [{ command: 'echo before' }]);
 
 			hooks.set([{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo after' }],
+				hooks: [{ command: 'echo after' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}], undefined);
 
 			const after = await service.getHooks(CancellationToken.None);
 			assert.ok(after, 'Expected hooks result after plugin update');
-			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo after' }]);
+			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ command: 'echo after' }]);
 		});
 
 		test('returns undefined when workspace is untrusted', async function () {
@@ -3879,7 +3878,7 @@ suite('PromptsService', () => {
 			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				hooks: [{ command: 'echo from-plugin' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
@@ -3931,7 +3930,7 @@ suite('PromptsService', () => {
 			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				hooks: [{ command: 'echo from-plugin' }],
 				uri: pluginHookUri,
 			}]);
 
