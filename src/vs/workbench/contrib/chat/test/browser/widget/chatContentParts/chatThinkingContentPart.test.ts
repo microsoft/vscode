@@ -23,7 +23,6 @@ import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browse
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ThinkingDisplayMode } from '../../../../common/constants.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -60,7 +59,6 @@ suite('ChatThinkingContentPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: {} as CodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
