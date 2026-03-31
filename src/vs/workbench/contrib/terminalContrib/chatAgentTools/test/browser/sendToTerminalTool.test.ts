@@ -12,7 +12,7 @@ import { SendToTerminalTool, SendToTerminalToolData } from '../../browser/tools/
 import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/tools/runInTerminalTool.js';
 import type { IToolInvocation, IToolInvocationPreparationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
 import type { ITerminalExecuteStrategyResult } from '../../browser/executeStrategy/executeStrategy.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
