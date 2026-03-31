@@ -14,7 +14,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
-import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { ISelection } from '../../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { FileType } from '../../../../../platform/files/common/files.js';
@@ -22,16 +21,18 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IAutostartResult } from '../../../mcp/common/mcpTypes.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../../search/common/search.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
-import { IChatEditingSession } from '../editing/chatEditingService.js';
-import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
-import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
-import { ChatAgentLocation } from '../constants.js';
-import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
+import { ChatAgentLocation } from '../constants.js';
+import { IChatEditingSession } from '../editing/chatEditingService.js';
+import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
+import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
+import { HookTypeValue } from '../promptSyntax/hookTypes.js';
+import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { IChatParserContext } from '../requestParser/chatRequestParser.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -1440,7 +1441,7 @@ export interface IChatService {
 	 *
 	 * @returns A reference to the session's model or undefined if there is no active session for the given resource.
 	 */
-	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined;
+	acquireExistingSession(sessionResource: URI, debugOwner?: string): IChatModelReference | undefined;
 
 	/**
 	 * Tries to acquire an existing a chat session for the resource. If no session exists, tries to load one for the given
@@ -1448,12 +1449,14 @@ export interface IChatService {
 	 *
 	 * @returns A reference to the session's model, or undefined if the session could not be loaded
 	 */
-	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
+	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined>;
 
 	/**
 	 * Loads a session from exported chat data
 	 */
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference;
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference;
+
+	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot;
 
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
 
@@ -1543,6 +1546,7 @@ export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActiva
 export interface IChatSessionStartOptions {
 	canUseTools?: boolean;
 	disableBackgroundKeepAlive?: boolean;
+	debugOwner?: string;
 }
 
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
