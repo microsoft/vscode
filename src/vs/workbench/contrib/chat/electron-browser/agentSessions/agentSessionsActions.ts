@@ -30,7 +30,7 @@ export class OpenSessionsWindowAction extends Action2 {
 				id: MenuId.ChatTitleBarMenu,
 				group: 'c_sessions',
 				order: 1,
-				when: IsSessionsWindowContext.negate()
+				when: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate())
 			}]
 		});
 	}
