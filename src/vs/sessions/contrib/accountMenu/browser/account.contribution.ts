@@ -6,7 +6,7 @@
 import '../../../browser/media/sidebarActionButton.css';
 import './media/accountWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -102,6 +102,7 @@ export class AccountWidget extends ActionViewItem {
 	private updateButton: Button | undefined;
 	private readonly updateHoverWidget: UpdateHoverWidget;
 	private readonly viewItemDisposables = this._register(new DisposableStore());
+	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		action: IAction,
@@ -252,6 +253,7 @@ export class AccountWidget extends ActionViewItem {
 
 		this.copilotStatusButton.label = `$(${icon})`;
 		this.copilotStatusButton.element.title = tooltip;
+		this.copilotStatusButton.element.setAttribute('aria-label', tooltip);
 
 		// Hide when update button is visible
 		this.updateCopilotStatusVisibility();
@@ -268,6 +270,7 @@ export class AccountWidget extends ActionViewItem {
 
 	private showCopilotStatusDashboard(anchor: HTMLElement): void {
 		const store = new DisposableStore();
+		this.copilotDashboardStore.value = store;
 		const dashboardElement = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, {
 			disableInlineSuggestionsSettings: true,
 			disableModelSelection: true,
