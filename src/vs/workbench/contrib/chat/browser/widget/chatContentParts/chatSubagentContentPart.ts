@@ -91,6 +91,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	// Model name used by this subagent for hover tooltip
 	private modelName: string | undefined;
+	private _isDefaultDescription: boolean;
 	private readonly _hoverDisposable = this._register(new MutableDisposable());
 
 	// Confirmation auto-expand tracking
@@ -114,18 +115,20 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	/**
 	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
 	 */
-	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined } {
+	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; isDefaultDescription: boolean; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined } {
 		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent');
 
 		// Only parent subagent tools contain the full subagent info
 		if (!ChatSubagentContentPart.isParentSubagentTool(toolInvocation)) {
-			return { description: defaultDescription, agentName: undefined, prompt: undefined, modelName: undefined };
+			return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined };
 		}
 
 		// Check toolSpecificData first (works for both live and serialized)
 		if (toolInvocation.toolSpecificData?.kind === 'subagent') {
+			const hasDescription = !!toolInvocation.toolSpecificData.description;
 			return {
 				description: toolInvocation.toolSpecificData.description ?? defaultDescription,
+				isDefaultDescription: !hasDescription,
 				agentName: toolInvocation.toolSpecificData.agentName,
 				prompt: toolInvocation.toolSpecificData.prompt,
 				modelName: toolInvocation.toolSpecificData.modelName,
@@ -138,15 +141,17 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			const params = state.type !== IChatToolInvocation.StateKind.Streaming ?
 				state.parameters as IRunSubagentToolInputParams | undefined
 				: undefined;
+			const hasDescription = !!params?.description;
 			return {
 				description: params?.description ?? defaultDescription,
+				isDefaultDescription: !hasDescription,
 				agentName: params?.agentName,
 				prompt: params?.prompt,
 				modelName: undefined,
 			};
 		}
 
-		return { description: defaultDescription, agentName: undefined, prompt: undefined, modelName: undefined };
+		return { description: defaultDescription, isDefaultDescription: true, agentName: undefined, prompt: undefined, modelName: undefined };
 	}
 
 	constructor(
@@ -164,7 +169,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
-		const { description, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
+		const { description, isDefaultDescription, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
 
 		// Build title: "AgentName: description" or "Subagent: description"
 		const prefix = agentName || localize('chat.subagent.prefix', 'Subagent');
@@ -172,6 +177,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		super(initialTitle, context, undefined, hoverService, configurationService);
 
 		this.description = description;
+		this._isDefaultDescription = isDefaultDescription;
 		this.agentName = agentName;
 		this.prompt = prompt;
 		this.modelName = modelName;
@@ -354,6 +360,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+
+		if (this._isDefaultDescription) {
+			this.description = localize('chat.subagent.completedDefaultDescription', 'Ran subagent');
+		}
 		this.finalizeTitle();
 		// Collapse when done
 		this.setExpanded(false);
@@ -516,10 +526,16 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 						this.renderResultText(textParts.join('\n'));
 					}
 
-					// Update model name from toolSpecificData (set during invoke())
-					if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.modelName) {
-						this.modelName = toolInvocation.toolSpecificData.modelName;
-						this.updateHover();
+					// Update description and model name from toolSpecificData (set during invoke())
+					if (toolInvocation.toolSpecificData?.kind === 'subagent') {
+						if (toolInvocation.toolSpecificData.description) {
+							this.description = toolInvocation.toolSpecificData.description;
+							this._isDefaultDescription = false;
+						}
+						if (toolInvocation.toolSpecificData.modelName) {
+							this.modelName = toolInvocation.toolSpecificData.modelName;
+							this.updateHover();
+						}
 					}
 
 					// Mark as inactive when the tool completes
@@ -527,8 +543,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				} else if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
 					wasStreaming = false;
 					// Update things that change when tool is done streaming
-					const { description, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
+					const { description, isDefaultDescription, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
 					this.description = description;
+					this._isDefaultDescription = isDefaultDescription;
 					this.agentName = agentName;
 					this.prompt = prompt;
 					if (modelName) {
