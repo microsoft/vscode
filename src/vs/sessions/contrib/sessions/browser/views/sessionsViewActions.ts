@@ -18,9 +18,9 @@ import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContex
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISessionsManagementService } from '../sessionsManagementService.js';
-import { IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { ISession, SessionStatus } from '../../common/sessionData.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
@@ -509,6 +509,45 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		for (const session of sessions) {
 			await sessionsManagementService.unarchiveSession(session);
+		}
+	}
+});
+
+registerAction2(class RenameSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.renameSession',
+			title: localize2('renameSession', "Rename..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 1,
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, /^agenthost-/),
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const session = Array.isArray(context) ? context[0] : context;
+		if (!session) {
+			return;
+		}
+		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const newTitle = await quickInputService.input({
+			value: session.title.get(),
+			prompt: localize('renameSession.prompt', "New agent session title"),
+			validateInput: async value => {
+				if (!value.trim()) {
+					return localize('renameSession.empty', "Title cannot be empty");
+				}
+				return undefined;
+			}
+		});
+		if (newTitle) {
+			const trimmedTitle = newTitle.trim();
+			if (trimmedTitle) {
+				await sessionsManagementService.renameChat(session.mainChat, trimmedTitle);
+			}
 		}
 	}
 });

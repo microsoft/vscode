@@ -135,6 +135,10 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
+	setCommonProperty(name: string, value: string): void {
+		this._commonProperties[name] = value;
+	}
+
 	private _flushPendingEvents(): void {
 		if (this._isExperimentPropertySet) {
 			return;

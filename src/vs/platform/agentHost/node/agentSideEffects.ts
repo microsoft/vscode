@@ -242,6 +242,10 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
+			case ActionType.SessionTitleChanged: {
+				this._persistTitle(action.session, action.title);
+				break;
+			}
 			case ActionType.SessionPendingMessageSet:
 			case ActionType.SessionPendingMessageRemoved:
 			case ActionType.SessionQueuedMessagesReordered: {
@@ -249,6 +253,15 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 		}
+	}
+
+	private _persistTitle(session: ProtocolURI, title: string): void {
+		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
+		ref.object.setMetadata('customTitle', title).catch(err => {
+			this._logService.warn('[AgentSideEffects] Failed to persist session title', err);
+		}).finally(() => {
+			ref.dispose();
+		});
 	}
 
 	/**

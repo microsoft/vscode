@@ -370,6 +370,44 @@ export interface IPromptDiscoveryInfo {
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 
+/**
+ * Discovery result for a slash command file, including the parsed prompt file.
+ */
+export interface ISlashCommandDiscoveryResult extends IPromptFileDiscoveryResult {
+	readonly parsedPromptFile?: ParsedPromptFile;
+}
+
+/**
+ * Summary of slash command discovery, including parsed prompt files.
+ */
+export interface ISlashCommandDiscoveryInfo extends IPromptDiscoveryInfo {
+	readonly files: readonly ISlashCommandDiscoveryResult[];
+}
+
+/**
+ * Discovery result for an agent file, including the fully resolved agent.
+ */
+export interface IAgentDiscoveryResult extends IPromptFileDiscoveryResult {
+	readonly agent?: ICustomAgent;
+}
+
+/**
+ * Summary of agent discovery, including resolved agents.
+ */
+export interface IAgentDiscoveryInfo extends IPromptDiscoveryInfo {
+	readonly files: readonly IAgentDiscoveryResult[];
+}
+
+export function sanitizePromptDiscoveryInfo(info: IPromptDiscoveryInfo): IPromptDiscoveryInfo {
+	return {
+		...info,
+		files: info.files.map(file => ({
+			...file,
+			errorMessage: file.errorMessage ? 'REDACTED' : undefined,
+		})),
+	};
+}
+
 export interface IConfiguredHooksInfo {
 	readonly hooks: ChatRequestHooks;
 	readonly hasDisabledClaudeHooks: boolean;

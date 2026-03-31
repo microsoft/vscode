@@ -82,6 +82,19 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined>;
 
+	// ---- Session metadata ------------------------------------------------
+
+	/**
+	 * Read a metadata value by key.
+	 * Returns `undefined` if no value has been stored for the key.
+	 */
+	getMetadata(key: string): Promise<string | undefined>;
+
+	/**
+	 * Store a metadata key-value pair. Overwrites any existing value for the key.
+	 */
+	setMetadata(key: string, value: string): Promise<void>;
+
 	/**
 	 * Close the database connection. After calling this method, the object is
 	 * considered disposed and all other methods will reject with an error.
@@ -125,6 +138,14 @@ export interface ISessionDataService {
 	 * the last reference is disposed.
 	 */
 	openDatabase(session: URI): IReference<ISessionDatabase>;
+
+	/**
+	 * Opens an existing per-session database **only if the database file
+	 * already exists on disk**. Returns `undefined` when no database has
+	 * been created yet, avoiding the side effect of materializing empty
+	 * database files during read-only operations like listing sessions.
+	 */
+	tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined>;
 
 	/**
 	 * Recursively deletes the data directory for a session, if it exists.

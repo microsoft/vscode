@@ -68,6 +68,8 @@ function createMockSessionDataService(): ISessionDataService {
 		storeFileEdit: async () => { },
 		getFileEdits: async () => [],
 		readFileEditContent: async () => undefined,
+		getMetadata: async () => undefined,
+		setMetadata: async () => { },
 		close: async () => { },
 		dispose: () => { },
 	};
@@ -76,6 +78,7 @@ function createMockSessionDataService(): ISessionDataService {
 		getSessionDataDir: () => URI.from({ scheme: 'test', path: '/data' }),
 		getSessionDataDirById: () => URI.from({ scheme: 'test', path: '/data' }),
 		openDatabase: () => ({ object: mockDb, dispose: () => { } }),
+		tryOpenDatabase: async () => ({ object: mockDb, dispose: () => { } }),
 		deleteSessionData: async () => { },
 		cleanupOrphanedData: async () => { },
 	};

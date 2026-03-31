@@ -2266,7 +2266,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		const parseResult = slashCommand.parsedPromptFile;
 		// add the prompt file to the context
-		const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+		const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
 		const toolReferences = this.toolsService.toToolReferences(refs);
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 

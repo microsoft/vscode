@@ -351,7 +351,10 @@ export class ViewAllSessionChangesAction extends Action2 {
 			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
 			icon: Codicon.diffMultiple,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.hasAgentSessionChanges,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('sessions.hasGitRepository', true),
+				ChatContextKeys.hasAgentSessionChanges,
+			),
 			menu: [
 				{
 					id: MenuId.ChatEditingSessionChangesToolbar,

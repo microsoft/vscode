@@ -435,4 +435,42 @@ suite('SessionDatabase', () => {
 			await assert.rejects(() => db!.createTurn('turn-1'), /disposed/);
 		});
 	});
+
+	// ---- Session metadata -----------------------------------------------
+
+	suite('session metadata', () => {
+
+		test('getMetadata returns undefined for missing key', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			assert.strictEqual(await db.getMetadata('nonexistent'), undefined);
+		});
+
+		test('setMetadata and getMetadata round-trip', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'My Session');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'My Session');
+		});
+
+		test('setMetadata overwrites existing value', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'First');
+			await db.setMetadata('customTitle', 'Second');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('metadata persists across reopen', async () => {
+			const db1 = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await db1.setMetadata('customTitle', 'Persistent Title');
+			const rawDb = await db1.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDb));
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Persistent Title');
+		});
+
+		test('migration v2 creates session_metadata table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('session_metadata'));
+		});
+	});
 });

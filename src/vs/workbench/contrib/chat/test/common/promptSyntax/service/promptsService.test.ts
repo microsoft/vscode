@@ -299,8 +299,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240 },
-					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257 },
+					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240, fullLength: 13 },
+					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257, fullLength: 19 },
 				]
 			);
 
@@ -846,7 +846,7 @@ suite('PromptsService', () => {
 					tools: ['tool1', 'tool2'],
 					agentInstructions: {
 						content: 'Do it with #tool:tool1',
-						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 22 } }],
 						metadata: undefined
 					},
 					handOffs: undefined,
@@ -864,8 +864,8 @@ suite('PromptsService', () => {
 					agentInstructions: {
 						content: 'First use #tool:tool2\nThen use #tool:tool1',
 						toolReferences: [
-							{ name: 'tool1', range: { start: 31, endExclusive: 37 } },
-							{ name: 'tool2', range: { start: 10, endExclusive: 16 } }
+							{ name: 'tool1', range: { start: 31, endExclusive: 42 } },
+							{ name: 'tool2', range: { start: 10, endExclusive: 21 } }
 						],
 						metadata: undefined
 					},

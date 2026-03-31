@@ -116,6 +116,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);
 	}
+	private _nextSeq = 1;
+	nextClientSeq(): number {
+		return this._nextSeq++;
+	}
 	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
 		return this._proxy.browseDirectory(uri);
 	}

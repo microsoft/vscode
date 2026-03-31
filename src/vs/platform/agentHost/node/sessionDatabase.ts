@@ -44,6 +44,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			)`,
 		].join(';\n'),
 	},
+	{
+		version: 2,
+		sql: `CREATE TABLE IF NOT EXISTS session_metadata (
+			key   TEXT PRIMARY KEY NOT NULL,
+			value TEXT NOT NULL
+		)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -291,6 +298,19 @@ export class SessionDatabase implements ISessionDatabase {
 				afterContent: toUint8Array(row.after_content),
 			};
 		});
+	}
+
+	// ---- Session metadata -----------------------------------------------
+
+	async getMetadata(key: string): Promise<string | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT value FROM session_metadata WHERE key = ?', [key]);
+		return row?.value as string | undefined;
+	}
+
+	async setMetadata(key: string, value: string): Promise<void> {
+		const db = await this._ensureDb();
+		await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 	}
 
 	async close() {

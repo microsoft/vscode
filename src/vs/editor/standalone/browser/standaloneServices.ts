@@ -803,6 +803,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
 	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 	publicLog() { }
 	publicLog2() { }
 	publicLogError() { }
