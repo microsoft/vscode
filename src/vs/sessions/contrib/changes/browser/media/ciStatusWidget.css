@@ -19,9 +19,28 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 2px 0;
+	padding: 8px 0;
 	min-height: 22px;
 	font-weight: 500;
+	cursor: pointer;
+	user-select: none;
+}
+
+/* Chevron — right-aligned, visible on hover only */
+.ci-status-widget-header .group-chevron {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+.ci-status-widget-header:hover .group-chevron,
+.ci-status-widget-header:focus-within .group-chevron {
+	display: flex;
 }
 
 /* Title - single line, overflow ellipsis */
@@ -47,12 +66,11 @@
 	gap: 8px;
 	flex-shrink: 0;
 	margin-left: auto;
-	padding-right: 8px;
 }
 
 .ci-status-widget.has-fix-actions:hover .ci-status-widget-counts,
 .ci-status-widget.has-fix-actions:focus-within .ci-status-widget-counts {
-	visibility: hidden;
+	display: none;
 }
 
 .ci-status-widget-count-badge {
@@ -84,8 +102,7 @@
 }
 
 .ci-status-widget-header-actions {
-	position: absolute;
-	right: 0;
+	flex-shrink: 0;
 	display: none;
 	align-items: center;
 }

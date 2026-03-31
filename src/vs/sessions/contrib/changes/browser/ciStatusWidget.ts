@@ -168,9 +168,14 @@ export class CIStatusWidget extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly _onDidToggleCollapsed = this._register(new Emitter<boolean>());
+	readonly onDidToggleCollapsed = this._onDidToggleCollapsed.event;
+
 	private _checkCount = 0;
+	private _collapsed = false;
 	private _model: GitHubPullRequestCIModel | undefined;
 	private _sessionResource: URI | undefined;
+	private readonly _chevronNode: HTMLElement;
 
 	get element(): HTMLElement {
 		return this._domNode;
@@ -181,12 +186,20 @@ export class CIStatusWidget extends Disposable {
 		if (this._checkCount === 0) {
 			return 0;
 		}
+		if (this._collapsed) {
+			return CIStatusWidget.HEADER_HEIGHT;
+		}
 		return CIStatusWidget.HEADER_HEIGHT + this._checkCount * CICheckListDelegate.ITEM_HEIGHT;
 	}
 
 	/** Whether the widget is currently visible (has checks to show). */
 	get visible(): boolean {
 		return this._checkCount > 0;
+	}
+
+	/** Whether the body is collapsed (header-only). */
+	get collapsed(): boolean {
+		return this._collapsed;
 	}
 
 	constructor(
@@ -201,17 +214,27 @@ export class CIStatusWidget extends Disposable {
 		this._domNode = dom.append(container, $('.ci-status-widget'));
 		this._domNode.style.display = 'none';
 
-		// Header (always visible)
+		// Header (always visible, click to collapse/expand)
 		this._headerNode = dom.append(this._domNode, $('.ci-status-widget-header'));
 		this._titleNode = dom.append(this._headerNode, $('.ci-status-widget-title'));
 		this._titleLabelNode = dom.append(this._titleNode, $('.ci-status-widget-title-label'));
 		this._titleLabelNode.textContent = localize('ci.checksLabel', "PR Checks");
-		this._countsNode = dom.append(this._titleNode, $('.ci-status-widget-counts'));
+		this._countsNode = dom.append(this._headerNode, $('.ci-status-widget-counts'));
 		this._headerActionBarContainer = dom.append(this._headerNode, $('.ci-status-widget-header-actions'));
 		this._headerActionBar = this._register(new ActionBar(this._headerActionBarContainer));
 		this._register(dom.addDisposableListener(this._headerActionBarContainer, dom.EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
+		}));
+		this._chevronNode = dom.append(this._headerNode, $('.group-chevron'));
+		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
+
+		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.CLICK, e => {
+			// Don't toggle when clicking the action bar
+			if (dom.isAncestor(e.target as HTMLElement, this._headerActionBarContainer)) {
+				return;
+			}
+			this._toggleCollapsed();
 		}));
 
 		// Body (list of checks)
@@ -344,7 +367,28 @@ export class CIStatusWidget extends Disposable {
 	 * Called by the parent view after computing available space.
 	 */
 	layout(height: number): void {
+		if (this._collapsed) {
+			this._bodyNode.style.display = 'none';
+			return;
+		}
+		this._bodyNode.style.display = '';
 		this._list.layout(height);
+	}
+
+	private _toggleCollapsed(): void {
+		this._collapsed = !this._collapsed;
+		this._updateChevron();
+		this._onDidToggleCollapsed.fire(this._collapsed);
+		this._onDidChangeHeight.fire();
+	}
+
+	private _updateChevron(): void {
+		this._chevronNode.className = 'group-chevron';
+		this._chevronNode.classList.add(
+			...ThemeIcon.asClassNameArray(
+				this._collapsed ? Codicon.chevronRight : Codicon.chevronDown
+			)
+		);
 	}
 
 	private _renderBody(checks: readonly ICICheckListItem[]): void {
