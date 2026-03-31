@@ -302,7 +302,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession.toString());
 					this._config.connection.unsubscribe(resolvedSession);
-					this._config.connection.disposeSession(resolvedSession);
 				}
 			},
 		);
