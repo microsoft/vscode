@@ -208,7 +208,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			this.modalEditorMaximized = part.maximized;
 			this.modalEditorSize = part.size;
 			this.modalEditorPosition = part.position;
-			this.modalEditorSidebarWidth = part.sidebarWidth;
+			if (part.sidebarWidth !== undefined) {
+				this.modalEditorSidebarWidth = part.sidebarWidth;
+			}
 
 			this.modalPartInstantiationService = undefined;
 			this.modalEditorPart = undefined;
@@ -424,7 +426,9 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			this.modalEditorMaximized = this.modalEditorPart.maximized;
 			this.modalEditorSize = this.modalEditorPart.size;
 			this.modalEditorPosition = this.modalEditorPart.position;
-			this.modalEditorSidebarWidth = this.modalEditorPart.sidebarWidth;
+			if (this.modalEditorPart.sidebarWidth !== undefined) {
+				this.modalEditorSidebarWidth = this.modalEditorPart.sidebarWidth;
+			}
 		}
 
 		// Only persist when there is meaningful state to restore.
