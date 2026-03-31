@@ -6,9 +6,10 @@
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
-import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -16,6 +17,7 @@ import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -54,7 +56,7 @@ class RemoteSessionAdapter implements ISessionData {
 	readonly loading = observableValue('loading', false);
 	readonly isArchived = observableValue('isArchived', false);
 	readonly isRead = observableValue('isRead', true);
-	readonly description: ISettableObservable<string | undefined>;
+	readonly description: ISettableObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', undefined);
 
@@ -79,7 +81,7 @@ class RemoteSessionAdapter implements ISessionData {
 		this.title = observableValue('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
-		this.description = observableValue('description', providerLabel);
+		this.description = observableValue('description', new MarkdownString().appendText(providerLabel));
 		this.workspace = observableValue('workspace', metadata.workingDirectory
 			? RemoteAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory, providerLabel, connectionAuthority)
 			: undefined);
@@ -116,6 +118,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly sessionTypes: readonly ISessionType[];
+	readonly remoteAddress: string;
+	private _outputChannelId: string | undefined;
+	get outputChannelId(): string | undefined { return this._outputChannelId; }
+
+	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.Disconnected);
+	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
@@ -150,6 +158,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this.label = displayName;
+		this.remoteAddress = config.address;
 
 		this.sessionTypes = [CopilotCLISessionType];
 
@@ -160,6 +169,21 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			providerId: this.id,
 			execute: () => this._browseForFolder(),
 		}];
+	}
+
+	/**
+	 * Update the connection status for this provider.
+	 * Called by the contribution when connection state changes.
+	 */
+	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
+		this._connectionStatus.set(status, undefined);
+	}
+
+	/**
+	 * Set the output channel ID for this provider's IPC log.
+	 */
+	setOutputChannelId(id: string): void {
+		this._outputChannelId = id;
 	}
 
 	// -- Connection Management --
