@@ -5,10 +5,11 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, playwrightInvoke } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const NavigateBrowserToolData: IToolData = {
@@ -53,21 +54,25 @@ export class NavigateBrowserTool implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = context.parameters as INavigateBrowserToolParams;
+		const link = createBrowserPageLink(params.pageId);
 		switch (params.type) {
 			case 'reload':
 				return {
-					invocationMessage: localize('browser.reload.invocation', "Reloading browser page"),
-					pastTenseMessage: localize('browser.reload.past', "Reloaded browser page"),
+					invocationMessage: new MarkdownString(localize('browser.reload.invocation', "Reloading {0}", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.reload.past', "Reloaded {0}", link)),
+					icon: Codicon.refresh,
 				};
 			case 'back':
 				return {
-					invocationMessage: localize('browser.goBack.invocation', "Going back in browser history"),
-					pastTenseMessage: localize('browser.goBack.past', "Went back in browser history"),
+					invocationMessage: new MarkdownString(localize('browser.goBack.invocation', "Navigating {0} backward", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.goBack.past', "Navigated {0} backward", link)),
+					icon: Codicon.arrowLeft,
 				};
 			case 'forward':
 				return {
-					invocationMessage: localize('browser.goForward.invocation', "Going forward in browser history"),
-					pastTenseMessage: localize('browser.goForward.past', "Went forward in browser history"),
+					invocationMessage: new MarkdownString(localize('browser.goForward.invocation', "Navigating {0} forward", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.goForward.past', "Navigated {0} forward", link)),
+					icon: Codicon.arrowRight,
 				};
 			default: {
 				if (!params.url) {
@@ -79,8 +84,8 @@ export class NavigateBrowserTool implements IToolImpl {
 				}
 
 				return {
-					invocationMessage: localize('browser.navigate.invocation', "Navigating browser to {0}", parsed.href),
-					pastTenseMessage: localize('browser.navigate.past', "Navigated browser to {0}", parsed.href),
+					invocationMessage: new MarkdownString(localize('browser.navigate.invocation', "Navigating {0} to {1}", link, parsed.href)),
+					pastTenseMessage: new MarkdownString(localize('browser.navigate.past', "Navigated {0} to {1}", link, parsed.href)),
 					confirmationMessages: {
 						title: localize('browser.navigate.confirmTitle', 'Navigate Browser?'),
 						message: localize('browser.navigate.confirmMessage', 'This will navigate the browser to {0} and allow the agent to access its contents.', parsed.href),

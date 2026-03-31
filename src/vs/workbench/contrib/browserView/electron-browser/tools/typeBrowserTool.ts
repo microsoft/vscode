@@ -5,10 +5,11 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult, playwrightInvoke } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, playwrightInvoke } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const TypeBrowserToolData: IToolData = {
@@ -62,15 +63,16 @@ export class TypeBrowserTool implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = context.parameters as ITypeBrowserToolParams;
+		const link = createBrowserPageLink(params.pageId);
 		if (params.key) {
 			return {
-				invocationMessage: localize('browser.pressKey.invocation', "Pressing key {0} in browser", params.key),
-				pastTenseMessage: localize('browser.pressKey.past', "Pressed key {0} in browser", params.key),
+				invocationMessage: new MarkdownString(localize('browser.pressKey.invocation', "Pressing key `{0}` in {1}", params.key, link)),
+				pastTenseMessage: new MarkdownString(localize('browser.pressKey.past', "Pressed key `{0}` in {1}", params.key, link)),
 			};
 		}
 		return {
-			invocationMessage: localize('browser.type.invocation', "Typing text in browser"),
-			pastTenseMessage: localize('browser.type.past', "Typed text in browser"),
+			invocationMessage: new MarkdownString(localize('browser.type.invocation', "Typing text in {0}", link)),
+			pastTenseMessage: new MarkdownString(localize('browser.type.past', "Typed text in {0}", link)),
 		};
 	}
 

@@ -3,11 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from '../../../../../base/common/uri.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
+import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Page } from 'playwright-core';
+
+/**
+ * Creates a markdown link to a browser page.
+ */
+export function createBrowserPageLink(pageId: string | URI): string {
+	if (typeof pageId === 'string') {
+		pageId = BrowserViewUri.forId(pageId);
+	}
+	return `[${BrowserEditorInput.DEFAULT_LABEL}](${pageId.toString()}?vscodeLinkType=browser)`;
+}
 
 /**
  * Shared helper for running a Playwright function against a page and returning its result.

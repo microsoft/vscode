@@ -12,6 +12,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { createBrowserPageLink } from './browserToolHelpers.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
 	...OpenBrowserToolData,
@@ -58,7 +60,8 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 			content: [{
 				kind: 'text',
 				value: `Page opened successfully. Note that you do not have access to the page contents unless the user enables agentic tools via the \`workbench.browser.enableChatTools\` setting.`,
-			}]
+			}],
+			toolResultMessage: new MarkdownString(localize('browser.open.nonAgentic.result', "Opened {0}", createBrowserPageLink(browserUri)))
 		};
 	}
 }
