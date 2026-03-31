@@ -9,10 +9,19 @@ import { Disposable, IDisposable, toDisposable } from '../../../base/common/life
 import { basename, dirname } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat } from '../../files/common/files.js';
-import { type IAgentConnection } from './agentService.js';
 import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
-import { IDirectoryEntry } from './state/protocol/commands.js';
+import { IBrowseDirectoryResult, IDirectoryEntry, IFetchContentResult } from './state/protocol/commands.js';
 
+/**
+ * Minimal interface for browsing and fetching files from a remote endpoint.
+ *
+ * Both {@link IAgentConnection} (client→server) and client-exposed
+ * filesystems (server→client) satisfy this contract.
+ */
+export interface IRemoteFilesystemConnection {
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	fetchContent(uri: URI): Promise<IFetchContentResult>;
+}
 
 /**
  * Build a {@link AGENT_HOST_SCHEME} URI for a given connection authority
@@ -57,13 +66,13 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
-	private readonly _authorityToConnection = new Map<string, IAgentConnection>();
+	private readonly _authorityToConnection = new Map<string, IRemoteFilesystemConnection>();
 
 	/**
 	 * Register a mapping from a URI authority to an agent connection.
 	 * Returns a disposable that unregisters the mapping.
 	 */
-	registerAuthority(authority: string, connection: IAgentConnection): IDisposable {
+	registerAuthority(authority: string, connection: IRemoteFilesystemConnection): IDisposable {
 		this._authorityToConnection.set(authority, connection);
 		return toDisposable(() => this._authorityToConnection.delete(authority));
 	}

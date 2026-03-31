@@ -6,7 +6,6 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -14,7 +13,6 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
-import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { Queue } from '../../../../base/common/async.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ISession } from '../../sessions/common/sessionData.js';
@@ -87,27 +85,21 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			if (repository.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
-
-			if (session.sessionType === AgentSessionProviders.Background) {
-				return { uri: repository };
-			}
-			if (session.sessionType === AgentSessionProviders.Cloud) {
-				return {
-					uri: repository,
-					name: getGitHubRemoteFileDisplayName(repository),
-				};
-			}
+			return {
+				uri: repository,
+				name: workspace?.label,
+			};
 		}
 
 		return undefined;
 	}
 
 	private async manageTrustWorkspaceForSession(session: ISession | undefined): Promise<void> {
-		if (session?.sessionType !== AgentSessionProviders.Background) {
+		const workspace = session?.workspace.get();
+		if (!workspace?.requiresWorkspaceTrust) {
 			return;
 		}
 
-		const workspace = session.workspace.get();
 		const repo = workspace?.repositories[0];
 		const repository = repo?.uri;
 		const worktree = repo?.workingDirectory;
