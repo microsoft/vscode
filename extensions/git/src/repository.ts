@@ -770,6 +770,7 @@ export class Repository implements Disposable {
 		}
 		this._headLabelOverride = value;
 		this._onDidChangeHeadLabel.fire();
+		this.updateInputBoxPlaceholder();
 	}
 
 	private _refs: Ref[] = [];
@@ -3228,17 +3229,16 @@ export class Repository implements Disposable {
 	}
 
 	get headLabel(): string {
-		if (this._headLabelOverride !== undefined) {
-			return this._headLabelOverride;
-		}
-
 		const HEAD = this.HEAD;
+		const head = this._headLabelOverride !== undefined
+			? this._headLabelOverride
+			: HEAD
+				? (HEAD.name || (HEAD.commit || '').substr(0, 8))
+				: '';
 
-		if (!HEAD) {
+		if (!head) {
 			return '';
 		}
-
-		const head = HEAD.name || (HEAD.commit || '').substr(0, 8);
 
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
