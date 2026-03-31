@@ -316,7 +316,7 @@
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
 				"--disable-extension=vscode.vscode-api-tests",
-				"--sessions"
+				"--agents"
 			],
 			"userDataDir": "${userHome}/.vscode-oss-sessions-dev",
 			"webRoot": "${workspaceFolder}",

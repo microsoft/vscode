@@ -263,7 +263,7 @@ export class AccountWidget extends ActionViewItem {
 		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			const { confirmed } = await this.dialogService.confirm({
 				message: localize('updateFromVSCode.title', "Update from VS Code"),
-				detail: localize('updateFromVSCode.detail', "This will close the Sessions app and open VS Code so you can install the update.\n\nLaunch Sessions again after the update is complete."),
+				detail: localize('updateFromVSCode.detail', "This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete."),
 				primaryButton: localize('updateFromVSCode.open', "Close and Open VS Code"),
 			});
 			if (confirmed) {
@@ -311,7 +311,7 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 			constructor() {
 				super({
 					id: sessionsAccountWidgetAction,
-					title: localize2('sessionsAccountWidget', 'Sessions Account'),
+					title: localize2('agentsAccountWidget', 'Agents Account'),
 					menu: {
 						id: Menus.SidebarFooter,
 						group: 'navigation',
