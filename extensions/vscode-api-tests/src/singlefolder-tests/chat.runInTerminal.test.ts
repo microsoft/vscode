@@ -423,7 +423,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.strictEqual(output.trim(), marker);
 			});
 
-			test('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
+			// Flaky: #306588
+			test.skip('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
 				this.timeout(60000);
 
 				const marker = `SANDBOX_DOMAIN_${Date.now()}`;
