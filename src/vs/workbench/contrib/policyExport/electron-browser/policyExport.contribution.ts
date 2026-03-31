@@ -105,7 +105,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 				this.log(`Discovered ${policyData.policies.length} policies to export.`);
 
 				// Merge extension configuration policies from the distro's product.json.
-				// Checks DISTRO_PRODUCT_JSON env var (for testing), then .build/distro/,
+				// Checks DISTRO_PRODUCT_JSON env var (for testing),
 				// then falls back to fetching from GitHub API with GITHUB_TOKEN.
 				const distroProduct = await this.getDistroProductJson();
 				const extensionPolicies = distroProduct['extensionConfigurationPolicy'] as Record<string, ExtensionConfigurationPolicyEntry> | undefined;
@@ -150,7 +150,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 
 	/**
 	 * Reads the distro product.json for the 'stable' quality.
-	 * Checks DISTRO_PRODUCT_JSON env var (for testing), then local .build/distro/,
+	 * Checks DISTRO_PRODUCT_JSON env var (for testing),
 	 * then falls back to fetching from the GitHub API using GITHUB_TOKEN.
 	 */
 	private async getDistroProductJson(): Promise<Record<string, unknown>> {
@@ -162,15 +162,6 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 			this.log(`Reading distro product.json from DISTRO_PRODUCT_JSON=${envPath}`);
 			const content = (await this.fileService.readFile(URI.file(envPath))).value.toString();
 			return JSON.parse(content);
-		}
-
-		const localPath = join(root, '.build/distro/mixin/stable/product.json');
-		try {
-			const content = (await this.fileService.readFile(URI.file(localPath))).value.toString();
-			this.log(`Reading distro product.json from ${localPath}`);
-			return JSON.parse(content);
-		} catch {
-			// Not available locally, try GitHub API
 		}
 
 		// 2. GitHub API with GITHUB_TOKEN

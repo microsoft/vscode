@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { execSync, execFileSync } from 'child_process';
-import { existsSync } from 'fs';
 import { resolve } from 'path';
 
 const rootPath = resolve(import.meta.dirname, '..', '..', '..');
@@ -54,25 +53,21 @@ async function acquireTokenViaDeviceFlow(): Promise<string> {
 console.log('Transpiling client sources...');
 execSync('npm run transpile-client', { cwd: rootPath, stdio: 'inherit' });
 
-// Set up GITHUB_TOKEN if not already set and .build/distro is not available
+// Set up GITHUB_TOKEN if not already set
 if (!process.env['GITHUB_TOKEN'] && !process.env['DISTRO_PRODUCT_JSON']) {
-	const localDistro = resolve(rootPath, '.build/distro/mixin/stable/product.json');
-
-	if (!existsSync(localDistro)) {
-		// Try gh CLI first (fast, non-interactive)
-		let token: string | undefined;
-		try {
-			token = execFileSync('gh', ['auth', 'token'], { encoding: 'utf8' }).trim();
-			console.log('Set GITHUB_TOKEN from gh CLI.');
-		} catch {
-			// Fall back to OAuth device flow (interactive)
-			console.log('gh CLI not available, starting GitHub OAuth device flow...');
-			token = await acquireTokenViaDeviceFlow();
-			console.log('GitHub authorization successful.');
-		}
-
-		process.env['GITHUB_TOKEN'] = token;
+	// Try gh CLI first (fast, non-interactive)
+	let token: string | undefined;
+	try {
+		token = execFileSync('gh', ['auth', 'token'], { encoding: 'utf8' }).trim();
+		console.log('Set GITHUB_TOKEN from gh CLI.');
+	} catch {
+		// Fall back to OAuth device flow (interactive)
+		console.log('gh CLI not available, starting GitHub OAuth device flow...');
+		token = await acquireTokenViaDeviceFlow();
+		console.log('GitHub authorization successful.');
 	}
+
+	process.env['GITHUB_TOKEN'] = token;
 }
 
 // Run the export
