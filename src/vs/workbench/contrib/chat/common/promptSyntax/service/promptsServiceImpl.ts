@@ -36,12 +36,12 @@ import {
 	PromptFilesLocator
 } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { HookType } from '../hookTypes.js';
-import { HookSourceFormat, getHookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
+import { HookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -107,7 +107,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Cached hooks. Invalidated when hook files change.
 	 */
-	private readonly cachedHooks: CachedPromise<IConfiguredHooksInfo | undefined>;
+	private readonly cachedHooks: CachedPromise<IHookDiscoveryInfo>;
 
 	/**
 	 * Cached skill discovery info.
@@ -1298,21 +1298,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async getHooks(token: CancellationToken, sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined> {
 		const sw = StopWatch.create();
-		const result = await this.cachedHooks.get(token);
+		const discoveryInfo = await this.cachedHooks.get(token);
+		const result = discoveryInfo.hooksInfo;
 		if (sessionResource) {
 			const elapsed = sw.elapsed();
-			void this.getHookDiscoveryInfo(token).catch(() => undefined).then(discoveryInfo => {
-				const hookCount = result ? Object.values(result.hooks).reduce((sum, arr) => sum + arr.length, 0) : 0;
-				const details = hookCount === 1
-					? localize("promptsService.resolvedHook", "Resolved {0} hook in {1}ms", hookCount, elapsed.toFixed(1))
-					: localize("promptsService.resolvedHooks", "Resolved {0} hooks in {1}ms", hookCount, elapsed.toFixed(1));
-				this._onDidLogDiscovery.fire({
-					sessionResource,
-					name: localize("promptsService.loadHooks", "Load Hooks"),
-					details,
-					discoveryInfo,
-					category: 'discovery',
-				});
+			const hookCount = result ? Object.values(result.hooks).reduce((sum, arr) => sum + arr.length, 0) : 0;
+			const details = hookCount === 1
+				? localize("promptsService.resolvedHook", "Resolved {0} hook in {1}ms", hookCount, elapsed.toFixed(1))
+				: localize("promptsService.resolvedHooks", "Resolved {0} hooks in {1}ms", hookCount, elapsed.toFixed(1));
+			this._onDidLogDiscovery.fire({
+				sessionResource,
+				name: localize("promptsService.loadHooks", "Load Hooks"),
+				details,
+				discoveryInfo,
+				category: 'discovery',
 			});
 		}
 		return result;
@@ -1346,14 +1345,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return await this.getInstructionsDiscoveryInfo(token);
 	}
 
-	private async computeHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined> {
+	private async computeHooks(token: CancellationToken): Promise<IHookDiscoveryInfo> {
 		const useChatHooks = this.configurationService.getValue(PromptsConfig.USE_CHAT_HOOKS);
-		if (!useChatHooks) {
-			return undefined;
-		}
 
-		if (!this.workspaceTrustService.isWorkspaceTrusted()) {
-			return undefined;
+		if (!useChatHooks || !this.workspaceTrustService.isWorkspaceTrusted()) {
+			const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
+			const skipReason: IPromptFileDiscoveryResult['skipReason'] = !useChatHooks ? 'disabled' : 'workspace-untrusted';
+			const files = hookFiles.map(promptPath => ({
+				status: 'skipped' as const,
+				skipReason,
+				promptPath: this.withPromptPathMetadata(promptPath, basename(promptPath.uri), promptPath.description),
+			}));
+			const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook);
+			return { type: PromptsType.hook, files, sourceFolders, hooksInfo: undefined };
 		}
 
 		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
@@ -1365,20 +1369,41 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHomeUri = await this.pathService.userHome();
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
-		let hasDisabledClaudeHooks = false;
-		const collectedHooks = new Map<HookType, IHookCommand[]>();
-
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
-		for (const hookFile of hookFiles) {
+		// Process each hook file in parallel
+		const fileResults = await Promise.all(hookFiles.map(async (hookFile): Promise<{
+			file?: IPromptFileDiscoveryResult;
+			hooks?: Map<HookType, IHookCommand[]>;
+			hasDisabledClaudeHooks?: boolean;
+		}> => {
+			const name = basename(hookFile.uri);
+
 			// Plugins are handled separately down below because they do their own parsing+interpolation
 			if (hookFile.storage === PromptsStorage.plugin) {
-				continue;
+				return {
+					file: {
+						status: 'loaded',
+						promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+					},
+				};
 			}
 
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
 				const json = parseJSONC(content.value.toString());
+
+				// Validate it's an object
+				if (!json || typeof json !== 'object') {
+					return {
+						file: {
+							status: 'skipped',
+							skipReason: 'parse-error',
+							errorMessage: 'Invalid hooks file: must be a JSON object',
+							promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+						},
+					};
+				}
 
 				// Resolve the workspace folder that contains this hook file for cwd resolution,
 				// falling back to the first workspace folder for user-level hooks outside the workspace
@@ -1386,37 +1411,86 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const workspaceRootUri = hookWorkspaceFolder?.uri;
 
 				// Use format-aware parsing that handles Copilot and Claude formats
-				const { format, hooks, disabledAllHooks } = parseHooksFromFile(hookFile.uri, json, workspaceRootUri, userHome);
+				const { format, hooks: parsedHooks, disabledAllHooks } = parseHooksFromFile(hookFile.uri, json, workspaceRootUri, userHome);
 
 				// Skip files that have all hooks disabled
 				if (disabledAllHooks) {
 					this.logger.trace(`[PromptsService] Skipping hook file with disableAllHooks: ${hookFile.uri}`);
-					continue;
+					return {
+						file: {
+							status: 'skipped',
+							skipReason: 'all-hooks-disabled',
+							promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+						},
+					};
 				}
 
+				// Skip Claude hooks when the setting is disabled (after parsing to check for commands)
 				if (format === HookSourceFormat.Claude && useClaudeHooks === false) {
-					const hasAnyCommands = [...hooks.values()].some(({ hooks: cmds }) => cmds.length > 0);
-					if (hasAnyCommands) {
-						hasDisabledClaudeHooks = true;
-					}
-
+					const hasAnyCommands = [...parsedHooks.values()].some(({ hooks: cmds }) => cmds.length > 0);
 					this.logger.trace(`[PromptsService] Skipping Claude hook file (disabled via setting): ${hookFile.uri}`);
-					continue;
+					return {
+						file: {
+							status: 'skipped',
+							skipReason: 'claude-hooks-disabled',
+							promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+						},
+						hasDisabledClaudeHooks: hasAnyCommands,
+					};
 				}
 
-				for (const [hookType, { hooks: commands }] of hooks) {
+				const hooks = new Map<HookType, IHookCommand[]>();
+				for (const [hookType, { hooks: commands }] of parsedHooks) {
 					for (const command of commands) {
-						let bucket = collectedHooks.get(hookType);
+						let bucket = hooks.get(hookType);
 						if (!bucket) {
 							bucket = [];
-							collectedHooks.set(hookType, bucket);
+							hooks.set(hookType, bucket);
 						}
 						bucket.push(command);
 						this.logger.trace(`[PromptsService] Collected ${hookType} hook from ${hookFile.uri} (format: ${format})`);
 					}
 				}
+
+				return {
+					file: { status: 'loaded', promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description) },
+					hooks,
+				};
 			} catch (error) {
+				const msg = error instanceof Error ? error.message : String(error);
 				this.logger.warn(`[PromptsService] Failed to parse hook file: ${hookFile.uri}`, error);
+				return {
+					file: {
+						status: 'skipped',
+						skipReason: 'parse-error',
+						errorMessage: msg,
+						promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+					},
+				};
+			}
+		}));
+
+		// Merge results from parallel processing
+		const files: IPromptFileDiscoveryResult[] = [];
+		let hasDisabledClaudeHooks = false;
+		const collectedHooks = new Map<HookType, IHookCommand[]>();
+
+		for (const { file, hooks, hasDisabledClaudeHooks: disabled } of fileResults) {
+			if (file) {
+				files.push(file);
+			}
+			if (disabled) {
+				hasDisabledClaudeHooks = true;
+			}
+			if (hooks) {
+				for (const [hookType, commands] of hooks) {
+					let bucket = collectedHooks.get(hookType);
+					if (!bucket) {
+						bucket = [];
+						collectedHooks.set(hookType, bucket);
+					}
+					bucket.push(...commands);
+				}
 			}
 		}
 
@@ -1436,17 +1510,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 
+		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook);
+
 		// Check if any hooks were collected
 		if (collectedHooks.size === 0) {
 			this.logger.trace('[PromptsService] No valid hooks collected.');
-			return undefined;
+			return { type: PromptsType.hook, files, sourceFolders, hooksInfo: undefined };
 		}
 
 		// Build the result
 		const result: ChatRequestHooks = Object.fromEntries(collectedHooks) as ChatRequestHooks;
 
 		this.logger.trace(`[PromptsService] Collected hooks: ${JSON.stringify(Object.keys(result))}`);
-		return { hooks: result, hasDisabledClaudeHooks };
+		return { type: PromptsType.hook, files, sourceFolders, hooksInfo: { hooks: result, hasDisabledClaudeHooks } };
 	}
 
 	/**
@@ -1560,88 +1636,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.instructions);
 		return { type: PromptsType.instructions, files, sourceFolders };
-	}
-
-	private async getHookDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
-		const files: IPromptFileDiscoveryResult[] = [];
-
-		// Get user home for tilde expansion
-		const userHomeUri = await this.pathService.userHome();
-		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
-
-		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
-		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
-		for (const promptPath of hookFiles) {
-			const { uri } = promptPath;
-			const name = basename(uri);
-
-			// Ignored if workspace is untrusted
-			if (!this.workspaceTrustService.isWorkspaceTrusted()) {
-				files.push({
-					status: 'skipped',
-					skipReason: 'workspace-untrusted',
-					promptPath: this.withPromptPathMetadata(promptPath, basename(promptPath.uri), promptPath.description)
-				});
-				continue;
-			}
-
-			// Skip Claude hooks when the setting is disabled
-			if (getHookSourceFormat(uri) === HookSourceFormat.Claude && useClaudeHooks === false) {
-				files.push({
-					status: 'skipped',
-					skipReason: 'claude-hooks-disabled',
-					promptPath: this.withPromptPathMetadata(promptPath, name, promptPath.description)
-				});
-				continue;
-			}
-
-			try {
-				// Try to parse the JSON to validate it (supports JSONC with comments)
-				const content = await this.fileService.readFile(uri);
-				const json = parseJSONC(content.value.toString());
-
-				// Validate it's an object
-				if (!json || typeof json !== 'object') {
-					files.push({
-						status: 'skipped',
-						skipReason: 'parse-error',
-						errorMessage: 'Invalid hooks file: must be a JSON object',
-						promptPath: this.withPromptPathMetadata(promptPath, name, promptPath.description)
-					});
-					continue;
-				}
-
-				// Resolve the workspace folder that contains this hook file for cwd resolution,
-				// falling back to the first workspace folder for user-level hooks outside the workspace
-				const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? this.workspaceService.getWorkspace().folders[0];
-				const workspaceRootUri = hookWorkspaceFolder?.uri;
-
-				// Use format-aware parsing to check for disabledAllHooks
-				const { disabledAllHooks } = parseHooksFromFile(uri, json, workspaceRootUri, userHome);
-
-				if (disabledAllHooks) {
-					files.push({
-						status: 'skipped',
-						skipReason: 'all-hooks-disabled',
-						promptPath: this.withPromptPathMetadata(promptPath, name, promptPath.description)
-					});
-					continue;
-				}
-
-				// File is valid
-				files.push({ status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, promptPath.description) });
-			} catch (e) {
-				files.push({
-					status: 'skipped',
-					skipReason: 'parse-error',
-					errorMessage: e instanceof Error ? e.message : String(e),
-					promptPath: this.withPromptPathMetadata(promptPath, name, promptPath.description)
-				});
-			}
-		}
-
-		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook);
-		return { type: PromptsType.hook, files, sourceFolders };
 	}
 }
 
