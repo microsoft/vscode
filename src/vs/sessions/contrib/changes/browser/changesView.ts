@@ -1569,7 +1569,6 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	}
 
 	renderElement(node: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
-		console.log('Rendering element:', node.element);
 		const element = node.element;
 		templateData.label.element.style.display = 'flex';
 
