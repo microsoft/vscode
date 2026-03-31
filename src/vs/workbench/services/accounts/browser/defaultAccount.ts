@@ -663,8 +663,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						// Editor preview features are disabled if the flag is present and set to 0
 						chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
-						// MCP is disabled if the flag is present and set to 0
-						mcp: tokenMap.get('mcp') !== '0',
+						// MCP is only enabled if the flag is explicitly present and set to 1
+						mcp: tokenMap.get('mcp') === '1',
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),

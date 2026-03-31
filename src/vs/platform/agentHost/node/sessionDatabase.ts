@@ -112,7 +112,7 @@ function dbOpen(path: string): Promise<Database> {
  * `PRAGMA user_version` are run inside a serialized transaction. After all
  * migrations complete the pragma is updated to the highest applied version.
  */
-async function runMigrations(db: Database, migrations: readonly ISessionDatabaseMigration[]): Promise<void> {
+export async function runMigrations(db: Database, migrations: readonly ISessionDatabaseMigration[]): Promise<void> {
 	// Enable foreign key enforcement — must be set outside a transaction
 	// and every time a connection is opened.
 	await dbExec(db, 'PRAGMA foreign_keys = ON');
@@ -154,8 +154,8 @@ async function runMigrations(db: Database, migrations: readonly ISessionDatabase
  */
 export class SessionDatabase implements ISessionDatabase {
 
-	private _dbPromise: Promise<Database> | undefined;
-	private _closed: Promise<void> | true | undefined;
+	protected _dbPromise: Promise<Database> | undefined;
+	protected _closed: Promise<void> | true | undefined;
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
 	constructor(
@@ -174,7 +174,7 @@ export class SessionDatabase implements ISessionDatabase {
 		return inst;
 	}
 
-	private _ensureDb(): Promise<Database> {
+	protected _ensureDb(): Promise<Database> {
 		if (this._closed) {
 			return Promise.reject(new Error('SessionDatabase has been disposed'));
 		}
