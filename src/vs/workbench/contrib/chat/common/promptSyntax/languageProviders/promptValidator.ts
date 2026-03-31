@@ -418,10 +418,13 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.tierModelMustBeNonEmpty', "The 'model' property in tier '{0}' must be a non-empty string.", prop.key.value), modelProp.value.range, MarkerSeverity.Error));
 				continue;
 			}
-			// Warn about unknown models if the language model service is initialized
+			// Warn about unknown models if the language model service is initialized.
+			// Tier models can be specified as qualified names or direct model IDs,
+			// so try both lookups to match runtime behavior in resolveModelHint.
 			if (languageModels.length > 0) {
-				const modelMetadata = this.findModelByName(modelName);
-				if (!modelMetadata) {
+				const byQualifiedName = this.findModelByName(modelName);
+				const byDirectId = !byQualifiedName ? this.languageModelsService.lookupLanguageModel(modelName) : undefined;
+				if (!byQualifiedName && !byDirectId) {
 					report(toMarker(localize('promptValidator.tierModelNotFound', "Unknown model '{0}' in tier '{1}'.", modelName, prop.key.value), modelProp.value.range, MarkerSeverity.Warning));
 				}
 			}
