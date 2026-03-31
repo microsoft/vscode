@@ -88,7 +88,6 @@ export function setup(context: TestContext) {
 		const browser = await context.launchBrowser();
 		try {
 			const page = await context.getPage(browser.newPage());
-			await auth.signIn(page);
 			context.log('Starting Dev Tunnel to local server using CLI');
 			await context.runCliApp('CLI', entryPoint,
 				[

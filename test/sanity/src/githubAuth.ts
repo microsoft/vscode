@@ -16,40 +16,23 @@ export class GitHubAuth {
 	public constructor(private readonly context: TestContext) { }
 
 	/**
-	 * Signs in to GitHub so the browser session is authenticated.
+	 * Runs GitHub device authentication flow in a browser, signing in first.
 	 * @param page Page to use.
+	 * @param code Device authentication code to use.
 	 */
-	public async signIn(page: Page) {
+	public async runDeviceCodeFlow(page: Page, code: string) {
 		if (!this.username || !this.password) {
 			this.context.error('GITHUB_ACCOUNT and GITHUB_PASSWORD environment variables must be set');
 		}
 
 		try {
-			this.context.log('Signing in to GitHub');
-			await page.goto('https://github.com/login');
+			this.context.log(`Running GitHub device flow with code ${code}`);
+			await page.goto('https://github.com/login/device');
 
+			this.context.log('Signing in to GitHub');
 			await page.getByLabel('Username or email address').fill(this.username);
 			await page.getByLabel('Password').fill(this.password);
 			await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-
-			await page.waitForURL('https://github.com/**');
-			this.context.log('GitHub sign-in complete');
-		} catch (error) {
-			this.context.log('Error during GitHub sign-in, capturing screenshot');
-			await this.context.captureScreenshot(page);
-			throw error;
-		}
-	}
-
-	/**
-	 * Runs GitHub device authentication flow in a browser.
-	 * @param page Page to use.
-	 * @param code Device authentication code to use.
-	 */
-	public async runDeviceCodeFlow(page: Page, code: string) {
-		try {
-			this.context.log(`Running GitHub device flow with code ${code}`);
-			await page.goto('https://github.com/login/device');
 
 			this.context.log('Confirming signed-in account');
 			await page.getByRole('button', { name: 'Continue' }).click();
