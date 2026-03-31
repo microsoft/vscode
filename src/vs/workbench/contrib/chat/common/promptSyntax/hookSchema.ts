@@ -407,13 +407,14 @@ export function getEffectiveCommandSource(hook: IHookCommand, os: OperatingSyste
  * Returns the actual field name from the JSON (e.g., 'bash' instead of 'osx' if bash was used).
  * This is used for editor focus to highlight the correct field.
  */
-export function getEffectiveCommandFieldKey(hook: IHookCommand, os: OperatingSystem): string {
+export function getEffectiveCommandFieldKey(hook: IHookCommand | IParsedHookCommand, os: OperatingSystem): string {
+	const h = hook as Partial<IHookCommand>;
 	if (os === OperatingSystem.Windows && hook.windows) {
-		return hook.windowsSource ?? 'windows';
+		return h.windowsSource ?? 'windows';
 	} else if (os === OperatingSystem.Macintosh && hook.osx) {
-		return hook.osxSource ?? 'osx';
+		return h.osxSource ?? 'osx';
 	} else if (os === OperatingSystem.Linux && hook.linux) {
-		return hook.linuxSource ?? 'linux';
+		return h.linuxSource ?? 'linux';
 	}
 	return 'command';
 }

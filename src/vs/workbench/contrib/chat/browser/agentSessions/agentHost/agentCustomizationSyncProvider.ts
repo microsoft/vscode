@@ -46,7 +46,13 @@ export class AgentCustomizationSyncProvider extends Disposable implements ICusto
 		const stored = this._storageService.get(this._storageKey, StorageScope.PROFILE);
 		this._entries = new Map();
 		if (stored) {
-			const parsed = JSON.parse(stored) as (string | ISyncEntry)[];
+			let parsed: (string | ISyncEntry)[] | undefined;
+			try {
+				parsed = JSON.parse(stored) as (string | ISyncEntry)[];
+			} catch {
+				// ignored
+			}
+
 			if (Array.isArray(parsed)) {
 				for (const item of parsed) {
 					if (typeof item === 'string') {

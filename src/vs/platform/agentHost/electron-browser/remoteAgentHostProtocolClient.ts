@@ -24,6 +24,7 @@ import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonR
 import { ContentEncoding } from '../common/state/protocol/commands.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
+import { encodeBase64 } from '../../../base/common/buffer.js';
 
 /**
  * A protocol-level client for a single remote agent host connection.
@@ -288,9 +289,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				if (!p.uri) { sendError('Missing uri'); return; }
 				this._fileService.readFile(URI.parse(p.uri)).then(content => {
 					sendResult({
-						data: content.value.toString(),
-						encoding: ContentEncoding.Utf8,
-						contentType: 'text/plain',
+						data: encodeBase64(content.value),
+						encoding: ContentEncoding.Base64,
 					});
 				}).catch(err => sendError(err instanceof Error ? err.message : String(err)));
 				return;

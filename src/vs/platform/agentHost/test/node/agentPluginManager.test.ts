@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
 import { CustomizationStatus, type ICustomizationRef, type ISessionCustomization } from '../../common/state/sessionState.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 
@@ -25,6 +26,7 @@ suite('AgentPluginManager', () => {
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
 		manager = new AgentPluginManager(basePath, fileService, new NullLogService());
 	});
 
@@ -40,10 +42,11 @@ suite('AgentPluginManager', () => {
 	}
 
 	async function seedPluginDir(name: string, files: Record<string, string>): Promise<void> {
-		const dir = URI.from({ scheme: Schemas.inMemory, path: `/plugins/${name}` });
-		await fileService.createFolder(dir);
+		const originalUri = URI.from({ scheme: Schemas.inMemory, path: `/plugins/${name}` });
+		const agentClientDir = toAgentClientUri(originalUri, 'test-client');
+		await fileService.createFolder(agentClientDir);
 		for (const [fileName, content] of Object.entries(files)) {
-			await fileService.writeFile(URI.joinPath(dir, fileName), VSBuffer.fromString(content));
+			await fileService.writeFile(URI.joinPath(agentClientDir, fileName), VSBuffer.fromString(content));
 		}
 	}
 

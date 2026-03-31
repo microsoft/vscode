@@ -40,6 +40,9 @@ import { TestFileService } from '../../../../../test/common/workbenchTestService
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -86,6 +89,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
 	public dispatchedActions: { action: ISessionAction; clientId: string; clientSeq: number }[] = [];
+
+	/** Returns dispatched actions filtered to turn-related types only
+	 *  (excludes lifecycle actions like activeClientChanged). */
+	get turnActions() {
+		return this.dispatchedActions.filter(d => d.action.type === 'session/turnStarted');
+	}
 	public sessionStates = new Map<string, ISessionState>();
 	override async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const resourceStr = resource.toString();
@@ -192,6 +201,13 @@ function createTestServices(disposables: DisposableStore) {
 		registerAuthority: () => toDisposable(() => { }),
 		ensureSyncedCustomizationProvider: () => { },
 	});
+	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(ICustomizationHarnessService, {
+		registerExternalHarness: () => toDisposable(() => { }),
+	});
+	instantiationService.stub(IAgentPluginService, {
+		plugins: observableValue('plugins', []),
+	});
 
 	return { instantiationService, agentHostService, chatAgentService };
 }
@@ -255,6 +271,10 @@ async function startTurn(
 	const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 	ds.add(toDisposable(() => chatSession.dispose()));
 
+	// Clear any lifecycle actions (e.g. activeClientChanged from customization setup)
+	// so tests only see turn-related dispatches.
+	agentHostService.dispatchedActions.length = 0;
+
 	const collected: IChatProgress[][] = [];
 	const seq = { v: 1 };
 
@@ -272,7 +292,9 @@ async function startTurn(
 
 	await timeout(10);
 
-	const lastDispatch = agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
+	// Filter for turn-related dispatches only (skip activeClientChanged etc.)
+	const turnDispatches = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/turnStarted');
+	const lastDispatch = turnDispatches[turnDispatches.length - 1] ?? agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
 	const session = (lastDispatch?.action as ITurnStartedAction)?.session;
 	const turnId = (lastDispatch?.action as ITurnStartedAction)?.turnId;
 
@@ -365,9 +387,9 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			assert.strictEqual(agentHostService.dispatchedActions[0].action.type, 'session/turnStarted');
-			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			assert.strictEqual(agentHostService.turnActions[0].action.type, 'session/turnStarted');
+			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).userMessage.text, 'Hello');
 			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
 		}));
 
@@ -378,13 +400,16 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
+			// Clear lifecycle actions so only turn dispatches are counted
+			agentHostService.dispatchedActions.length = 0;
+
 			// First turn
 			const turn1Promise = chatSession.requestHandler!(
 				makeRequest({ message: 'First', sessionResource: resource }),
 				() => { }, [], CancellationToken.None,
 			);
 			await timeout(10);
-			const dispatch1 = agentHostService.dispatchedActions[0];
+			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
 			// Echo the turnStarted to clear pending write-ahead
 			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
@@ -397,16 +422,16 @@ suite('AgentHostChatContribution', () => {
 				() => { }, [], CancellationToken.None,
 			);
 			await timeout(10);
-			const dispatch2 = agentHostService.dispatchedActions[1];
+			const dispatch2 = agentHostService.turnActions[1];
 			const action2 = dispatch2.action as ITurnStartedAction;
 			agentHostService.fireAction({ action: dispatch2.action, serverSeq: 3, origin: { clientId: agentHostService.clientId, clientSeq: dispatch2.clientSeq } });
 			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action2.session, turnId: action2.turnId } as ISessionAction, serverSeq: 4, origin: undefined });
 			await turn2Promise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 2);
+			assert.strictEqual(agentHostService.turnActions.length, 2);
 			assert.strictEqual(
-				(agentHostService.dispatchedActions[0].action as ITurnStartedAction).session.toString(),
-				(agentHostService.dispatchedActions[1].action as ITurnStartedAction).session.toString(),
+				(agentHostService.turnActions[0].action as ITurnStartedAction).session.toString(),
+				(agentHostService.turnActions[1].action as ITurnStartedAction).session.toString(),
 			);
 		}));
 
@@ -1265,8 +1290,8 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'file', path: URI.file('/workspace/test.ts').fsPath, displayName: 'test.ts' },
 			]);
@@ -1286,8 +1311,8 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'directory', path: URI.file('/workspace/src').fsPath, displayName: 'src' },
 			]);
@@ -1307,8 +1332,8 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'selection', path: URI.file('/workspace/foo.ts').fsPath, displayName: 'selection' },
 			]);
@@ -1328,8 +1353,8 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			// No attachments because it's not a file:// URI
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
 		}));
@@ -1348,8 +1373,8 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
 		}));
 
@@ -1370,8 +1395,8 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnAction.userMessage.attachments, [
 				{ type: 'file', path: URI.file('/workspace/a.ts').fsPath, displayName: 'a.ts' },
 				{ type: 'directory', path: URI.file('/workspace/lib').fsPath, displayName: 'lib' },
@@ -1387,8 +1412,8 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			const turnAction = agentHostService.dispatchedActions[0].action as ITurnStartedAction;
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.strictEqual(turnAction.userMessage.attachments, undefined);
 		}));
 	});
@@ -1560,8 +1585,8 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			// Turn dispatched via connection.dispatchAction
-			assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-			assert.strictEqual((agentHostService.dispatchedActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
+			assert.strictEqual(agentHostService.turnActions.length, 1);
+			assert.strictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).userMessage.text, 'Test message');
 		}));
 	});
 
@@ -1857,13 +1882,16 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
+			// Clear lifecycle actions so only turn dispatches are counted
+			agentHostService.dispatchedActions.length = 0;
+
 			// First, do a normal turn so the backend session is created
 			const turn1Promise = chatSession.requestHandler!(
 				makeRequest({ message: 'Hello', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
 			await timeout(10);
-			const dispatch1 = agentHostService.dispatchedActions[0];
+			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = action1.session;
 			// Echo + complete the first turn
@@ -1904,13 +1932,16 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
+			// Clear lifecycle actions so only turn dispatches are counted
+			agentHostService.dispatchedActions.length = 0;
+
 			// Normal turn to create backend session
 			const turn1Promise = chatSession.requestHandler!(
 				makeRequest({ message: 'Init', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
 			await timeout(10);
-			const dispatch1 = agentHostService.dispatchedActions[0];
+			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = action1.session;
 			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
@@ -1976,13 +2007,16 @@ suite('AgentHostChatContribution', () => {
 			const serverRequestEvents: { prompt: string }[] = [];
 			disposables.add(chatSession.onDidStartServerRequest!(e => serverRequestEvents.push(e)));
 
+			// Clear lifecycle actions so only turn dispatches are counted
+			agentHostService.dispatchedActions.length = 0;
+
 			// Normal client turn — should NOT fire onDidStartServerRequest
 			const turnPromise = chatSession.requestHandler!(
 				makeRequest({ message: 'Client turn', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
 			await timeout(10);
-			const dispatch = agentHostService.dispatchedActions[0];
+			const dispatch = agentHostService.turnActions[0];
 			const action = dispatch.action as ITurnStartedAction;
 			agentHostService.fireAction({ action: dispatch.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
 			agentHostService.fireAction({ action: { type: 'session/turnComplete', session: action.session, turnId: action.turnId } as ISessionAction, serverSeq: 2, origin: undefined });
@@ -1998,13 +2032,16 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
+			// Clear lifecycle actions so only turn dispatches are counted
+			agentHostService.dispatchedActions.length = 0;
+
 			// First, do a normal turn so the backend session is created
 			const turn1Promise = chatSession.requestHandler!(
 				makeRequest({ message: 'Init', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
 			await timeout(10);
-			const dispatch1 = agentHostService.dispatchedActions[0];
+			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = action1.session;
 			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });
@@ -2061,13 +2098,16 @@ suite('AgentHostChatContribution', () => {
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
+			// Clear lifecycle actions so only turn dispatches are counted
+			agentHostService.dispatchedActions.length = 0;
+
 			// First, do a normal turn so the backend session is created
 			const turn1Promise = chatSession.requestHandler!(
 				makeRequest({ message: 'Init', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
 			await timeout(10);
-			const dispatch1 = agentHostService.dispatchedActions[0];
+			const dispatch1 = agentHostService.turnActions[0];
 			const action1 = dispatch1.action as ITurnStartedAction;
 			const session = action1.session;
 			agentHostService.fireAction({ action: dispatch1.action, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch1.clientSeq } });

@@ -5,7 +5,6 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
-import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -42,11 +41,11 @@ export class AgentPluginManager implements IAgentPluginManager {
 	/** Serializes concurrent sync operations per plugin URI. */
 	private readonly _sequencer = new SequencerByKey<string>();
 
-	/** Nonces for plugins on disk, keyed by plugin URI. */
-	private readonly _cachedNonces = new ResourceMap<string>();
+	/** Nonces for plugins on disk, keyed by original customization URI string. */
+	private readonly _cachedNonces = new Map<string, string>();
 
-	/** LRU order: most recently used plugin URIs at the end. */
-	private readonly _lruOrder: URI[] = [];
+	/** LRU order: most recently used original customization URI strings at the end. */
+	private readonly _lruOrder: string[] = [];
 
 	/** Whether the on-disk cache has been loaded. */
 	private _cacheLoaded = false;
@@ -110,8 +109,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 		const destDir = URI.joinPath(this._basePath, key);
 
 		// Nonce cache hit — skip copy
-		if (ref.nonce && this._cachedNonces.get(pluginUri) === ref.nonce) {
-			this._touchLru(pluginUri);
+		if (ref.nonce && this._cachedNonces.get(ref.uri) === ref.nonce) {
+			this._touchLru(ref.uri);
 			this._logService.trace(`[AgentPluginManager] Nonce match for ${ref.uri}, skipping copy`);
 			return destDir;
 		}
@@ -121,9 +120,9 @@ export class AgentPluginManager implements IAgentPluginManager {
 		await this._fileService.copy(pluginUri, destDir, true);
 
 		if (ref.nonce) {
-			this._cachedNonces.set(pluginUri, ref.nonce);
+			this._cachedNonces.set(ref.uri, ref.nonce);
 		}
-		this._touchLru(pluginUri);
+		this._touchLru(ref.uri);
 		await this._evictIfNeeded();
 		await this._persistCache();
 
@@ -134,8 +133,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 		return uri.replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').substring(0, 128);
 	}
 
-	private _touchLru(uri: URI): void {
-		const idx = this._lruOrder.findIndex(u => u.toString() === uri.toString());
+	private _touchLru(uri: string): void {
+		const idx = this._lruOrder.indexOf(uri);
 		if (idx !== -1) {
 			this._lruOrder.splice(idx, 1);
 		}
@@ -149,13 +148,13 @@ export class AgentPluginManager implements IAgentPluginManager {
 				break;
 			}
 			this._cachedNonces.delete(evictUri);
-			const evictKey = this._keyForUri(evictUri.toString());
+			const evictKey = this._keyForUri(evictUri);
 			const evictDir = URI.joinPath(this._basePath, evictKey);
-			this._logService.info(`[AgentPluginManager] Evicting plugin: ${evictUri.toString()}`);
+			this._logService.info(`[AgentPluginManager] Evicting plugin: ${evictUri}`);
 			try {
 				await this._fileService.del(evictDir, { recursive: true });
 			} catch (err) {
-				this._logService.warn(`[AgentPluginManager] Failed to evict plugin: ${evictUri.toString()}`, err);
+				this._logService.warn(`[AgentPluginManager] Failed to evict plugin: ${evictUri}`, err);
 			}
 		}
 	}
@@ -181,9 +180,8 @@ export class AgentPluginManager implements IAgentPluginManager {
 			// Entries are stored in LRU order (oldest first)
 			for (const entry of entries) {
 				if (typeof entry.uri === 'string' && typeof entry.nonce === 'string') {
-					const uri = URI.parse(entry.uri);
-					this._cachedNonces.set(uri, entry.nonce);
-					this._lruOrder.push(uri);
+					this._cachedNonces.set(entry.uri, entry.nonce);
+					this._lruOrder.push(entry.uri);
 				}
 			}
 			this._logService.trace(`[AgentPluginManager] Loaded ${entries.length} cache entries from disk`);
@@ -199,7 +197,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 			for (const uri of this._lruOrder) {
 				const nonce = this._cachedNonces.get(uri);
 				if (nonce) {
-					entries.push({ uri: uri.toString(), nonce });
+					entries.push({ uri, nonce });
 				}
 			}
 			await this._fileService.createFolder(this._basePath);

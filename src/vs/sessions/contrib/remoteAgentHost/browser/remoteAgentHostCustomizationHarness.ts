@@ -79,8 +79,8 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		// When a session is active, prefer session-level data (includes status)
 		if (this._sessionCustomizations) {
 			return this._sessionCustomizations.map(sc => ({
-				uri: URI.isUri(sc.customization.uri) ? sc.customization.uri : URI.parse(sc.customization.uri as unknown as string),
-				type: 'customization',
+				uri: URI.isUri(sc.customization.uri) ? sc.customization.uri : URI.parse(sc.customization.uri),
+				type: 'plugin',
 				name: sc.customization.displayName,
 				description: sc.customization.description,
 				status: toStatusString(sc.status),
@@ -92,7 +92,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		// Baseline: agent-level customizations (no status info)
 		return this._agentCustomizations.map(ref => ({
 			uri: URI.isUri(ref.uri) ? ref.uri : URI.parse(ref.uri as unknown as string),
-			type: 'customization',
+			type: 'plugin',
 			name: ref.displayName,
 			description: ref.description,
 		}));
