@@ -1797,6 +1797,8 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		this._register(autorun(reader => {
 			viewModel.versionModeObs.read(reader);
+			viewModel.activeSessionHasGitRepositoryObs.read(reader);
+
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
@@ -1806,6 +1808,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): null {
 		const mode = this.viewModel.versionModeObs.get();
 		const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.get();
+
 		const label = mode === ChangesVersionMode.BranchChanges
 			? hasGitRepository
 				? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
