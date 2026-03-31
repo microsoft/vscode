@@ -57,9 +57,11 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			let details = entry.details;
 			if (entry.discoveryInfo) {
 				const info = entry.discoveryInfo;
-				const loaded = info.files.filter(f => f.status === 'loaded').map(f => f.name ?? f.uri.path.split('/').pop() ?? f.uri.toString());
+				const loaded = info.files
+					.filter(f => f.status === 'loaded')
+					.map(f => f.promptPath.name ?? f.promptPath.uri.path.split('/').pop() ?? f.promptPath.uri.toString());
 				const skipped = info.files.filter(f => f.status === 'skipped').map(f => {
-					const label = f.uri.toString();
+					const label = f.promptPath.uri.toString();
 					return f.skipReason ? `${label} (${f.skipReason})` : label;
 				});
 				const folders = info.sourceFolders?.map(sf => sf.uri.path) ?? [];
@@ -100,11 +102,11 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			kind: 'fileList',
 			discoveryType: info.type,
 			files: info.files.map(f => ({
-				uri: f.uri,
-				name: f.name,
+				uri: f.promptPath.uri,
+				name: f.promptPath.name,
 				status: f.status,
-				storage: f.storage,
-				extensionId: f.extension?.identifier.value,
+				storage: f.promptPath.storage,
+				extensionId: f.promptPath.extension?.identifier.value,
 				skipReason: f.skipReason,
 				errorMessage: f.errorMessage,
 				duplicateOf: f.duplicateOf,
