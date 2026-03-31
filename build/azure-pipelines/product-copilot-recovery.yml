@@ -24,8 +24,8 @@ parameters:
 extends:
   template: azure-pipelines/extension/stable.yml@templates
   parameters:
-    workingDirectory: extensions/copilot
-    l10nSourcePaths: extensions/copilot/src
+    workingDirectory: ./extensions/copilot
+    l10nSourcePaths: ./extensions/copilot/src
     nodeVersion: 22.21.x
 
     cgIgnoreDirectories: $(Build.SourcesDirectory)/extensions/copilot/script
