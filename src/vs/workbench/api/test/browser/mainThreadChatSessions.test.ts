@@ -972,10 +972,11 @@ suite('ExtHostChatSessions', function () {
 			requestHandler: undefined,
 		})));
 
-		const session = await extHostChatSessions.$provideChatSessionContent(0, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
+		const handle = 1;
+		const session = await extHostChatSessions.$provideChatSessionContent(handle, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
 
 		assert.strictEqual(session.hasForkHandler, true);
-		await extHostChatSessions.$disposeChatSessionContent(0, sessionResource);
+		await extHostChatSessions.$disposeChatSessionContent(handle, sessionResource);
 	});
 
 	test('prefers controller fork handler over deprecated session fork handler', async function () {
@@ -999,8 +1000,9 @@ suite('ExtHostChatSessions', function () {
 			forkHandler: deprecatedSessionForkHandler,
 		})));
 
-		await extHostChatSessions.$provideChatSessionContent(0, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
-		const result = await extHostChatSessions.$forkChatSession(0, sessionResource, {
+		const handle = 1;
+		await extHostChatSessions.$provideChatSessionContent(handle, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
+		const result = await extHostChatSessions.$forkChatSession(handle, sessionResource, {
 			type: 'request',
 			id: 'request-1',
 			prompt: 'prompt',
@@ -1011,7 +1013,7 @@ suite('ExtHostChatSessions', function () {
 		assert.strictEqual(deprecatedSessionForkHandler.callCount, 0);
 		assert.strictEqual(result.resource.toString(), controllerItem.resource.toString());
 		assert.strictEqual(result.label, controllerItem.label);
-		await extHostChatSessions.$disposeChatSessionContent(0, sessionResource);
+		await extHostChatSessions.$disposeChatSessionContent(handle, sessionResource);
 	});
 
 	test('falls back to deprecated session fork handler when no controller fork handler exists', async function () {
@@ -1029,8 +1031,9 @@ suite('ExtHostChatSessions', function () {
 			forkHandler: deprecatedSessionForkHandler,
 		})));
 
-		await extHostChatSessions.$provideChatSessionContent(0, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
-		const result = await extHostChatSessions.$forkChatSession(0, sessionResource, {
+		const handle = 1;
+		await extHostChatSessions.$provideChatSessionContent(handle, sessionResource, { initialSessionOptions: [] }, CancellationToken.None);
+		const result = await extHostChatSessions.$forkChatSession(handle, sessionResource, {
 			type: 'request',
 			id: 'request-1',
 			prompt: 'prompt',
@@ -1040,6 +1043,6 @@ suite('ExtHostChatSessions', function () {
 		assert.ok(deprecatedSessionForkHandler.calledOnceWithExactly(sessionResource, requestTurn, CancellationToken.None));
 		assert.strictEqual(result.resource.toString(), `${sessionScheme}:/forked-by-session`);
 		assert.strictEqual(result.label, 'Forked by Session');
-		await extHostChatSessions.$disposeChatSessionContent(0, sessionResource);
+		await extHostChatSessions.$disposeChatSessionContent(handle, sessionResource);
 	});
 });
