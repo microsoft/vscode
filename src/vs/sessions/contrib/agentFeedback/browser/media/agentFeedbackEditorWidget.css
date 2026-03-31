@@ -237,17 +237,16 @@
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
-	padding: 8px;
-	border-radius: 6px;
-	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 12%, transparent);
+	margin-top: 8px;
+	padding: 0px 8px 4px 12px;
 }
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, var(--vscode-editorWidget-background));
+	border-left: 1px solid var(--vscode-editorWarning-foreground);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
-	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 10%, var(--vscode-editorWidget-background));
+	border-left: 1px solid var(--vscode-editorInfo-foreground);
 }
 
 .agent-feedback-widget-suggestion-title,
