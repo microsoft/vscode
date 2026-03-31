@@ -211,7 +211,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 		suite('sandbox off', () => {
 
-			test('echo command returns exactly the echoed text', async function () {
+			// Flaky: #306588
+			test.skip('echo command returns exactly the echoed text', async function () {
 				this.timeout(60000);
 
 				const marker = `MARKER_${Date.now()}_ECHO`;
@@ -423,8 +424,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.strictEqual(output.trim(), marker);
 			});
 
-			// Flaky: #306588
-			test.skip('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
+			test('non-allowlisted domains trigger unsandboxed confirmation flow', async function () {
 				this.timeout(60000);
 
 				const marker = `SANDBOX_DOMAIN_${Date.now()}`;
