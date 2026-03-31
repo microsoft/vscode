@@ -80,7 +80,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			CommandLineAutoApproveAnalyzer,
 			treeSitterCommandParser,
 			telemetry,
-			(message: string, ...args: unknown[]) => this._logService.info(`SendToTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args),
+			(message: string, ...args: unknown[]) => this._logService.info(`SendToTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, ...args),
 		));
 		this._profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
 	}
