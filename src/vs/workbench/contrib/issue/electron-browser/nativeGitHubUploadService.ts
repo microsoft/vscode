@@ -5,15 +5,21 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
+import { IBrowserViewCDPService } from '../../browserView/common/browserView.js';
+import { BrowserEditorInput } from '../../browserView/common/browserEditorInput.js';
+import { CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { IGitHubUploadResult, IGitHubUploadService } from '../browser/githubUploadService.js';
 
 /**
- * GitHub upload service using the integrated browser + Playwright.
+ * GitHub upload service using the integrated browser + CDP.
  *
- * Opens github.com in the integrated browser, then uses page.evaluate()
- * via Playwright to execute the upload flow (policy -> S3 -> confirm).
+ * Opens a single integrated browser tab for all operations. The user logs in
+ * visually, then uploads happen via CDP Runtime.evaluate in that same tab.
  */
 export class NativeGitHubUploadService extends Disposable implements IGitHubUploadService {
 
@@ -22,47 +28,76 @@ export class NativeGitHubUploadService extends Disposable implements IGitHubUplo
 	private readonly _onDidChangeLoginState = this._register(new Emitter<boolean>());
 	readonly onDidChangeLoginState: Event<boolean> = this._onDidChangeLoginState.event;
 
-	private activePageId: string | undefined;
+	private activeBrowserId: string | undefined;
+	private cdpMessageId = 0;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IBrowserViewCDPService private readonly cdpService: IBrowserViewCDPService,
 	) {
 		super();
 	}
 
 	async isLoggedIn(): Promise<boolean> {
-		return !!this.activePageId;
+		if (!this.activeBrowserId) {
+			return false;
+		}
+		try {
+			const user = await this.cdpEval<string | null>(this.activeBrowserId,
+				`document.querySelector('meta[name="user-login"]')?.getAttribute('content') || null`
+			);
+			return !!user;
+		} catch {
+			this.activeBrowserId = undefined;
+			return false;
+		}
 	}
 
 	async login(): Promise<boolean> {
-		this.logService.info('[GitHubUpload] Opening browser to GitHub login...');
-		const { pageId } = await this.playwrightService.openPage('https://github.com/login');
-		this.activePageId = pageId;
-		this.logService.info(`[GitHubUpload] Page opened: ${pageId}, polling for login...`);
+		this.logService.info('[GitHubUpload] Starting login flow...');
 
-		// Poll until user logs in. Navigations (login -> 2FA -> home) destroy
-		// the execution context, so we catch and retry instead of bailing out.
-		for (let i = 0; i < 150; i++) {
-			await new Promise(r => setTimeout(r, 2000));
-			try {
-				const user = await this.playwrightService.invokeFunctionRaw<string | null>(pageId,
-					`async (page) => {
-						return await page.evaluate(() =>
-							document.querySelector('meta[name="user-login"]')?.getAttribute('content') || null
-						);
-					}`
-				);
-				if (user) {
-					this.logService.info(`[GitHubUpload] Logged in as ${user}`);
-					this._onDidChangeLoginState.fire(true);
-					return true;
+		// Open one browser to github.com/login
+		const browserId = await this.openBrowser('https://github.com/login');
+		this.activeBrowserId = browserId;
+
+		// Wait for page to fully load before starting CDP
+		this.logService.info('[GitHubUpload] Waiting for page to load...');
+		await new Promise(r => setTimeout(r, 5000));
+
+		// Create one CDP session and reuse it for all polls
+		this.logService.info('[GitHubUpload] Starting CDP session for login polling...');
+		const groupId = await this.cdpService.createSessionGroup(browserId);
+		try {
+			await this.cdpSend(groupId, 'Runtime.enable');
+
+			for (let i = 0; i < 150; i++) {
+				await new Promise(r => setTimeout(r, 2000));
+				try {
+					const response = await this.cdpSend(groupId, 'Runtime.evaluate', {
+						expression: `document.querySelector('meta[name="user-login"]')?.getAttribute('content') || null`,
+						returnByValue: true,
+					});
+					const result = (response as unknown as Record<string, unknown>).result as Record<string, unknown> | undefined;
+					const innerResult = result?.result as Record<string, unknown> | undefined;
+					const user = innerResult?.value as string | null;
+
+					if (user) {
+						this.logService.info(`[GitHubUpload] Logged in as ${user}`);
+						this._onDidChangeLoginState.fire(true);
+						return true;
+					}
+				} catch (err) {
+					this.logService.warn('[GitHubUpload] Poll error:', err);
+					this.activeBrowserId = undefined;
+					return false;
 				}
-			} catch {
-				// Navigation destroyed execution context (e.g. login -> 2FA -> home).
-				// This is expected — just keep polling.
 			}
+		} finally {
+			await this.cdpService.destroySessionGroup(groupId).catch(() => { });
 		}
+
 		this.logService.warn('[GitHubUpload] Login timed out (5 min)');
 		return false;
 	}
@@ -83,47 +118,39 @@ export class NativeGitHubUploadService extends Disposable implements IGitHubUplo
 	async uploadAsset(owner: string, repo: string, repoId: string, fileName: string, fileBytes: Uint8Array, contentType: string): Promise<IGitHubUploadResult> {
 		this.logService.info(`[GitHubUpload] Uploading ${fileName} (${fileBytes.length} bytes)`);
 
-		if (!this.activePageId) {
-			throw new Error('No active browser page');
+		if (!this.activeBrowserId) {
+			throw new Error('No active browser session');
 		}
 
-		const pageId = this.activePageId;
-
-		// Navigate to repo page for CSRF tokens
-		this.logService.info(`[GitHubUpload] Navigating to ${owner}/${repo}...`);
-		await this.playwrightService.invokeFunctionRaw(pageId,
-			`async (page) => { await page.goto('https://github.com/${owner}/${repo}', { waitUntil: 'domcontentloaded' }); }`
-		);
-		await new Promise(r => setTimeout(r, 1000));
+		// Navigate the existing browser to the repo page for CSRF tokens
+		const browserId = this.activeBrowserId;
+		await this.cdpEval(browserId, `window.location.href = 'https://github.com/${owner}/${repo}'`);
+		await new Promise(r => setTimeout(r, 3000));
 
 		// Step 1: Get upload policy
 		this.logService.info('[GitHubUpload] Step 1/3: policy');
-		const policyResult = await this.playwrightService.invokeFunctionRaw<{ error?: string; policy?: Record<string, unknown> }>(pageId,
-			`async (page, repoId, fileName, fileSize, contentType) => {
-				return await page.evaluate(async ({ repoId, fileName, fileSize, contentType }) => {
-					const token =
-						document.querySelector('input[name="authenticity_token"]')?.value ||
-						document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null;
-					const fd = new FormData();
-					fd.append('repository_id', repoId);
-					fd.append('name', fileName);
-					fd.append('size', String(fileSize));
-					fd.append('content_type', contentType);
-					if (token) { fd.append('authenticity_token', token); }
-					const r = await fetch('https://github.com/upload/policies/assets', {
-						method: 'POST', body: fd, credentials: 'same-origin',
-						headers: { 'github-verified-fetch': 'true', 'x-requested-with': 'XMLHttpRequest' },
-					});
-					if (!r.ok) { return { error: 'Policy ' + r.status + ': ' + (await r.text()).substring(0, 200) }; }
-					return { policy: await r.json() };
-				}, { repoId, fileName, fileSize, contentType });
-			}`,
-			repoId, fileName, String(fileBytes.length), contentType
-		);
+		const policyResult = await this.cdpEval<{ error?: string; policy?: Record<string, unknown> }>(browserId, `
+			(async () => {
+				const token =
+					document.querySelector('input[name="authenticity_token"]')?.value ||
+					document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null;
+				const fd = new FormData();
+				fd.append('repository_id', ${JSON.stringify(repoId)});
+				fd.append('name', ${JSON.stringify(fileName)});
+				fd.append('size', ${JSON.stringify(String(fileBytes.length))});
+				fd.append('content_type', ${JSON.stringify(contentType)});
+				if (token) { fd.append('authenticity_token', token); }
+				const r = await fetch('https://github.com/upload/policies/assets', {
+					method: 'POST', body: fd, credentials: 'same-origin',
+					headers: { 'github-verified-fetch': 'true', 'x-requested-with': 'XMLHttpRequest' },
+				});
+				if (!r.ok) { return { error: 'Policy ' + r.status + ': ' + (await r.text()).substring(0, 200) }; }
+				return { policy: await r.json() };
+			})()
+		`);
 
-		this.logService.info(`[GitHubUpload] policyResult: ${JSON.stringify(policyResult)?.substring(0, 300)}`);
-		if (!policyResult || policyResult.error) {
-			throw new Error(policyResult?.error ?? 'Policy request failed');
+		if (policyResult.error) {
+			throw new Error(policyResult.error);
 		}
 		const policy = policyResult.policy as Record<string, unknown>;
 		const asset = policy.asset as Record<string, unknown>;
@@ -132,52 +159,155 @@ export class NativeGitHubUploadService extends Disposable implements IGitHubUplo
 		// Step 2: S3 upload
 		this.logService.info('[GitHubUpload] Step 2/3: S3');
 		const bytesArray = Array.from(fileBytes);
-		const s3 = await this.playwrightService.invokeFunctionRaw<{ ok: boolean; error?: string }>(pageId,
-			`async (page, uploadUrl, formFields, bytesArray, contentType, assetName) => {
-				return await page.evaluate(async ({ uploadUrl, formFields, bytesArray, contentType, assetName }) => {
-					const fd = new FormData();
-					for (const [k, v] of Object.entries(formFields)) { fd.append(k, v); }
-					fd.append('file', new Blob([new Uint8Array(bytesArray)], { type: contentType }), assetName);
-					const r = await fetch(uploadUrl, { method: 'POST', body: fd, mode: 'cors' });
-					return r.status >= 200 && r.status < 300 ? { ok: true } : { ok: false, error: 'S3 ' + r.status };
-				}, { uploadUrl, formFields, bytesArray, contentType, assetName });
-			}`,
-			policy.upload_url, policy.form, bytesArray, contentType, asset.name
-		);
-
-		if (!s3 || !s3.ok) {
-			throw new Error(s3?.error ?? 'S3 upload failed');
+		const s3 = await this.cdpEval<{ ok: boolean; error?: string }>(browserId, `
+			(async () => {
+				const fd = new FormData();
+				for (const [k, v] of Object.entries(${JSON.stringify(policy.form)})) { fd.append(k, v); }
+				fd.append('file', new Blob([new Uint8Array(${JSON.stringify(bytesArray)})], { type: ${JSON.stringify(contentType)} }), ${JSON.stringify(asset.name)});
+				const r = await fetch(${JSON.stringify(policy.upload_url)}, { method: 'POST', body: fd, mode: 'cors' });
+				return r.status >= 200 && r.status < 300 ? { ok: true } : { ok: false, error: 'S3 ' + r.status };
+			})()
+		`);
+		if (!s3.ok) {
+			throw new Error(s3.error ?? 'S3 upload failed');
 		}
 		this.logService.info('[GitHubUpload] S3 OK');
 
 		// Step 3: confirm
 		this.logService.info('[GitHubUpload] Step 3/3: confirm');
-		await this.playwrightService.invokeFunctionRaw(pageId,
-			`async (page, assetUploadUrl, confirmToken) => {
-				await page.evaluate(async ({ assetUploadUrl, confirmToken }) => {
-					await fetch('https://github.com' + assetUploadUrl, {
-						method: 'PUT', credentials: 'same-origin',
-						headers: { 'github-verified-fetch': 'true', 'x-requested-with': 'XMLHttpRequest', 'content-type': 'application/json' },
-						body: JSON.stringify({ authenticity_token: confirmToken }),
-					});
-				}, { assetUploadUrl, confirmToken });
-			}`,
-			policy.asset_upload_url, policy.asset_upload_authenticity_token
-		);
+		await this.cdpEval(browserId, `
+			fetch('https://github.com' + ${JSON.stringify(policy.asset_upload_url)}, {
+				method: 'PUT', credentials: 'same-origin',
+				headers: { 'github-verified-fetch': 'true', 'x-requested-with': 'XMLHttpRequest', 'content-type': 'application/json' },
+				body: JSON.stringify({ authenticity_token: ${JSON.stringify(policy.asset_upload_authenticity_token)} }),
+			})
+		`);
 
 		const assetHref = asset.href as string;
 		this.logService.info(`[GitHubUpload] Done: ${assetHref}`);
 		return { fileName, assetUrl: assetHref, contentType };
 	}
 
-	async navigateTo(url: string): Promise<void> {
-		if (!this.activePageId) {
-			return;
+	private async openBrowser(url: string): Promise<string> {
+		const resource = BrowserViewUri.forUrl(url);
+		const pane = await this.editorService.openEditor({ resource }, SIDE_GROUP);
+		const input = pane?.input;
+		if (!(input instanceof BrowserEditorInput)) {
+			throw new Error('Failed to open integrated browser');
 		}
-		this.logService.info(`[GitHubUpload] Navigating to: ${url}`);
-		await this.playwrightService.invokeFunctionRaw(this.activePageId,
-			`async (page, url) => { await page.goto(url, { waitUntil: 'domcontentloaded' }); }`,
-			url
-		);
+		this.logService.info(`[GitHubUpload] Browser opened: id=${input.id}`);
+		return input.id;
+	}
+
+	private async cdpEval<T>(browserId: string, expression: string): Promise<T> {
+		const groupId = await this.cdpService.createSessionGroup(browserId);
+		try {
+			await this.cdpSend(groupId, 'Runtime.enable');
+			const response = await this.cdpSend(groupId, 'Runtime.evaluate', {
+				expression,
+				returnByValue: true,
+				awaitPromise: true,
+			});
+			return this.extractCdpValue<T>(response);
+		} finally {
+			await this.cdpService.destroySessionGroup(groupId).catch(() => { });
+		}
+	}
+
+	private cdpSend(groupId: string, method: string, params: Record<string, unknown> = {}): Promise<CDPResponse> {
+		const id = ++this.cdpMessageId;
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				sub.dispose();
+				reject(new Error(`CDP ${method} timed out`));
+			}, 30_000);
+
+			const sub = this.cdpService.onCDPMessage(groupId)(msg => {
+				if ('id' in msg && msg.id === id) {
+					clearTimeout(timer);
+					sub.dispose();
+					resolve(msg as CDPResponse);
+				}
+			});
+
+			this.cdpService.sendCDPMessage(groupId, { id, method, params });
+		});
+	}
+
+	private extractCdpValue<T>(response: CDPResponse): T {
+		const result = (response as unknown as Record<string, unknown>).result as Record<string, unknown> | undefined;
+		const innerResult = result?.result as Record<string, unknown> | undefined;
+		if (innerResult?.type === 'undefined') {
+			return undefined as T;
+		}
+		return (innerResult?.value ?? undefined) as T;
+	}
+
+	async uploadViaGist(token: string, files: { name: string; bytes: Uint8Array }[]): Promise<IGitHubUploadResult[]> {
+		this.logService.info(`[GitHubUpload/Gist] Uploading ${files.length} files via gist...`);
+
+		// Step 1: Create gist via API
+		this.logService.info('[GitHubUpload/Gist] Creating gist...');
+		const createResponse = await fetch('https://api.github.com/gists', {
+			method: 'POST',
+			headers: {
+				'Accept': 'application/vnd.github+json',
+				'Authorization': `Bearer ${token}`,
+				'X-GitHub-Api-Version': '2022-11-28',
+			},
+			body: JSON.stringify({
+				description: 'VS Code Issue Reporter Attachments',
+				public: false,
+				files: { 'README.md': { content: 'Attachments for VS Code issue report' } },
+			}),
+		});
+		if (!createResponse.ok) {
+			const text = await createResponse.text();
+			throw new Error(`Failed to create gist: ${createResponse.status} ${text.substring(0, 200)}`);
+		}
+		const gist = await createResponse.json();
+		const gistId = gist.id as string;
+		const gitPullUrl = gist.git_pull_url as string;
+		this.logService.info(`[GitHubUpload/Gist] Gist created: ${gistId}`);
+
+		// Step 2: Clone to temp dir via main process
+		const tempDir = await this.nativeHostService.makeTempDir(`vscode-gist-${gistId}`);
+		try {
+			const cloneUrl = gitPullUrl.replace('https://', `https://x-access-token:${token}@`);
+			this.logService.info(`[GitHubUpload/Gist] Cloning...`);
+			await this.nativeHostService.runGitCommand(['clone', cloneUrl, tempDir], undefined, 30_000);
+
+			// Step 3: Write files via main process
+			for (const file of files) {
+				const filePath = `${tempDir}/${file.name}`;
+				await this.nativeHostService.writeFileToPath(filePath, VSBuffer.wrap(file.bytes));
+				this.logService.info(`[GitHubUpload/Gist] Wrote ${file.name} (${file.bytes.length} bytes)`);
+			}
+
+			// Step 4: Git add, commit, push via main process
+			this.logService.info('[GitHubUpload/Gist] Committing and pushing...');
+			await this.nativeHostService.runGitCommand(['add', '.'], tempDir, 10_000);
+			await this.nativeHostService.runGitCommand(['commit', '-m', 'Add attachments'], tempDir, 10_000);
+			await this.nativeHostService.runGitCommand(['push'], tempDir, 60_000);
+
+			// Step 5: Get commit SHA
+			const { stdout: commitSha } = await this.nativeHostService.runGitCommand(['rev-parse', 'HEAD'], tempDir, 5_000);
+			const sha = commitSha.trim();
+
+			// Build raw URLs
+			const owner = (gist.owner as Record<string, unknown>)?.login as string;
+			const results: IGitHubUploadResult[] = [];
+			for (const file of files) {
+				const assetUrl = `https://gist.githubusercontent.com/${owner}/${gistId}/raw/${sha}/${encodeURIComponent(file.name)}`;
+				const contentType = file.name.endsWith('.mp4') ? 'video/mp4'
+					: file.name.endsWith('.webm') ? 'video/webm'
+						: 'image/png';
+				results.push({ fileName: file.name, assetUrl, contentType });
+				this.logService.info(`[GitHubUpload/Gist] ${file.name} -> ${assetUrl}`);
+			}
+			return results;
+		} finally {
+			await this.nativeHostService.removeTempDir(tempDir);
+		}
 	}
 }

@@ -866,6 +866,40 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#endregion
 
 
+	//#region Git (for gist upload POC)
+
+	async runGitCommand(_windowId: number | undefined, args: string[], cwd?: string, timeout?: number): Promise<{ stdout: string; stderr: string }> {
+		const cp = await import('child_process');
+		const { promisify } = await import('util');
+		const exec = promisify(cp.execFile);
+		const result = await exec('git', args, { cwd, timeout: timeout ?? 30_000 });
+		return { stdout: result.stdout, stderr: result.stderr };
+	}
+
+	async writeFileToPath(_windowId: number | undefined, filePath: string, data: VSBuffer): Promise<void> {
+		const fs = await import('fs/promises');
+		const path = await import('path');
+		await fs.mkdir(path.dirname(filePath), { recursive: true });
+		await fs.writeFile(filePath, data.buffer);
+	}
+
+	async makeTempDir(_windowId: number | undefined, prefix: string): Promise<string> {
+		const fs = await import('fs/promises');
+		const os = await import('os');
+		const path = await import('path');
+		const dir = path.join(os.tmpdir(), prefix);
+		await fs.mkdir(dir, { recursive: true });
+		return dir;
+	}
+
+	async removeTempDir(_windowId: number | undefined, dirPath: string): Promise<void> {
+		const fs = await import('fs/promises');
+		await fs.rm(dirPath, { recursive: true, force: true });
+	}
+
+	//#endregion
+
+
 	//#region Process
 
 	async getProcessId(windowId: number | undefined): Promise<number | undefined> {

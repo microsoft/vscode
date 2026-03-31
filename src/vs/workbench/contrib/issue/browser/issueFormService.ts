@@ -170,7 +170,7 @@ export class IssueFormService implements IIssueFormService {
 		}));
 
 		// Handle submit
-		this.overlayDisposables.add(this.overlay.onDidSubmit(async ({ title, body, shouldCreate, isPrivate }) => {
+		this.overlayDisposables.add(this.overlay.onDidSubmit(async ({ title, body, shouldCreate, isPrivate, uploadMethod }) => {
 			const screenshots = this.overlay?.getScreenshots() ?? [];
 			const recordings = this.overlay?.getRecordings() ?? [];
 
@@ -187,75 +187,76 @@ export class IssueFormService implements IIssueFormService {
 				issueUrl = URI.revive(selectedExtension.uri).toString();
 			}
 
-			// Try uploading media to GitHub assets
-			// TODO: try with microsoft/vscode instead of octocat/Hello-World
-			// NOTE: microsoft/vscode may require SSO authorization for the microsoft org
-			// or additional permissions — test extensively before switching.
-			const owner = 'octocat';
-			const repo = 'Hello-World';
 			let mediaMarkdown = '';
+			const hasAttachments = screenshots.length > 0 || recordings.length > 0;
 
-			if (screenshots.length > 0 || recordings.length > 0) {
-				this.logService.info(`[IssueFormService] Submit: ${screenshots.length} screenshots, ${recordings.length} recordings`);
+			if (hasAttachments && uploadMethod === 'gist') {
+				this.logService.info(`[IssueFormService] Gist upload: ${screenshots.length} screenshots, ${recordings.length} recordings`);
 				try {
-					// Open integrated browser and prepare for upload
-					await this.githubUploadService.login();
-
-					this.logService.info('[IssueFormService] Resolving repository ID...');
-					const repoId = await this.githubUploadService.resolveRepositoryId(owner, repo);
-					this.logService.info(`[IssueFormService] repoId=${repoId}`);
-					const uploadResults: { name: string; url: string; isVideo: boolean }[] = [];
-
+					if (!data.githubAccessToken) {
+						throw new Error('No GitHub token available. Please sign in to GitHub first.');
+					}
+					const filesToUpload: { name: string; bytes: Uint8Array }[] = [];
 					for (let i = 0; i < screenshots.length; i++) {
-						this.logService.info(`[IssueFormService] Uploading screenshot ${i + 1}...`);
-						const screenshot = screenshots[i];
-						const imageData = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
-						const bytes = this.dataUrlToBytes(imageData);
+						const bytes = this.dataUrlToBytes(screenshots[i].annotatedDataUrl ?? screenshots[i].dataUrl);
 						if (bytes) {
-							const result = await this.githubUploadService.uploadAsset(
-								owner, repo, repoId,
-								`screenshot-${i + 1}.png`, bytes, 'image/png'
-							);
-							uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: false });
-							this.logService.info(`[IssueFormService] Screenshot uploaded: ${result.assetUrl}`);
+							filesToUpload.push({ name: `screenshot-${i + 1}.png`, bytes });
 						}
 					}
-
 					for (const rec of recordings) {
-						this.logService.info(`[IssueFormService] Uploading recording ${rec.filePath}...`);
 						const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
-						const extension = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
-						const contentType = extension === 'mp4' ? 'video/mp4' : 'video/webm';
-						const result = await this.githubUploadService.uploadAsset(
-							owner, repo, repoId,
-							`recording.${extension}`, fileContent.value.buffer, contentType
-						);
-						uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: true });
-						this.logService.info(`[IssueFormService] Recording uploaded: ${result.assetUrl}`);
+						const ext = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
+						filesToUpload.push({ name: `recording.${ext}`, bytes: fileContent.value.buffer });
 					}
-
+					if (filesToUpload.length > 0) {
+						const results = await this.githubUploadService.uploadViaGist(data.githubAccessToken, filesToUpload);
+						mediaMarkdown = '\n\n### Attachments\n\n';
+						for (const r of results) {
+							mediaMarkdown += r.contentType.startsWith('video/')
+								? `${r.assetUrl}\n\n`
+								: `![${r.fileName}](${r.assetUrl})\n\n`;
+						}
+						this.logService.info(`[IssueFormService] Gist upload done: ${results.length} files`);
+					}
+				} catch (err) {
+					this.logService.error('[IssueFormService] Gist upload failed:', err);
+				}
+			} else if (hasAttachments && uploadMethod === 'playwright') {
+				this.logService.info(`[IssueFormService] Playwright upload: ${screenshots.length} screenshots, ${recordings.length} recordings`);
+				try {
+					await this.githubUploadService.login();
+					const repoId = await this.githubUploadService.resolveRepositoryId('octocat', 'Hello-World');
+					const uploadResults: { name: string; url: string; isVideo: boolean }[] = [];
+					for (let i = 0; i < screenshots.length; i++) {
+						const bytes = this.dataUrlToBytes(screenshots[i].annotatedDataUrl ?? screenshots[i].dataUrl);
+						if (bytes) {
+							const r = await this.githubUploadService.uploadAsset('octocat', 'Hello-World', repoId, `screenshot-${i + 1}.png`, bytes, 'image/png');
+							uploadResults.push({ name: r.fileName, url: r.assetUrl, isVideo: false });
+						}
+					}
+					for (const rec of recordings) {
+						const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
+						const ext = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
+						const ct = ext === 'mp4' ? 'video/mp4' : 'video/webm';
+						const r = await this.githubUploadService.uploadAsset('octocat', 'Hello-World', repoId, `recording.${ext}`, fileContent.value.buffer, ct);
+						uploadResults.push({ name: r.fileName, url: r.assetUrl, isVideo: true });
+					}
 					if (uploadResults.length > 0) {
 						mediaMarkdown = '\n\n### Attachments\n\n';
 						for (const r of uploadResults) {
-							if (r.isVideo) {
-								mediaMarkdown += `${r.url}\n\n`;
-							} else {
-								mediaMarkdown += `![${r.name}](${r.url})\n\n`;
-							}
+							mediaMarkdown += r.isVideo ? `${r.url}\n\n` : `![${r.name}](${r.url})\n\n`;
 						}
 					}
 				} catch (err) {
-					this.logService.error('[IssueFormService] GitHub upload failed:', err);
+					this.logService.error('[IssueFormService] Playwright upload failed:', err);
 				}
 			}
 
 			const issueBody = body + mediaMarkdown;
-			const gitHubDetails = this.parseGitHubUrl(issueUrl);
-			this.logService.info(`[IssueFormService] Opening issue preview: issueUrl=${issueUrl}, bodyLen=${issueBody.length}`);
+			this.logService.info(`[IssueFormService] Opening issue preview: method=${uploadMethod}, bodyLen=${issueBody.length}`);
 
-			if (data.githubAccessToken && gitHubDetails && shouldCreate) {
-				await this.submitToGitHub(title, issueBody, gitHubDetails, data.githubAccessToken);
-			} else {
+			// Always open as preview URL (never create directly during POC)
+			{
 				let url = `${issueUrl}${issueUrl.indexOf('?') === -1 ? '?' : '&'}title=${encodeURIComponent(title)}&body=${encodeURIComponent(issueBody)}`;
 
 				if (url.length > 7500) {
@@ -266,8 +267,6 @@ export class IssueFormService implements IIssueFormService {
 					url = `${issueUrl}${issueUrl.indexOf('?') === -1 ? '?' : '&'}title=${encodeURIComponent(title)}&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 				}
 
-				// Open issue preview in external browser where SSO/auth works
-				// (the integrated browser gets blocked by Microsoft Entra compliance)
 				await this.openerService.open(URI.parse(url));
 			}
 
@@ -275,17 +274,6 @@ export class IssueFormService implements IIssueFormService {
 		}));
 
 		this.overlay.show();
-	}
-
-	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
-		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);
-		if (match && match.length) {
-			return {
-				owner: match[1],
-				repositoryName: match[2]
-			};
-		}
-		return undefined;
 	}
 
 	private dataUrlToBytes(dataUrl: string): Uint8Array | undefined {
@@ -300,31 +288,6 @@ export class IssueFormService implements IIssueFormService {
 			bytes[i] = binaryString.charCodeAt(i);
 		}
 		return bytes;
-	}
-
-	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }, token: string): Promise<boolean> {
-		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
-		const init = {
-			method: 'POST',
-			body: JSON.stringify({
-				title: issueTitle,
-				body: issueBody
-			}),
-			headers: new Headers({
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${token}`,
-				'User-Agent': 'request'
-			})
-		};
-
-		const response = await fetch(url, init);
-		if (!response.ok) {
-			this.logService.error('Failed to create GitHub issue:', response.statusText);
-			return false;
-		}
-		const result = await response.json();
-		await this.openerService.open(URI.parse(result.html_url));
-		return true;
 	}
 
 	private closeOverlay(): void {

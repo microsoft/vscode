@@ -76,8 +76,22 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		let githubAccessToken = '';
 		try {
 			const githubSessions = await this.authenticationService.getSessions('github');
-			const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
-			githubAccessToken = potentialSessions[0]?.accessToken;
+			// Try to find a session with gist scope first (for uploading attachments)
+			const gistSession = githubSessions.find(session => session.scopes.includes('gist'));
+			const repoSession = githubSessions.find(session => session.scopes.includes('repo'));
+			githubAccessToken = gistSession?.accessToken ?? repoSession?.accessToken ?? '';
+
+			// If no gist-scoped session exists, request one
+			if (!gistSession && githubSessions.length > 0) {
+				try {
+					const newSession = await this.authenticationService.createSession('github', ['repo', 'gist']);
+					if (newSession) {
+						githubAccessToken = newSession.accessToken;
+					}
+				} catch {
+					// User may have declined the scope request
+				}
+			}
 		} catch (e) {
 			// Ignore
 		}

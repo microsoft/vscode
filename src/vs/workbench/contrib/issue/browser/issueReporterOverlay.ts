@@ -39,8 +39,8 @@ export class IssueReporterOverlay {
 	private readonly disposables = new DisposableStore();
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
-	private readonly _onDidSubmit = new Emitter<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean }>();
-	readonly onDidSubmit: Event<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean }> = this._onDidSubmit.event;
+	private readonly _onDidSubmit = new Emitter<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean; uploadMethod: 'gist' | 'playwright' | 'none' }>();
+	readonly onDidSubmit: Event<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean; uploadMethod: 'gist' | 'playwright' | 'none' }> = this._onDidSubmit.event;
 	private readonly _onDidRequestScreenshot = new Emitter<void>();
 	readonly onDidRequestScreenshot: Event<void> = this._onDidRequestScreenshot.event;
 	private readonly _onDidRequestStartRecording = new Emitter<void>();
@@ -387,6 +387,24 @@ export class IssueReporterOverlay {
 
 		// Review details (filled dynamically)
 		append(page, $('div.wizard-review-details'));
+
+		// Submit buttons for different upload paths
+		const submitGroup = append(page, $('div.wizard-submit-buttons'));
+
+		const gistBtn = append(submitGroup, $('button.wizard-submit-btn.wizard-submit-gist'));
+		gistBtn.textContent = localize('submitViaGist', "Submit via Gist");
+		gistBtn.title = 'Upload attachments to a GitHub Gist (uses OAuth token)';
+		this.disposables.add(addDisposableListener(gistBtn, EventType.CLICK, () => this.submitWithMethod('gist')));
+
+		const playwrightBtn = append(submitGroup, $('button.wizard-submit-btn.wizard-submit-playwright'));
+		playwrightBtn.textContent = localize('submitViaPlaywright', "Submit via Browser Upload");
+		playwrightBtn.title = 'Upload attachments via integrated browser (requires login)';
+		this.disposables.add(addDisposableListener(playwrightBtn, EventType.CLICK, () => this.submitWithMethod('playwright')));
+
+		const previewBtn = append(submitGroup, $('button.wizard-submit-btn.wizard-submit-preview'));
+		previewBtn.textContent = localize('submitPreviewOnly', "Preview on GitHub (No Upload)");
+		previewBtn.title = 'Open issue on GitHub without uploading attachments';
+		this.disposables.add(addDisposableListener(previewBtn, EventType.CLICK, () => this.submitWithMethod('none')));
 	}
 
 	private toggleCollapsed(): void {
@@ -694,6 +712,10 @@ export class IssueReporterOverlay {
 	}
 
 	private submit(): void {
+		this.submitWithMethod('none');
+	}
+
+	private submitWithMethod(uploadMethod: 'gist' | 'playwright' | 'none'): void {
 		const title = this.titleInput.value.trim();
 		if (!title) {
 			this.titleInput.classList.add('invalid-input');
@@ -710,6 +732,7 @@ export class IssueReporterOverlay {
 			body,
 			shouldCreate: !!this.data.githubAccessToken,
 			isPrivate: false,
+			uploadMethod,
 		});
 	}
 
