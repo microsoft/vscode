@@ -121,7 +121,7 @@ class SCMAccessibilityHelpContentProvider extends Disposable implements IAccessi
 		content.push(localize('scm-msg1', "Use the \"Source Control: Focus on Source Control View\" command to open the Source Control view."));
 		content.push(localize('scm-msg2', "The Source Control view displays the resource groups and resources of the repository. If the workspace contains more than one repository it will list the resource groups and resources of the repositories selected in the Source Control Repositories view."));
 		content.push(localize('scm-msg3', "Once the Source Control view is opened you can:"));
-		content.push(localize('scm-msg-clone-github', "Use the \"Clone from GitHub\" button in the Source Control title bar to search public GitHub repositories or paste a URL."));
+		content.push(localize('scm-msg-clone-github', "If available, use the \"Clone from GitHub\" button in the Source Control title bar to search GitHub repositories or paste a URL."));
 		content.push(localize('scm-msg4', " - Use the up/down arrow keys to navigate the list of repositories, resource groups and resources."));
 		content.push(localize('scm-msg5', " - Use the Space key to expand or collapse a resource group."));
 
