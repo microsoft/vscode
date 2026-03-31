@@ -173,17 +173,41 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
-		// Create state in the state manager
-		const summary: ISessionSummary = {
-			resource: session.toString(),
-			provider: provider.id,
-			title: 'New Session',
-			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
-			workingDirectory: config?.workingDirectory?.toString(),
-		};
-		this._stateManager.createSession(summary);
+		// When forking, populate the new session's protocol state with
+		// the source session's turns so the client sees the forked history.
+		if (config?.fork) {
+			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
+			let sourceTurns: ITurn[] = [];
+			if (sourceState) {
+				const forkIdx = sourceState.turns.findIndex(t => t.id === config.fork!.turnId);
+				if (forkIdx >= 0) {
+					sourceTurns = sourceState.turns.slice(0, forkIdx + 1);
+				}
+			}
+
+			const summary: ISessionSummary = {
+				resource: session.toString(),
+				provider: provider.id,
+				title: sourceState?.summary.title ?? 'Forked Session',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: config.workingDirectory?.toString(),
+			};
+			this._stateManager.restoreSession(summary, sourceTurns);
+		} else {
+			// Create empty state for new sessions
+			const summary: ISessionSummary = {
+				resource: session.toString(),
+				provider: provider.id,
+				title: 'New Session',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: config?.workingDirectory?.toString(),
+			};
+			this._stateManager.createSession(summary);
+		}
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;

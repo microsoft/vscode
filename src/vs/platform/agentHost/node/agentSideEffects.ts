@@ -252,6 +252,24 @@ export class AgentSideEffects extends Disposable {
 				this._syncPendingMessages(action.session);
 				break;
 			}
+			case ActionType.SessionTruncated: {
+				const agent = this._options.getAgent(action.session);
+				// Resolve the protocol turnId to a 0-based index using the
+				// state manager's turn list. The reducer has already applied
+				// the truncation, so we look at the pre-truncation state via
+				// the turnId position.
+				let turnIndex: number | undefined;
+				if (action.turnId !== undefined) {
+					const state = this._stateManager.getSessionState(action.session);
+					// After the reducer, the turns array is already truncated.
+					// The kept turns include the target, so its index = length - 1.
+					turnIndex = state ? state.turns.length - 1 : undefined;
+				}
+				agent?.truncateSession?.(URI.parse(action.session), turnIndex).catch(err => {
+					this._logService.error('[AgentSideEffects] truncateSession failed', err);
+				});
+				break;
+			}
 		}
 	}
 

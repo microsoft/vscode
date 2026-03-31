@@ -310,12 +310,24 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		createSession: async (_client, params) => {
 			let createdSession: URI;
+			// Resolve fork turnId to a 0-based index using the source session's
+			// turn list in the state manager.
+			let fork: { session: URI; turnIndex: number } | undefined;
+			if (params.fork) {
+				const sourceState = this._stateManager.getSessionState(params.fork.session);
+				const turnIndex = sourceState?.turns.findIndex(t => t.id === params.fork!.turnId) ?? -1;
+				if (turnIndex < 0) {
+					throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
+				}
+				fork = { session: URI.parse(params.fork.session), turnIndex };
+			}
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
 					model: params.model,
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
 					session: URI.parse(params.session),
+					fork,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {

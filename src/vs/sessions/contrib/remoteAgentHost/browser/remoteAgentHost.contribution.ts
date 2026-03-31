@@ -346,6 +346,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsDelegation: false,
+			capabilities: {
+				supportsCheckpoints: true,
+			},
 		}));
 
 		// Session handler (unified)

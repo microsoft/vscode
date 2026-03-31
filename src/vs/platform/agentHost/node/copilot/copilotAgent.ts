@@ -5,6 +5,7 @@
 
 import { CopilotClient } from '@github/copilot-sdk';
 import { rgPath } from '@vscode/ripgrep';
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -18,6 +19,7 @@ import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAge
 import { type IPendingMessage, type PolicyState } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, SessionWrapperFactory } from './copilotAgentSession.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import { forkCopilotSessionOnDisk, getCopilotDataDir, truncateCopilotSessionOnDisk } from './copilotAgentForking.js';
 
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
@@ -32,6 +34,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
+	private readonly _sessionSequencer = new SequencerByKey<string>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -181,10 +184,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model}` : ''}`);
 		const client = await this._ensureClient();
 
+		// When forking, we manipulate the CLI's on-disk data and then resume
+		// instead of creating a fresh session via the SDK.
+		if (config?.fork) {
+			const sourceSessionId = AgentSession.id(config.fork.session);
+			const newSessionId = config.session ? AgentSession.id(config.session) : generateUuid();
+
+			// Serialize against the source session to prevent concurrent
+			// modifications while we read its on-disk data.
+			return this._sessionSequencer.queue(sourceSessionId, async () => {
+				this._logService.info(`[Copilot] Forking session ${sourceSessionId} at index ${config.fork!.turnIndex} → ${newSessionId}`);
+
+				// Ensure the source session is loaded so on-disk data is available
+				if (!this._sessions.has(sourceSessionId)) {
+					await this._resumeSession(sourceSessionId);
+				}
+
+				const copilotDataDir = getCopilotDataDir();
+				await forkCopilotSessionOnDisk(copilotDataDir, sourceSessionId, newSessionId, config.fork!.turnIndex);
+
+				// Resume the forked session so the SDK loads the forked history
+				const agentSession = await this._resumeSession(newSessionId);
+				const session = agentSession.sessionUri;
+				this._logService.info(`[Copilot] Forked session created: ${session.toString()}`);
+				return session;
+			});
+		}
+
+		const sessionId = config?.session ? AgentSession.id(config.session) : generateUuid();
 		const factory: SessionWrapperFactory = async callbacks => {
 			const raw = await client.createSession({
 				model: config?.model,
-				sessionId: config?.session ? AgentSession.id(config.session) : undefined,
+				sessionId,
 				streaming: true,
 				workingDirectory: config?.workingDirectory?.fsPath,
 				onPermissionRequest: callbacks.onPermissionRequest,
@@ -193,7 +224,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return new CopilotSessionWrapper(raw);
 		};
 
-		const agentSession = this._createAgentSession(factory, config?.workingDirectory, config?.session ? AgentSession.id(config.session) : undefined);
+		const agentSession = this._createAgentSession(factory, config?.workingDirectory, sessionId);
 		await agentSession.initializeSession();
 
 		const session = agentSession.sessionUri;
@@ -203,8 +234,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
-		await entry.send(prompt, attachments);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
+			await entry.send(prompt, attachments);
+		});
 	}
 
 	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, _queuedMessages: readonly IPendingMessage[]): void {
@@ -236,15 +269,57 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		this._sessions.deleteAndDispose(sessionId);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			this._sessions.deleteAndDispose(sessionId);
+		});
 	}
 
 	async abortSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
-		const entry = this._sessions.get(sessionId);
-		if (entry) {
-			await entry.abort();
-		}
+		await this._sessionSequencer.queue(sessionId, async () => {
+			const entry = this._sessions.get(sessionId);
+			if (entry) {
+				await entry.abort();
+			}
+		});
+	}
+
+	async truncateSession(session: URI, turnIndex?: number): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		await this._sessionSequencer.queue(sessionId, async () => {
+			this._logService.info(`[Copilot:${sessionId}] Truncating session${turnIndex !== undefined ? ` at index ${turnIndex}` : ' (all turns)'}`);
+
+			const keepUpToTurnIndex = turnIndex ?? -1;
+
+			// Destroy the SDK session first and wait for cleanup to complete,
+			// ensuring on-disk data (events.jsonl, locks) is released before
+			// we modify it. Then dispose the wrapper.
+			const entry = this._sessions.get(sessionId);
+			if (entry) {
+				await entry.destroySession();
+			}
+			this._sessions.deleteAndDispose(sessionId);
+
+			if (keepUpToTurnIndex >= 0) {
+				const copilotDataDir = getCopilotDataDir();
+				await truncateCopilotSessionOnDisk(copilotDataDir, sessionId, keepUpToTurnIndex);
+			}
+
+			// Resume the session from the modified on-disk data
+			await this._resumeSession(sessionId);
+			this._logService.info(`[Copilot:${sessionId}] Session truncated and resumed`);
+		});
+	}
+
+	async forkSession(sourceSession: URI, newSessionId: string, turnIndex: number): Promise<void> {
+		const sourceSessionId = AgentSession.id(sourceSession);
+		await this._sessionSequencer.queue(sourceSessionId, async () => {
+			this._logService.info(`[Copilot] Forking session ${sourceSessionId} at index ${turnIndex} → ${newSessionId}`);
+
+			const copilotDataDir = getCopilotDataDir();
+			await forkCopilotSessionOnDisk(copilotDataDir, sourceSessionId, newSessionId, turnIndex);
+			this._logService.info(`[Copilot] Forked session ${newSessionId} created on disk`);
+		});
 	}
 
 	async changeModel(session: URI, model: string): Promise<void> {
@@ -284,20 +359,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
 	 * to wire up the SDK session.
 	 */
-	private _createAgentSession(wrapperFactory: SessionWrapperFactory, workingDirectory: URI | undefined, sessionIdOverride?: string): CopilotAgentSession {
-		const rawId = sessionIdOverride ?? generateUuid();
-		const sessionUri = AgentSession.uri(this.id, rawId);
+	private _createAgentSession(wrapperFactory: SessionWrapperFactory, workingDirectory: URI | undefined, sessionId: string): CopilotAgentSession {
+		const sessionUri = AgentSession.uri(this.id, sessionId);
 
 		const agentSession = this._instantiationService.createInstance(
 			CopilotAgentSession,
 			sessionUri,
-			rawId,
+			sessionId,
 			workingDirectory,
 			this._onDidSessionProgress,
 			wrapperFactory,
 		);
 
-		this._sessions.set(rawId, agentSession);
+		this._sessions.set(sessionId, agentSession);
 		return agentSession;
 	}
 

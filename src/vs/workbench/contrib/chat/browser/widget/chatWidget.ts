@@ -199,6 +199,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsTerminalAttachments: true,
 	supportsPromptAttachments: true,
 	supportsHandOffs: true,
+	supportsCheckpoints: true,
 };
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
@@ -2159,7 +2160,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
-		this.listWidget?.updateRendererOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
+		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
+		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints, noFooter: true, progressMessageAtBottomOfResponse: true });
 		if (this.visible) {
 			this.listWidget?.rerender();
 		}
@@ -2337,8 +2339,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				options.queue = undefined;
 			}
 
+			// For agents that support checkpoints, preserve the checkpoint
+			// through finishedEditing so blocked requests are removed below
+			// and the agent host can dispatch a protocol truncation action.
+			const preserveCheckpoint = this._lockedAgent && !!this._attachmentCapabilities.supportsCheckpoints;
+			if (preserveCheckpoint) {
+				this.recentlyRestoredCheckpoint = true;
+			}
 			this.finishedEditing(true);
-			this.viewModel.model?.setCheckpoint(undefined);
+			if (!preserveCheckpoint) {
+				this.viewModel.model?.setCheckpoint(undefined);
+			}
 		}
 
 		const model = this.viewModel.model;
@@ -2408,6 +2419,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.chatService.removeRequest(this.viewModel.sessionResource, request.id);
 				}
 			}
+			this.viewModel.model.setCheckpoint(undefined);
 		}
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
