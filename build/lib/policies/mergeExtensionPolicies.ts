@@ -13,9 +13,9 @@ import type { ExportedPolicyDataDto, PolicyDto } from './policyDto.ts';
  */
 interface ExtensionConfigurationPolicyEntry {
 	readonly name: string;
-	readonly category: string;
+	readonly category?: string;
 	readonly minimumVersion: `${number}.${number}`;
-	readonly description: string;
+	readonly description?: string;
 }
 
 const root = path.resolve(import.meta.dirname, '../../..');
@@ -73,14 +73,9 @@ async function getDistroProductJson(): Promise<Record<string, unknown>> {
  * Converts a distro extensionConfigurationPolicy entry into a PolicyDto.
  * The localization key/value pair is synthesized from the setting key and description,
  * since extension configuration policies are not localized in the distro.
+ * Callers must ensure `description` and `category` are present before calling.
  */
-function toPolicy(key: string, entry: ExtensionConfigurationPolicyEntry): PolicyDto {
-	if (!entry.description) {
-		throw new Error(`Extension policy '${key}' must have a 'description'`);
-	}
-	if (!entry.category) {
-		throw new Error(`Extension policy '${key}' must have a 'category'`);
-	}
+function toPolicy(key: string, entry: ExtensionConfigurationPolicyEntry & { description: string; category: string }): PolicyDto {
 	return {
 		key,
 		name: entry.name,
@@ -110,15 +105,26 @@ async function main(): Promise<void> {
 	const existingKeys = new Set(policyData.policies.map(p => p.key));
 
 	let added = 0;
+	let skippedIncomplete = 0;
 	for (const [key, entry] of Object.entries(extensionPolicies)) {
 		if (existingKeys.has(key)) {
 			console.log(`  Skipping '${key}': already present in policyData.jsonc`);
 			continue;
 		}
 
+		if (!entry.description || !entry.category) {
+			console.log(`  Skipping '${key}': missing required 'description' or 'category'`);
+			skippedIncomplete++;
+			continue;
+		}
+
 		policyData.policies.push(toPolicy(key, entry));
 		console.log(`  Added '${key}' (${entry.name})`);
 		added++;
+	}
+
+	if (skippedIncomplete > 0) {
+		console.log(`Skipped ${skippedIncomplete} entries missing 'description' or 'category'. Update the distro to include these fields.`);
 	}
 
 	if (added > 0) {
