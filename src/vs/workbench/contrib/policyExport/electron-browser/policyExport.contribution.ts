@@ -183,7 +183,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 		if (!distroCommit) {
 			throw new Error(
 				'No distro commit found in package.json. ' +
-				'Run this command using scripts/export-policy-data.sh which sets up the required environment.'
+				'Use `npm run export-policy-data` which sets up the required environment.'
 			);
 		}
 
@@ -191,7 +191,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 		if (!token) {
 			throw new Error(
 				'GITHUB_TOKEN is required to fetch distro product.json. ' +
-				'Run this command using scripts/export-policy-data.sh which sets up the required environment.'
+				'Use `npm run export-policy-data` which sets up the required environment.'
 			);
 		}
 
