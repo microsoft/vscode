@@ -158,11 +158,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			this.mathLayoutParticipants.clear();
 			globalCodeBlockIndexStart = codeBlockStartIndex;
 
-			// We release editors in order so that it's more likely that the same editor will
-			// be assigned if this element is re-rendered right away, like it often is during
-			// progressive rendering
-			const orderedDisposablesList: IDisposable[] = [];
-
 			// TODO: Move katex support into chatMarkdownRenderer
 			const markedExtensions = enableMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
@@ -213,7 +208,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								dispose: () => diffPart.dispose()
 							};
 							this.allRefs.push(ref);
-							orderedDisposablesList.push(ref);
+							store.add(ref);
 							return diffPart.element;
 						}
 					}
@@ -266,7 +261,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								ref.object.focus();
 							},
 						});
-						orderedDisposablesList.push(ref);
+						store.add(ref);
 						return ref.object.element;
 					}
 
@@ -283,7 +278,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							return ref.object.element.focus();
 						},
 					});
-					orderedDisposablesList.push(ref);
+					store.add(ref);
 					return ref.object.element;
 				},
 				markedOptions: markedOpts,
@@ -330,16 +325,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					vertical: ScrollbarVisibility.Hidden,
 					horizontal: ScrollbarVisibility.Auto,
 				});
-				orderedDisposablesList.push(scrollable);
+				store.add(scrollable);
 				katexBlock.replaceWith(scrollable.getDomNode());
 
 				layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
 				scrollable.scanDomNode();
 			}
 
-			orderedDisposablesList.push(wrapTablesWithScrollable(this.domNode, layoutParticipants));
-
-			orderedDisposablesList.reverse().forEach(d => store.add(d));
+			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
 		};
 
 		// Always render immediately
@@ -398,7 +391,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, currentWidth: number): IDisposableReference<CodeBlockPart> {
-		const ref = this.editorPool.get();
+		const key = CodeBlockPart.poolKey(data.element.id, data.codeBlockIndex);
+		const ref = this.editorPool.get(key);
 		this.allRefs.push(ref);
 		ref.object.render(data, currentWidth);
 
