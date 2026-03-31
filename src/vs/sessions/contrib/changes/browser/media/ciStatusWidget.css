@@ -15,6 +15,7 @@
 
 /* Header */
 .ci-status-widget-header {
+	position: relative;
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -29,6 +30,7 @@
 
 .ci-status-widget-header:hover {
 	background-color: var(--vscode-list-hoverBackground);
+	padding-right: 22px;
 }
 
 .ci-status-widget-header:focus-visible {
@@ -38,19 +40,24 @@
 
 /* Chevron — right-aligned, visible on hover only */
 .ci-status-widget-header .group-chevron {
-	flex-shrink: 0;
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
 	width: 16px;
 	height: 16px;
-	display: none;
+	display: flex;
 	align-items: center;
 	justify-content: center;
 	font-size: 12px;
-	opacity: 0.7;
+	visibility: hidden;
+	opacity: 0;
 }
 
 .ci-status-widget-header:hover .group-chevron,
 .ci-status-widget-header:focus-within .group-chevron {
-	display: flex;
+	visibility: visible;
+	opacity: 0.7;
 }
 
 /* Title - single line, overflow ellipsis */
@@ -76,6 +83,7 @@
 	gap: 8px;
 	flex-shrink: 0;
 	margin-left: auto;
+	padding-right: 8px;
 }
 
 .ci-status-widget.has-fix-actions:hover .ci-status-widget-counts,

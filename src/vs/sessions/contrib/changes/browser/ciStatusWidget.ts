@@ -219,7 +219,7 @@ export class CIStatusWidget extends Disposable {
 		this._titleNode = dom.append(this._headerNode, $('.ci-status-widget-title'));
 		this._titleLabelNode = dom.append(this._titleNode, $('.ci-status-widget-title-label'));
 		this._titleLabelNode.textContent = localize('ci.checksLabel', "PR Checks");
-		this._countsNode = dom.append(this._headerNode, $('.ci-status-widget-counts'));
+		this._countsNode = dom.append(this._titleNode, $('.ci-status-widget-counts'));
 		this._headerActionBarContainer = dom.append(this._headerNode, $('.ci-status-widget-header-actions'));
 		this._headerActionBar = this._register(new ActionBar(this._headerActionBarContainer));
 		this._register(dom.addDisposableListener(this._headerActionBarContainer, dom.EventType.CLICK, e => {
@@ -249,7 +249,10 @@ export class CIStatusWidget extends Disposable {
 		}));
 
 		// Body (list of checks)
-		this._bodyNode = dom.append(this._domNode, $('.ci-status-widget-body'));
+		const bodyId = 'ci-status-widget-body';
+		this._bodyNode = dom.append(this._domNode, $(`.${bodyId}`));
+		this._bodyNode.id = bodyId;
+		this._headerNode.setAttribute('aria-controls', bodyId);
 
 		const listContainer = $('.ci-status-widget-list');
 		this._list = this._register(this._instantiationService.createInstance(
