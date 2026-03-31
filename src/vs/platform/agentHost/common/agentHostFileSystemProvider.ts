@@ -13,6 +13,16 @@ import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
 import { type IAgentConnection } from './agentService.js';
 import { IBrowseDirectoryResult, IDirectoryEntry, IFetchContentResult } from './state/protocol/commands.js';
 
+/**
+ * Minimal interface for browsing and fetching files from a remote endpoint.
+ *
+ * Both {@link IAgentConnection} (client→server) and client-exposed
+ * filesystems (server→client) satisfy this contract.
+ */
+export interface IRemoteFilesystemConnection {
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	fetchContent(uri: URI): Promise<IFetchContentResult>;
+}
 
 /**
  * Build a {@link AGENT_HOST_SCHEME} URI for a given connection authority

@@ -26,7 +26,7 @@ import { ILanguageModelToolsConfirmationService } from '../../../../common/tools
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
-import { ICodeBlockRenderOptions } from '../codeBlockPart.js';
+import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
@@ -202,7 +202,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				// View a single JSON line by default until they 'see more'
 				const initialText = rawJsonInput.replace(/\n */g, ' ');
 
-				const editor = this._register(this.editorPool.get());
+				const key = CodeBlockPart.poolKey(this.context.element.id, this.codeBlockStartIndex);
+				const editor = this._register(this.editorPool.get(key));
 				editor.object.render({
 					codeBlockIndex: this.codeBlockStartIndex,
 					element: this.context.element,

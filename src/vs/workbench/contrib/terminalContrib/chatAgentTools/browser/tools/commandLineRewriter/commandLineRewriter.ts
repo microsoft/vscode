@@ -17,6 +17,7 @@ export interface ICommandLineRewriterOptions {
 	cwd: URI | undefined;
 	shell: string;
 	os: OperatingSystem;
+	isBackground?: boolean;
 	requestUnsandboxedExecution?: boolean;
 }
 

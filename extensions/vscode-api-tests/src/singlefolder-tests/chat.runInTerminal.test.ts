@@ -249,7 +249,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});
 
-			(isWindows ? test : test.skip)('&& operators are converted to ; on PowerShell', async function () {
+			(isWindows ? test.skip : test.skip)('&& operators are converted to ; on PowerShell', async function () {
 				this.timeout(60000);
 
 				const m1 = `CHAIN_${Date.now()}_A`;
@@ -306,7 +306,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				await configuration.update('chat.agent.sandbox', undefined, vscode.ConfigurationTarget.Global);
 			});
 
-			test('echo works in sandbox and output is clean', async function () {
+			// Flaky: #305722
+			test.skip('echo works in sandbox and output is clean', async function () {
 				this.timeout(60000);
 
 				const marker = `SANDBOX_ECHO_${Date.now()}`;

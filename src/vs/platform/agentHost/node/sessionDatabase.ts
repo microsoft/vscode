@@ -44,6 +44,13 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			)`,
 		].join(';\n'),
 	},
+	{
+		version: 2,
+		sql: `CREATE TABLE IF NOT EXISTS session_metadata (
+			key   TEXT PRIMARY KEY NOT NULL,
+			value TEXT NOT NULL
+		)`,
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -112,7 +119,7 @@ function dbOpen(path: string): Promise<Database> {
  * `PRAGMA user_version` are run inside a serialized transaction. After all
  * migrations complete the pragma is updated to the highest applied version.
  */
-async function runMigrations(db: Database, migrations: readonly ISessionDatabaseMigration[]): Promise<void> {
+export async function runMigrations(db: Database, migrations: readonly ISessionDatabaseMigration[]): Promise<void> {
 	// Enable foreign key enforcement — must be set outside a transaction
 	// and every time a connection is opened.
 	await dbExec(db, 'PRAGMA foreign_keys = ON');
@@ -154,8 +161,8 @@ async function runMigrations(db: Database, migrations: readonly ISessionDatabase
  */
 export class SessionDatabase implements ISessionDatabase {
 
-	private _dbPromise: Promise<Database> | undefined;
-	private _closed: Promise<void> | true | undefined;
+	protected _dbPromise: Promise<Database> | undefined;
+	protected _closed: Promise<void> | true | undefined;
 	private readonly _fileEditSequencer = new SequencerByKey<string>();
 
 	constructor(
@@ -174,7 +181,7 @@ export class SessionDatabase implements ISessionDatabase {
 		return inst;
 	}
 
-	private _ensureDb(): Promise<Database> {
+	protected _ensureDb(): Promise<Database> {
 		if (this._closed) {
 			return Promise.reject(new Error('SessionDatabase has been disposed'));
 		}
@@ -291,6 +298,19 @@ export class SessionDatabase implements ISessionDatabase {
 				afterContent: toUint8Array(row.after_content),
 			};
 		});
+	}
+
+	// ---- Session metadata -----------------------------------------------
+
+	async getMetadata(key: string): Promise<string | undefined> {
+		const db = await this._ensureDb();
+		const row = await dbGet(db, 'SELECT value FROM session_metadata WHERE key = ?', [key]);
+		return row?.value as string | undefined;
+	}
+
+	async setMetadata(key: string, value: string): Promise<void> {
+		const db = await this._ensureDb();
+		await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 	}
 
 	async close() {

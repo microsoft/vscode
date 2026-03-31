@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -41,6 +41,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionDataService } from './sessionDataService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
+import { resolveServerUrls } from './serverUrls.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -53,6 +54,7 @@ const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 
 interface IServerOptions {
 	readonly port: number;
+	readonly host: string | undefined;
 	readonly enableMockAgent: boolean;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
@@ -64,6 +66,8 @@ function parseServerOptions(): IServerOptions {
 	const envPort = parseInt(process.env['VSCODE_AGENT_HOST_PORT'] ?? '8081', 10);
 	const portIdx = argv.indexOf('--port');
 	const port = portIdx >= 0 ? parseInt(argv[portIdx + 1], 10) : envPort;
+	const hostIdx = argv.indexOf('--host');
+	const host = hostIdx >= 0 ? argv[hostIdx + 1] : undefined;
 	const enableMockAgent = argv.includes('--enable-mock-agent');
 	const quiet = argv.includes('--quiet');
 
@@ -107,7 +111,7 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, enableMockAgent, quiet, connectionToken };
+	return { port, host, enableMockAgent, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -179,6 +183,7 @@ async function main(): Promise<void> {
 	// WebSocket server
 	const wsServer = disposables.add(await WebSocketProtocolServer.create({
 		port: options.port,
+		host: options.host,
 		connectionTokenValidate: options.connectionToken
 			? token => token === options.connectionToken
 			: undefined,
@@ -200,14 +205,22 @@ async function main(): Promise<void> {
 
 	// Report ready
 	function reportReady(addr: string): void {
-		const listeningPort = addr.split(':').pop();
-		let wsUrl = `ws://${addr}`;
-		if (options.connectionToken) {
-			wsUrl += `?tkn=${options.connectionToken}`;
-		}
+		const listeningPort = Number(addr.split(':').pop());
 		process.stdout.write(`READY:${listeningPort}\n`);
-		log(`WebSocket server listening on ${wsUrl}`);
-		logService.info(`[AgentHostServer] WebSocket server listening on ${wsUrl}`);
+
+		const urls = resolveServerUrls(options.host, listeningPort);
+		for (const url of urls.local) {
+			log(`  Local:   ${url}`);
+			logService.info(`[AgentHostServer] Local:   ${url}`);
+		}
+		for (const url of urls.network) {
+			log(`  Network: ${url}`);
+			logService.info(`[AgentHostServer] Network: ${url}`);
+		}
+		if (urls.network.length === 0 && options.host === undefined) {
+			log('  Network: use --host to expose');
+			logService.info('[AgentHostServer] Network: use --host to expose');
+		}
 	}
 
 	const address = wsServer.address;
