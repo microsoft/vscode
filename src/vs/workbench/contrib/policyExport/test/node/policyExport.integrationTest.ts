@@ -63,7 +63,7 @@ suite('PolicyExport Integration Tests', () => {
 					env: { ...process.env, GITHUB_TOKEN: '' },
 				});
 			} catch {
-				console.log('Skipping extension policy merge (distro not available)');
+				// Expected when .build/distro is not available
 			}
 
 			// Read both files
