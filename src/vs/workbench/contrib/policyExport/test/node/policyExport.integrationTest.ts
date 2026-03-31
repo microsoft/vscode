@@ -53,14 +53,6 @@ suite('PolicyExport Integration Tests', () => {
 				env: { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' }
 			});
 
-			// Merge extension configuration policies using a checked-in fixture
-			// so the test doesn't need distro access or GITHUB_TOKEN.
-			const fixturePath = join(rootPath, 'src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json');
-			await exec(`node build/lib/policies/mergeExtensionPolicies.ts "${tempFile}"`, {
-				cwd: rootPath,
-				env: { ...process.env, GITHUB_TOKEN: '', DISTRO_PRODUCT_JSON: fixturePath },
-			});
-
 			// Read both files
 			const [exportedContent, checkedInContent] = await Promise.all([
 				fs.readFile(tempFile, 'utf-8').then(normalizeContent),
@@ -71,7 +63,7 @@ suite('PolicyExport Integration Tests', () => {
 			assert.strictEqual(
 				exportedContent,
 				checkedInContent,
-				'Exported policy data should match the checked-in file. If this fails, run: ./scripts/code.sh --export-policy-data && node build/lib/policies/mergeExtensionPolicies.ts'
+				'Exported policy data should match the checked-in file. If this fails, run: ./scripts/code.sh --export-policy-data'
 			);
 		} finally {
 			// Clean up temp file
@@ -80,100 +72,6 @@ suite('PolicyExport Integration Tests', () => {
 			} catch {
 				// Ignore cleanup errors
 			}
-		}
-	});
-
-	test('mergeExtensionPolicies merges entries from mock distro', async function () {
-		// Skip this test in ADO pipelines
-		if (process.env['TF_BUILD']) {
-			this.skip();
-		}
-
-		this.timeout(30000);
-
-		const rootPath = dirname(FileAccess.asFileUri('').fsPath);
-
-		// Create a mock distro product.json with extension policies
-		const mockDistroDir = join(os.tmpdir(), `mock-distro-${Date.now()}`);
-		const mockProductJson = join(mockDistroDir, 'product.json');
-		const tempPolicyData = join(os.tmpdir(), `policyData-merge-test-${Date.now()}.jsonc`);
-
-		await fs.mkdir(mockDistroDir, { recursive: true });
-
-		await fs.writeFile(mockProductJson, JSON.stringify({
-			extensionConfigurationPolicy: {
-				'test.extension.settingA': {
-					name: 'TestSettingA',
-					category: 'Extensions',
-					minimumVersion: '1.99',
-					description: 'Test setting A description.'
-				},
-				'test.extension.settingB': {
-					name: 'TestSettingB',
-					category: 'InteractiveSession',
-					minimumVersion: '1.100',
-					description: 'Test setting B description.'
-				}
-			}
-		}));
-
-		// Create a minimal policyData file to merge into
-		await fs.writeFile(tempPolicyData, JSON.stringify({
-			categories: [
-				{ key: 'Extensions', name: { key: 'ext', value: 'Extensions' } },
-				{ key: 'InteractiveSession', name: { key: 'chat', value: 'Chat' } }
-			],
-			policies: [
-				{
-					key: 'existing.policy',
-					name: 'ExistingPolicy',
-					category: 'Extensions',
-					minimumVersion: '1.99',
-					localization: { description: { key: 'existing.policy', value: 'Already exists.' } },
-					type: 'boolean',
-					default: true
-				}
-			]
-		}, null, 4));
-
-		try {
-			// Run the merge script with DISTRO_PRODUCT_JSON pointing to our mock
-			await exec(`node build/lib/policies/mergeExtensionPolicies.ts "${tempPolicyData}"`, {
-				cwd: rootPath,
-				env: { ...process.env, GITHUB_TOKEN: '', DISTRO_PRODUCT_JSON: mockProductJson },
-			});
-
-			// Parse the result
-			const result = JSON.parse(stripComments(await fs.readFile(tempPolicyData, 'utf-8')));
-			const policyKeys = result.policies.map((p: { key: string }) => p.key);
-
-			// Original policy should still be there
-			assert.ok(policyKeys.includes('existing.policy'), 'existing policy should be preserved');
-
-			// Both extension policies should have been added
-			assert.ok(policyKeys.includes('test.extension.settingA'), 'settingA should be merged');
-			assert.ok(policyKeys.includes('test.extension.settingB'), 'settingB should be merged');
-
-			// Verify the merged policy structure
-			const settingA = result.policies.find((p: { key: string }) => p.key === 'test.extension.settingA');
-			assert.strictEqual(settingA.name, 'TestSettingA');
-			assert.strictEqual(settingA.category, 'Extensions');
-			assert.strictEqual(settingA.type, 'boolean');
-			assert.strictEqual(settingA.default, true);
-			assert.strictEqual(settingA.localization.description.key, 'test.extension.settingA');
-			assert.strictEqual(settingA.localization.description.value, 'Test setting A description.');
-
-			// Running again should be idempotent (no duplicates)
-			await exec(`node build/lib/policies/mergeExtensionPolicies.ts "${tempPolicyData}"`, {
-				cwd: rootPath,
-				env: { ...process.env, GITHUB_TOKEN: '', DISTRO_PRODUCT_JSON: mockProductJson },
-			});
-
-			const result2 = JSON.parse(stripComments(await fs.readFile(tempPolicyData, 'utf-8')));
-			assert.strictEqual(result2.policies.length, 3, 'idempotent: should still have exactly 3 policies');
-		} finally {
-			try { await fs.unlink(tempPolicyData); } catch { /* ignore */ }
-			try { await fs.rm(mockDistroDir, { recursive: true }); } catch { /* ignore */ }
 		}
 	});
 });

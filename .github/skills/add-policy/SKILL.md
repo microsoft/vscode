@@ -124,21 +124,12 @@ npm run compile-check-ts-native
 Regenerate the auto-generated policy catalog:
 
 ```bash
-npm run transpile-client && ./scripts/code.sh --export-policy-data && GITHUB_TOKEN=$(gh auth token) node build/lib/policies/mergeExtensionPolicies.ts
+npm run transpile-client && ./scripts/code.sh --export-policy-data
 ```
 
-The first command exports policies from the configuration registry. The merge step fetches `extensionConfigurationPolicy` entries from the distro's stable `product.json` and adds them to the output. It checks `.build/distro/` first; if unavailable, it uses `GITHUB_TOKEN` to fetch from the GitHub API. The `gh auth token` command provides the token from your authenticated GitHub CLI session.
+This single command exports all policies from the configuration registry **and** merges extension configuration policies from `build/lib/policies/extensionPolicies.json`.
 
 This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
-
-### Troubleshooting the merge step
-
-The merge script reads `extensionConfigurationPolicy` entries from the distro commit pinned in `package.json`. Common issues:
-
-- **"Extension policy '...' must have a 'description'" or "'category'"**: The pinned distro commit has extension policy entries missing required fields. This means a distro PR adding `description` and `category` hasn't merged yet, or `package.json` hasn't been updated to point to the new distro commit. Merge the distro PR first, then bump the distro commit in `package.json`.
-- **"GITHUB_TOKEN environment variable is required"**: No local `.build/distro/` directory exists and no token was provided. Use `GITHUB_TOKEN=$(gh auth token)` or download the distro first.
-- **"No distro commit found in package.json"**: The `distro` field is missing from `package.json`. This is expected in pure OSS builds — extension policies won't be merged.
-- **"Failed to fetch distro product.json: 404"**: The pinned commit doesn't exist or your token doesn't have access to `microsoft/vscode-distro`.
 
 
 ## Policy for extension-provided settings
@@ -149,7 +140,7 @@ Extension authors cannot add `policy:` fields directly—their settings are defi
 
 1. **Source of truth**: The `extensionConfigurationPolicy` map lives in `vscode-distro` under `mixin/{quality}/product.json` (stable, insider, exploration).
 2. **Runtime**: When VS Code starts with a distro-mixed `product.json`, `configurationExtensionPoint.ts` reads `extensionConfigurationPolicy` and attaches matching `policy` objects to extension-contributed configuration properties.
-3. **Export/build**: Since `--export-policy-data` runs on the OSS dev build (no distro), extension policies are NOT captured by the normal export. A separate merge step fetches the distro's `product.json` at the exact commit pinned in `package.json` and adds the extension policies to `policyData.jsonc`.
+3. **Export/build**: The `--export-policy-data` command reads `build/lib/policies/extensionPolicies.json` and merges those entries into the exported output. This file is a checked-in copy of the distro's extension policy data.
 
 ### Distro format
 
@@ -169,12 +160,13 @@ Each entry in `extensionConfigurationPolicy` must include:
 - `name`: PascalCase policy name, unique across all policies
 - `category`: Must be a valid `PolicyCategory` enum value (e.g., `InteractiveSession`, `Extensions`)
 - `minimumVersion`: The VS Code version that first shipped this policy
-- `description`: Human-readable description string used by `mergeExtensionPolicies.ts` to generate localization key/value pairs for ADMX/ADML/macOS/Linux policy artifacts
+- `description`: Human-readable description string used to generate localization key/value pairs for ADMX/ADML/macOS/Linux policy artifacts
 
 ### Adding a new extension policy
 
 1. Add the entry to `extensionConfigurationPolicy` in **all three** quality `product.json` files in `vscode-distro` (`mixin/stable/`, `mixin/insider/`, `mixin/exploration/`)
-2. After the distro PR merges and `package.json` is updated with the new distro commit, regenerate `policyData.jsonc` (see Step 4 above)
+2. Copy the new entry into `build/lib/policies/extensionPolicies.json` in this repo
+3. Regenerate `policyData.jsonc` by running `./scripts/code.sh --export-policy-data` (see Step 4 above)
 
 ### Downstream consumers
 
