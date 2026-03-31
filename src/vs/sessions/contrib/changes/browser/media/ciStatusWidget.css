@@ -184,6 +184,12 @@
 	width: 100%;
 }
 
+.ci-status-widget-check-label .monaco-icon-label::before {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+}
+
 .ci-status-widget-check-label .monaco-icon-label-container,
 .ci-status-widget-check-label .monaco-icon-name-container {
 	display: block;
