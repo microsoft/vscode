@@ -56,6 +56,8 @@ export interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
 	agentName?: string;
+	model?: string;
+	tier?: string;
 }
 
 export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
@@ -113,6 +115,17 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				description: 'Optional name of a specific agent to invoke. If not provided, uses the current agent.'
 			};
 			modelDescription += `\n- If the user asks for a certain agent, you MUST provide that EXACT agent name (case-sensitive) to invoke that specific agent.`;
+
+			inputSchema.properties.model = {
+				type: 'string',
+				description: 'Optional model identifier for this subagent invocation. Overrides the agent definition\'s default model. Examples: claude-sonnet-4-6, claude-haiku-4-5, gpt-4o, gpt-4o-mini.'
+			};
+
+			inputSchema.properties.tier = {
+				type: 'string',
+				description: 'Optional capability tier for this subagent invocation. Selects a model from the agent\'s `tiers` frontmatter. Standard tiers: fast (low cost), standard (balanced), deep (maximum capability).'
+			};
+			modelDescription += `\n- You may optionally specify a \`model\` to run the subagent with a specific language model, or a \`tier\` to select from the agent's predefined capability tiers (fast, standard, deep). Use \`model\` for explicit control or \`tier\` for semantic intent.`;
 		}
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentTool.Id,
@@ -172,7 +185,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						resolvedModelName = cached.resolvedModelName;
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
-						const resolved = this.resolveSubagentModel(subagent, invocation.modelId);
+						const resolved = this.resolveSubagentModel(subagent, invocation.modelId, args.model, args.tier);
 						modeModelId = resolved.modeModelId;
 						resolvedModelName = resolved.resolvedModelName;
 					}
@@ -207,7 +220,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				const cached = this._resolvedModels.get(invocation.callId);
 				if (cached) {
 					this._resolvedModels.delete(invocation.callId);
+					modeModelId = cached.modeModelId ?? modeModelId;
 					resolvedModelName = cached.resolvedModelName;
+				} else if (args.model) {
+					// Call-time model override without a named subagent
+					const resolved = this.resolveSubagentModel(undefined, invocation.modelId, args.model);
+					modeModelId = resolved.modeModelId;
+					resolvedModelName = resolved.resolvedModelName;
 				} else {
 					const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
 					resolvedModelName = resolvedModelMetadata?.name;
@@ -393,12 +412,19 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	/**
-	 * Resolves the model to be used by a subagent, applying multiplier-based
-	 * fallback to avoid using a more expensive model than the main agent.
+	 * Resolves the model to be used by a subagent. Priority order:
+	 * 1. Call-time `model` parameter (highest precedence)
+	 * 2. Call-time `tier` parameter (resolves from agent's `tiers` frontmatter)
+	 * 3. Agent's top-level `model:` frontmatter qualified names
+	 * 4. Parent model (default)
+	 *
+	 * After resolution, applies a multiplier-based cap to prevent subagents
+	 * from using a more expensive model than the parent agent.
 	 */
-	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
+	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, callTimeModelHint?: string, callTimeTier?: string): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
 		let modeModelId = mainModelId;
 
+		// Priority 3: Agent's top-level `model:` frontmatter
 		if (subagent) {
 			const modeModelQualifiedNames = subagent.model;
 			if (modeModelQualifiedNames) {
@@ -411,23 +437,67 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					}
 				}
 			}
+		}
 
-			// If the subagent's model has a larger multiplier than the main agent's model,
-			// fall back to the main agent's model to avoid using a more expensive model.
-			if (modeModelId && modeModelId !== mainModelId) {
-				const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
-				const subagentModelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
-				const mainMultiplier = mainModelMetadata?.multiplierNumeric;
-				const subagentMultiplier = subagentModelMetadata?.multiplierNumeric;
-				if (mainMultiplier !== undefined && subagentMultiplier !== undefined && subagentMultiplier > mainMultiplier) {
-					this.logService.warn(`[RunSubagentTool] Subagent '${subagent.name}' requested model '${subagentModelMetadata?.name}' (multiplier: ${subagentMultiplier}) which has a larger multiplier than the main agent model '${mainModelMetadata?.name}' (multiplier: ${mainMultiplier}). Falling back to the main agent model.`);
-					modeModelId = mainModelId;
+		// Priority 2: Call-time `tier` parameter (resolves from agent's tiers frontmatter)
+		if (callTimeTier && subagent?.tiers) {
+			const tierConfig = subagent.tiers[callTimeTier];
+			if (tierConfig?.model) {
+				const resolved = this.resolveModelHint(tierConfig.model);
+				if (resolved) {
+					modeModelId = resolved;
+				} else {
+					this.logService.warn(`[RunSubagentTool] Tier '${callTimeTier}' model '${tierConfig.model}' not found in model registry. Using agent's default model.`);
 				}
+			} else {
+				this.logService.warn(`[RunSubagentTool] Tier '${callTimeTier}' not defined in agent '${subagent.name}' tiers. Using agent's default model.`);
 			}
 		}
 
-		const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
-		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name };
+		// Priority 1: Call-time `model` parameter (highest precedence)
+		if (callTimeModelHint) {
+			const resolved = this.resolveModelHint(callTimeModelHint);
+			if (resolved) {
+				modeModelId = resolved;
+			} else {
+				this.logService.warn(`[RunSubagentTool] Call-time model '${callTimeModelHint}' not found in model registry. Ignoring override.`);
+			}
+		}
+
+		// If the resolved model has a larger multiplier than the main agent's model,
+		// fall back to the main agent's model to avoid using a more expensive model.
+		if (modeModelId && modeModelId !== mainModelId) {
+			const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
+			const resolvedModelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
+			const mainMultiplier = mainModelMetadata?.multiplierNumeric;
+			const resolvedMultiplier = resolvedModelMetadata?.multiplierNumeric;
+			if (mainMultiplier !== undefined && resolvedMultiplier !== undefined && resolvedMultiplier > mainMultiplier) {
+				const source = callTimeModelHint ? 'Call-time' : callTimeTier ? `Tier '${callTimeTier}'` : subagent ? `Subagent '${subagent.name}'` : 'Unknown';
+				this.logService.warn(`[RunSubagentTool] ${source} requested model '${resolvedModelMetadata?.name}' (multiplier: ${resolvedMultiplier}) which exceeds the main agent model '${mainModelMetadata?.name}' (multiplier: ${mainMultiplier}). Falling back to the main agent model.`);
+				modeModelId = mainModelId;
+			}
+		}
+
+		const finalMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
+		return { modeModelId, resolvedModelName: finalMetadata?.name };
+	}
+
+	/**
+	 * Attempts to resolve a model hint string to a model identifier.
+	 * Tries qualified name lookup first, then direct model ID lookup.
+	 */
+	private resolveModelHint(modelHint: string): string | undefined {
+		// Try qualified name lookup first (e.g., "Claude Sonnet 4.6 (Copilot)")
+		const byQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(modelHint);
+		if (byQualifiedName?.identifier) {
+			return byQualifiedName.identifier;
+		}
+		// Try direct model ID lookup (e.g., "claude-sonnet-4-6")
+		const byId = this.languageModelsService.lookupLanguageModel(modelHint);
+		if (byId) {
+			return modelHint;
+		}
+		return undefined;
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -436,7 +506,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const subagent = args.agentName ? await this.getSubAgentByName(args.agentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()
-		const resolved = this.resolveSubagentModel(subagent, context.modelId);
+		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model, args.tier);
 		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {

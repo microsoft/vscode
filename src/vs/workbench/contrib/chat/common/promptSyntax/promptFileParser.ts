@@ -84,6 +84,7 @@ export namespace PromptHeaderAttributes {
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
+	export const tiers = 'tiers';
 }
 
 export class PromptHeader {
@@ -328,6 +329,35 @@ export class PromptHeader {
 			return attr.value;
 		}
 		return undefined;
+	}
+
+	/**
+	 * Parses `tiers` from the frontmatter. Expected format:
+	 * ```yaml
+	 * tiers:
+	 *   fast:
+	 *     model: claude-haiku-4.5
+	 *   standard:
+	 *     model: claude-sonnet-4.6
+	 * ```
+	 * Returns a map of tier name to `{ model: string }`, or undefined if not present.
+	 */
+	public get tiers(): Record<string, { model: string }> | undefined {
+		const attr = this._parsedHeader.attributes.find(a => a.key === PromptHeaderAttributes.tiers);
+		if (attr?.value.type !== 'map') {
+			return undefined;
+		}
+		const result: Record<string, { model: string }> = {};
+		for (const prop of attr.value.properties) {
+			const tierName = prop.key.value;
+			if (prop.value.type === 'map') {
+				const modelProp = prop.value.properties.find(p => p.key.value === 'model');
+				if (modelProp?.value.type === 'scalar' && modelProp.value.value) {
+					result[tierName] = { model: modelProp.value.value };
+				}
+			}
+		}
+		return Object.keys(result).length > 0 ? result : undefined;
 	}
 
 	private getBooleanAttribute(key: string): boolean | undefined {

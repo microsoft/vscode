@@ -204,6 +204,13 @@ export interface ICustomAgent {
 	readonly model?: readonly string[];
 
 	/**
+	 * Tier-specific model declarations from the `tiers` frontmatter field.
+	 * Maps tier names (e.g., 'fast', 'standard', 'deep') to model qualified names.
+	 * Allows a single agent to serve at different capability/cost levels.
+	 */
+	readonly tiers?: Readonly<Record<string, { readonly model: string }>>;
+
+	/**
 	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.
 	 */
 	readonly argumentHint?: string;

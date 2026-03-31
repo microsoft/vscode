@@ -783,6 +783,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 					tools = mapClaudeTools(tools);
 				}
 
+				// Parse tiers from the frontmatter if present
+				const tiers = ast.header.tiers;
+
 				// Parse hooks from the frontmatter if present
 				let hooks: ChatRequestHooks | undefined;
 				const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
@@ -793,7 +796,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };
+				return { uri, name, description, model, tiers, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };
 			})
 		);
 

@@ -120,6 +120,10 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		type: 'scalar | sequence',
 		description: localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'),
 	},
+	[PromptHeaderAttributes.tiers]: {
+		type: 'map',
+		description: localize('promptHeader.agent.tiers', 'Declare model preferences for different capability tiers (e.g., fast, standard, deep). Each tier maps to a model name. Orchestrators choose a tier at call time.'),
+	},
 	[PromptHeaderAttributes.tools]: {
 		type: 'scalar | sequence',
 		description: localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'),

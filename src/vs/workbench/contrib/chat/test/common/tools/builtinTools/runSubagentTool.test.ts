@@ -275,13 +275,14 @@ suite('RunSubagentTool', () => {
 			return tool;
 		}
 
-		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+		function createAgent(name: string, modelQualifiedNames?: string[], tiers?: Record<string, { model: string }>): ICustomAgent {
 			return {
 				uri: URI.parse(`file:///test/${name}.md`),
 				name,
 				description: `Agent ${name}`,
 				tools: ['tool1'],
 				model: modelQualifiedNames,
+				tiers,
 				agentInstructions: { content: 'test', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
 				target: Target.Undefined,
@@ -492,6 +493,452 @@ suite('RunSubagentTool', () => {
 				prompt: 'test',
 				modelName: 'GPT-4o',
 			});
+		});
+	});
+
+	suite('call-time model parameter', () => {
+		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+			return {
+				extension: new ExtensionIdentifier('test.extension'),
+				name,
+				id: name.toLowerCase().replace(/\s+/g, '-'),
+				vendor: 'TestVendor',
+				version: '1.0',
+				family: 'test',
+				maxInputTokens: 128000,
+				maxOutputTokens: 8192,
+				isDefaultForLocation: {},
+				modelPickerCategory: undefined,
+				multiplierNumeric,
+			};
+		}
+
+		function createTool(opts: {
+			models: Map<string, ILanguageModelChatMetadata>;
+			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+			customAgents?: ICustomAgent[];
+		}) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService({
+				'chat.customAgentInSubagent.enabled': true,
+			});
+			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
+
+			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+				lookupLanguageModel(modelId: string) {
+					return opts.models.get(modelId);
+				},
+				lookupLanguageModelByQualifiedName(qualifiedName: string) {
+					return opts.qualifiedNameMap?.get(qualifiedName);
+				},
+			};
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				{} as IChatAgentService,
+				{} as IChatService,
+				mockToolsService,
+				mockLanguageModelsService as ILanguageModelsService,
+				new NullLogService(),
+				mockToolsService,
+				configService,
+				promptsService,
+				{} as IInstantiationService,
+				{} as IProductService,
+			));
+
+			return tool;
+		}
+
+		function createAgent(name: string, modelQualifiedNames?: string[], tiers?: Record<string, { model: string }>): ICustomAgent {
+			return {
+				uri: URI.parse(`file:///test/${name}.md`),
+				name,
+				description: `Agent ${name}`,
+				tools: ['tool1'],
+				model: modelQualifiedNames,
+				tiers,
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }
+			};
+		}
+
+		test('includes model and tier properties in schema when custom agents enabled', () => {
+			const models = new Map<string, ILanguageModelChatMetadata>();
+			const tool = createTool({ models });
+			const toolData = tool.getToolData();
+
+			assert.ok(toolData.inputSchema?.properties?.model, 'model should be in schema when custom agents enabled');
+			assert.ok(toolData.inputSchema?.properties?.tier, 'tier should be in schema when custom agents enabled');
+		});
+
+		test('model parameter overrides agent frontmatter model via qualified name', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const agentMeta = createMetadata('Claude Haiku', 0.5);
+			const overrideMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['agent-model-id', agentMeta],
+				['override-model-id', overrideMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Haiku (TestVendor)', { metadata: agentMeta, identifier: 'agent-model-id' }],
+				['Claude Sonnet (TestVendor)', { metadata: overrideMeta, identifier: 'override-model-id' }],
+			]);
+
+			const agent = createAgent('TestAgent', ['Claude Haiku (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', agentName: 'TestAgent', model: 'Claude Sonnet (TestVendor)' },
+				toolCallId: 'model-override-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.strictEqual(result.toolSpecificData?.modelName, 'Claude Sonnet');
+		});
+
+		test('model parameter overrides via direct model ID', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const overrideMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['claude-sonnet', overrideMeta],
+			]);
+
+			const tool = createTool({ models });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', model: 'claude-sonnet' },
+				toolCallId: 'model-direct-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.strictEqual(result.toolSpecificData?.modelName, 'Claude Sonnet');
+		});
+
+		test('model parameter is subject to multiplier cap', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const expensiveMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['o3-pro', expensiveMeta],
+			]);
+
+			const tool = createTool({ models });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', model: 'o3-pro' },
+				toolCallId: 'model-cap-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Should fall back to main model due to multiplier cap
+			assert.strictEqual(result.toolSpecificData?.modelName, 'GPT-4o');
+		});
+
+		test('unknown model hint is ignored gracefully', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+			]);
+
+			const tool = createTool({ models });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', model: 'nonexistent-model' },
+				toolCallId: 'model-unknown-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Should fall back to main model since override was not found
+			assert.strictEqual(result.toolSpecificData?.modelName, 'GPT-4o');
+		});
+
+		test('model param takes precedence over tier param', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const tierMeta = createMetadata('Claude Haiku', 0.25);
+			const modelMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['haiku-id', tierMeta],
+				['sonnet-id', modelMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Haiku (TestVendor)', { metadata: tierMeta, identifier: 'haiku-id' }],
+				['Claude Sonnet (TestVendor)', { metadata: modelMeta, identifier: 'sonnet-id' }],
+			]);
+
+			const agent = createAgent('TieredAgent', undefined, {
+				fast: { model: 'Claude Haiku (TestVendor)' },
+			});
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: {
+					prompt: 'test', description: 'test',
+					agentName: 'TieredAgent',
+					tier: 'fast',
+					model: 'Claude Sonnet (TestVendor)',
+				},
+				toolCallId: 'precedence-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// model takes precedence over tier
+			assert.strictEqual(result.toolSpecificData?.modelName, 'Claude Sonnet');
+		});
+	});
+
+	suite('tier resolution', () => {
+		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+			return {
+				extension: new ExtensionIdentifier('test.extension'),
+				name,
+				id: name.toLowerCase().replace(/\s+/g, '-'),
+				vendor: 'TestVendor',
+				version: '1.0',
+				family: 'test',
+				maxInputTokens: 128000,
+				maxOutputTokens: 8192,
+				isDefaultForLocation: {},
+				modelPickerCategory: undefined,
+				multiplierNumeric,
+			};
+		}
+
+		function createTool(opts: {
+			models: Map<string, ILanguageModelChatMetadata>;
+			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+			customAgents?: ICustomAgent[];
+		}) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService({
+				'chat.customAgentInSubagent.enabled': true,
+			});
+			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
+
+			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+				lookupLanguageModel(modelId: string) {
+					return opts.models.get(modelId);
+				},
+				lookupLanguageModelByQualifiedName(qualifiedName: string) {
+					return opts.qualifiedNameMap?.get(qualifiedName);
+				},
+			};
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				{} as IChatAgentService,
+				{} as IChatService,
+				mockToolsService,
+				mockLanguageModelsService as ILanguageModelsService,
+				new NullLogService(),
+				mockToolsService,
+				configService,
+				promptsService,
+				{} as IInstantiationService,
+				{} as IProductService,
+			));
+
+			return tool;
+		}
+
+		function createAgent(name: string, modelQualifiedNames?: string[], tiers?: Record<string, { model: string }>): ICustomAgent {
+			return {
+				uri: URI.parse(`file:///test/${name}.md`),
+				name,
+				description: `Agent ${name}`,
+				tools: ['tool1'],
+				model: modelQualifiedNames,
+				tiers,
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }
+			};
+		}
+
+		test('tier resolves to correct model from agent tiers frontmatter', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const fastMeta = createMetadata('Claude Haiku', 0.25);
+			const deepMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['haiku-id', fastMeta],
+				['sonnet-id', deepMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Haiku (TestVendor)', { metadata: fastMeta, identifier: 'haiku-id' }],
+				['Claude Sonnet (TestVendor)', { metadata: deepMeta, identifier: 'sonnet-id' }],
+			]);
+
+			const agent = createAgent('TieredAgent', undefined, {
+				fast: { model: 'Claude Haiku (TestVendor)' },
+				deep: { model: 'Claude Sonnet (TestVendor)' },
+			});
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'fast' },
+				toolCallId: 'tier-fast-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.strictEqual(result.toolSpecificData?.modelName, 'Claude Haiku');
+		});
+
+		test('tier overrides agent frontmatter model', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const agentDefaultMeta = createMetadata('Claude Sonnet', 1);
+			const tierMeta = createMetadata('Claude Haiku', 0.25);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['sonnet-id', agentDefaultMeta],
+				['haiku-id', tierMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Sonnet (TestVendor)', { metadata: agentDefaultMeta, identifier: 'sonnet-id' }],
+				['Claude Haiku (TestVendor)', { metadata: tierMeta, identifier: 'haiku-id' }],
+			]);
+
+			// Agent has both a default model and tiers
+			const agent = createAgent('TieredAgent', ['Claude Sonnet (TestVendor)'], {
+				fast: { model: 'Claude Haiku (TestVendor)' },
+			});
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'fast' },
+				toolCallId: 'tier-override-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Tier takes precedence over agent's default model
+			assert.strictEqual(result.toolSpecificData?.modelName, 'Claude Haiku');
+		});
+
+		test('tier resolution respects multiplier cap', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const expensiveMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['o3-pro-id', expensiveMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['O3 Pro (TestVendor)', { metadata: expensiveMeta, identifier: 'o3-pro-id' }],
+			]);
+
+			const agent = createAgent('TieredAgent', undefined, {
+				deep: { model: 'O3 Pro (TestVendor)' },
+			});
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'deep' },
+				toolCallId: 'tier-cap-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Should fall back to main model due to multiplier cap
+			assert.strictEqual(result.toolSpecificData?.modelName, 'GPT-4o');
+		});
+
+		test('unknown tier name falls back to agent default model', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const agentMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['sonnet-id', agentMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Sonnet (TestVendor)', { metadata: agentMeta, identifier: 'sonnet-id' }],
+			]);
+
+			const agent = createAgent('TieredAgent', ['Claude Sonnet (TestVendor)'], {
+				fast: { model: 'Claude Sonnet (TestVendor)' },
+			});
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'nonexistent' },
+				toolCallId: 'tier-unknown-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Falls back to agent's default model (not main model) since tier was not found
+			assert.strictEqual(result.toolSpecificData?.modelName, 'Claude Sonnet');
+		});
+
+		test('tier without a named subagent is ignored', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+			]);
+
+			const tool = createTool({ models });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', tier: 'fast' },
+				toolCallId: 'tier-no-agent-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// tier is ignored when no agent is specified (agent.tiers would be undefined)
+			assert.strictEqual(result.toolSpecificData?.modelName, 'GPT-4o');
+		});
+
+		test('tier with agent that has no tiers defined falls back gracefully', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const agentMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['sonnet-id', agentMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Sonnet (TestVendor)', { metadata: agentMeta, identifier: 'sonnet-id' }],
+			]);
+
+			// Agent has a model but no tiers
+			const agent = createAgent('NoTiersAgent', ['Claude Sonnet (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test', agentName: 'NoTiersAgent', tier: 'fast' },
+				toolCallId: 'tier-no-tiers-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Falls back to agent's frontmatter model since tiers is undefined
+			assert.strictEqual(result.toolSpecificData?.modelName, 'Claude Sonnet');
 		});
 	});
 
