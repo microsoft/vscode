@@ -169,12 +169,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	getNewSessionOptionsForSessionType(_chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined {
+	async getNewChatSessionInputState(_chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		return undefined;
-	}
-
-	setNewSessionOptionsForSessionType(_chatSessionType: string, _options: ReadonlyChatSessionOptionsMap): void {
-		// noop
 	}
 
 	getSessionOptions(sessionResource: URI): ReadonlyChatSessionOptionsMap | undefined {

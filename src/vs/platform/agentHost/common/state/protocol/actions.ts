@@ -401,9 +401,11 @@ export interface ISessionErrorAction {
 }
 
 /**
- * Session title updated (typically auto-generated from conversation).
+ * Session title updated. Fired by the server when the title is auto-generated
+ * from conversation, or dispatched by a client to rename a session.
  *
  * @category Session Actions
+ * @clientDispatchable
  * @version 1
  */
 export interface ISessionTitleChangedAction {
