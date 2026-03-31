@@ -221,75 +221,79 @@ suite('RunSubagentTool', () => {
 		});
 	});
 
+	// Shared helpers for model resolution test suites
+	function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+		return {
+			extension: new ExtensionIdentifier('test.extension'),
+			name,
+			id: name.toLowerCase().replace(/\s+/g, '-'),
+			vendor: 'TestVendor',
+			version: '1.0',
+			family: 'test',
+			maxInputTokens: 128000,
+			maxOutputTokens: 8192,
+			isDefaultForLocation: {},
+			modelPickerCategory: undefined,
+			multiplierNumeric,
+		};
+	}
+
+	function createModelTool(opts: {
+		models: Map<string, ILanguageModelChatMetadata>;
+		qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+		customAgents?: ICustomAgent[];
+		enableCustomAgents?: boolean;
+	}) {
+		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+		const configService = opts.enableCustomAgents
+			? new TestConfigurationService({ 'chat.customAgentInSubagent.enabled': true })
+			: new TestConfigurationService();
+		const promptsService = new MockPromptsService();
+		if (opts.customAgents) {
+			promptsService.setCustomModes(opts.customAgents);
+		}
+
+		const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+			lookupLanguageModel(modelId: string) {
+				return opts.models.get(modelId);
+			},
+			lookupLanguageModelByQualifiedName(qualifiedName: string) {
+				return opts.qualifiedNameMap?.get(qualifiedName);
+			},
+		};
+
+		const tool = testDisposables.add(new RunSubagentTool(
+			{} as IChatAgentService,
+			{} as IChatService,
+			mockToolsService,
+			mockLanguageModelsService as ILanguageModelsService,
+			new NullLogService(),
+			mockToolsService,
+			configService,
+			promptsService,
+			{} as IInstantiationService,
+			{} as IProductService,
+		));
+
+		return tool;
+	}
+
+	function createAgent(name: string, modelQualifiedNames?: string[], tiers?: Record<string, { model: string }>): ICustomAgent {
+		return {
+			uri: URI.parse(`file:///test/${name}.md`),
+			name,
+			description: `Agent ${name}`,
+			tools: ['tool1'],
+			model: modelQualifiedNames,
+			tiers,
+			agentInstructions: { content: 'test', toolReferences: [] },
+			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
+		};
+	}
+
 	suite('model fallback behavior', () => {
-		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
-			return {
-				extension: new ExtensionIdentifier('test.extension'),
-				name,
-				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor: 'TestVendor',
-				version: '1.0',
-				family: 'test',
-				maxInputTokens: 128000,
-				maxOutputTokens: 8192,
-				isDefaultForLocation: {},
-				modelPickerCategory: undefined,
-				multiplierNumeric,
-			};
-		}
-
-		function createTool(opts: {
-			models: Map<string, ILanguageModelChatMetadata>;
-			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
-			customAgents?: ICustomAgent[];
-		}) {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
-			const promptsService = new MockPromptsService();
-			if (opts.customAgents) {
-				promptsService.setCustomModes(opts.customAgents);
-			}
-
-			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
-				lookupLanguageModel(modelId: string) {
-					return opts.models.get(modelId);
-				},
-				lookupLanguageModelByQualifiedName(qualifiedName: string) {
-					return opts.qualifiedNameMap?.get(qualifiedName);
-				},
-			};
-
-			const tool = testDisposables.add(new RunSubagentTool(
-				{} as IChatAgentService,
-				{} as IChatService,
-				mockToolsService,
-				mockLanguageModelsService as ILanguageModelsService,
-				new NullLogService(),
-				mockToolsService,
-				configService,
-				promptsService,
-				{} as IInstantiationService,
-				{} as IProductService,
-			));
-
-			return tool;
-		}
-
-		function createAgent(name: string, modelQualifiedNames?: string[], tiers?: Record<string, { model: string }>): ICustomAgent {
-			return {
-				uri: URI.parse(`file:///test/${name}.md`),
-				name,
-				description: `Agent ${name}`,
-				tools: ['tool1'],
-				model: modelQualifiedNames,
-				tiers,
-				agentInstructions: { content: 'test', toolReferences: [] },
-				source: { storage: PromptsStorage.local },
-				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
-			};
-		}
-
 		test('falls back to main model when subagent model has higher multiplier', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const expensiveMeta = createMetadata('O3 Pro', 50);
@@ -302,7 +306,7 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('ExpensiveAgent', ['O3 Pro (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent] });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
@@ -334,7 +338,7 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('SameCostAgent', ['Claude Sonnet (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent] });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'SameCostAgent' },
@@ -365,7 +369,7 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('CheapAgent', ['GPT-4o Mini (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent] });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'CheapAgent' },
@@ -396,7 +400,7 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('SubAgent', ['O3 Pro (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent] });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'SubAgent' },
@@ -428,7 +432,7 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('CustomAgent', ['Custom Model (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent] });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'CustomAgent' },
@@ -452,7 +456,7 @@ suite('RunSubagentTool', () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const models = new Map([['main-model-id', mainMeta]]);
 
-			const tool = createTool({ models });
+			const tool = createModelTool({ models });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task' },
@@ -476,7 +480,7 @@ suite('RunSubagentTool', () => {
 			const models = new Map([['main-model-id', mainMeta]]);
 
 			const agent = createAgent('NoModelAgent', undefined);
-			const tool = createTool({ models, customAgents: [agent] });
+			const tool = createModelTool({ models, customAgents: [agent] });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'NoModelAgent' },
@@ -497,79 +501,9 @@ suite('RunSubagentTool', () => {
 	});
 
 	suite('call-time model parameter', () => {
-		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
-			return {
-				extension: new ExtensionIdentifier('test.extension'),
-				name,
-				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor: 'TestVendor',
-				version: '1.0',
-				family: 'test',
-				maxInputTokens: 128000,
-				maxOutputTokens: 8192,
-				isDefaultForLocation: {},
-				modelPickerCategory: undefined,
-				multiplierNumeric,
-			};
-		}
-
-		function createTool(opts: {
-			models: Map<string, ILanguageModelChatMetadata>;
-			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
-			customAgents?: ICustomAgent[];
-		}) {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService({
-				'chat.customAgentInSubagent.enabled': true,
-			});
-			const promptsService = new MockPromptsService();
-			if (opts.customAgents) {
-				promptsService.setCustomModes(opts.customAgents);
-			}
-
-			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
-				lookupLanguageModel(modelId: string) {
-					return opts.models.get(modelId);
-				},
-				lookupLanguageModelByQualifiedName(qualifiedName: string) {
-					return opts.qualifiedNameMap?.get(qualifiedName);
-				},
-			};
-
-			const tool = testDisposables.add(new RunSubagentTool(
-				{} as IChatAgentService,
-				{} as IChatService,
-				mockToolsService,
-				mockLanguageModelsService as ILanguageModelsService,
-				new NullLogService(),
-				mockToolsService,
-				configService,
-				promptsService,
-				{} as IInstantiationService,
-				{} as IProductService,
-			));
-
-			return tool;
-		}
-
-		function createAgent(name: string, modelQualifiedNames?: string[], tiers?: Record<string, { model: string }>): ICustomAgent {
-			return {
-				uri: URI.parse(`file:///test/${name}.md`),
-				name,
-				description: `Agent ${name}`,
-				tools: ['tool1'],
-				model: modelQualifiedNames,
-				tiers,
-				agentInstructions: { content: 'test', toolReferences: [] },
-				source: { storage: PromptsStorage.local },
-				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
-			};
-		}
-
 		test('includes model and tier properties in schema when custom agents enabled', () => {
 			const models = new Map<string, ILanguageModelChatMetadata>();
-			const tool = createTool({ models });
+			const tool = createModelTool({ models, enableCustomAgents: true });
 			const toolData = tool.getToolData();
 
 			assert.ok(toolData.inputSchema?.properties?.model, 'model should be in schema when custom agents enabled');
@@ -591,7 +525,7 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('TestAgent', ['Claude Haiku (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent], enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', agentName: 'TestAgent', model: 'Claude Sonnet (TestVendor)' },
@@ -612,7 +546,7 @@ suite('RunSubagentTool', () => {
 				['claude-sonnet', overrideMeta],
 			]);
 
-			const tool = createTool({ models });
+			const tool = createModelTool({ models, enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', model: 'claude-sonnet' },
@@ -633,7 +567,7 @@ suite('RunSubagentTool', () => {
 				['o3-pro', expensiveMeta],
 			]);
 
-			const tool = createTool({ models });
+			const tool = createModelTool({ models, enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', model: 'o3-pro' },
@@ -653,7 +587,7 @@ suite('RunSubagentTool', () => {
 				['main-model-id', mainMeta],
 			]);
 
-			const tool = createTool({ models });
+			const tool = createModelTool({ models, enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', model: 'nonexistent-model' },
@@ -684,7 +618,7 @@ suite('RunSubagentTool', () => {
 			const agent = createAgent('TieredAgent', undefined, {
 				fast: { model: 'Claude Haiku (TestVendor)' },
 			});
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent], enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: {
@@ -705,76 +639,6 @@ suite('RunSubagentTool', () => {
 	});
 
 	suite('tier resolution', () => {
-		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
-			return {
-				extension: new ExtensionIdentifier('test.extension'),
-				name,
-				id: name.toLowerCase().replace(/\s+/g, '-'),
-				vendor: 'TestVendor',
-				version: '1.0',
-				family: 'test',
-				maxInputTokens: 128000,
-				maxOutputTokens: 8192,
-				isDefaultForLocation: {},
-				modelPickerCategory: undefined,
-				multiplierNumeric,
-			};
-		}
-
-		function createTool(opts: {
-			models: Map<string, ILanguageModelChatMetadata>;
-			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
-			customAgents?: ICustomAgent[];
-		}) {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService({
-				'chat.customAgentInSubagent.enabled': true,
-			});
-			const promptsService = new MockPromptsService();
-			if (opts.customAgents) {
-				promptsService.setCustomModes(opts.customAgents);
-			}
-
-			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
-				lookupLanguageModel(modelId: string) {
-					return opts.models.get(modelId);
-				},
-				lookupLanguageModelByQualifiedName(qualifiedName: string) {
-					return opts.qualifiedNameMap?.get(qualifiedName);
-				},
-			};
-
-			const tool = testDisposables.add(new RunSubagentTool(
-				{} as IChatAgentService,
-				{} as IChatService,
-				mockToolsService,
-				mockLanguageModelsService as ILanguageModelsService,
-				new NullLogService(),
-				mockToolsService,
-				configService,
-				promptsService,
-				{} as IInstantiationService,
-				{} as IProductService,
-			));
-
-			return tool;
-		}
-
-		function createAgent(name: string, modelQualifiedNames?: string[], tiers?: Record<string, { model: string }>): ICustomAgent {
-			return {
-				uri: URI.parse(`file:///test/${name}.md`),
-				name,
-				description: `Agent ${name}`,
-				tools: ['tool1'],
-				model: modelQualifiedNames,
-				tiers,
-				agentInstructions: { content: 'test', toolReferences: [] },
-				source: { storage: PromptsStorage.local },
-				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
-			};
-		}
-
 		test('tier resolves to correct model from agent tiers frontmatter', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const fastMeta = createMetadata('Claude Haiku', 0.25);
@@ -793,7 +657,7 @@ suite('RunSubagentTool', () => {
 				fast: { model: 'Claude Haiku (TestVendor)' },
 				deep: { model: 'Claude Sonnet (TestVendor)' },
 			});
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent], enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'fast' },
@@ -824,7 +688,7 @@ suite('RunSubagentTool', () => {
 			const agent = createAgent('TieredAgent', ['Claude Sonnet (TestVendor)'], {
 				fast: { model: 'Claude Haiku (TestVendor)' },
 			});
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent], enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'fast' },
@@ -852,7 +716,7 @@ suite('RunSubagentTool', () => {
 			const agent = createAgent('TieredAgent', undefined, {
 				deep: { model: 'O3 Pro (TestVendor)' },
 			});
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent], enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'deep' },
@@ -880,7 +744,7 @@ suite('RunSubagentTool', () => {
 			const agent = createAgent('TieredAgent', ['Claude Sonnet (TestVendor)'], {
 				fast: { model: 'Claude Sonnet (TestVendor)' },
 			});
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent], enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', agentName: 'TieredAgent', tier: 'nonexistent' },
@@ -900,7 +764,7 @@ suite('RunSubagentTool', () => {
 				['main-model-id', mainMeta],
 			]);
 
-			const tool = createTool({ models });
+			const tool = createModelTool({ models, enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', tier: 'fast' },
@@ -927,7 +791,7 @@ suite('RunSubagentTool', () => {
 
 			// Agent has a model but no tiers
 			const agent = createAgent('NoTiersAgent', ['Claude Sonnet (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+			const tool = createModelTool({ models, qualifiedNameMap, customAgents: [agent], enableCustomAgents: true });
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test', agentName: 'NoTiersAgent', tier: 'fast' },

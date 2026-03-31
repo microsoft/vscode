@@ -216,6 +216,7 @@ export class PromptValidator {
 				}
 				if (isVSCodeOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
+					this.validateTiers(attributes, report);
 					this.validateHandoffs(attributes, report);
 					await this.validateAgentsAttribute(attributes, header, report);
 					this.validateGithubPermissions(attributes, report);
@@ -378,6 +379,57 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), range, MarkerSeverity.Warning));
 			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
 				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), range, MarkerSeverity.Warning));
+			}
+		}
+	}
+
+	private validateTiers(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tiers);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'map') {
+			report(toMarker(localize('promptValidator.tiersMustBeMap', "The 'tiers' attribute must be a map of tier names to model configurations."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		if (attribute.value.properties.length === 0) {
+			report(toMarker(localize('promptValidator.tiersMustNotBeEmpty', "The 'tiers' map must define at least one tier."), attribute.value.range, MarkerSeverity.Warning));
+			return;
+		}
+
+		const languageModels = this.languageModelsService.getLanguageModelIds();
+
+		for (const prop of attribute.value.properties) {
+			if (prop.value.type !== 'map') {
+				report(toMarker(localize('promptValidator.tierEntryMustBeMap', "Tier '{0}' must be an object with a 'model' property.", prop.key.value), prop.value.range, MarkerSeverity.Error));
+				continue;
+			}
+			const modelProp = prop.value.properties.find(p => p.key.value === 'model');
+			if (!modelProp) {
+				report(toMarker(localize('promptValidator.tierMissingModel', "Tier '{0}' is missing the required 'model' property.", prop.key.value), prop.key.range, MarkerSeverity.Error));
+				continue;
+			}
+			if (modelProp.value.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.tierModelMustBeString', "The 'model' property in tier '{0}' must be a string.", prop.key.value), modelProp.value.range, MarkerSeverity.Error));
+				continue;
+			}
+			const modelName = modelProp.value.value.trim();
+			if (modelName.length === 0) {
+				report(toMarker(localize('promptValidator.tierModelMustBeNonEmpty', "The 'model' property in tier '{0}' must be a non-empty string.", prop.key.value), modelProp.value.range, MarkerSeverity.Error));
+				continue;
+			}
+			// Warn about unknown models if the language model service is initialized
+			if (languageModels.length > 0) {
+				const modelMetadata = this.findModelByName(modelName);
+				if (!modelMetadata) {
+					report(toMarker(localize('promptValidator.tierModelNotFound', "Unknown model '{0}' in tier '{1}'.", modelName, prop.key.value), modelProp.value.range, MarkerSeverity.Warning));
+				}
+			}
+			// Warn about unknown properties (other than 'model')
+			for (const tierProp of prop.value.properties) {
+				if (tierProp.key.value !== 'model') {
+					report(toMarker(localize('promptValidator.unknownTierProperty', "Unknown property '{0}' in tier '{1}'. Only 'model' is supported.", tierProp.key.value, prop.key.value), tierProp.key.range, MarkerSeverity.Warning));
+				}
 			}
 		}
 	}
