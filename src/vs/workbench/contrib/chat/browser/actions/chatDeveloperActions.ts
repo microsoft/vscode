@@ -32,7 +32,53 @@ export function registerChatDeveloperActions() {
 	registerAction2(LogChatInputHistoryAction);
 	registerAction2(LogChatIndexAction);
 	registerAction2(InspectChatModelAction);
+	registerAction2(InspectChatModelReferencesAction);
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
+}
+
+function formatChatModelReferenceInspection(chatService: IChatService): string {
+	const debugInfo = chatService.getChatModelReferenceDebugInfo();
+	const referencedModels = debugInfo.models.filter(model => model.referenceCount > 0);
+	const pendingEditModels = debugInfo.models.filter(model => model.hasPendingEdits);
+	const pendingDisposalModels = debugInfo.models.filter(model => model.pendingDisposal);
+
+	let output = '# Chat Model References\n\n';
+	output += `- Live models: ${debugInfo.totalModels}\n`;
+	output += `- Live references: ${debugInfo.totalReferences}\n`;
+	output += `- Models with active references: ${referencedModels.length}\n`;
+	output += `- Models with pending edits: ${pendingEditModels.length}\n`;
+	output += `- Models pending disposal: ${pendingDisposalModels.length}\n\n`;
+	output += 'Created by shows who loaded or created the model. Holders shows who currently keeps the model alive.\n\n';
+
+	if (!debugInfo.models.length) {
+		output += 'No live chat models.\n';
+		return output;
+	}
+
+	for (const model of debugInfo.models) {
+		output += `## ${model.title || '(untitled)'}\n\n`;
+		output += `- Session: ${model.sessionResource.toString()}\n`;
+		output += `- Created by: ${model.createdBy}\n`;
+		output += `- Initial location: ${model.initialLocation}\n`;
+		output += `- Imported: ${model.isImported}\n`;
+		output += `- Pending edits: ${model.hasPendingEdits}\n`;
+		output += `- Background keep-alive enabled: ${model.willKeepAlive}\n`;
+		output += `- Pending disposal: ${model.pendingDisposal}\n`;
+		output += `- Reference count: ${model.referenceCount}\n`;
+
+		if (model.holders.length) {
+			output += '- Holders:\n';
+			for (const holder of model.holders) {
+				output += `  - ${holder.holder}: ${holder.count}\n`;
+			}
+		} else {
+			output += '- Holders: none\n';
+		}
+
+		output += '\n';
+	}
+
+	return output;
 }
 
 class LogChatInputHistoryAction extends Action2 {
@@ -121,6 +167,35 @@ class InspectChatModelAction extends Action2 {
 		await editorService.openEditor({
 			resource: undefined,
 			contents: output,
+			languageId: 'markdown',
+			options: {
+				pinned: true
+			}
+		});
+	}
+}
+
+class InspectChatModelReferencesAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.inspectChatModelReferences';
+
+	constructor() {
+		super({
+			id: InspectChatModelReferencesAction.ID,
+			title: localize2('workbench.action.chat.inspectChatModelReferences.label', "Inspect Chat Model References"),
+			icon: Codicon.inspect,
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const editorService = accessor.get(IEditorService);
+
+		await editorService.openEditor({
+			resource: undefined,
+			contents: formatChatModelReferenceInspection(chatService),
 			languageId: 'markdown',
 			options: {
 				pinned: true

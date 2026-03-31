@@ -556,7 +556,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						let attachedContext = chatOptions.attachedContext;
 
 						const resource = URI.revive(chatOptions.resource);
-						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatSessionsContribution#sendPrompt');
 						try {
 							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
 							if (promptFile) {

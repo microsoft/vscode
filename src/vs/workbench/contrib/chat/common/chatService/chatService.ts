@@ -1398,6 +1398,8 @@ export interface IChatSendRequestOptions {
 
 }
 
+import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
+
 export type IChatModelReference = IReference<IChatModel>;
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -1440,7 +1442,7 @@ export interface IChatService {
 	 *
 	 * @returns A reference to the session's model or undefined if there is no active session for the given resource.
 	 */
-	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined;
+	acquireExistingSession(sessionResource: URI, debugOwner?: string): IChatModelReference | undefined;
 
 	/**
 	 * Tries to acquire an existing a chat session for the resource. If no session exists, tries to load one for the given
@@ -1448,12 +1450,14 @@ export interface IChatService {
 	 *
 	 * @returns A reference to the session's model, or undefined if the session could not be loaded
 	 */
-	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
+	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined>;
 
 	/**
 	 * Loads a session from exported chat data
 	 */
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference;
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference;
+
+	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot;
 
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
 
@@ -1543,6 +1547,7 @@ export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActiva
 export interface IChatSessionStartOptions {
 	canUseTools?: boolean;
 	disableBackgroundKeepAlive?: boolean;
+	debugOwner?: string;
 }
 
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
