@@ -155,6 +155,29 @@ suite('RunSubagentTool', () => {
 
 			assert.ok(toolData.inputSchema?.properties?.agentName, 'agentName should be in schema when custom agents enabled');
 		});
+		test('includes model property in schema', () => {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				{} as IChatAgentService,
+				{} as IChatService,
+				mockToolsService,
+				{} as ILanguageModelsService,
+				new NullLogService(),
+				mockToolsService,
+				configService,
+				promptsService,
+				{} as IInstantiationService,
+				{} as IProductService,
+			));
+
+			const toolData = tool.getToolData();
+
+			assert.ok(toolData.inputSchema?.properties?.model, 'model should be in schema');
+			assert.strictEqual(toolData.inputSchema?.properties?.model.type, 'string');
+		});
 	});
 
 	suite('onDidInvokeTool event', () => {
@@ -491,6 +514,256 @@ suite('RunSubagentTool', () => {
 				agentName: 'NoModelAgent',
 				prompt: 'test',
 				modelName: 'GPT-4o',
+			});
+		});
+	});
+
+	suite('call-time model parameter', () => {
+		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+			return {
+				extension: new ExtensionIdentifier('test.extension'),
+				name,
+				id: name.toLowerCase().replace(/\s+/g, '-'),
+				vendor: 'TestVendor',
+				version: '1.0',
+				family: 'test',
+				maxInputTokens: 128000,
+				maxOutputTokens: 8192,
+				isDefaultForLocation: {},
+				modelPickerCategory: undefined,
+				multiplierNumeric,
+			};
+		}
+
+		function createTool(opts: {
+			models: Map<string, ILanguageModelChatMetadata>;
+			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+			customAgents?: ICustomAgent[];
+		}) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
+
+			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+				lookupLanguageModel(modelId: string) {
+					return opts.models.get(modelId);
+				},
+				lookupLanguageModelByQualifiedName(qualifiedName: string) {
+					return opts.qualifiedNameMap?.get(qualifiedName);
+				},
+			};
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				{} as IChatAgentService,
+				{} as IChatService,
+				mockToolsService,
+				mockLanguageModelsService as ILanguageModelsService,
+				new NullLogService(),
+				mockToolsService,
+				configService,
+				promptsService,
+				{} as IInstantiationService,
+				{} as IProductService,
+			));
+
+			return tool;
+		}
+
+		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			return {
+				uri: URI.parse(`file:///test/${name}.md`),
+				name,
+				description: `Agent ${name}`,
+				tools: ['tool1'],
+				model: modelQualifiedNames,
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }
+			};
+		}
+
+		test('overrides model via qualified name without a subagent', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const overrideMeta = createMetadata('Claude Haiku', 0.25);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['haiku-model-id', overrideMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Haiku (TestVendor)', { metadata: overrideMeta, identifier: 'haiku-model-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'Claude Haiku (TestVendor)' },
+				toolCallId: 'call-model-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'Claude Haiku',
+			});
+		});
+
+		test('overrides model via direct model ID without a subagent', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const overrideMeta = createMetadata('Claude Haiku', 0.25);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['claude-haiku-4-5', overrideMeta],
+			]);
+
+			const tool = createTool({ models });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'claude-haiku-4-5' },
+				toolCallId: 'call-model-2',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'Claude Haiku',
+			});
+		});
+
+		test('call-time model takes precedence over agent model frontmatter', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const agentMeta = createMetadata('Claude Sonnet', 1);
+			const overrideMeta = createMetadata('Claude Haiku', 0.25);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['sonnet-model-id', agentMeta],
+				['haiku-model-id', overrideMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Sonnet (TestVendor)', { metadata: agentMeta, identifier: 'sonnet-model-id' }],
+				['Claude Haiku (TestVendor)', { metadata: overrideMeta, identifier: 'haiku-model-id' }],
+			]);
+
+			const agent = createAgent('SonnetAgent', ['Claude Sonnet (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'SonnetAgent', model: 'Claude Haiku (TestVendor)' },
+				toolCallId: 'call-model-3',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Call-time 'model' should override the agent's configured Claude Sonnet
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'SonnetAgent',
+				prompt: 'test',
+				modelName: 'Claude Haiku',
+			});
+		});
+
+		test('call-time model respects multiplier cap', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const expensiveMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['expensive-model-id', expensiveMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['O3 Pro (TestVendor)', { metadata: expensiveMeta, identifier: 'expensive-model-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'O3 Pro (TestVendor)' },
+				toolCallId: 'call-model-4',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Should fall back to main model due to multiplier cap
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'GPT-4o',
+			});
+		});
+
+		test('unknown call-time model falls back gracefully', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const models = new Map([['main-model-id', mainMeta]]);
+
+			const tool = createTool({ models });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'nonexistent-model' },
+				toolCallId: 'call-model-5',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Should fall back to main model when the model hint is unresolvable
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'GPT-4o',
+			});
+		});
+
+		test('call-time model override with cheaper model on named agent', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const agentMeta = createMetadata('Claude Sonnet', 1);
+			const cheapMeta = createMetadata('GPT-4o Mini', 0.25);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['sonnet-model-id', agentMeta],
+				['mini-model-id', cheapMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Sonnet (TestVendor)', { metadata: agentMeta, identifier: 'sonnet-model-id' }],
+			]);
+
+			const agent = createAgent('SonnetAgent', ['Claude Sonnet (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'SonnetAgent', model: 'mini-model-id' },
+				toolCallId: 'call-model-6',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Call-time model by ID should override agent config, and it's cheaper so no cap
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'SonnetAgent',
+				prompt: 'test',
+				modelName: 'GPT-4o Mini',
 			});
 		});
 	});
