@@ -47,9 +47,11 @@ suite('PolicyExport Integration Tests', () => {
 				? join(rootPath, 'scripts', 'code.bat')
 				: join(rootPath, 'scripts', 'code.sh');
 
-			// Skip prelaunch to avoid redownloading electron while the parent VS Code is using it
-			// Set DISTRO_PRODUCT_JSON to a test fixture so --export-policy-data can merge
-			// extension policies without needing distro access or GITHUB_TOKEN.
+			// Skip prelaunch to avoid redownloading electron while the parent VS Code is using it.
+			// DISTRO_PRODUCT_JSON points to a static test fixture so --export-policy-data can
+			// merge extension policies without needing distro access or GITHUB_TOKEN.
+			// This fixture is NOT expected to stay in sync with the distro — it exists purely
+			// to test the generation code path. Policy values will drift and that is fine.
 			const fixturePath = join(rootPath, 'src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json');
 			await exec(`"${scriptPath}" --export-policy-data="${tempFile}"`, {
 				cwd: rootPath,
