@@ -9,6 +9,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { TerminalToolId } from './toolIds.js';
 
@@ -47,16 +48,26 @@ export interface ISendToTerminalInputParams {
 export class SendToTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as ISendToTerminalInputParams;
-		const displayCommand = args.command.length > 80
-			? args.command.substring(0, 77) + '...'
-			: args.command;
+		const normalizedCommand = normalizeTerminalCommandForDisplay(args.command).replace(/[\r\n]+/g, ' ');
+		const displayCommand = normalizedCommand.length > 80
+			? normalizedCommand.substring(0, 77) + '...'
+			: normalizedCommand;
+
+		const invocationMessage = new MarkdownString();
+		invocationMessage.appendText(localize('send.progressive', "Sending {0} to terminal", displayCommand));
+
+		const pastTenseMessage = new MarkdownString();
+		pastTenseMessage.appendText(localize('send.past', "Sent {0} to terminal", displayCommand));
+
+		const confirmationMessage = new MarkdownString();
+		confirmationMessage.appendText(localize('send.confirm.message', "Run {0} in background terminal {1}", args.command, args.id));
 
 		return {
-			invocationMessage: new MarkdownString(localize('send.progressive', "Sending `{0}` to terminal", displayCommand)),
-			pastTenseMessage: new MarkdownString(localize('send.past', "Sent `{0}` to terminal", displayCommand)),
+			invocationMessage,
+			pastTenseMessage,
 			confirmationMessages: {
 				title: localize('send.confirm.title', "Send to Terminal"),
-				message: new MarkdownString(localize('send.confirm.message', "Run `{0}` in background terminal `{1}`", args.command, args.id)),
+				message: confirmationMessage,
 			},
 		};
 	}
@@ -76,12 +87,10 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 		await execution.instance.sendText(args.command, true);
 
-		const output = execution.getOutput();
-
 		return {
 			content: [{
 				kind: 'text',
-				value: `Successfully sent command to terminal ${args.id}. Current terminal output:\n${output}`
+				value: `Successfully sent command to terminal ${args.id}. Use ${TerminalToolId.GetTerminalOutput} to check for updated output.`
 			}]
 		};
 	}

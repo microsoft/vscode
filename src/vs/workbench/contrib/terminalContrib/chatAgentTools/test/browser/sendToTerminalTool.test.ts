@@ -78,7 +78,7 @@ suite('SendToTerminalTool', () => {
 		assert.ok(value.includes(UNKNOWN_TERMINAL_ID));
 	});
 
-	test('sends command to terminal and returns output', async () => {
+	test('sends command to terminal and returns acknowledgment', async () => {
 		const mockExecution = createMockExecution('$ ls\nfile1.txt\nfile2.txt');
 		RunInTerminalTool.getExecution = () => mockExecution;
 
@@ -94,7 +94,7 @@ suite('SendToTerminalTool', () => {
 		const value = (result.content[0] as { value: string }).value;
 		assert.ok(value.includes('Successfully sent command'));
 		assert.ok(value.includes(KNOWN_TERMINAL_ID));
-		assert.ok(value.includes('file1.txt'));
+		assert.ok(value.includes('get_terminal_output'), 'should direct agent to use get_terminal_output');
 
 		// Verify sendText was called with shouldExecute=true
 		assert.strictEqual(mockExecution.sentTexts.length, 1);
@@ -149,5 +149,16 @@ suite('SendToTerminalTool', () => {
 		assert.ok(prepared);
 		const message = prepared.invocationMessage as IMarkdownString;
 		assert.ok(message.value.includes('...'));
+	});
+
+	test('prepareToolInvocation normalizes newlines in command', async () => {
+		const prepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'echo hello\necho world'),
+			CancellationToken.None,
+		);
+
+		assert.ok(prepared);
+		const message = prepared.invocationMessage as IMarkdownString;
+		assert.ok(!message.value.includes('\n'), 'newlines should be collapsed to spaces');
 	});
 });
