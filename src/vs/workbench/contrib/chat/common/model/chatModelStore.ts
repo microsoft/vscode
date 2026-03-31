@@ -166,7 +166,7 @@ export class ChatModelStore extends Disposable {
 
 		this.logService.trace(`Creating chat session ${key}`);
 		const model = this.delegate.createModel(props);
-		this._modelCreateOwners.set(key, this.normalizeDebugOwner(debugOwner));
+		this._modelCreateOwners.set(key, debugOwner ?? 'unspecified');
 		if (model.sessionResource.toString() !== key) {
 			throw new Error(`Chat session key mismatch for ${key}`);
 		}
@@ -209,7 +209,7 @@ export class ChatModelStore extends Disposable {
 			ownerEntries = new Map();
 			this._referenceOwners.set(key, ownerEntries);
 		}
-		ownerEntries.set(ownerId, this.normalizeDebugOwner(debugOwner));
+		ownerEntries.set(ownerId, debugOwner ?? 'unspecified');
 
 		let isDisposed = false;
 		return {
@@ -228,10 +228,6 @@ export class ChatModelStore extends Disposable {
 				reference.dispose();
 			}
 		};
-	}
-
-	private normalizeDebugOwner(debugOwner: string | undefined): string {
-		return debugOwner || 'unspecified';
 	}
 
 	/**

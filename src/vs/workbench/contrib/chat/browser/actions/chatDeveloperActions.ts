@@ -10,6 +10,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -201,11 +202,12 @@ class InspectChatModelReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
 
 		await editorService.openEditor({
 			resource: undefined,
-			contents: formatChatModelReferenceInspection(accessor),
+			contents: instantiationService.invokeFunction(formatChatModelReferenceInspection),
 			languageId: 'markdown',
 			options: {
 				pinned: true
