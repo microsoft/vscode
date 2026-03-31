@@ -8,9 +8,13 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -205,6 +209,44 @@ suite('SessionsWelcomeContribution', () => {
 		});
 
 		assert.strictEqual(isOverlayVisible(), false, 'should dismiss after setup completes');
+	});
+
+	test('walkthrough cannot be dismissed by Escape or backdrop click', () => {
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
+		instantiationService.stub(ICommandService, {
+			executeCommand: () => Promise.resolve(false)
+		} as unknown as ICommandService);
+		instantiationService.stub(IExtensionService, {
+			stopExtensionHosts: () => Promise.resolve(false),
+			startExtensionHosts: () => Promise.resolve()
+		} as unknown as IExtensionService);
+		instantiationService.stub(IDefaultAccountService, {
+			getDefaultAccount: () => Promise.resolve(undefined)
+		} as unknown as IDefaultAccountService);
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		try {
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const overlayElement = container.querySelector<HTMLElement>('.sessions-walkthrough-overlay');
+			assert.ok(overlayElement);
+
+			overlayElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+			assert.strictEqual(overlayElement.isConnected, true, 'Escape should not dismiss the walkthrough');
+			assert.strictEqual(overlayElement.classList.contains('sessions-walkthrough-dismissed'), false);
+
+			overlayElement.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+			assert.strictEqual(overlayElement.isConnected, true, 'Backdrop click should not dismiss the walkthrough');
+			assert.strictEqual(overlayElement.classList.contains('sessions-walkthrough-dismissed'), false);
+
+			overlay.dispose();
+		} finally {
+			container.remove();
+		}
 	});
 
 	test('dismissing walkthrough does not mark welcome complete', async () => {

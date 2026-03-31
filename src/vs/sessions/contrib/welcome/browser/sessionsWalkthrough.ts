@@ -61,7 +61,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			if (e.key === 'Escape') {
 				e.preventDefault();
 				e.stopPropagation();
-				this.dismiss();
 				return;
 			}
 
@@ -71,7 +70,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}));
 		this._register(addDisposableListener(this.overlay, EventType.MOUSE_DOWN, e => {
 			if (e.target === this.overlay) {
-				this.dismiss();
+				e.preventDefault();
+				e.stopPropagation();
 			}
 		}));
 
