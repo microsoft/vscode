@@ -108,7 +108,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'Background Processes:',
 		'- For long-running tasks (e.g., servers), set isBackground=true',
 		'- Returns a terminal ID for checking status and runtime later',
-		`- Use ${TerminalToolId.SendToTerminal} to send new commands to a background terminal (e.g., SSH sessions, REPLs). Do NOT use it to reply to interactive prompts — those are handled automatically`,
+		`- Use ${TerminalToolId.SendToTerminal} to send commands to a background terminal (e.g., SSH sessions, REPLs)`,
 		'- Use Start-Job for background PowerShell jobs',
 	];
 
@@ -186,7 +186,7 @@ Program Execution:
 Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
 - Returns a terminal ID for checking status and runtime later
-- Use ${TerminalToolId.SendToTerminal} to send new commands to a background terminal (e.g., SSH sessions, REPLs). Do NOT use it to reply to interactive prompts — those are handled automatically`];
+- Use ${TerminalToolId.SendToTerminal} to send commands to a background terminal (e.g., SSH sessions, REPLs)`];
 
 	if (isSandboxEnabled) {
 		parts.push(createSandboxLines(networkDomains).join('\n'));

@@ -55,11 +55,6 @@ suite('SendToTerminalTool', () => {
 		};
 	}
 
-	test('tool description warns against using for prompt replies', () => {
-		assert.ok(SendToTerminalToolData.modelDescription.includes('Do NOT use this tool to reply to interactive prompts'));
-		assert.ok(SendToTerminalToolData.modelDescription.includes('handled automatically'));
-	});
-
 	test('tool description documents terminal IDs and use cases', () => {
 		const idProperty = SendToTerminalToolData.inputSchema?.properties?.id as { description?: string; pattern?: string } | undefined;
 		assert.ok(SendToTerminalToolData.modelDescription.includes('existing background terminal'));
