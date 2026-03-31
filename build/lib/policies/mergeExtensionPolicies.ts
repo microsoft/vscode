@@ -1,0 +1,145 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import * as fs from 'fs';
+import * as path from 'path';
+import * as JSONC from 'jsonc-parser';
+import type { ExportedPolicyDataDto, PolicyDto } from './policyDto.ts';
+
+/**
+ * Extension configuration policy entry as defined in the distro's product.json.
+ * Supports both the simplified format (flat `description` string) and the full
+ * localization format (`localization.description: { key, value }`).
+ */
+interface ExtensionConfigurationPolicyEntry {
+	readonly name: string;
+	readonly category: string;
+	readonly minimumVersion: `${number}.${number}`;
+	readonly description?: string;
+	readonly localization?: {
+		readonly description: { readonly key: string; readonly value: string };
+		readonly enumDescriptions?: { readonly key: string; readonly value: string }[];
+	};
+}
+
+const root = path.resolve(import.meta.dirname, '../../..');
+const defaultPolicyDataPath = path.join(import.meta.dirname, 'policyData.jsonc');
+
+/**
+ * Reads the distro product.json for the 'stable' quality. Checks local .build/distro first,
+ * then falls back to fetching from the GitHub API using the distro commit in package.json.
+ */
+async function getDistroProductJson(): Promise<Record<string, unknown>> {
+	const localPath = path.join(root, '.build/distro/mixin/stable/product.json');
+	if (fs.existsSync(localPath)) {
+		console.log(`Reading distro product.json from ${localPath}`);
+		return JSON.parse(fs.readFileSync(localPath, 'utf8'));
+	}
+
+	const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+	const distroCommit: string | undefined = packageJson.distro;
+	if (!distroCommit) {
+		throw new Error('No distro commit found in package.json and no local distro available');
+	}
+
+	const token = process.env['GITHUB_TOKEN'];
+	if (!token) {
+		throw new Error(
+			'GITHUB_TOKEN environment variable is required when .build/distro is not available.\n' +
+			'Either download the distro first or set GITHUB_TOKEN to fetch it.'
+		);
+	}
+
+	console.log(`Fetching distro product.json for commit ${distroCommit} from GitHub...`);
+	const url = `https://api.github.com/repos/microsoft/vscode-distro/contents/mixin/stable/product.json?ref=${encodeURIComponent(distroCommit)}`;
+	const response = await fetch(url, {
+		headers: {
+			'Accept': 'application/vnd.github+json',
+			'Authorization': `Bearer ${token}`,
+			'X-GitHub-Api-Version': '2022-11-28',
+			'User-Agent': 'VSCode Build'
+		}
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to fetch distro product.json: ${response.status} ${response.statusText}`);
+	}
+
+	const data = await response.json() as { content: string; encoding: string };
+	if (data.encoding !== 'base64') {
+		throw new Error(`Unexpected encoding: ${data.encoding}`);
+	}
+	const content = Buffer.from(data.content, 'base64').toString('utf8');
+	return JSON.parse(content);
+}
+
+/**
+ * Converts a distro extensionConfigurationPolicy entry into a PolicyDto.
+ * All extension configuration policies are assumed to be boolean with a default of `true`
+ * unless the distro format is extended to include type information.
+ */
+function toPolicy(key: string, entry: ExtensionConfigurationPolicyEntry): PolicyDto {
+	if (!entry.localization?.description && !entry.description) {
+		throw new Error(`Extension policy '${key}' must have either 'localization.description' or 'description'`);
+	}
+	if (!entry.category) {
+		throw new Error(`Extension policy '${key}' must have a 'category'`);
+	}
+	const description = entry.localization?.description ?? { key, value: entry.description ?? '' };
+	return {
+		key,
+		name: entry.name,
+		category: entry.category,
+		minimumVersion: entry.minimumVersion,
+		localization: {
+			description,
+			enumDescriptions: entry.localization?.enumDescriptions,
+		},
+		type: 'boolean',
+		default: true
+	};
+}
+
+async function main(): Promise<void> {
+	const targetPath = process.argv[2] || defaultPolicyDataPath;
+
+	const distroProduct = await getDistroProductJson();
+	const extensionPolicies = distroProduct['extensionConfigurationPolicy'] as Record<string, ExtensionConfigurationPolicyEntry> | undefined;
+
+	if (!extensionPolicies || Object.keys(extensionPolicies).length === 0) {
+		console.log('No extensionConfigurationPolicy found in distro product.json, nothing to merge.');
+		return;
+	}
+
+	const policyDataContent = fs.readFileSync(targetPath, 'utf8');
+	const policyData = JSONC.parse(policyDataContent) as ExportedPolicyDataDto;
+	const existingKeys = new Set(policyData.policies.map(p => p.key));
+
+	let added = 0;
+	for (const [key, entry] of Object.entries(extensionPolicies)) {
+		if (existingKeys.has(key)) {
+			console.log(`  Skipping '${key}': already present in policyData.jsonc`);
+			continue;
+		}
+
+		policyData.policies.push(toPolicy(key, entry));
+		console.log(`  Added '${key}' (${entry.name})`);
+		added++;
+	}
+
+	if (added > 0) {
+		const disclaimerComment = `/** THIS FILE IS AUTOMATICALLY GENERATED USING \`code --export-policy-data\` AND \`mergeExtensionPolicies.ts\`. DO NOT MODIFY IT MANUALLY. **/`;
+		const output = `${disclaimerComment}\n${JSON.stringify(policyData, null, 4)}\n`;
+		fs.writeFileSync(targetPath, output, 'utf8');
+		console.log(`Merged ${added} extension configuration policies into ${targetPath}.`);
+	} else {
+		console.log('No new extension configuration policies to merge.');
+	}
+}
+
+main().catch(err => {
+	console.error('Failed to merge extension configuration policies:', err);
+	process.exit(1);
+});

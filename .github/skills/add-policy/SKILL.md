@@ -124,15 +124,63 @@ npm run compile-check-ts-native
 Regenerate the auto-generated policy catalog:
 
 ```bash
-npm run transpile-client && ./scripts/code.sh --export-policy-data
+npm run transpile-client && ./scripts/code.sh --export-policy-data && node build/lib/policies/mergeExtensionPolicies.ts
 ```
+
+The first command exports policies from the configuration registry. The merge step fetches `extensionConfigurationPolicy` entries from the distro's stable `product.json` (via `.build/distro/` or the GitHub API with `GITHUB_TOKEN`) and adds them to the output.
 
 This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
 
 
 ## Policy for extension-provided settings
 
-For an extension author to provide policies for their extension's settings, a change must be made in `vscode-distro` to the `product.json`.
+Extension authors cannot add `policy:` fields directly—their settings are defined in the extension's `package.json`, not in VS Code core. Instead, policies for extension settings are defined in `vscode-distro`'s `product.json` under the `extensionConfigurationPolicy` key.
+
+### How it works
+
+1. **Source of truth**: The `extensionConfigurationPolicy` map lives in `vscode-distro` under `mixin/{quality}/product.json` (stable, insider, exploration).
+2. **Runtime**: When VS Code starts with a distro-mixed `product.json`, `configurationExtensionPoint.ts` reads `extensionConfigurationPolicy` and attaches matching `policy` objects to extension-contributed configuration properties.
+3. **Export/build**: Since `--export-policy-data` runs on the OSS dev build (no distro), extension policies are NOT captured by the normal export. A separate merge step fetches the distro's `product.json` at the exact commit pinned in `package.json` and adds the extension policies to `policyData.jsonc`.
+
+### Distro format
+
+Each entry in `extensionConfigurationPolicy` must include:
+
+```json
+"extensionConfigurationPolicy": {
+    "publisher.extension.settingName": {
+        "name": "PolicyName",
+        "category": "InteractiveSession",
+        "minimumVersion": "1.99",
+        "description": "Human-readable description.",
+        "localization": {
+            "description": {
+                "key": "publisher.extension.settingName",
+                "value": "Human-readable description."
+            }
+        }
+    }
+}
+```
+
+- `name`: PascalCase policy name, unique across all policies
+- `category`: Must be a valid `PolicyCategory` enum value (e.g., `InteractiveSession`, `Extensions`)
+- `minimumVersion`: The VS Code version that first shipped this policy
+- `description`: Flat description string (backwards compatibility)
+- `localization.description`: `{ key, value }` pair used by `policyGenerator.ts` for ADMX/ADML/macOS/Linux policy artifacts and by `vscode-website` for the enterprise policy reference page
+
+### Adding a new extension policy
+
+1. Add the entry to `extensionConfigurationPolicy` in **all three** quality `product.json` files in `vscode-distro` (`mixin/stable/`, `mixin/insider/`, `mixin/exploration/`)
+2. After the distro PR merges and `package.json` is updated with the new distro commit, regenerate `policyData.jsonc` (see Step 4 above)
+
+### Downstream consumers
+
+| Consumer | What it reads | Output |
+|----------|--------------|--------|
+| `policyGenerator.ts` | `policyData.jsonc` | ADMX/ADML (Windows GP), `.mobileconfig` (macOS), `policy.json` (Linux) |
+| `vscode-website` (`gulpfile.policies.js`) | `policyData.jsonc` | Enterprise policy reference table at code.visualstudio.com/docs/enterprise/policies |
+| `vscode-docs` | Generated from website build | `docs/enterprise/policies.md` |
 
 ## Examples
 

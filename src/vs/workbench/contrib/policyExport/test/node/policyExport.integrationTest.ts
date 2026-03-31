@@ -53,6 +53,12 @@ suite('PolicyExport Integration Tests', () => {
 				env: { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' }
 			});
 
+			// Merge extension configuration policies from the distro product.json.
+			// This step must succeed — if the distro is not available, the test should fail.
+			await exec(`node build/lib/policies/mergeExtensionPolicies.ts "${tempFile}"`, {
+				cwd: rootPath,
+			});
+
 			// Read both files
 			const [exportedContent, checkedInContent] = await Promise.all([
 				fs.readFile(tempFile, 'utf-8').then(normalizeContent),
@@ -63,7 +69,7 @@ suite('PolicyExport Integration Tests', () => {
 			assert.strictEqual(
 				exportedContent,
 				checkedInContent,
-				'Exported policy data should match the checked-in file. If this fails, run: ./scripts/code.sh --export-policy-data'
+				'Exported policy data should match the checked-in file. If this fails, run: ./scripts/code.sh --export-policy-data && node build/lib/policies/mergeExtensionPolicies.ts'
 			);
 		} finally {
 			// Clean up temp file
