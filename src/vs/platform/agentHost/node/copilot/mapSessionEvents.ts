@@ -50,6 +50,7 @@ export interface ISessionEventMessage {
 	type: 'assistant.message' | 'user.message';
 	data?: {
 		messageId?: string;
+		interactionId?: string;
 		content?: string;
 		toolRequests?: readonly { toolCallId: string; name: string; arguments?: unknown; type?: 'function' | 'custom' }[];
 		reasoningOpaque?: string;
@@ -130,7 +131,7 @@ export async function mapSessionEvents(
 				session,
 				type: 'message',
 				role: e.type === 'user.message' ? 'user' : 'assistant',
-				messageId: d?.messageId ?? '',
+				messageId: d?.messageId ?? d?.interactionId ?? '',
 				content: d?.content ?? '',
 				toolRequests: d?.toolRequests?.map((tr) => ({
 					toolCallId: tr.toolCallId,

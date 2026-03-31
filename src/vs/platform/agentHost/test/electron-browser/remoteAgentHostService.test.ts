@@ -12,7 +12,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { RemoteAgentHostService } from '../../electron-browser/remoteAgentHostServiceImpl.js';
-import { parseRemoteAgentHostInput, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
+import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 
 // ---- Mock protocol client ---------------------------------------------------
@@ -124,6 +124,13 @@ suite('RemoteAgentHostService', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	/** Wait for a connection to reach Connected status. */
+	async function waitForConnected(): Promise<void> {
+		while (!service.connections.some(c => c.status === RemoteAgentHostConnectionStatus.Connected)) {
+			await Event.toPromise(service.onDidChangeConnections);
+		}
+	}
+
 	test('starts with no connections when setting is empty', () => {
 		assert.deepStrictEqual(service.connections, []);
 	});
@@ -151,24 +158,23 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('creates connection when setting is updated', async () => {
-		const connectionChanged = Event.toPromise(service.onDidChangeConnections);
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
 
 		// Resolve the connect promise
 		assert.strictEqual(createdClients.length, 1);
 		createdClients[0].connectDeferred.complete();
-		await connectionChanged;
+		await waitForConnected();
 
-		assert.strictEqual(service.connections.length, 1);
-		assert.strictEqual(service.connections[0].address, 'host1:8080');
-		assert.strictEqual(service.connections[0].name, 'Host 1');
+		const connected = service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected);
+		assert.strictEqual(connected.length, 1);
+		assert.strictEqual(connected[0].address, 'host1:8080');
+		assert.strictEqual(connected[0].name, 'Host 1');
 	});
 
 	test('getConnection returns client after successful connect', async () => {
-		const connectionChanged = Event.toPromise(service.onDidChangeConnections);
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await connectionChanged;
+		await waitForConnected();
 
 		const connection = service.getConnection('ws://host1:8080');
 		assert.ok(connection);
@@ -179,7 +185,7 @@ suite('RemoteAgentHostService', () => {
 		// Add a connection
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await waitForConnected();
 
 		// Remove it
 		const removedEvent = Event.toPromise(service.onDidChangeConnections);
@@ -193,15 +199,18 @@ suite('RemoteAgentHostService', () => {
 	test('fires onDidChangeConnections when connection closes', async () => {
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await waitForConnected();
 
-		// Simulate connection close
+		// Simulate connection close — entry transitions to Disconnected
 		const closedEvent = Event.toPromise(service.onDidChangeConnections);
 		createdClients[0].fireClose();
 		await closedEvent;
 
-		assert.strictEqual(service.connections.length, 0);
+		// Connection is still tracked (for reconnect) but getConnection returns undefined
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
+		const entry = service.connections.find(c => c.address === 'host1:8080');
+		assert.ok(entry);
+		assert.strictEqual(entry.status, RemoteAgentHostConnectionStatus.Disconnected);
 	});
 
 	test('removes connection on connect failure', async () => {
@@ -226,11 +235,10 @@ suite('RemoteAgentHostService', () => {
 
 		assert.strictEqual(createdClients.length, 2);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
 		createdClients[1].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await waitForConnected();
 
-		assert.strictEqual(service.connections.length, 2);
+		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 2);
 
 		const conn1 = service.getConnection('ws://host1:8080');
 		const conn2 = service.getConnection('ws://host2:8080');
@@ -242,7 +250,7 @@ suite('RemoteAgentHostService', () => {
 	test('does not re-create existing connections on setting update', async () => {
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await waitForConnected();
 
 		const firstClientId = createdClients[0].clientId;
 
@@ -258,7 +266,8 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(conn.clientId, firstClientId);
 
 		// But name should be updated
-		assert.strictEqual(service.connections[0].name, 'Renamed');
+		const entry = service.connections.find(c => c.address === 'host1:8080');
+		assert.strictEqual(entry?.name, 'Renamed');
 	});
 
 	test('addRemoteAgentHost stores the entry and waits for connection', async () => {
@@ -283,13 +292,14 @@ suite('RemoteAgentHostService', () => {
 			name: 'Host 1',
 			clientId: createdClients[0].clientId,
 			defaultDirectory: undefined,
+			status: RemoteAgentHostConnectionStatus.Connected,
 		});
 	});
 
 	test('addRemoteAgentHost updates existing configured entries without reconnecting', async () => {
 		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await waitForConnected();
 
 		const connection = await service.addRemoteAgentHost({
 			address: 'ws://host1:8080',
@@ -308,6 +318,7 @@ suite('RemoteAgentHostService', () => {
 			name: 'Updated Host',
 			clientId: createdClients[0].clientId,
 			defaultDirectory: undefined,
+			status: RemoteAgentHostConnectionStatus.Connected,
 		});
 	});
 
@@ -361,8 +372,8 @@ suite('RemoteAgentHostService', () => {
 	test('disabling the enabled setting disconnects all remotes', async () => {
 		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
-		assert.strictEqual(service.connections.length, 1);
+		await waitForConnected();
+		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
 
 		configService.setEnabled(false);
 
@@ -381,8 +392,8 @@ suite('RemoteAgentHostService', () => {
 	test('re-enabling reconnects configured remotes', async () => {
 		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
-		assert.strictEqual(service.connections.length, 1);
+		await waitForConnected();
+		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
 
 		configService.setEnabled(false);
 		assert.strictEqual(service.connections.length, 0);
@@ -390,8 +401,8 @@ suite('RemoteAgentHostService', () => {
 		configService.setEnabled(true);
 		assert.strictEqual(createdClients.length, 2); // new client created
 		createdClients[1].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
-		assert.strictEqual(service.connections.length, 1);
+		await waitForConnected();
+		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
 	});
 
 	test('removeRemoteAgentHost removes entry and disconnects', async () => {
@@ -400,17 +411,16 @@ suite('RemoteAgentHostService', () => {
 			{ address: 'ws://host2:9090', name: 'Host 2' },
 		]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
 		createdClients[1].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
-		assert.strictEqual(service.connections.length, 2);
+		await waitForConnected();
+		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 2);
 
 		await service.removeRemoteAgentHost('ws://host1:8080');
 
 		assert.deepStrictEqual(configService.entries, [
 			{ address: 'ws://host2:9090', name: 'Host 2' },
 		]);
-		assert.strictEqual(service.connections.length, 1);
+		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 		assert.ok(service.getConnection('ws://host2:9090'));
 	});
@@ -418,7 +428,7 @@ suite('RemoteAgentHostService', () => {
 	test('removeRemoteAgentHost normalizes address before removing', async () => {
 		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
 		createdClients[0].connectDeferred.complete();
-		await Event.toPromise(service.onDidChangeConnections);
+		await waitForConnected();
 
 		await service.removeRemoteAgentHost('ws://host1:8080');
 

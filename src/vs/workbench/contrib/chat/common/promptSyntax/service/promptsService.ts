@@ -12,7 +12,7 @@ import { ContextKeyExpression } from '../../../../../../platform/contextkey/comm
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
-import { PromptsType, Target } from '../promptTypes.js';
+import { PromptFileSource, PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
@@ -75,22 +75,13 @@ export enum PromptsStorage {
 	user = 'user',
 	extension = 'extension',
 	plugin = 'plugin',
-	internal = 'internal',
-}
-
-/**
- * The type of source for extension agents.
- */
-export enum ExtensionAgentSourceType {
-	contribution = 'contribution',
-	provider = 'provider',
 }
 
 /**
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath | IInternalPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
 
 
 export interface IPromptPathBase {
@@ -119,6 +110,11 @@ export interface IPromptPathBase {
 	 */
 	readonly pluginUri?: URI;
 
+	/**
+	 * The source that produced this prompt path.
+	 */
+	readonly source?: PromptFileSource;
+
 	readonly name?: string;
 
 	readonly description?: string;
@@ -127,7 +123,7 @@ export interface IPromptPathBase {
 export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
-	readonly source: ExtensionAgentSourceType;
+	readonly source: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
 	readonly name?: string;
 	readonly description?: string;
 	readonly when?: string;
@@ -147,23 +143,18 @@ export interface IUserPromptPath extends IPromptPathBase {
 export interface IPluginPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
-}
-
-export interface IInternalPromptPath extends IPromptPathBase {
-	readonly storage: PromptsStorage.internal;
+	readonly source: PromptFileSource.Plugin;
 }
 
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
-	readonly type: ExtensionAgentSourceType;
+	readonly type: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 } | {
 	readonly storage: PromptsStorage.plugin;
 	readonly pluginUri: URI;
-} | {
-	readonly storage: PromptsStorage.internal;
 };
 
 /**
@@ -347,19 +338,14 @@ export type PromptFileSkipReason =
  * Result of discovering a single prompt file.
  */
 export interface IPromptFileDiscoveryResult {
-	readonly uri: URI;
-	readonly storage: PromptsStorage;
 	readonly status: 'loaded' | 'skipped';
-	readonly name?: string;
 	readonly skipReason?: PromptFileSkipReason;
 	/** Error message if parse-error */
 	readonly errorMessage?: string;
 	/** For duplicates, the URI of the file that took precedence */
 	readonly duplicateOf?: URI;
-	/** Extension ID if from extension */
-	readonly extension?: IExtensionDescription;
-	/** Uri of the plugin, if from a plugin */
-	readonly pluginUri?: URI;
+	/** Prompt path for the discovered file. */
+	readonly promptPath: IPromptPath;
 	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
 	readonly userInvocable?: boolean;
 	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
@@ -382,6 +368,44 @@ export interface IPromptDiscoveryInfo {
 	readonly files: readonly IPromptFileDiscoveryResult[];
 	/** Source folders that were searched */
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
+}
+
+/**
+ * Discovery result for a slash command file, including the parsed prompt file.
+ */
+export interface ISlashCommandDiscoveryResult extends IPromptFileDiscoveryResult {
+	readonly parsedPromptFile?: ParsedPromptFile;
+}
+
+/**
+ * Summary of slash command discovery, including parsed prompt files.
+ */
+export interface ISlashCommandDiscoveryInfo extends IPromptDiscoveryInfo {
+	readonly files: readonly ISlashCommandDiscoveryResult[];
+}
+
+/**
+ * Discovery result for an agent file, including the fully resolved agent.
+ */
+export interface IAgentDiscoveryResult extends IPromptFileDiscoveryResult {
+	readonly agent?: ICustomAgent;
+}
+
+/**
+ * Summary of agent discovery, including resolved agents.
+ */
+export interface IAgentDiscoveryInfo extends IPromptDiscoveryInfo {
+	readonly files: readonly IAgentDiscoveryResult[];
+}
+
+export function sanitizePromptDiscoveryInfo(info: IPromptDiscoveryInfo): IPromptDiscoveryInfo {
+	return {
+		...info,
+		files: info.files.map(file => ({
+			...file,
+			errorMessage: file.errorMessage ? 'REDACTED' : undefined,
+		})),
+	};
 }
 
 export interface IConfiguredHooksInfo {
