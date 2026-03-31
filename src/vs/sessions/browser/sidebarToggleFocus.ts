@@ -10,19 +10,31 @@ export const enum SidebarToggleFocusTarget {
 
 let pendingSidebarToggleFocusTarget: SidebarToggleFocusTarget | undefined;
 
+export function logSidebarToggleFocus(message: string, details?: Record<string, unknown>): void {
+	console.debug('[sessions][sidebar-toggle-focus]', message, details ?? {});
+}
+
+export function peekSidebarToggleFocusRequest(): SidebarToggleFocusTarget | undefined {
+	return pendingSidebarToggleFocusTarget;
+}
+
 export function requestSidebarToggleFocus(target: SidebarToggleFocusTarget): void {
+	logSidebarToggleFocus('request', { target, previous: pendingSidebarToggleFocusTarget });
 	pendingSidebarToggleFocusTarget = target;
 }
 
 export function clearSidebarToggleFocusRequest(): void {
+	logSidebarToggleFocus('clear', { previous: pendingSidebarToggleFocusTarget });
 	pendingSidebarToggleFocusTarget = undefined;
 }
 
 export function consumeSidebarToggleFocusRequest(target: SidebarToggleFocusTarget): boolean {
+	logSidebarToggleFocus('consume-attempt', { target, pending: pendingSidebarToggleFocusTarget });
 	if (pendingSidebarToggleFocusTarget !== target) {
 		return false;
 	}
 
 	pendingSidebarToggleFocusTarget = undefined;
+	logSidebarToggleFocus('consume-success', { target });
 	return true;
 }
