@@ -53,6 +53,14 @@ suite('PolicyExport Integration Tests', () => {
 				env: { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' }
 			});
 
+			// Merge extension configuration policies using a checked-in fixture
+			// so the test doesn't need distro access or GITHUB_TOKEN.
+			const fixturePath = join(rootPath, 'src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json');
+			await exec(`node build/lib/policies/mergeExtensionPolicies.ts "${tempFile}"`, {
+				cwd: rootPath,
+				env: { ...process.env, GITHUB_TOKEN: '', DISTRO_PRODUCT_JSON: fixturePath },
+			});
+
 			// Read both files
 			const [exportedContent, checkedInContent] = await Promise.all([
 				fs.readFile(tempFile, 'utf-8').then(normalizeContent),
