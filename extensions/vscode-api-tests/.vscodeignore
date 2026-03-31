@@ -3,4 +3,4 @@ typings/**
 **/*.ts
 **/*.map
 .gitignore
-tsconfig.json
+tsconfig*.json

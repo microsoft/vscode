@@ -56,7 +56,14 @@ export const enum OmittedState {
 	NotOmitted,
 	Partial,
 	Full,
+	ImageLimitExceeded,
 }
+
+/**
+ * The maximum number of images allowed per request.
+ * Claude has an upstream limit where more than 20 images causes issues.
+ */
+export const MAX_IMAGES_PER_REQUEST = 20;
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';
@@ -222,8 +229,19 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 	readonly kind: 'diagnostic';
 }
 
+export interface IElementAncestorData {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
+	readonly ancestors?: IElementAncestorData[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
 }
 
 export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
@@ -286,13 +304,42 @@ export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly type?: string;
 }
 
+export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'agentFeedback';
+	readonly sessionResource: URI;
+	readonly feedbackItems: ReadonlyArray<{
+		readonly id: string;
+		readonly text: string;
+		readonly resourceUri: URI;
+		readonly range: IRange;
+		readonly codeSelection?: string;
+		readonly diffHunks?: string;
+		/** When this item was converted from a PR review comment, the original thread ID. */
+		readonly sourcePRReviewCommentId?: string;
+	}>;
+}
+
+export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'debugEvents';
+	/** Timestamp when the debug events were snapshotted. */
+	readonly snapshotTime: number;
+	/** The session resource these debug events belong to. */
+	readonly sessionResource: URI;
+}
+
+export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'sessionReference';
+	readonly value: URI;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -359,6 +406,10 @@ export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is 
 
 export function isDebugVariableEntry(obj: IChatRequestVariableEntry): obj is IDebugVariableEntry {
 	return obj.kind === 'debugVariable';
+}
+
+export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): obj is IAgentFeedbackVariableEntry {
+	return obj.kind === 'agentFeedback';
 }
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
@@ -433,17 +484,17 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 }
 
 export enum PromptFileVariableKind {
-	Instruction = 'vscode.prompt.instructions.root',
-	InstructionReference = `vscode.prompt.instructions`,
-	PromptFile = 'vscode.prompt.file'
+	Instruction = 'vscode.instructions.file.root',
+	InstructionReference = `vscode.instructions.file.reference`,
+	PromptFile = 'vscode.prompt.file',
 }
 
 /**
  * Utility to convert a {@link uri} to a chat variable entry.
  * The `id` of the chat variable can be one of the following:
  *
- * - `vscode.prompt.instructions__<URI>`: for all non-root prompt instructions references
- * - `vscode.prompt.instructions.root__<URI>`: for *root* prompt instructions references
+ * - `vscode.instructions.file.reference__<URI>`: for all non-root prompt instructions references
+ * - `vscode.instructions.file.root__<URI>`: for *root* prompt instructions references
  * - `vscode.prompt.file__<URI>`: for prompt file references
  *
  * @param uri A resource URI that points to a prompt instructions file.
@@ -464,13 +515,17 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 	};
 }
 
+enum PromptTextVariableKind {
+	CustomizationsIndex = 'vscode.customizations.index',
+}
+
 export function toPromptTextVariableEntry(content: string, automaticallyAdded = false, toolReferences?: ChatRequestToolReferenceEntry[]): IPromptTextVariableEntry {
 	return {
-		id: `vscode.prompt.instructions.text`,
-		name: `prompt:instructionsList`,
+		id: PromptTextVariableKind.CustomizationsIndex,
+		name: `prompt:customizationsIndex`,
 		value: content,
 		kind: 'promptText',
-		modelDescription: 'Prompt instructions list',
+		modelDescription: 'Chat customizations index',
 		automaticallyAdded,
 		toolReferences
 	};

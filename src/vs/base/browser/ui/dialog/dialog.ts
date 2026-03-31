@@ -58,6 +58,7 @@ export interface IDialogOptions {
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
@@ -327,8 +328,13 @@ export class Dialog extends Disposable {
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
 			const window = getWindow(this.container);
+			let sawEscapeKeyDown = false;
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
+
+				if (evt.equals(KeyCode.Escape)) {
+					sawEscapeKeyDown = true;
+				}
 
 				if (evt.equals(KeyMod.Alt)) {
 					evt.preventDefault();
@@ -469,7 +475,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
-				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
+				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape) && sawEscapeKeyDown) {
 					close();
 				}
 			}, true));
@@ -535,6 +541,10 @@ export class Dialog extends Disposable {
 			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text');
 			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body monaco-dialog-footer');
 			show(this.element);
+
+			// Notify visibility change
+			this.options.onVisibilityChange?.(window, true);
+			this._register(toDisposable(() => this.options.onVisibilityChange?.(window, false)));
 
 			// Focus first element (input or button)
 			if (this.inputs.length > 0) {

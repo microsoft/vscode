@@ -28,12 +28,12 @@ import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../comm
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -85,12 +85,6 @@ export interface IChatListWidgetOptions {
 	 * Optional filter for the tree.
 	 */
 	readonly filter?: ITreeFilter<ChatTreeItem, FuzzyScore>;
-
-	/**
-	 * Optional code block model collection to use.
-	 * If not provided, one will be created.
-	 */
-	readonly codeBlockModelCollection?: CodeBlockModelCollection;
 
 	/**
 	 * Initial view model.
@@ -183,13 +177,13 @@ export class ChatListWidget extends Disposable {
 
 	private readonly _tree: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
 	private readonly _renderer: ChatListItemRenderer;
-	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 
 	private _viewModel: IChatViewModel | undefined;
 	private _visible = true;
 	private _lastItem: ChatTreeItem | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
+	private _suppressAutoScroll: boolean = false;
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
 
@@ -262,12 +256,23 @@ export class ChatListWidget extends Disposable {
 		super();
 
 		this._viewModel = options.viewModel;
-		this._codeBlockModelCollection = options.codeBlockModelCollection ?? this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'chatListWidget'));
 		this._location = options.location;
 		this._getCurrentLanguageModelId = options.getCurrentLanguageModelId;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
+
+		// Toggle link-style for inline reference widgets based on configuration (single listener for all widgets)
+		const updateInlineReferencesStyle = () => {
+			const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
+			this._container.classList.toggle('chat-inline-references-link-style', style === 'link');
+		};
+		updateInlineReferencesStyle();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
+				updateInlineReferencesStyle();
+			}
+		}));
 
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService])
@@ -311,7 +316,6 @@ export class ChatListWidget extends Disposable {
 			editorOptions,
 			options.rendererOptions ?? {},
 			rendererDelegate,
-			this._codeBlockModelCollection,
 			overflowWidgetsContainer,
 			this._viewModel,
 		));
@@ -348,6 +352,11 @@ export class ChatListWidget extends Disposable {
 				this.chatService.resendRequest(request, sendOptions).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
 		}));
+
+		// Create drag-and-drop controller for reordering pending requests
+		this._renderer.pendingDragController = this._register(
+			scopedInstantiationService.createInstance(ChatPendingDragController, this._container, () => this._viewModel)
+		);
 
 		// Create tree
 		const styles = options.styles ?? {};
@@ -478,6 +487,7 @@ export class ChatListWidget extends Disposable {
 		const isKatexElement = target.closest(`.${katexContainerClassName}`) !== null;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
+			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
 			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered],
 			[ChatContextKeys.isKatexMathElement.key, isKatexElement]
 		]);
@@ -525,7 +535,6 @@ export class ChatListWidget extends Disposable {
 		}));
 
 		const editing = this._viewModel.editing;
-		const checkpoint = this._viewModel.model?.checkpoint;
 
 		this._withPersistedAutoScroll(() => {
 			this._tree.setChildren(null, treeItems, {
@@ -534,6 +543,9 @@ export class ChatListWidget extends Disposable {
 						// Pending types only have 'id', request/response have 'dataId'
 						const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
 						const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
+						// Per-element editing state: only re-render items whose editing role changed
+						const isEditTarget = isRequestVM(element) && editing?.id === element.id;
+						const isBlocked = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeBlocked.get() : false;
 						return baseId +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
@@ -542,10 +554,11 @@ export class ChatListWidget extends Disposable {
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${disablement ? `${disablement.afterUndoStop || '1'}` : '0'}` +
-							// Re-render if we have an element currently being edited
-							`_${editing ? '1' : '0'}` +
-							// Re-render if we have an element currently being checkpointed
-							`_${checkpoint ? '1' : '0'}` +
+							// Re-render the request being edited and requests whose blocked state changed
+							`_${isEditTarget ? 'edit' : ''}` +
+							`_${isBlocked ? 'blocked' : ''}` +
+							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
+							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
 							// Re-render all if invoked by setting change
 							`_setting${this._settingChangeCounter}` +
 							// Rerender request if we got new content references in the response
@@ -706,7 +719,19 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Suppress auto-scroll behavior temporarily. While suppressed,
+	 * _withPersistedAutoScroll will not scroll to bottom after operations.
+	 */
+	set suppressAutoScroll(value: boolean) {
+		this._suppressAutoScroll = value;
+	}
+
 	private _withPersistedAutoScroll(fn: () => void): void {
+		if (this._suppressAutoScroll) {
+			fn();
+			return;
+		}
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		fn();
 		if (wasScrolledToBottom) {
@@ -767,6 +792,8 @@ export class ChatListWidget extends Disposable {
 		return this._renderer.editorsInUse();
 	}
 
+
+
 	/**
 	 * Get template data for a request ID.
 	 */
@@ -815,7 +842,11 @@ export class ChatListWidget extends Disposable {
 			this._container.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			const secondToLastItem = this._viewModel?.getItems().at(-2);
-			const secondToLastItemHeight = Math.min((isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ? secondToLastItem.currentRenderedHeight ?? 150 : 150, 150);
+			const maxRequestShownHeight = 200;
+			const secondToLastItemHeight = Math.min(
+				(isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ?
+					secondToLastItem.currentRenderedHeight ?? 150 : 150,
+				maxRequestShownHeight);
 			const lastItemMinHeight = Math.max(contentHeight - (secondToLastItemHeight + 10), 0);
 			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');
 			if (lastItemMinHeight !== this._previousLastItemMinHeight) {

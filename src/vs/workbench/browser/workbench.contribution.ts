@@ -11,6 +11,7 @@ import product from '../../platform/product/common/product.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
+import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
@@ -349,14 +350,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, such as when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
 			},
-			'workbench.editor.allowOpenInModalEditor': {
-				'type': 'boolean',
-				'description': localize('allowOpenInModalEditor', "Controls whether editors can be opened in a modal overlay. When enabled, certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay instead of as a regular editor tab."),
-				'default': product.quality !== 'stable', // TODO@bpasero figure out the default for stable
-				tags: ['experimental'],
-				experiment: {
-					mode: 'auto'
-				}
+			'workbench.editor.useModal': {
+				'type': 'string',
+				'enum': ['off', 'some', 'all'],
+				'enumDescriptions': [
+					localize('useModal.off', "Editors never open in a modal overlay."),
+					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
+					localize('useModal.all', "All editors open in a centered modal overlay."),
+				],
+				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
+				'default': 'some'
 			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
@@ -610,6 +613,26 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
 			},
+			[NotificationsSettings.NOTIFICATIONS_POSITION]: {
+				'type': 'string',
+				'enum': [NotificationsPosition.BOTTOM_RIGHT, NotificationsPosition.BOTTOM_LEFT, NotificationsPosition.TOP_RIGHT],
+				'default': NotificationsPosition.BOTTOM_RIGHT,
+				'description': localize('notificationsPosition', "Controls the position of the notification toasts and notification center."),
+				'enumDescriptions': [
+					localize('workbench.notifications.position.bottom-right', "Show notifications in the bottom right corner."),
+					localize('workbench.notifications.position.bottom-left', "Show notifications in the bottom left corner."),
+					localize('workbench.notifications.position.top-right', "Show notifications in the top right corner, similar to OS-level notifications.")
+				],
+				'tags': ['experimental'],
+				'experiment': {
+					'mode': 'auto'
+				}
+			},
+			[NotificationsSettings.NOTIFICATIONS_BUTTON]: {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('notificationsButton', "Controls the visibility of the Notifications button in the title bar. Only applies when notifications are positioned at the top right.")
+			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',
 				'enum': ['default', 'top', 'bottom', 'hidden'],
@@ -626,6 +649,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': false,
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary and Secondary Side Bars when {0} is set to {1} or {2}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
+			},
+			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarCompact' }, "Controls whether the Activity Bar uses a compact layout with smaller icons and reduced width. This setting only applies when {0} is set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
@@ -710,6 +738,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
+			'workbench.reduceTransparency': {
+				type: 'string',
+				description: localize('workbench.reduceTransparency', "Controls whether the workbench should render with fewer transparency and blur effects for improved performance."),
+				'enumDescriptions': [
+					localize('workbench.reduceTransparency.on', "Always render without transparency and blur effects."),
+					localize('workbench.reduceTransparency.off', "Do not reduce transparency and blur effects."),
+					localize('workbench.reduceTransparency.auto', "Reduce transparency and blur effects based on OS configuration."),
+				],
+				default: 'off',
+				tags: ['accessibility'],
+				enum: ['on', 'off', 'auto']
+			},
 			'workbench.navigationControl.enabled': {
 				'type': 'boolean',
 				'default': true,
@@ -739,6 +779,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
+			},
+			[LayoutSettings.SHADOWS]: {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('shadows', "Controls whether shadow effects are shown around the side panels and other workbench elements.")
 			},
 		}
 	});

@@ -3,21 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -41,12 +46,14 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatModeService } from '../../common/chatModes.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { ChatSetupAnonymous } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
+import { GrowthSessionController, registerGrowthSession } from './chatSetupGrowthSession.js';
 import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, SetupAgent } from './chatSetupProviders.js';
 import { ChatSetup } from './chatSetupRunner.js';
 
@@ -58,11 +65,14 @@ const defaultChat = {
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
 };
 
+const SIGN_IN_TITLE_BAR_ACTION_ID = 'workbench.action.chat.signInIndicator';
+
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatSetup';
 
 	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
@@ -71,6 +81,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -83,7 +95,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 
 		this.registerSetupAgents(context, controller);
+		this.registerGrowthSession(chatEntitlementService);
 		this.registerActions(context, requests, controller);
+		this.registerSignInTitleBarEntry(actionViewItemService);
 		this.registerUrlLinkHandler();
 		this.checkExtensionInstallation(context);
 	}
@@ -171,6 +185,37 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this._register(Event.runAndSubscribe(context.onDidChange, () => updateRegistration()));
 	}
 
+	private registerGrowthSession(chatEntitlementService: ChatEntitlementService): void {
+		const growthSessionDisposables = markAsSingleton(new MutableDisposable());
+
+		const updateGrowthSession = () => {
+			const experimentEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.GrowthNotificationEnabled) === true;
+			// Show for users who don't have the Copilot extension installed yet.
+			// Additional conditions (e.g., anonymous, entitlement) can be layered here.
+			const shouldShow = experimentEnabled && !chatEntitlementService.sentiment.installed;
+			if (shouldShow && !growthSessionDisposables.value) {
+				const disposables = new DisposableStore();
+				const controller = disposables.add(this.instantiationService.createInstance(GrowthSessionController));
+				if (!controller.isDismissed) {
+					disposables.add(registerGrowthSession(this.chatSessionsService, controller));
+					// Fully unregister when dismissed to prevent cached session from
+					// appearing during filtered model updates from other providers.
+					disposables.add(controller.onDidDismiss(() => {
+						growthSessionDisposables.clear();
+					}));
+					growthSessionDisposables.value = disposables;
+				} else {
+					disposables.dispose();
+				}
+			} else if (!shouldShow) {
+				growthSessionDisposables.clear();
+			}
+		};
+
+		this._register(chatEntitlementService.onDidChangeSentiment(() => updateGrowthSession()));
+		updateGrowthSession();
+	}
+
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
 
 		//#region Global Chat Setup Actions
@@ -195,7 +240,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<boolean> {
 				const widgetService = accessor.get(IChatWidgetService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
@@ -213,6 +258,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				if (options?.inputValue) {
 					const chatWidget = await widgetService.revealWidget();
+					chatWidget?.input.showScrollbarUntilAccept();
 					chatWidget?.setInput(options.inputValue);
 				}
 
@@ -243,7 +289,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<unknown> {
+			override async run(accessor: ServicesAccessor, options?: { dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
 				const chatEntitlementService = accessor.get(IChatEntitlementService);
@@ -251,7 +297,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, {
-					forceAnonymous: chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
+					forceAnonymous: chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined,
+					...options
 				});
 			}
 		}
@@ -317,6 +364,39 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const telemetryService = accessor.get(ITelemetryService);
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'accounts' });
+
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			}
+		}
+
+		class ChatSetupSignInTitleBarAction extends Action2 {
+
+			static readonly ID = SIGN_IN_TITLE_BAR_ACTION_ID;
+
+			constructor() {
+				super({
+					id: ChatSetupSignInTitleBarAction.ID,
+					title: localize('signInIndicatorTitleBarAction', 'Sign In'),
+					f1: false,
+					menu: [{
+						id: MenuId.TitleBarAdjacentCenter,
+						order: 0, // same position as the update button
+						when: ContextKeyExpr.and(
+							IsWebContext.negate(),
+							ContextKeyExpr.has(`config.${ChatConfiguration.SignInTitleBarEnabled}`),
+							ChatContextKeys.Entitlement.signedOut,
+							ChatContextKeys.Setup.hidden.negate(),
+							ContextKeyExpr.has('updateTitleBar').negate()
+						),
+					}]
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
+
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'titlebar' });
 
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
 			}
@@ -391,6 +471,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.planPro,
 							ChatContextKeys.Entitlement.planProPlus,
+							ChatContextKeys.Entitlement.planEdu,
 						)
 					),
 					menu: {
@@ -401,6 +482,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ContextKeyExpr.or(
 								ChatContextKeys.Entitlement.planPro,
 								ChatContextKeys.Entitlement.planProPlus,
+								ChatContextKeys.Entitlement.planEdu,
 							),
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
@@ -420,6 +502,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerAction);
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
+		registerAction2(ChatSetupSignInTitleBarAction);
 		registerAction2(ChatSetupTriggerAnonymousWithoutDialogAction);
 		registerAction2(ChatSetupTriggerSupportAnonymousAction);
 		registerAction2(UpgradePlanAction);
@@ -429,9 +512,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.generateDocs' | 'chat.internal.generateTests', actualCommand: string): void {
+		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.codeReview.run', actualCommand: string): void {
 
-			CommandsRegistry.registerCommand(coreCommand, async accessor => {
+			CommandsRegistry.registerCommand(coreCommand, async (accessor, ...args) => {
 				const commandService = accessor.get(ICommandService);
 				const codeEditorService = accessor.get(ICodeEditorService);
 				const markerService = accessor.get(IMarkerService);
@@ -456,13 +539,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 						break;
 					}
-					case 'chat.internal.review':
-					case 'chat.internal.generateDocs':
-					case 'chat.internal.generateTests': {
+					case 'chat.internal.review': {
 						const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 						if (result) {
 							await commandService.executeCommand(actualCommand);
 						}
+						break;
+					}
+					case 'chat.internal.codeReview.run': {
+						return commandService.executeCommand(actualCommand, ...args);
 					}
 				}
 			});
@@ -470,8 +555,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
 		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
 		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
-		registerGenerateCodeCommand('chat.internal.generateDocs', 'github.copilot.chat.generateDocs');
-		registerGenerateCodeCommand('chat.internal.generateTests', 'github.copilot.chat.generateTests');
+		registerGenerateCodeCommand('chat.internal.codeReview.run', 'github.copilot.chat.codeReview.run');
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
@@ -489,54 +573,37 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			when: internalGenerateCodeContext
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 			command: {
 				id: 'chat.internal.fix',
 				title: localize('fix', "Fix"),
 			},
-			group: '1_action',
-			order: 1,
+			group: '1_chat',
+			order: 5,
 			when: ContextKeyExpr.and(
 				internalGenerateCodeContext,
 				EditorContextKeys.readOnly.negate()
 			)
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 			command: {
 				id: 'chat.internal.review',
 				title: localize('review', "Code Review"),
 			},
-			group: '1_action',
-			order: 2,
+			group: '1_chat',
+			order: 6,
 			when: internalGenerateCodeContext
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-			command: {
-				id: 'chat.internal.generateDocs',
-				title: localize('generateDocs', "Generate Docs"),
-			},
-			group: '2_generate',
-			order: 1,
-			when: ContextKeyExpr.and(
-				internalGenerateCodeContext,
-				EditorContextKeys.readOnly.negate()
-			)
-		});
+	}
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-			command: {
-				id: 'chat.internal.generateTests',
-				title: localize('generateTests', "Generate Tests"),
-			},
-			group: '2_generate',
-			order: 2,
-			when: ContextKeyExpr.and(
-				internalGenerateCodeContext,
-				EditorContextKeys.readOnly.negate()
-			)
-		});
+	private registerSignInTitleBarEntry(actionViewItemService: IActionViewItemService): void {
+		this._register(actionViewItemService.register(
+			MenuId.TitleBarAdjacentCenter,
+			SIGN_IN_TITLE_BAR_ACTION_ID,
+			(action, options) => new SignInTitleBarEntry(action, options)
+		));
 	}
 
 	private registerUrlLinkHandler(): void {
@@ -752,4 +819,46 @@ export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
 	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
+}
+
+/**
+ * Custom action view item that renders a "Sign In" button
+ * in the title bar with prominent button styling.
+ */
+class SignInTitleBarEntry extends BaseActionViewItem {
+
+	private label: HTMLElement | undefined;
+
+	constructor(
+		action: IAction,
+		options: IBaseActionViewItemOptions,
+	) {
+		super(undefined, action, options);
+	}
+
+	public override render(container: HTMLElement) {
+		super.render(container);
+
+		container.setAttribute('role', 'button');
+		container.setAttribute('aria-label', this.action.label);
+
+		const content = dom.append(container, dom.$('.update-indicator.prominent'));
+		this.label = dom.append(content, dom.$('.indicator-label'));
+		this.label.textContent = this.action.label;
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			this.label.textContent = this.action.label;
+		}
+		if (this.element) {
+			this.element.setAttribute('aria-label', this.action.label);
+		}
+	}
+
+	protected override updateEnabled(): void {
+		if (this.element) {
+			this.element.classList.toggle('disabled', !this.action.enabled);
+		}
+	}
 }

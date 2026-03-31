@@ -476,7 +476,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
 		default: false,
@@ -589,13 +589,10 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which allows a program in the terminal to request more detailed keyboard input reporting. This can, for example, enable `Shift+Enter` to be handled by the program."),
 		type: 'boolean',
-		default: false,
-		tags: ['experimental', 'advanced'],
-		experiment: {
-			mode: 'auto'
-		}
+		default: true,
+		tags: ['advanced']
 	},
 	[TerminalSettingId.EnableWin32InputMode]: {
 		restricted: true,
@@ -628,7 +625,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationTimeout]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. The default value {0} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to a large value if your shell starts very slowly.", '`-1`'),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
@@ -657,7 +654,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnableImages]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Both sixel and iTerm's inline image protocol are supported on Linux and macOS. This will only work on Windows for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
+		markdownDescription: localize('terminal.integrated.enableImages', "Enables image support in the terminal, this will only work when {0} is enabled. Sixel and iTerm's inline image protocol are supported on Linux and macOS. The kitty graphics protocol is supported on all platforms. On Windows, all image protocols will only work for versions of ConPTY >= v2 which is shipped with Windows itself, see also {1}. Images will currently not be restored between window reloads/reconnects. When enabled, transparency mode is also turned on in the terminal.", `\`#${TerminalSettingId.GpuAcceleration}#\``, `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
 		type: 'boolean',
 		default: false
 	},
@@ -725,6 +722,73 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableBell, { value: undefined }]);
 			configurationKeyValuePairs.push([TerminalSettingId.EnableVisualBell, { value: enableBell }]);
+			return configurationKeyValuePairs;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxEnabled,
+		migrateFn: (value: boolean, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxEnabled, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
+		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
+			}
+			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetwork, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains,
+		migrateFn: (value: string[], valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains,
+		migrateFn: (value: string[], valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	},
+	{
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem,
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxMacFileSystem,
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxMacFileSystem, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	}]);

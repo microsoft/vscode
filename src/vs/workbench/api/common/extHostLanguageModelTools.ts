@@ -12,6 +12,7 @@ import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { IPreparedToolInvocation, IStreamedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
+import { computeCombinationKey } from '../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/builtinTools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/builtinTools/tools.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
@@ -62,7 +63,8 @@ class Tool {
 				description: this._data.modelDescription,
 				inputSchema: this._data.inputSchema,
 				tags: this._data.tags ?? [],
-				source: typeConvert.LanguageModelToolSource.to(this._data.source)
+				source: typeConvert.LanguageModelToolSource.to(this._data.source),
+				fullReferenceName: this._data.fullReferenceName
 			});
 		}
 		return this._apiObjectWithChatParticipantAdditions;
@@ -127,6 +129,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 				subAgentInvocationId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentInvocationId : undefined,
 				chatStreamToolCallId: isProposedApiEnabled(extension, 'chatParticipantAdditions') ? options.chatStreamToolCallId : undefined,
+				preToolUseResult: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.preToolUseResult : undefined,
 			}, token);
 
 			const dto: Dto<IToolResult> = result instanceof SerializableObjectWithBuffers ? result.value : result;
@@ -157,6 +160,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 	getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] {
 		const hasParticipantAdditions = isProposedApiEnabled(extension, 'chatParticipantPrivate');
+
 		return Array.from(this._allTools.values())
 			.map(tool => hasParticipantAdditions ? tool.apiObjectWithChatParticipantAdditions : tool.apiObject)
 			.filter(tool => {
@@ -185,7 +189,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
 			options.chatRequestId = dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
-			options.chatSessionId = dto.context?.sessionId;
 			options.chatSessionResource = URI.revive(dto.context?.sessionResource);
 			options.subAgentInvocationId = dto.subAgentInvocationId;
 		}
@@ -264,7 +267,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		const options: vscode.LanguageModelToolInvocationStreamOptions<any> = {
 			rawInput: context.rawInput,
 			chatRequestId: context.chatRequestId,
-			chatSessionId: context.chatSessionId,
 			chatSessionResource: context.chatSessionResource,
 			chatInteractionId: context.chatInteractionId
 		};
@@ -288,10 +290,13 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		const options: vscode.LanguageModelToolInvocationPrepareOptions<any> = {
 			input: context.parameters,
 			chatRequestId: context.chatRequestId,
-			chatSessionId: context.chatSessionId,
 			chatSessionResource: context.chatSessionResource,
-			chatInteractionId: context.chatInteractionId
+			chatInteractionId: context.chatInteractionId,
+			forceConfirmationReason: context.forceConfirmationReason
 		};
+		if (context.forceConfirmationReason) {
+			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+		}
 		if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
 			if (!result) {
@@ -302,14 +307,26 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
 			}
 
+			if (result.confirmationMessages?.approveCombination !== undefined) {
+				checkProposedApiEnabled(item.extension, 'toolInvocationApproveCombination');
+			}
+
+			const approveCombinationLabel = result.confirmationMessages?.approveCombination
+				? typeConvert.MarkdownString.fromStrict(result.confirmationMessages.approveCombination)
+				: undefined;
+			const approveCombinationKey = approveCombinationLabel
+				? await computeCombinationKey(toolId, context.parameters)
+				: undefined;
+
 			return {
 				confirmationMessages: result.confirmationMessages ? {
 					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+					approveCombination: approveCombinationLabel && approveCombinationKey ? { label: approveCombinationLabel, key: approveCombinationKey } : undefined,
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-				presentation: result.presentation as ToolInvocationPresentation | undefined
+				presentation: result.presentation as ToolInvocationPresentation | undefined,
 			};
 		}
 

@@ -10,6 +10,7 @@ import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } 
 import { IWebWorkerService } from '../../src/vs/platform/webWorker/browser/webWorkerService.ts';
 // eslint-disable-next-line local/code-no-standalone-editor
 import { StandaloneWebWorkerService } from '../../src/vs/editor/standalone/browser/services/standaloneWebWorkerService.ts';
+import './style.css';
 
 enableHotReload();
 

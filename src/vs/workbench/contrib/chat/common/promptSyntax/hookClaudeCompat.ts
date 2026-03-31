@@ -4,22 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { HookType, IHookCommand, toHookType, resolveHookCommand } from './hookSchema.js';
+import { toHookType, IHookCommand, extractHookCommandsFromItem } from './hookSchema.js';
+import { HOOKS_BY_TARGET, HookType } from './hookTypes.js';
+import { Target } from './promptTypes.js';
 
-/**
- * Maps Claude hook type names to our abstract HookType.
- * Claude uses PascalCase and slightly different names.
- * @see https://docs.anthropic.com/en/docs/claude-code/hooks
- */
-export const CLAUDE_HOOK_TYPE_MAP: Record<string, HookType> = {
-	'SessionStart': HookType.SessionStart,
-	'UserPromptSubmit': HookType.UserPromptSubmit,
-	'PreToolUse': HookType.PreToolUse,
-	'PostToolUse': HookType.PostToolUse,
-	'SubagentStart': HookType.SubagentStart,
-	'SubagentStop': HookType.SubagentStop,
-	'Stop': HookType.Stop,
-};
+export { extractHookCommandsFromItem };
 
 /**
  * Cached inverse mapping from HookType to Claude hook type name.
@@ -30,7 +19,7 @@ let _hookTypeToClaudeName: Map<HookType, string> | undefined;
 function getHookTypeToClaudeNameMap(): Map<HookType, string> {
 	if (!_hookTypeToClaudeName) {
 		_hookTypeToClaudeName = new Map();
-		for (const [claudeName, hookType] of Object.entries(CLAUDE_HOOK_TYPE_MAP)) {
+		for (const [claudeName, hookType] of Object.entries(HOOKS_BY_TARGET[Target.Claude])) {
 			_hookTypeToClaudeName.set(hookType, claudeName);
 		}
 	}
@@ -41,7 +30,7 @@ function getHookTypeToClaudeNameMap(): Map<HookType, string> {
  * Resolves a Claude hook type name to our abstract HookType.
  */
 export function resolveClaudeHookType(name: string): HookType | undefined {
-	return CLAUDE_HOOK_TYPE_MAP[name];
+	return HOOKS_BY_TARGET[Target.Claude][name];
 }
 
 /**
@@ -50,6 +39,20 @@ export function resolveClaudeHookType(name: string): HookType | undefined {
  */
 export function getClaudeHookTypeName(hookType: HookType): string | undefined {
 	return getHookTypeToClaudeNameMap().get(hookType);
+}
+
+/**
+ * Result of parsing Claude hooks file.
+ */
+export interface IParseClaudeHooksResult {
+	/**
+	 * The parsed hooks by type.
+	 */
+	readonly hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
+	/**
+	 * Whether all hooks from this file were disabled via `disableAllHooks: true`.
+	 */
+	readonly disabledAllHooks: boolean;
 }
 
 /**
@@ -69,23 +72,31 @@ export function getClaudeHookTypeName(hookType: HookType): string | undefined {
  *     "PreToolUse": [{ "type": "command", "command": "..." }]
  *   }
  * }
+ *
+ * If the file has `disableAllHooks: true` at the top level, all hooks are filtered out.
  */
 export function parseClaudeHooks(
 	json: unknown,
 	workspaceRootUri: URI | undefined,
 	userHome: string
-): Map<HookType, { hooks: IHookCommand[]; originalId: string }> {
+): IParseClaudeHooksResult {
 	const result = new Map<HookType, { hooks: IHookCommand[]; originalId: string }>();
 
 	if (!json || typeof json !== 'object') {
-		return result;
+		return { hooks: result, disabledAllHooks: false };
 	}
 
 	const root = json as Record<string, unknown>;
+
+	// Check for disableAllHooks property at the top level
+	if (root.disableAllHooks === true) {
+		return { hooks: result, disabledAllHooks: true };
+	}
+
 	const hooks = root.hooks;
 
 	if (!hooks || typeof hooks !== 'object') {
-		return result;
+		return { hooks: result, disabledAllHooks: false };
 	}
 
 	const hooksObj = hooks as Record<string, unknown>;
@@ -105,28 +116,9 @@ export function parseClaudeHooks(
 		const commands: IHookCommand[] = [];
 
 		for (const item of hookArray) {
-			if (!item || typeof item !== 'object') {
-				continue;
-			}
-
-			const itemObj = item as Record<string, unknown>;
-
-			// Claude can have nested hooks with matchers: { matcher: "Bash", hooks: [...] }
-			const nestedHooks = (itemObj as { hooks?: unknown }).hooks;
-			if (nestedHooks !== undefined && Array.isArray(nestedHooks)) {
-				for (const nestedHook of nestedHooks) {
-					const resolved = resolveClaudeCommand(nestedHook as Record<string, unknown>, workspaceRootUri, userHome);
-					if (resolved) {
-						commands.push(resolved);
-					}
-				}
-			} else {
-				// Direct hook command
-				const resolved = resolveClaudeCommand(itemObj, workspaceRootUri, userHome);
-				if (resolved) {
-					commands.push(resolved);
-				}
-			}
+			// Use shared helper that handles both direct commands and nested matcher structures
+			const extracted = extractHookCommandsFromItem(item, workspaceRootUri, userHome);
+			commands.push(...extracted);
 		}
 
 		if (commands.length > 0) {
@@ -139,25 +131,7 @@ export function parseClaudeHooks(
 		}
 	}
 
-	return result;
+	return { hooks: result, disabledAllHooks: false };
 }
 
-/**
- * Resolves a Claude hook command to our IHookCommand format.
- * Claude commands can be: { type: "command", command: "..." } or { command: "..." }
- */
-function resolveClaudeCommand(
-	raw: Record<string, unknown>,
-	workspaceRootUri: URI | undefined,
-	userHome: string
-): IHookCommand | undefined {
-	// Claude might not require 'type' field, so we're more lenient
-	const hasValidType = raw.type === undefined || raw.type === 'command';
-	if (!hasValidType) {
-		return undefined;
-	}
 
-	// Add type if missing for resolveHookCommand
-	const normalized = { ...raw, type: 'command' };
-	return resolveHookCommand(normalized, workspaceRootUri, userHome);
-}

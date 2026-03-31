@@ -597,7 +597,7 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor, args: any): Promise<void> {
+	async run(accessor: ServicesAccessor, args: unknown): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const taskSystem = accessor.get(ITaskService);
 		const instance = args as ITerminalInstance ?? terminalService.activeInstance;

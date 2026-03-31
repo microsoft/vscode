@@ -13,7 +13,12 @@ export const additionalDeps = [
 	'rpmlib(FileDigests) <= 4.6.0-1',
 	'libvulkan.so.1()(64bit)',
 	'libcurl.so.4()(64bit)',
-	'xdg-utils' // OS integration
+	'xdg-utils', // OS integration
+];
+
+export const recommendedDeps = [
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
@@ -52,6 +57,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.3.3)(64bit)',
 		'libc.so.6(GLIBC_2.3.4)(64bit)',
 		'libc.so.6(GLIBC_2.4)(64bit)',
+		'libc.so.6(GLIBC_2.5)(64bit)',
 		'libc.so.6(GLIBC_2.6)(64bit)',
 		'libc.so.6(GLIBC_2.7)(64bit)',
 		'libc.so.6(GLIBC_2.8)(64bit)',
@@ -144,6 +150,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.27)',
 		'libc.so.6(GLIBC_2.28)',
 		'libc.so.6(GLIBC_2.4)',
+		'libc.so.6(GLIBC_2.5)',
 		'libc.so.6(GLIBC_2.6)',
 		'libc.so.6(GLIBC_2.7)',
 		'libc.so.6(GLIBC_2.8)',

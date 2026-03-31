@@ -64,6 +64,7 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { TextModelEditSource, EditSources } from '../../../common/textModelEditSource.js';
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
 import { isObject } from '../../../../base/common/types.js';
+import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -249,6 +250,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	protected readonly _codeEditorService: ICodeEditorService;
 	private readonly _commandService: ICommandService;
 	private readonly _themeService: IThemeService;
+	private readonly _userInteractionService: IUserInteractionService;
 
 	private _contentWidgets: { [key: string]: IContentWidgetData };
 	private _overlayWidgets: { [key: string]: IOverlayWidgetData };
@@ -279,6 +281,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IUserInteractionService userInteractionService: IUserInteractionService,
 	) {
 		super();
 		codeEditorService.willCreateCodeEditor();
@@ -286,6 +289,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const options = { ..._options };
 
 		this._domElement = domElement;
+		this._userInteractionService = userInteractionService;
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 		delete options.overflowWidgetsDomNode;
 		this._id = (++EDITOR_ID);
@@ -1994,7 +1998,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			viewModel,
 			viewUserInputEvents,
 			this._overflowWidgetsDomNode,
-			this._instantiationService
+			this._instantiationService,
+			this._userInteractionService,
 		);
 
 		return [view, true];

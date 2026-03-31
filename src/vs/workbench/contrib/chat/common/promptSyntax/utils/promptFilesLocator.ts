@@ -7,29 +7,43 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
-import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { basename, dirname, isEqual, isEqualOrParent, joinPath, extname } from '../../../../../../base/common/resources.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS, DEFAULT_HOOK_FILE_PATHS, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource, HOOKS_SOURCE_FOLDER } from '../config/promptFileLocations.js';
-import { PromptsType } from '../promptTypes.js';
+import { AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { AgentFileType, IResolvedAgentFile, PromptsStorage } from '../service/promptsService.js';
+import { AgentFileType, IPromptPath, IResolvedAgentFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+
+/**
+ * Maximum recursion depth when traversing subdirectories for instruction files.
+ */
+const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
+
+export interface IWorkspaceInstructionFile {
+	readonly fileName: string;
+	readonly type: AgentFileType;
+}
 
 /**
  * Utility class to locate prompt files.
  */
 export class PromptFilesLocator {
+
+	private readonly userDataFolder: IResolvedPromptSourceFolder;
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -40,7 +54,92 @@ export class PromptFilesLocator {
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 		@IPathService private readonly pathService: IPathService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
+
+		const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
+		this.userDataFolder = {
+			uri: userDataPromptsHome,
+			parent: userDataPromptsHome,
+			filePattern: undefined,
+			source: PromptFileSource.CopilotPersonal,
+			storage: PromptsStorage.user,
+			displayPath: nls.localize('promptsUserDataFolder', "User Data"),
+			isDefault: true
+		};
+	}
+
+	protected getWorkspaceFolders(): readonly IWorkspaceFolder[] {
+		return this.workspaceService.getWorkspace().folders;
+	}
+
+	protected getWorkspaceFolder(resource: URI): IWorkspaceFolder | undefined {
+		return this.workspaceService.getWorkspaceFolder(resource) ?? undefined;
+	}
+
+	protected onDidChangeWorkspaceFolders(): Event<void> {
+		return Event.map(this.workspaceService.onDidChangeWorkspaceFolders, () => undefined);
+	}
+
+	public async getWorkspaceFolderRoots(includeParents: boolean, logger?: Logger): Promise<URI[]> {
+		const workspaceFolders = this.getWorkspaceFolders();
+		if (includeParents) {
+			const roots = new ResourceSet();
+			const userHome = await this.pathService.userHome();
+			for (const workspaceFolder of workspaceFolders) {
+				roots.add(workspaceFolder.uri);
+				// Walk up from the workspace folder to find the repository root
+				// (.git folder). Only include parent folders if a repo root is
+				// actually found; otherwise keep only the workspace folder.
+				const parents = await this.findParentRepoFolders(workspaceFolder.uri, userHome, roots, logger);
+				for (const parent of parents) {
+					roots.add(parent);
+				}
+			}
+			return [...roots];
+		}
+		return workspaceFolders.map(f => f.uri);
+	}
+
+	/**
+	 * Walks up from {@link folderUri} collecting parent folders until a
+	 * repository root (a folder containing `.git`) is found.  Returns the
+	 * intermediate parent folders only when a repo root is found; returns
+	 * an empty array when the walk reaches the filesystem root, the user
+	 * home directory, or a folder already present in {@link seen}.
+	 */
+	private async findParentRepoFolders(folderUri: URI, userHome: URI, seen: ResourceSet, logger?: Logger): Promise<URI[]> {
+		const candidates: URI[] = [];
+		let current = folderUri;
+		while (true) {
+			try {
+				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
+				if (isRepoRoot) {
+					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
+						candidates.push(current);
+						return candidates;
+					}
+					logger?.logInfo(`Repository root found at ${current.toString()}, but it is not trusted. Skipping parent folder inclusion for this workspace folder.`);
+					return []; // if the repo root isn't trusted, don't include it or any parents
+				}
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				logger?.logInfo(`No repository root found for folder ${folderUri.toString()}. Error accessing ${joinPath(current, '.git')}: ${msg}.`);
+				return []; // if we can't access the folder, return an empty list to avoid treating it as a non-repository when we might just have a permission issue
+			}
+			candidates.push(current);
+			const parent = dirname(current);
+			// Stop walking up when we reach a filesystem root (fixed-point
+			// of dirname, e.g. '/' or a Windows drive root like 'D:\'),
+			// the user home directory, or an already-seen folder.
+			if (isEqual(current, parent) || current.path === '/' || isEqual(userHome, parent) || seen.has(parent)) {
+				break;
+			}
+			current = parent;
+		}
+		// no repo found
+		logger?.logInfo(`No repository root found for folder ${folderUri.toString()}.`);
+		return [];
 	}
 
 	/**
@@ -49,20 +148,23 @@ export class PromptFilesLocator {
 	 * @returns List of prompt files found in the workspace.
 	 */
 	public async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
-		if (storage === PromptsStorage.local) {
-			return await this.listFilesInLocal(type, token);
-		} else if (storage === PromptsStorage.user) {
-			return await this.listFilesInUserData(type, token);
+		if (storage !== PromptsStorage.user && storage !== PromptsStorage.local) {
+			throw new Error(`Unsupported prompt file storage: ${storage}`);
 		}
-		throw new Error(`Unsupported prompt file storage: ${storage}`);
-	}
 
-	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
-		const userStorageFolders = await this.getUserStorageFolders(type);
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const absoluteLocations = await this.toAbsoluteLocations(type, configuredLocations.filter(loc => loc.storage === storage));
+
+		if (storage === PromptsStorage.user && (type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt)) {
+			absoluteLocations.push(this.userDataFolder);
+		}
+
 		const paths = new ResourceSet();
 
-		for (const { uri } of userStorageFolders) {
-			const files = await this.resolveFilesAtLocation(uri, type, token);
+		for (const { parent, filePattern } of absoluteLocations) {
+			const files = (filePattern === undefined)
+				? await this.resolveFilesAtLocation(parent, type, token) // if the location does not contain a glob pattern, resolve the location directly
+				: await this.searchFilesInLocation(parent, filePattern, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
 					paths.add(file);
@@ -72,109 +174,57 @@ export class PromptFilesLocator {
 				return [];
 			}
 		}
-
 		return [...paths];
-	}
-
-	/**
-	 * Gets all user storage folders for the given prompt type.
-	 * This includes configured tilde paths and the VS Code user data prompts folder.
-	 */
-	private async getUserStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
-		const userHome = await this.pathService.userHome();
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
-
-		// Filter to only user storage locations
-		const result = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
-
-		// Also include the VS Code user data prompts folder (for all types except skills)
-		if (type !== PromptsType.skill) {
-			const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
-			return [
-				...result,
-				{
-					uri: userDataPromptsHome,
-					source: PromptFileSource.CopilotPersonal,
-					storage: PromptsStorage.user,
-					displayPath: nls.localize('promptsUserDataFolder', "User Data"),
-					isDefault: true
-				}
-			];
-		}
-
-		return result;
-	}
-
-	/**
-	 * Gets all source folder URIs for a prompt type (both workspace and user home).
-	 * This is used for file watching to detect changes in all relevant locations.
-	 */
-	private getSourceFoldersSync(type: PromptsType, userHome: URI): readonly URI[] {
-		const result: URI[] = [];
-		const { folders } = this.workspaceService.getWorkspace();
-		const defaultFolders = getPromptFileDefaultLocations(type);
-
-		for (const sourceFolder of defaultFolders) {
-			let folderPath: URI;
-			if (sourceFolder.storage === PromptsStorage.local) {
-				for (const workspaceFolder of folders) {
-					folderPath = joinPath(workspaceFolder.uri, sourceFolder.path);
-					// For hooks, the paths are file paths, so get the parent directory
-					result.push(type === PromptsType.hook ? dirname(folderPath) : folderPath);
-				}
-			} else if (sourceFolder.storage === PromptsStorage.user) {
-				// For tilde paths, strip the ~/ prefix before joining with userHome
-				const relativePath = isTildePath(sourceFolder.path) ? sourceFolder.path.substring(2) : sourceFolder.path;
-				folderPath = joinPath(userHome, relativePath);
-				// For hooks, the paths are file paths, so get the parent directory
-				result.push(type === PromptsType.hook ? dirname(folderPath) : folderPath);
-			}
-		}
-
-		return result;
 	}
 
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
 		const disposables = new DisposableStore();
 		const eventEmitter = disposables.add(new Emitter<void>());
-
-		const userDataFolder = this.userDataService.currentProfile.promptsHome;
-
-		const key = getPromptFileLocationsConfigKey(type);
-		let parentFolders = this.getLocalParentFolders(type);
-		let allSourceFolders: URI[] = [];
+		const token = disposables.add(new CancellationTokenSource()).token; // track the disposal of the event listeners so we can cancel any in-flight async operations when the event is disposed
 
 		const externalFolderWatchers = disposables.add(new DisposableStore());
+		const key = getPromptFileLocationsConfigKey(type);
+		const userDataFolder = this.userDataService.currentProfile.promptsHome;
+
+		let parentFolders: readonly IResolvedPromptSourceFolder[] = [];
+
 		const updateExternalFolderWatchers = () => {
 			externalFolderWatchers.clear();
 			for (const folder of parentFolders) {
-				if (!this.workspaceService.getWorkspaceFolder(folder.parent)) {
+				if (!this.getWorkspaceFolder(folder.parent)) {
 					// if the folder is not part of the workspace, we need to watch it
-					const recursive = folder.filePattern !== undefined;
+					const recursive = folder.filePattern !== undefined || type === PromptsType.instructions; // instructions can be in subfolders, so watch recursively
 					externalFolderWatchers.add(this.fileService.watch(folder.parent, { recursive, excludes: [] }));
-				}
-			}
-			// Watch all source folders (including user home if applicable)
-			for (const folder of allSourceFolders) {
-				if (!this.workspaceService.getWorkspaceFolder(folder)) {
-					externalFolderWatchers.add(this.fileService.watch(folder, { recursive: true, excludes: [] }));
 				}
 			}
 		};
 
-		// Initialize source folders (async if type has userHome locations)
-		this.pathService.userHome().then(userHome => {
-			allSourceFolders = [...this.getSourceFoldersSync(type, userHome)];
-			updateExternalFolderWatchers();
-		});
+		const update = async () => {
+			try {
+				const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+				parentFolders = await this.toAbsoluteLocations(type, configuredLocations, undefined);
 
-		disposables.add(this.configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				parentFolders = this.getLocalParentFolders(type);
+				if (token.isCancellationRequested) {
+					return;
+				}
 				updateExternalFolderWatchers();
+			} catch (err) {
+				this.logService.error(`Error updating prompt file watchers after config change:`, err);
+			}
+		};
+		disposables.add(this.configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key) || e.affectsConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS)) {
+				void update();
 				eventEmitter.fire();
 			}
+		}));
+		disposables.add(this.onDidChangeWorkspaceFolders()(() => {
+			void update();
+			eventEmitter.fire();
+		}));
+		disposables.add(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => {
+			void update();
+			eventEmitter.fire();
 		}));
 		disposables.add(this.fileService.onDidFilesChange(e => {
 			if (e.affects(userDataFolder)) {
@@ -185,28 +235,39 @@ export class PromptFilesLocator {
 				eventEmitter.fire();
 				return;
 			}
-			if (allSourceFolders.some(folder => e.affects(folder))) {
-				eventEmitter.fire();
-				return;
-			}
 		}));
 		disposables.add(this.fileService.watch(userDataFolder));
+
+		void update();
 
 		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
 	}
 
-	public async getAgentSourceFolders(): Promise<readonly URI[]> {
-		const userHome = await this.pathService.userHome();
-		return this.toAbsoluteLocations(PromptsType.agent, DEFAULT_AGENT_SOURCE_FOLDERS, userHome).map(l => l.uri);
-	}
-
 	/**
 	 * Gets the hook source folders for creating new hooks.
-	 * Returns only the Copilot hooks folder (.github/hooks) since Claude paths are read-only.
+	 * Returns folders from config, excluding user storage and Claude paths (which are read-only).
 	 */
 	public async getHookSourceFolders(): Promise<readonly URI[]> {
-		const { folders } = this.workspaceService.getWorkspace();
-		return folders.map(folder => joinPath(folder.uri, HOOKS_SOURCE_FOLDER));
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.hook);
+
+		// Ignore claude folders since they aren't first-class supported, so we don't want to create invalid formats
+		// Check for .claude as an actual path segment (starts with ".claude/" or contains "/.claude/")
+		const allowedHookFolders = configuredLocations.filter(loc =>
+			!loc.path.startsWith('.claude/') && !loc.path.includes('/.claude/')
+		);
+
+		// Convert to absolute URIs
+		const result = new ResourceSet();
+		const absoluteLocations = await this.toAbsoluteLocations(PromptsType.hook, allowedHookFolders);
+
+		for (const location of absoluteLocations) {
+			// For hook configs, entries are directories unless the path ends with .json (specific file)
+			// Default entries have filePattern, user entries don't but are still directories
+			// location.parent points to the directory in both cases, so we can just use that
+			result.add(location.parent);
+		}
+
+		return [...result];
 	}
 
 	/**
@@ -222,28 +283,28 @@ export class PromptFilesLocator {
 	 * @returns List of possible unambiguous prompt file folders.
 	 */
 	public async getConfigBasedSourceFolders(type: PromptsType): Promise<readonly URI[]> {
-		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome).map(l => l.uri);
+		const absoluteLocations = await this.toAbsoluteLocations(type, configuredLocations);
 
 		// For anything that doesn't support glob patterns, we can return
 		if (type !== PromptsType.prompt && type !== PromptsType.instructions) {
-			return absoluteLocations;
+			return absoluteLocations.map(l => l.uri);
 		}
 
 		// locations in the settings can contain glob patterns so we need
 		// to process them to get "clean" paths; the goal here is to have
 		// a list of unambiguous folder paths where prompt files are stored
 		const result = new ResourceSet();
-		for (let absoluteLocation of absoluteLocations) {
-			const baseName = basename(absoluteLocation);
+		for (const absoluteLocation of absoluteLocations) {
+			let location = absoluteLocation.uri;
+			const baseName = basename(location);
 
 			// if a path ends with a well-known "any file" pattern, remove
 			// it so we can get the dirname path of that setting value
 			const filePatterns = ['*.md', `*${getPromptFileExtension(type)}`];
 			for (const filePattern of filePatterns) {
 				if (baseName === filePattern) {
-					absoluteLocation = dirname(absoluteLocation);
+					location = dirname(location);
 					continue;
 				}
 			}
@@ -251,16 +312,16 @@ export class PromptFilesLocator {
 			// likewise, if the pattern ends with single `*` (any file name)
 			// remove it to get the dirname path of the setting value
 			if (baseName === '*') {
-				absoluteLocation = dirname(absoluteLocation);
+				location = dirname(location);
 			}
 
 			// if after replacing the "file name" glob pattern, the path
 			// still contains a glob pattern, then ignore the path
-			if (isValidGlob(absoluteLocation.path) === true) {
+			if (isValidGlob(location.path) === true) {
 				continue;
 			}
 
-			result.add(absoluteLocation);
+			result.add(location);
 		}
 
 		return [...result];
@@ -271,13 +332,31 @@ export class PromptFilesLocator {
 	 * This method merges configured locations with default locations and resolves them
 	 * to absolute paths, including displayPath and isDefault information.
 	 *
+	 * The returned order prefers workspace (local) folders first, then user folders.
+	 * This is used for UX like the "Create Prompt" command where workspace is preferred.
+	 *
 	 * @param type The type of prompt files.
 	 * @returns List of resolved source folders with metadata.
 	 */
 	public async getResolvedSourceFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
-		const localFolders = await this.getLocalStorageFolders(type);
-		const userFolders = await this.getUserStorageFolders(type);
+		const absoluteLocations = await this.getLocalStorageFolders(type);
+
+		const localFolders = absoluteLocations.filter(loc => loc.storage === PromptsStorage.local);
+		const userFolders = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
 		return this.dedupeSourceFolders([...localFolders, ...userFolders]);
+	}
+
+	/**
+	 * Gets all resolved source folders in the same order that file discovery
+	 * searches them (user folders first, then local/workspace folders).
+	 * This matches the order used by {@link listFiles} and should be used
+	 * for debug/diagnostic output so the displayed order is accurate.
+	 */
+	public async getSourceFoldersInDiscoveryOrder(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		const absoluteLocations = await this.getLocalStorageFolders(type);
+		const userFolders = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
+		const localFolders = absoluteLocations.filter(loc => loc.storage === PromptsStorage.local);
+		return this.dedupeSourceFolders([...userFolders, ...localFolders]);
 	}
 
 	/**
@@ -285,7 +364,6 @@ export class PromptFilesLocator {
 	 * This merges default folders with configured locations.
 	 */
 	private async getLocalStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
-		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 		const defaultFolders = getPromptFileDefaultLocations(type);
 
@@ -295,7 +373,11 @@ export class PromptFilesLocator {
 			...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))
 		];
 
-		return this.toAbsoluteLocations(type, allFolders, userHome, defaultFolders);
+		const absoluteLocations = await this.toAbsoluteLocations(type, allFolders, defaultFolders);
+		if (type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt) {
+			absoluteLocations.push(this.userDataFolder);
+		}
+		return absoluteLocations;
 	}
 
 	/**
@@ -314,62 +396,18 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Finds all existent prompt files in the configured local source folders.
-	 *
-	 * @returns List of prompt files found in the local source folders.
-	 */
-	private async listFilesInLocal(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
-		// find all prompt files in the provided locations, then match
-		// the found file paths against (possible) glob patterns
-		const paths = new ResourceSet();
-
-		for (const { parent, filePattern } of this.getLocalParentFolders(type)) {
-			const files = (filePattern === undefined)
-				? await this.resolveFilesAtLocation(parent, type, token) // if the location does not contain a glob pattern, resolve the location directly
-				: await this.searchFilesInLocation(parent, filePattern, token);
-			for (const file of files) {
-				if (getPromptFileType(file) === type) {
-					paths.add(file);
-				}
-			}
-			if (token.isCancellationRequested) {
-				return [];
-			}
-		}
-
-		return [...paths];
-	}
-
-	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		if (type === PromptsType.agent) {
-			configuredLocations.push(...DEFAULT_AGENT_SOURCE_FOLDERS);
-		} else if (type === PromptsType.hook) {
-			configuredLocations.push(...DEFAULT_HOOK_FILE_PATHS);
-		}
-
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined);
-
-		// For hooks, the paths are file paths (e.g., '.github/hooks/hooks.json'), not folder paths.
-		// We need to watch the parent directories of these files.
-		if (type === PromptsType.hook) {
-			return absoluteLocations.map((location) => ({ parent: dirname(location.uri) }));
-		}
-
-		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
-	}
-
-	/**
 	 * Converts locations defined in `settings` to absolute filesystem path URIs with metadata.
 	 * This conversion is needed because locations in settings can be relative,
 	 * hence we need to resolve them based on the current workspace folders.
 	 * If userHome is provided, paths starting with `~` will be expanded. Otherwise these paths are ignored.
 	 * Preserves the type and location properties from the source folder definitions.
 	 */
-	private toAbsoluteLocations(type: PromptsType, configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined, defaultLocations?: readonly IPromptSourceFolder[]): readonly IResolvedPromptSourceFolder[] {
+	private async toAbsoluteLocations(type: PromptsType, configuredLocations: readonly IPromptSourceFolder[], defaultLocations?: readonly IPromptSourceFolder[]): Promise<IResolvedPromptSourceFolder[]> {
 		const result: IResolvedPromptSourceFolder[] = [];
 		const seen = new ResourceSet();
-		const { folders } = this.workspaceService.getWorkspace();
+
+		const userHome = await this.pathService.userHome();
+		const rootFolders = await this.getWorkspaceFolderRoots(this.configService.getValue(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true);
 
 		// Create a set of default paths for quick lookup
 		const defaultPaths = new Set(defaultLocations?.map(loc => loc.path));
@@ -402,13 +440,11 @@ export class PromptFilesLocator {
 			try {
 				// Handle tilde paths when userHome is provided
 				if (isTildePath(configuredLocation)) {
-					// If userHome is not provided, we cannot resolve tilde paths so we skip this entry
-					if (userHome) {
-						const uri = joinPath(userHome, configuredLocation.substring(2));
-						if (!seen.has(uri)) {
-							seen.add(uri);
-							result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
-						}
+					const uri = joinPath(userHome, configuredLocation.substring(2));
+					if (!seen.has(uri)) {
+						seen.add(uri);
+						const { parent, filePattern } = getParentFolder(type, uri);
+						result.push({ uri, parent, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 					continue;
 				}
@@ -423,14 +459,16 @@ export class PromptFilesLocator {
 					}
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
+						const { parent, filePattern } = getParentFolder(type, uri);
+						result.push({ uri, parent, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 				} else {
-					for (const workspaceFolder of folders) {
-						const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
+					for (const folder of rootFolders) {
+						const absolutePath = joinPath(folder, configuredLocation);
 						if (!seen.has(absolutePath)) {
 							seen.add(absolutePath);
-							result.push({ uri: absolutePath, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
+							const { parent, filePattern } = getParentFolder(type, absolutePath);
+							result.push({ uri: absolutePath, parent, filePattern, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
 				}
@@ -444,13 +482,28 @@ export class PromptFilesLocator {
 
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
+	 * For instruction folders, this searches recursively (up to {@link MAX_INSTRUCTIONS_RECURSION_DEPTH} levels deep) provided
+	 * the location is not a workspace folder root and does not contain wildcards, to support subdirectories while avoiding
+	 * accidentally broad traversal.
 	 */
-	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken): Promise<URI[]> {
+	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken, depth: number = 0): Promise<URI[]> {
 		if (type === PromptsType.skill) {
 			return this.findAgentSkillsInFolder(location, token);
 		}
+		// Recurse into subdirectories for instruction folders, but only if:
+		// - the location is not a workspace folder root (to avoid full workspace traversal)
+		// - the path does not contain wildcards (already filtered upstream, but guard here too)
+		// - the recursion depth hasn't exceeded the limit
+		const isWorkspaceRoot = depth === 0 && this.getWorkspaceFolders().some(f => isEqual(f.uri, location));
+		const recursive = type === PromptsType.instructions
+			&& !isWorkspaceRoot
+			&& !hasGlobPattern(location.path)
+			&& depth < MAX_INSTRUCTIONS_RECURSION_DEPTH;
 		try {
 			const info = await this.fileService.resolve(location);
+			if (token.isCancellationRequested) {
+				return [];
+			}
 			if (info.isFile) {
 				return [info.resource];
 			} else if (info.isDirectory && info.children) {
@@ -458,11 +511,20 @@ export class PromptFilesLocator {
 				for (const child of info.children) {
 					if (child.isFile) {
 						result.push(child.resource);
+					} else if (recursive && child.isDirectory) {
+						// Recursively search subdirectories for instructions
+						const subFiles = await this.resolveFilesAtLocation(child.resource, type, token, depth + 1);
+						result.push(...subFiles);
 					}
 				}
 				return result;
 			}
-		} catch (error) {
+		} catch (e) {
+			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				// ignore
+			} else {
+				this.logService.error(`Failed to resolve files at location: ${location.toString()}`, e);
+			}
 		}
 		return [];
 	}
@@ -480,7 +542,7 @@ export class PromptFilesLocator {
 
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
-		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
+		const workspaceRoot = this.getWorkspaceFolder(folder);
 
 		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
 		const searchOptions: IFileQuery = {
@@ -507,29 +569,11 @@ export class PromptFilesLocator {
 		return [];
 	}
 
-	public async findCopilotInstructionsMDsInWorkspace(token: CancellationToken): Promise<IResolvedAgentFile[]> {
-		const result: IResolvedAgentFile[] = [];
-		const { folders } = this.workspaceService.getWorkspace();
-		for (const folder of folders) {
-			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-			try {
-				const stat = await this.fileService.stat(file);
-				if (stat.isFile) {
-					const realPath = stat.isSymbolicLink ? await this.fileService.realpath(file) : undefined;
-					result.push({ uri: file, realPath, type: AgentFileType.copilotInstructionsMd });
-				}
-			} catch (error) {
-				this.logService.trace(`[PromptFilesLocator] Skipping copilot-instructions.md at ${file.toString()}: ${error}`);
-			}
-		}
-		return result;
-	}
-
 	/**
 	 * Gets list of `AGENTS.md` files anywhere in the workspace.
 	 */
 	public async findAgentMDsInWorkspace(token: CancellationToken): Promise<IResolvedAgentFile[]> {
-		const result = await Promise.all(this.workspaceService.getWorkspace().folders.map(folder => this.findAgentMDsInFolder(folder.uri, token)));
+		const result = await Promise.all(this.getWorkspaceFolders().map(folder => this.findAgentMDsInFolder(folder.uri, token)));
 		return result.flat(1);
 	}
 
@@ -606,29 +650,24 @@ export class PromptFilesLocator {
 		return result;
 	}
 
-	/**
-	 * Gets list of files at the root workspace folder(s).
-	 */
-	public async findFilesInWorkspaceRoots(fileName: string, folder: string | undefined, type: AgentFileType, token: CancellationToken, result: IResolvedAgentFile[] = []): Promise<IResolvedAgentFile[]> {
-		const { folders } = this.workspaceService.getWorkspace();
-		if (folder) {
-			return this.findFilesInRoots(folders.map(f => joinPath(f.uri, folder)), fileName, type, token, result);
-		}
-		return this.findFilesInRoots(folders.map(f => f.uri), fileName, type, token, result);
-	}
 
-	public async findFilesInRoots(roots: URI[], fileName: string, type: AgentFileType, token: CancellationToken, result: IResolvedAgentFile[] = []): Promise<IResolvedAgentFile[]> {
-		const fileNameLower = fileName.toLowerCase();
-		const resolvedRoots = await this.fileService.resolveAll(roots.map(uri => ({ resource: uri })));
+
+	public async findFilesInRoots(roots: URI[], folder: string | undefined, paths: IWorkspaceInstructionFile[], token: CancellationToken, result: IResolvedAgentFile[] = []): Promise<IResolvedAgentFile[]> {
+		const toResolve = roots.map(root => ({ resource: folder !== undefined ? joinPath(root, folder) : root }));
+		const resolvedRoots = await this.fileService.resolveAll(toResolve);
 		if (token.isCancellationRequested) {
 			return result;
 		}
 		for (const root of resolvedRoots) {
 			if (root.success && root.stat?.children) {
-				const file = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === fileNameLower);
-				if (file) {
-					const realPath = file.isSymbolicLink ? await this.fileService.realpath(file.resource) : undefined;
-					result.push({ uri: file.resource, realPath, type });
+				for (const child of root.stat.children) {
+					if (child.isFile) {
+						const matchingPath = paths.find(p => equalsIgnoreCase(p.fileName, child.name));
+						if (matchingPath) {
+							const realPath = child.isSymbolicLink ? await this.fileService.realpath(child.resource) : undefined;
+							result.push({ uri: child.resource, realPath, type: matchingPath.type });
+						}
+					}
 				}
 			}
 		}
@@ -638,7 +677,7 @@ export class PromptFilesLocator {
 	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
 		if (oldURI.path.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
 			let newLocation;
-			const workspaceFolder = this.workspaceService.getWorkspaceFolder(oldURI);
+			const workspaceFolder = this.getWorkspaceFolder(oldURI);
 			if (workspaceFolder) {
 				newLocation = joinPath(workspaceFolder.uri, AGENTS_SOURCE_FOLDER, getCleanPromptName(oldURI) + AGENT_FILE_EXTENSION);
 			} else if (isEqualOrParent(oldURI, this.userDataService.currentProfile.promptsHome)) {
@@ -684,18 +723,19 @@ export class PromptFilesLocator {
 	/**
 	 * Searches for skills in all configured locations.
 	 */
-	public async findAgentSkills(token: CancellationToken): Promise<IResolvedPromptFile[]> {
-		const userHome = await this.pathService.userHome();
+	public async findAgentSkills(token: CancellationToken): Promise<IPromptPath[]> {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill);
-		const absoluteLocations = this.toAbsoluteLocations(PromptsType.skill, configuredLocations, userHome);
-		const allResults: IResolvedPromptFile[] = [];
+		const absoluteLocations = await this.toAbsoluteLocations(PromptsType.skill, configuredLocations);
+		const allResults: IPromptPath[] = [];
 
 		for (const { uri, source, storage } of absoluteLocations) {
 			if (token.isCancellationRequested) {
 				return [];
 			}
 			const results = await this.findAgentSkillsInFolder(uri, token);
-			allResults.push(...results.map(uri => ({ fileUri: uri, source, storage })));
+			for (const skillUri of results) {
+				allResults.push({ uri: skillUri, source, storage, type: PromptsType.skill });
+			}
 		}
 
 		return allResults;
@@ -785,6 +825,11 @@ export function isValidGlob(pattern: string): boolean {
 	return false;
 }
 
+interface IParentFolderResult {
+	readonly parent: URI;
+	readonly filePattern?: string;
+}
+
 /**
  * Finds the first parent of the provided location that does not contain a `glob pattern`.
  *
@@ -794,13 +839,21 @@ export function isValidGlob(pattern: string): boolean {
  *
  * ```typescript
  * assert.strictDeepEqual(
- *     firstNonGlobParentAndPattern(URI.file('/home/user/{folder1,folder2}/file.md')).path,
+ *     getParentFolder(PromptsType.prompt, URI.file('/home/user/{folder1,folder2}/file.md')),
  *     { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
  *     'Must find correct non-glob parent dirname.',
  * );
  * ```
  */
-function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern?: string } {
+function getParentFolder(type: PromptsType, location: URI): IParentFolderResult {
+	if (type === PromptsType.hook && extname(location) === '.json') {
+		location = dirname(location);
+	}
+	if (type !== PromptsType.instructions && type !== PromptsType.prompt) {
+		// only instructions and prompts support glob patterns, so we can return the location as is
+		return { parent: location };
+	}
+
 	const segments = location.path.split('/');
 	let i = 0;
 	while (i < segments.length && isValidGlob(segments[i]) === false) {

@@ -1,0 +1,298 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.image-carousel-editor {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+
+.image-carousel-editor .empty-message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+}
+
+.image-carousel-editor .slideshow-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	gap: 8px;
+	overflow: hidden;
+}
+
+.image-carousel-editor .slideshow-container:focus,
+.image-carousel-editor .slideshow-container:focus-visible {
+	outline: none !important;
+}
+
+/* Image viewing area */
+.image-carousel-editor .image-area {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.image-carousel-editor .main-image-container {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	overflow: hidden;
+	cursor: zoom-in;
+}
+
+.image-carousel-editor .main-image-container.zoom-out {
+	cursor: zoom-out;
+}
+
+.image-carousel-editor .main-image-container.zoomed {
+	overflow: auto;
+	padding: 0;
+	scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+}
+
+.image-carousel-editor .main-image-container.zoomed::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.image-carousel-editor .main-image-container.zoomed::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.image-carousel-editor .main-image-container.zoomed::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.image-carousel-editor .main-image-container.zoomed::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.image-carousel-editor .main-image {
+	border-radius: 4px;
+	margin: auto;
+}
+
+.image-carousel-editor .video-container {
+	width: 100%;
+	height: 100%;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.image-carousel-editor .main-image.scale-to-fit {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+}
+
+.image-carousel-editor .main-image.pixelated {
+	image-rendering: pixelated;
+}
+
+/* Overlay navigation arrows */
+.image-carousel-editor .nav-arrow {
+	position: absolute;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+	border: none;
+	border-radius: 50%;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+	z-index: 1;
+}
+
+.monaco-workbench.monaco-reduce-motion .image-carousel-editor .nav-arrow {
+	transition: none;
+}
+.image-carousel-editor .slideshow-container:hover .nav-arrow:not(:disabled) {
+	opacity: 0.8;
+}
+
+.image-carousel-editor .slideshow-container:hover .nav-arrow:disabled {
+	opacity: 0.3;
+}
+
+.image-carousel-editor .nav-arrow:hover:not(:disabled) {
+	opacity: 1 !important;
+	background: var(--vscode-toolbar-activeBackground);
+	color: var(--vscode-foreground);
+}
+
+.image-carousel-editor .nav-arrow:focus-visible:not(:disabled) {
+	opacity: 1 !important;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.image-carousel-editor .nav-arrow:disabled {
+	cursor: default;
+}
+
+.image-carousel-editor .nav-arrow.prev-arrow {
+	left: 8px;
+}
+
+.image-carousel-editor .nav-arrow.next-arrow {
+	right: 8px;
+}
+
+/* Bottom bar: caption + counter + thumbnails */
+.image-carousel-editor .bottom-bar {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+	padding: 4px 0 8px;
+	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
+}
+
+/* Extra gap before thumbnails */
+.image-carousel-editor .bottom-bar .sections-container {
+	margin-top: 4px;
+}
+
+/* Info bar: caption · counter */
+.image-carousel-editor .image-info-bar {
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	padding: 0 24px;
+	min-height: 16px;
+}
+
+.image-carousel-editor .caption-separator::before {
+	content: '\00b7';
+	margin: 0 6px;
+	opacity: 0.6;
+}
+
+.image-carousel-editor .image-counter {
+	opacity: 0.7;
+}
+
+/* Sections container — flat horizontal thumbnail strip */
+.image-carousel-editor .sections-container {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	overflow-x: auto;
+	justify-content: center;
+	justify-content: safe center;
+	padding: 0;
+	flex-shrink: 0;
+	min-width: 0;
+	max-width: 100%;
+	scrollbar-width: none;
+}
+
+.image-carousel-editor .sections-container::-webkit-scrollbar {
+	display: none;
+}
+
+/* Subtle separator between sections */
+.image-carousel-editor .thumbnail-separator {
+	width: 1px;
+	height: 24px;
+	background: var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	opacity: 0.4;
+	flex-shrink: 0;
+	margin: 0 6px;
+}
+
+.image-carousel-editor .thumbnail {
+	width: 48px;
+	height: 48px;
+	border: 2px solid transparent;
+	border-radius: 4px;
+	overflow: hidden;
+	cursor: pointer;
+	transition: border-color 0.15s ease, opacity 0.15s ease;
+	flex-shrink: 0;
+	opacity: 0.6;
+	padding: 0;
+	background: none;
+}
+
+.image-carousel-editor .thumbnail:hover {
+	opacity: 1;
+	border-color: var(--vscode-focusBorder);
+}
+
+.image-carousel-editor .thumbnail:focus-visible {
+	opacity: 1;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.image-carousel-editor .thumbnail.active {
+	opacity: 1;
+	border-color: var(--vscode-focusBorder);
+}
+
+.image-carousel-editor .thumbnail.broken {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+}
+
+.image-carousel-editor .thumbnail-broken-icon {
+	font-size: 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.image-carousel-editor .thumbnail-image {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	pointer-events: none;
+}
+
+/* Video thumbnail: play icon centered in a dark background */
+.image-carousel-editor .thumbnail.video-thumbnail {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+}
+
+.image-carousel-editor .thumbnail-play-icon {
+	font-size: 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Visually hidden but available to screen readers */
+.image-carousel-editor .sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}

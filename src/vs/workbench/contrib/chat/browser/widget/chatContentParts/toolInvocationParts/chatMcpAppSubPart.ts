@@ -21,6 +21,7 @@ import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatErrorWidget } from '../chatErrorContentPart.js';
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
+import { ChatResourceGroupWidget } from '../chatResourceGroupWidget.js';
 import { ChatMcpAppModel, McpAppLoadState } from './chatMcpAppModel.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
@@ -63,6 +64,12 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 	/** Current error node */
 	private _errorNode: HTMLElement | undefined;
 
+	/** Container for download resource pills */
+	private readonly _downloadContainer: HTMLElement;
+
+	/** Current resource group widget for downloads */
+	private readonly _downloadWidget = this._register(new MutableDisposable<ChatResourceGroupWidget>());
+
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		onDidRemount: Event<void>,
@@ -80,6 +87,10 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		this._webviewContainer.style.minHeight = '100px';
 		this._webviewContainer.style.height = '300px'; // Initial height, will be updated by model
 		this.domNode.appendChild(this._webviewContainer);
+
+		// Download container — below webview, for ui/download-file resources
+		this._downloadContainer = dom.$('div.mcp-app-downloads');
+		this.domNode.appendChild(this._downloadContainer);
 
 		const targetWindow = dom.getWindow(this.domNode);
 		const getMaxHeight = () => maxWebviewHeightPct * targetWindow.innerHeight;
@@ -108,6 +119,21 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		// Subscribe to model height changes
 		this._register(this._model.onDidChangeHeight(() => {
 			this._updateContainerHeight();
+		}));
+
+		// Observe download parts and render resource group widget
+		this._register(autorun(reader => {
+			const parts = this._model.downloadParts.read(reader);
+			if (parts.length === 0) {
+				this._downloadWidget.clear();
+				dom.clearNode(this._downloadContainer);
+				return;
+			}
+
+			dom.clearNode(this._downloadContainer);
+			const widget = this._instantiationService.createInstance(ChatResourceGroupWidget, parts);
+			this._downloadWidget.value = widget;
+			this._downloadContainer.appendChild(widget.domNode);
 		}));
 
 		this._register(onDidRemount(() => {
@@ -179,16 +205,16 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		errorMessage.appendText(localize('mcpAppError', 'Error loading MCP App: {0}', error.message || String(error)));
 
 		// Use ChatErrorWidget for consistent error styling
-		const errorWidget = new ChatErrorWidget(ChatErrorLevel.Error, errorMessage, this._markdownRendererService);
+		const errorWidget = this._register(new ChatErrorWidget(ChatErrorLevel.Error, errorMessage, this._markdownRendererService));
 		errorNode.appendChild(errorWidget.domNode);
 
 		// Add retry button
 		const buttonContainer = dom.append(errorNode, dom.$('.chat-buttons-container'));
-		const retryButton = new Button(buttonContainer, defaultButtonStyles);
+		const retryButton = this._register(new Button(buttonContainer, defaultButtonStyles));
 		retryButton.label = localize('retry', 'Retry');
-		retryButton.onDidClick(() => {
+		this._register(retryButton.onDidClick(() => {
 			this._model.retry();
-		});
+		}));
 
 		container.appendChild(errorNode);
 		this._errorNode = errorNode;

@@ -54,6 +54,8 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 				input = JSON.stringify(v.toolSpecificData.extensions);
 			} else if (v.toolSpecificData.kind === 'input') {
 				input = JSON.stringify(v.toolSpecificData.rawInput);
+			} else if (v.toolSpecificData.kind === 'modifiedFilesConfirmation') {
+				input = localize('modifiedFilesConfirmationInput', '{0} files', v.toolSpecificData.modifiedFiles.length);
 			}
 		}
 		const titleObj = state.confirmationMessages?.title;

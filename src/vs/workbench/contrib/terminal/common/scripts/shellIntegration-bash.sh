@@ -197,7 +197,7 @@ fi
 
 # Allow verifying $BASH_COMMAND doesn't have aliases resolved via history when the right HISTCONTROL
 # configuration is used
-__vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups).*"
+__vsc_regex_histcontrol=".*(erasedups|ignoreboth|ignoredups|ignorespace).*"
 if [[ "${HISTCONTROL:-}" =~ $__vsc_regex_histcontrol ]]; then
 	__vsc_history_verify=0
 else

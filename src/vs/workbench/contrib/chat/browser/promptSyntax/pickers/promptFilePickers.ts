@@ -8,15 +8,16 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { AgentFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
+import { getCleanPromptName, getSkillFolderName } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../newPromptFileActions.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID, GENERATE_AGENT_COMMAND_ID } from '../../actions/chatActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -26,6 +27,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { PromptFileRewriter } from '../promptFileRewriter.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
+import { assertNever } from '../../../../../../base/common/assert.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -52,6 +54,7 @@ export interface ISelectOptions {
 	readonly optionRename?: boolean;
 	readonly optionCopy?: boolean;
 	readonly optionVisibility?: boolean;
+	readonly optionRun?: boolean;
 }
 
 export interface ISelectPromptResult {
@@ -168,18 +171,33 @@ const NEW_INSTRUCTIONS_FILE_OPTION: IPromptPickerQuickPickItem = {
 };
 
 /**
- * A quick pick item that starts the 'Update Instructions' command.
+ * A quick pick item that starts the 'Generate Agent Instructions' command.
  */
-const UPDATE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = {
+const GENERATE_AGENT_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = {
 	type: 'item',
-	label: `$(refresh) ${localize(
-		'commands.update-instructions.select-dialog.label',
+	label: `$(sparkle) ${localize(
+		'commands.generate-agent-instructions.select-dialog.label',
 		'Generate agent instructions...',
 	)}`,
 	pickable: false,
 	alwaysShow: true,
 	buttons: [newHelpButton(PromptsType.instructions)],
-	commandId: 'workbench.action.chat.generateInstructions',
+	commandId: GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
+};
+
+/**
+ * A quick pick item that starts the 'Generate On-demand Instructions' command.
+ */
+const GENERATE_ON_DEMAND_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = {
+	type: 'item',
+	label: `$(sparkle) ${localize(
+		'commands.generate-on-demand-instructions.select-dialog.label',
+		'Generate on-demand instructions...',
+	)}`,
+	pickable: false,
+	alwaysShow: true,
+	buttons: [newHelpButton(PromptsType.instructions)],
+	commandId: GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
 };
 
 /**
@@ -210,6 +228,51 @@ const NEW_SKILL_FILE_OPTION: IPromptPickerQuickPickItem = {
 	alwaysShow: true,
 	buttons: [newHelpButton(PromptsType.skill)],
 	commandId: NEW_SKILL_COMMAND_ID,
+};
+
+/**
+ * A quick pick item that generates a prompt file with agent.
+ */
+const GENERATE_PROMPT_OPTION: IPromptPickerQuickPickItem = {
+	type: 'item',
+	label: `$(sparkle) ${localize(
+		'commands.generate-prompt.select-dialog.label',
+		'Generate prompt...',
+	)}`,
+	pickable: false,
+	alwaysShow: true,
+	buttons: [newHelpButton(PromptsType.prompt)],
+	commandId: GENERATE_PROMPT_COMMAND_ID,
+};
+
+/**
+ * A quick pick item that generates a skill with agent.
+ */
+const GENERATE_SKILL_OPTION: IPromptPickerQuickPickItem = {
+	type: 'item',
+	label: `$(sparkle) ${localize(
+		'commands.generate-skill.select-dialog.label',
+		'Generate skill...',
+	)}`,
+	pickable: false,
+	alwaysShow: true,
+	buttons: [newHelpButton(PromptsType.skill)],
+	commandId: GENERATE_SKILL_COMMAND_ID,
+};
+
+/**
+ * A quick pick item that generates a custom agent with agent.
+ */
+const GENERATE_AGENT_OPTION: IPromptPickerQuickPickItem = {
+	type: 'item',
+	label: `$(sparkle) ${localize(
+		'commands.generate-agent.select-dialog.label',
+		'Generate agent...',
+	)}`,
+	pickable: false,
+	alwaysShow: true,
+	buttons: [newHelpButton(PromptsType.agent)],
+	commandId: GENERATE_AGENT_COMMAND_ID,
 };
 
 /**
@@ -257,8 +320,13 @@ const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
  * Button that sets a prompt file to be invisible.
  */
 const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeInvisible', "Hide from agent picker"),
-	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
+	tooltip: localize('makeInvisible', "Shown in chat view agent picker. Click to hide."),
+	iconClass: ThemeIcon.asClassName(Codicon.eye),
+};
+
+const RUN_IN_CHAT_BUTTON: IQuickInputButton = {
+	tooltip: localize('runInChat', "Run in Chat View"),
+	iconClass: ThemeIcon.asClassName(Codicon.play),
 };
 
 export class PromptFilePickers {
@@ -363,6 +431,9 @@ export class PromptFilePickers {
 
 	private async _createPromptPickItems(options: ISelectOptions, token: CancellationToken): Promise<(IPromptPickerQuickPickItem | IQuickPickSeparator)[]> {
 		const buttons: IQuickInputButton[] = [];
+		if (options.type === PromptsType.prompt && options.optionRun !== false) {
+			buttons.push(RUN_IN_CHAT_BUTTON);
+		}
 		if (options.optionEdit !== false) {
 			buttons.push(EDIT_BUTTON);
 		}
@@ -419,6 +490,9 @@ export class PromptFilePickers {
 		const exts = (await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token)).filter(isExtensionPromptPath);
 		if (exts.length) {
 			const extButtons: IQuickInputButton[] = [];
+			if (options.type === PromptsType.prompt && options.optionRun !== false) {
+				extButtons.push(RUN_IN_CHAT_BUTTON);
+			}
 			if (options.optionEdit !== false) {
 				extButtons.push(EDIT_BUTTON);
 			}
@@ -446,6 +520,18 @@ export class PromptFilePickers {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
 			result.push(...sortByLabel(await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token)))));
 		}
+
+		// Plugin files are read-only so only copy button is available
+		const plugins = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.plugin, token);
+		if (plugins.length) {
+			const pluginButtons: IQuickInputButton[] = [];
+			if (options.optionCopy !== false) {
+				pluginButtons.push(COPY_BUTTON);
+			}
+			result.push({ type: 'separator', label: localize('separator.plugins', "Plugins") });
+			result.push(...sortByLabel(await Promise.all(plugins.map(p => this._createPromptPickItem(p, pluginButtons, getVisibility(p), token)))));
+		}
+
 		return result;
 	}
 
@@ -462,13 +548,13 @@ export class PromptFilePickers {
 	private _getNewItems(type: PromptsType): IPromptPickerQuickPickItem[] {
 		switch (type) {
 			case PromptsType.prompt:
-				return [NEW_PROMPT_FILE_OPTION];
+				return [NEW_PROMPT_FILE_OPTION, GENERATE_PROMPT_OPTION];
 			case PromptsType.instructions:
-				return [NEW_INSTRUCTIONS_FILE_OPTION, UPDATE_INSTRUCTIONS_OPTION];
+				return [NEW_INSTRUCTIONS_FILE_OPTION, GENERATE_ON_DEMAND_INSTRUCTIONS_OPTION, GENERATE_AGENT_INSTRUCTIONS_OPTION];
 			case PromptsType.agent:
-				return [NEW_AGENT_FILE_OPTION];
+				return [NEW_AGENT_FILE_OPTION, GENERATE_AGENT_OPTION];
 			case PromptsType.skill:
-				return [NEW_SKILL_FILE_OPTION];
+				return [NEW_SKILL_FILE_OPTION, GENERATE_SKILL_OPTION];
 			default:
 				throw new Error(`Unknown prompt type '${type}'.`);
 		}
@@ -476,7 +562,7 @@ export class PromptFilePickers {
 
 	private async _createPromptPickItem(promptFile: IPromptPath, buttons: IQuickInputButton[] | undefined, visibility: boolean | undefined, token: CancellationToken): Promise<IPromptPickerQuickPickItem> {
 		const parsedPromptFile = await this._promptsService.parseNew(promptFile.uri, token).catch(() => undefined);
-		let promptName = parsedPromptFile?.header?.name ?? promptFile.name ?? getCleanPromptName(promptFile.uri);
+		let promptName = (parsedPromptFile?.header?.name ?? promptFile.name) || (promptFile.type === PromptsType.skill ? getSkillFolderName(promptFile.uri) : getCleanPromptName(promptFile.uri));
 		const promptDescription = parsedPromptFile?.header?.description ?? promptFile.description;
 
 		let tooltip: string | undefined;
@@ -491,6 +577,11 @@ export class PromptFilePickers {
 			case PromptsStorage.user:
 				tooltip = undefined;
 				break;
+			case PromptsStorage.plugin:
+				tooltip = promptFile.name;
+				break;
+			default:
+				assertNever(promptFile);
 		}
 		let iconClass: string | undefined;
 		if (visibility === false) {
@@ -535,6 +626,15 @@ export class PromptFilePickers {
 		}
 		const value = item.promptFileUri;
 
+		if (button === RUN_IN_CHAT_BUTTON) {
+			const commandId = quickPick.keyMods.ctrlCmd === true
+				? 'workbench.action.chat.run-in-new-chat.prompt.current'
+				: 'workbench.action.chat.run.prompt.current';
+			await this._commandService.executeCommand(commandId, value);
+			quickPick.hide();
+			return false;
+		}
+
 		// `edit` button was pressed, open the prompt file in editor
 		if (button === EDIT_BUTTON) {
 			await this._openerService.open(value);
@@ -573,16 +673,23 @@ export class PromptFilePickers {
 			// don't close the main prompt selection dialog by the confirmation dialog
 			return await this.keepQuickPickOpen(quickPick, async () => {
 
-				const filename = getCleanPromptName(value);
-				const message = localize('commands.prompts.use.select-dialog.delete-prompt.confirm.message', "Are you sure you want to delete '{0}'?", filename);
+				const isSkill = options.type === PromptsType.skill;
+				// For skills, use the parent folder name as the display name
+				// since skills are structured as <skillname>/SKILL.md.
+				const filename = isSkill ? basename(dirname(value)) : item.label;
+				const message = isSkill
+					? localize('commands.prompts.use.select-dialog.delete-skill.confirm.message', "Are you sure you want to delete skill '{0}' and its folder?", filename)
+					: localize('commands.prompts.use.select-dialog.delete-prompt.confirm.message', "Are you sure you want to delete '{0}'?", filename);
 				const { confirmed } = await this._dialogService.confirm({ message });
 				// if prompt deletion was not confirmed, nothing to do
 				if (!confirmed) {
 					return false;
 				}
 
-				// prompt deletion was confirmed so delete the prompt file
-				await this._fileService.del(value);
+				// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
+				// since each skill is a folder containing SKILL.md.
+				const deleteTarget = isSkill ? dirname(value) : value;
+				await this._fileService.del(deleteTarget, { recursive: isSkill, useTrash: true });
 				return true;
 			});
 
@@ -625,7 +732,8 @@ export class PromptFilePickers {
 			optionDelete: true,
 			optionRename: true,
 			optionCopy: true,
-			optionVisibility: false
+			optionVisibility: false,
+			optionRun: false
 		};
 
 		try {

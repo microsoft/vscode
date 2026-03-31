@@ -5,7 +5,7 @@
   "categories": [
     "Themes"
   ],
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -14,25 +14,37 @@
   "contributes": {
     "themes": [
       {
-        "id": "Default Dark+",
+        "id": "Light 2026",
+        "label": "%light2026ThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/2026-light.json"
+      },
+      {
+        "id": "Dark 2026",
+        "label": "%dark2026ThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/2026-dark.json"
+      },
+      {
+        "id": "Dark+",
         "label": "%darkPlusColorThemeLabel%",
         "uiTheme": "vs-dark",
         "path": "./themes/dark_plus.json"
       },
       {
-        "id": "Default Dark Modern",
+        "id": "Dark Modern",
         "label": "%darkModernThemeLabel%",
         "uiTheme": "vs-dark",
         "path": "./themes/dark_modern.json"
       },
       {
-        "id": "Default Light+",
+        "id": "Light+",
         "label": "%lightPlusColorThemeLabel%",
         "uiTheme": "vs",
         "path": "./themes/light_plus.json"
       },
       {
-        "id": "Default Light Modern",
+        "id": "Light Modern",
         "label": "%lightModernThemeLabel%",
         "uiTheme": "vs",
         "path": "./themes/light_modern.json"

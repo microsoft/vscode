@@ -20,11 +20,11 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../
 import { IChatModeService } from '../../../../common/chatModes.js';
 import { PromptHeaderAutocompletion } from '../../../../common/promptSyntax/languageProviders/promptHeaderAutocompletion.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 
@@ -37,6 +37,7 @@ suite('PromptHeaderAutocompletion', () => {
 	setup(async () => {
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
+		testConfigService.setUserConfiguration('chat.useCustomAgentHooks', true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -56,6 +57,7 @@ suite('PromptHeaderAutocompletion', () => {
 			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
@@ -75,7 +77,8 @@ suite('PromptHeaderAutocompletion', () => {
 			},
 			uri: URI.parse('myFs://.github/agents/agent1.agent.md'),
 			source: { storage: PromptsStorage.local },
-			visibility: { userInvokable: true, agentInvokable: true }
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		const parser = new PromptFileParser();
@@ -97,9 +100,9 @@ suite('PromptHeaderAutocompletion', () => {
 		completionProvider = instaService.createInstance(PromptHeaderAutocompletion);
 	});
 
-	async function getCompletions(content: string, promptType: PromptsType) {
+	async function getCompletions(content: string, promptType: PromptsType, uri?: URI) {
 		const languageId = getLanguageIdForPromptsType(promptType);
-		const uri = URI.parse('test:///test' + getPromptFileExtension(promptType));
+		uri ??= URI.parse('test:///test' + getPromptFileExtension(promptType));
 		const model = disposables.add(createTextModel(content, languageId, undefined, uri));
 		// get the completion location from  the '|' marker
 		const lineColumnMarkerRange = model.findNextMatch('|', new Position(1, 1), false, false, '', false)?.range;
@@ -139,12 +142,14 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'agents', result: 'agents: ${0:["*"]}' },
 				{ label: 'argument-hint', result: 'argument-hint: $0' },
 				{ label: 'disable-model-invocation', result: 'disable-model-invocation: ${0:true}' },
+				{ label: 'github', result: 'github: $0' },
 				{ label: 'handoffs', result: 'handoffs: $0' },
+				{ label: 'hooks', result: 'hooks:\n  ${1|SessionStart,SessionEnd,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop,ErrorOccurred|}:\n    - type: command\n      command: "$2"' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'target', result: 'target: ${0:vscode}' },
 				{ label: 'tools', result: 'tools: ${0:[]}' },
-				{ label: 'user-invokable', result: 'user-invokable: ${0:true}' },
+				{ label: 'user-invocable', result: 'user-invocable: ${0:true}' },
 			].sort(sortByLabel));
 		});
 
@@ -207,7 +212,6 @@ suite('PromptHeaderAutocompletion', () => {
 			const actual = await getCompletions(content, PromptsType.agent);
 			// GPT 4 is excluded because it has agentMode: false
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'MAE 4 (olama)', result: `model: ['MAE 4 (olama)', 'MAE 4 (olama)']` },
 				{ label: 'MAE 4.1 (copilot)', result: `model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']` },
 			].sort(sortByLabel));
 		});
@@ -222,16 +226,16 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'agent', result: `tools: ['agent']` },
-				{ label: 'execute', result: `tools: ['execute']` },
-				{ label: 'read', result: `tools: ['read']` },
-				{ label: 'tool1', result: `tools: ['tool1']` },
-				{ label: 'tool2', result: `tools: ['tool2']` },
-				{ label: 'vscode', result: `tools: ['vscode']` },
+				{ label: 'agent', result: `tools: [agent]` },
+				{ label: 'execute', result: `tools: [execute]` },
+				{ label: 'read', result: `tools: [read]` },
+				{ label: 'tool1', result: `tools: [tool1]` },
+				{ label: 'tool2', result: `tools: [tool2]` },
+				{ label: 'vscode', result: `tools: [vscode]` },
 			].sort(sortByLabel));
 		});
 
-		test('complete tool names inside tools array with existing entries', async () => {
+		test('complete tool names inside tools array with existing single quoted entries', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -243,10 +247,45 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
 				{ label: 'agent', result: `tools: ['read', 'agent']` },
 				{ label: 'execute', result: `tools: ['read', 'execute']` },
-				{ label: 'read', result: `tools: ['read', 'read']` },
 				{ label: 'tool1', result: `tools: ['read', 'tool1']` },
 				{ label: 'tool2', result: `tools: ['read', 'tool2']` },
 				{ label: 'vscode', result: `tools: ['read', 'vscode']` },
+			].sort(sortByLabel));
+		});
+
+		test('complete tool names inside tools array with existing double quoted entries', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ["read", "tool1", |]`,
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent', result: `tools: ["read", "tool1", "agent"]` },
+				{ label: 'execute', result: `tools: ["read", "tool1", "execute"]` },
+				{ label: 'tool2', result: `tools: ["read", "tool1", "tool2"]` },
+				{ label: 'vscode', result: `tools: ["read", "tool1", "vscode"]` },
+			].sort(sortByLabel));
+		});
+
+		test('complete tool names inside tools array with existing unquoted entries', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: [read, "tool1", |]`,
+				'---',
+			].join('\n');
+
+			//uses the first entry to determine quote preference, so the new entry should be unquoted
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent', result: `tools: [read, "tool1", agent]` },
+				{ label: 'execute', result: `tools: [read, "tool1", execute]` },
+				{ label: 'tool2', result: `tools: [read, "tool1", tool2]` },
+				{ label: 'vscode', result: `tools: [read, "tool1", vscode]` },
 			].sort(sortByLabel));
 		});
 
@@ -262,7 +301,6 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
 				{ label: 'agent', result: `tools: ['read', 'agent']` },
 				{ label: 'execute', result: `tools: ['read', 'execute']` },
-				{ label: 'read', result: `tools: ['read', 'read']` },
 				{ label: 'tool1', result: `tools: ['read', 'tool1']` },
 				{ label: 'tool2', result: `tools: ['read', 'tool2']` },
 				{ label: 'vscode', result: `tools: ['read', 'vscode']` },
@@ -279,7 +317,7 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'agent1', result: `agents: ['agent1']` },
+				{ label: 'agent1', result: `agents: [agent1]` },
 			].sort(sortByLabel));
 		});
 
@@ -298,18 +336,18 @@ suite('PromptHeaderAutocompletion', () => {
 			].sort(sortByLabel));
 		});
 
-		test('complete user-invokable attribute value', async () => {
+		test('complete user-invocable attribute value', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'user-invokable: |',
+				'user-invocable: |',
 				'---',
 			].join('\n');
 
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'false', result: 'user-invokable: false' },
-				{ label: 'true', result: 'user-invokable: true' },
+				{ label: 'false', result: 'user-invocable: false' },
+				{ label: 'true', result: 'user-invocable: true' },
 			].sort(sortByLabel));
 		});
 
@@ -326,6 +364,425 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'false', result: 'disable-model-invocation: false' },
 				{ label: 'true', result: 'disable-model-invocation: true' },
 			].sort(sortByLabel));
+		});
+
+		test('exclude models with targetChatSessionType from agent model completions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			// BG Agent Model has targetChatSessionType set, so it should be excluded
+			assert.ok(!labels.includes('BG Agent Model (copilot)'), 'Models with targetChatSessionType should be excluded from agent model completions');
+		});
+
+		test('exclude models with targetChatSessionType from agent model array completions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: [|]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(!labels.includes('BG Agent Model (copilot)'), 'Models with targetChatSessionType should be excluded from agent model array completions');
+		});
+
+		test('complete hooks value with New Hook snippet', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual, [
+				{
+					label: 'New Hook',
+					result: 'hooks: \n  ${1|SessionStart,SessionEnd,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop,ErrorOccurred|}:\n    - type: command\n      command: "$2"'
+				},
+			]);
+		});
+
+		test('complete hooks value with New Hook snippet for vscode target', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'hooks: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual, [
+				{
+					label: 'New Hook',
+					result: 'hooks: \n  ${1|SessionStart,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop|}:\n    - type: command\n      command: "$2"'
+				},
+			]);
+		});
+
+		test('complete hook event names inside hooks map', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'  |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			// SessionStart should be excluded since it already exists
+			assert.ok(!labels.includes('SessionStart'), 'SessionStart should not be suggested when already present');
+			assert.ok(labels.includes('SessionEnd'), 'SessionEnd should be suggested');
+			assert.ok(labels.includes('PreToolUse'), 'PreToolUse should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+		});
+
+		test('complete hook event names for vscode target excludes existing hooks', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: "lint"',
+				'  |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			assert.ok(!labels.includes('SessionStart'), 'SessionStart should not be suggested when already present');
+			assert.ok(!labels.includes('PreToolUse'), 'PreToolUse should not be suggested when already present');
+			assert.ok(labels.includes('UserPromptSubmit'), 'UserPromptSubmit should be suggested');
+			assert.ok(labels.includes('PostToolUse'), 'PostToolUse should be suggested');
+			// SessionEnd is not available for vscode target
+			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be available for vscode target');
+		});
+
+		test('complete hook event names on empty line before existing hooks', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  |',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			assert.ok(!labels.includes('SessionStart'), 'SessionStart should not be suggested when already present');
+			assert.ok(labels.includes('SessionEnd'), 'SessionEnd should be suggested');
+			assert.ok(labels.includes('PreToolUse'), 'PreToolUse should be suggested');
+		});
+
+		test('complete hook event names while editing existing key name', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  S|:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			assert.ok(labels.includes('SessionStart'), 'SessionStart should be suggested');
+			assert.ok(labels.includes('SubagentStart'), 'SubagentStart should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+			// Verify insertText only replaces the key (no full snippet)
+			const sessionStartItem = actual.find(a => a.label === 'SessionStart');
+			assert.ok(sessionStartItem);
+			assert.strictEqual(sessionStartItem.result, '  SessionStart:');
+		});
+
+		test('hooks: cursor right after colon triggers New Hook snippet', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('New Hook'), 'New Hook snippet should be suggested');
+		});
+
+		test('hooks: typing event name on next line triggers hook events', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  S|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('SessionStart'), 'SessionStart should be suggested');
+			assert.ok(labels.includes('SessionEnd'), 'SessionEnd should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+		});
+
+		test('typing field name in first command entry triggers command fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - t|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('type'), 'type should be suggested');
+			assert.ok(labels.includes('command'), 'command should be suggested');
+			assert.ok(labels.includes('timeout'), 'timeout should be suggested');
+		});
+
+		test('typing field name after existing field triggers remaining command fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - type: command',
+				'      c|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('command'), 'command should be suggested');
+			assert.ok(labels.includes('cwd'), 'cwd should be suggested');
+			assert.ok(!labels.includes('type'), 'type should not be suggested when already present');
+		});
+
+		test('typing event name after existing hook triggers hook events', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - type: command',
+				'      command: echo "Session ended."',
+				'  U|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('UserPromptSubmit'), 'UserPromptSubmit should be suggested');
+			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be suggested when already present');
+		});
+
+		test('typing event name between existing hooks triggers hook events', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - type: command',
+				'      command: echo "Session ended."',
+				'  S|',
+				'  UserPromptSubmit:',
+				'    - type: command',
+				'      command: echo "User submitted."',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('SessionStart'), 'SessionStart should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be suggested when already present');
+			assert.ok(!labels.includes('UserPromptSubmit'), 'UserPromptSubmit should not be suggested when already present');
+		});
+
+		test('cursor after hook event colon triggers New Command snippet', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('New Command'), 'New Command snippet should be suggested');
+			assert.strictEqual(actual.length, 1, 'Only one suggestion should be returned');
+		});
+	});
+
+	suite('claude agent header completions', () => {
+		// Claude agents are identified by their URI being under .claude/agents/
+		const claudeAgentUri = URI.parse('test:///.claude/agents/security-reviewer.agent.md');
+
+		test('complete attribute names', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				'|',
+				'---',
+				'You are a senior security engineer.',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'disallowedTools', result: 'disallowedTools: ${0:Write, Edit, Bash}' },
+				{ label: 'hooks', result: 'hooks: $0' },
+				{ label: 'mcpServers', result: 'mcpServers: $0' },
+				{ label: 'memory', result: 'memory: ${0:user}' },
+				{ label: 'model', result: 'model: ${0:sonnet}' },
+				{ label: 'permissionMode', result: 'permissionMode: ${0:default}' },
+				{ label: 'skills', result: 'skills: $0' },
+				{ label: 'tools', result: 'tools: ${0:Read, Edit, Bash}' },
+			].sort(sortByLabel));
+		});
+
+		test('complete attribute names excludes already present ones', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				'tools: Edit',
+				'|',
+				'---',
+				'You are a senior security engineer.',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			// 'tools' should not appear since it is already in the header
+			const labels = actual.map(a => a.label).sort();
+			assert.ok(!labels.includes('tools'), 'tools should not be suggested when already present');
+			assert.ok(!labels.includes('name'), 'name should not be suggested when already present');
+			assert.ok(!labels.includes('description'), 'description should not be suggested when already present');
+		});
+
+		test('complete model attribute value with claude enum values', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'haiku', result: 'model: haiku' },
+				{ label: 'inherit', result: 'model: inherit' },
+				{ label: 'opus', result: 'model: opus' },
+				{ label: 'sonnet', result: 'model: sonnet' },
+			].sort(sortByLabel));
+		});
+
+		test('complete tools with comma-separated values', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				'tools: Edit, |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			const labels = actual.map(a => a.label).sort();
+			assert.deepStrictEqual(labels, [
+				'AskUserQuestion', 'Bash', 'Glob', 'Grep',
+				'LSP', 'MCPSearch', 'NotebookEdit', 'Read', 'Skill',
+				'Task', 'WebFetch', 'WebSearch', 'Write'
+			].sort());
+		});
+
+		test('complete tools inside array syntax', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				'tools: [|]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			const labels = actual.map(a => a.label).sort();
+			assert.deepStrictEqual(labels, [
+				'AskUserQuestion', 'Bash', 'Edit', 'Glob', 'Grep',
+				'LSP', 'MCPSearch', 'NotebookEdit', 'Read', 'Skill',
+				'Task', 'WebFetch', 'WebSearch', 'Write'
+			].sort());
+			// Array items without quotes should use the name directly
+			assert.deepStrictEqual(actual.find(a => a.label === 'Edit')?.result, `tools: [Edit]`);
+		});
+
+		test('complete tools inside array with existing entries', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				`tools: [Edit, |]`,
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(actual.find(a => a.label === 'Read')?.result, `tools: [Edit, Read]`);
+			assert.deepStrictEqual(actual.find(a => a.label === 'Bash')?.result, `tools: [Edit, Bash]`);
+		});
+
+		test('complete disallowedTools with comma-separated values', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				'disallowedTools: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			const labels = actual.map(a => a.label).sort();
+			assert.deepStrictEqual(labels, [
+				'AskUserQuestion', 'Bash', 'Edit', 'Glob', 'Grep',
+				'LSP', 'MCPSearch', 'NotebookEdit', 'Read', 'Skill',
+				'Task', 'WebFetch', 'WebSearch', 'Write'
+			].sort());
+		});
+
+		test('complete disallowedTools inside array syntax', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				'disallowedTools: [Bash, |]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(actual.find(a => a.label === 'Write')?.result, `disallowedTools: [Bash, Write]`);
+			assert.deepStrictEqual(actual.find(a => a.label === 'Edit')?.result, `disallowedTools: [Bash, Edit]`);
 		});
 	});
 
@@ -362,6 +819,19 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'MAE 4.1 (copilot)', result: 'model: MAE 4.1 (copilot)' },
 				{ label: 'GPT 4 (openai)', result: 'model: GPT 4 (openai)' },
 			].sort(sortByLabel));
+		});
+
+		test('exclude models with targetChatSessionType from prompt model completions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.prompt);
+			const labels = actual.map(a => a.label);
+			assert.ok(!labels.includes('BG Agent Model (copilot)'), 'Models with targetChatSessionType should be excluded from prompt model completions');
 		});
 	});
 });

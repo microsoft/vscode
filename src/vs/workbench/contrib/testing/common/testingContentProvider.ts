@@ -78,7 +78,7 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 					dispose.dispose();
 				}
 			});
-			model.onWillDispose(() => dispose.dispose());
+			dispose.add(model.onWillDispose(() => dispose.dispose()));
 
 			return model;
 		}

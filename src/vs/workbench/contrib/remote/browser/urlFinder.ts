@@ -38,8 +38,8 @@ export class UrlFinder extends Disposable {
 
 	private static readonly excludeTerminals = ['Dev Containers'];
 
-	private _onDidMatchLocalUrl: Emitter<{ host: string; port: number }> = new Emitter();
-	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
+	private readonly _onDidMatchLocalUrl = this._register(new Emitter<{ host: string; port: number }>());
+	readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
 	private readonly listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
 	private readonly terminalDataWorkers = this._register(new DisposableMap<ITerminalInstance, RunOnceWorker<string>>());
 

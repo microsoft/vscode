@@ -64,6 +64,7 @@ export interface ISetting {
 	value: any;
 	valueRange: IRange;
 	description: string[];
+	keywords?: string[];
 	descriptionIsMarkdown?: boolean;
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
@@ -222,7 +223,6 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 export interface IOpenSettingsOptions extends ISettingsEditorOptions {
 	jsonEditor?: boolean;
 	openToSide?: boolean;
-	openInModal?: boolean;
 	groupId?: number;
 }
 
@@ -246,7 +246,6 @@ export interface IKeybindingsEditorOptions extends IEditorOptions {
 
 export interface IOpenKeybindingsEditorOptions extends IKeybindingsEditorOptions {
 	groupId?: number;
-	openInModal?: boolean;
 }
 
 export const IPreferencesService = createDecorator<IPreferencesService>('preferencesService');

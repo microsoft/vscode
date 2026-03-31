@@ -13,7 +13,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
@@ -81,7 +81,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 		// Clear session auto-approve rules when chat sessions end
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				this._sessionAutoApproveRules.delete(resource);
 				this._sessionAutoApprovalEnabled.delete(resource);
 			}
@@ -105,7 +105,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
 					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 					this._toolSessionIdByTerminalInstance.delete(instance);
@@ -178,11 +178,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
 		return this._chatSessionResourceByTerminalInstance.get(instance);
-	}
-
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
-		const resource = this._chatSessionResourceByTerminalInstance.get(instance);
-		return resource ? chatSessionResourceToId(resource) : undefined;
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
