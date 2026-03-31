@@ -1575,6 +1575,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	}
 
 	renderElement(node: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
+		console.log('Rendering element:', node.element);
 		const element = node.element;
 		templateData.label.element.style.display = 'flex';
 
@@ -1708,7 +1709,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateData.lineCountsContainer.style.display = 'none';
 
 		if (templateData.toolbar) {
-			templateData.toolbar.context = undefined;
+			templateData.toolbar.context = data.uri;
 		}
 		if (templateData.contextKeyService) {
 			chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(undefined!);
