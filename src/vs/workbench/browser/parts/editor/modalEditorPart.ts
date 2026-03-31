@@ -49,7 +49,7 @@ const MODAL_HEADER_HEIGHT = 33; // 32px header + 1px border bottom
 const MODAL_SNAP_THRESHOLD = 20;
 const MODAL_MAXIMIZED_PADDING = 16;
 const MODAL_SIDEBAR_MIN_WIDTH = 160;
-const MODAL_SIDEBAR_DEFAULT_WIDTH = 220;
+const MODAL_SIDEBAR_DEFAULT_WIDTH = 260;
 
 const defaultModalEditorAllowableCommands = new Set([
 

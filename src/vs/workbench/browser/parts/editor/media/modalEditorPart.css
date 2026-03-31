@@ -70,12 +70,13 @@
 	flex-direction: column;
 	overflow: hidden;
 	box-sizing: border-box;
+	padding: 8px;
 	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
 	border-right: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-editorWidget-border, transparent));
 }
 
 .monaco-modal-editor-block .modal-editor-sidebar .monaco-tl-twistie.force-no-twistie {
-	width: 6px !important;
+	width: 10px !important;
 	padding-left: 0 !important;
 	padding-right: 0 !important;
 }
