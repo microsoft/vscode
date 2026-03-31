@@ -106,31 +106,35 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		if (!isSessionAutoApproved) {
 			const isAutoApproveAllowed = isTerminalAutoApproveAllowed(SEND_TO_TERMINAL_REFERENCE_NAME, this._configurationService, this._storageService);
 
-			const [os, shell] = await Promise.all([
-				this._profileFetcher.osBackend,
-				this._profileFetcher.getCopilotShell(),
-			]);
+			// Only run the analyzer when auto-approve is allowed; otherwise the command
+			// will always require manual confirmation and running the analyzer is unnecessary.
+			if (isAutoApproveAllowed) {
+				const [os, shell] = await Promise.all([
+					this._profileFetcher.osBackend,
+					this._profileFetcher.getCopilotShell(),
+				]);
 
-			const execution = RunInTerminalTool.getExecution(args.id);
-			const cwd = execution ? await execution.instance.getCwdResource() : undefined;
+				const execution = RunInTerminalTool.getExecution(args.id);
+				const cwd = execution ? await execution.instance.getCwdResource() : undefined;
 
-			const analyzerOptions: ICommandLineAnalyzerOptions = {
-				commandLine: args.command,
-				cwd,
-				os,
-				shell,
-				treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: generateUuid(),
-				chatSessionResource,
-				requiresUnsandboxConfirmation: false,
-			};
+				const analyzerOptions: ICommandLineAnalyzerOptions = {
+					commandLine: args.command,
+					cwd,
+					os,
+					shell,
+					treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
+					terminalToolSessionId: generateUuid(),
+					chatSessionResource,
+					requiresUnsandboxConfirmation: false,
+				};
 
-			const analyzerResult = await this._autoApproveAnalyzer.analyze(analyzerOptions);
-			const wouldBeAutoApproved = (
-				analyzerResult.isAutoApproved === true &&
-				analyzerResult.isAutoApproveAllowed
-			);
-			isFinalAutoApproved = (isAutoApproveAllowed && wouldBeAutoApproved) || !!analyzerResult.forceAutoApproval;
+				const analyzerResult = await this._autoApproveAnalyzer.analyze(analyzerOptions);
+				const wouldBeAutoApproved = (
+					analyzerResult.isAutoApproved === true &&
+					analyzerResult.isAutoApproveAllowed
+				);
+				isFinalAutoApproved = wouldBeAutoApproved || !!analyzerResult.forceAutoApproval;
+			}
 		}
 
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
