@@ -154,14 +154,6 @@
 	color: var(--vscode-list-activeSelectionForeground);
 }
 
-.agent-feedback-widget-item-codeReview {
-	box-shadow: inset 2px 0 0 var(--vscode-editorWarning-foreground);
-}
-
-.agent-feedback-widget-item-prReview {
-	box-shadow: inset 2px 0 0 var(--vscode-editorInfo-foreground);
-}
-
 .agent-feedback-widget-item-header {
 	display: flex;
 	align-items: center;
@@ -195,7 +187,7 @@
 	display: inline-flex;
 	align-items: center;
 	padding: 1px 6px;
-	border-radius: 999px;
+	border-radius: 4px;
 	font-size: 10px;
 	font-weight: 600;
 	letter-spacing: 0.2px;
