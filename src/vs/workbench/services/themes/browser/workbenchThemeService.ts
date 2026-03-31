@@ -146,6 +146,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
+		const previousColorThemeSetting = themeData?.settingsId;
 		const colorThemeSetting = this.settings.colorTheme;
 		if (themeData && colorThemeSetting !== themeData.settingsId) {
 			themeData = undefined;
@@ -179,7 +180,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			this.installConfigurationListener();
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();
-			this.initialize(themeData?.settingsId).catch(errors.onUnexpectedError);
+			this.initialize(previousColorThemeSetting).catch(errors.onUnexpectedError);
 		});
 
 		const codiconStyleSheet = createStyleSheet();
@@ -261,10 +262,11 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			return;
 		}
 		try {
-			if (!this.settings.isDefaultColorTheme()) {
+			if (!this.settings.isDefaultColorTheme() || !previousSettingsId) {
 				return;
 			}
-			if (!previousSettingsId || ['Dark Modern', 'Light Modern'].includes(previousSettingsId)) {
+			previousSettingsId = migrateThemeSettingsId(previousSettingsId);
+			if (!['Dark Modern', 'Light Modern'].includes(previousSettingsId)) {
 				return;
 			}
 			if (![ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT].includes(this.settings.colorTheme)) {
@@ -275,28 +277,29 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}
 
-		let keepTheme = false;
-		await this.notificationService.notify({
-			id: 'themeUpdatedNotification',
-			severity: Severity.Info,
-			message: nls.localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code now ships with a new default theme '{0}'. Do you want to give it a try?", this.getColorTheme().label),
-			actions: {
-				primary: [
+		const keepTheme = await new Promise(resolve => {
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code now ships with a new default theme '{0}'. Do you want to give it a try?", this.getColorTheme().label),
+				[
 					toAction({
 						id: 'themeUpdated.tryItOut',
 						label: nls.localize('tryNewTheme', "Try It Out"),
-						run: () => { keepTheme = true; }
+						run: () => resolve(true)
 					}),
 					toAction({
 						id: 'themeUpdated.noThanks',
 						label: nls.localize('noThanks', "No Thanks"),
-						run: () => { keepTheme = false; }
+						run: () => resolve(false)
 					})
-				]
-			},
+				],
+				{
+					onCancel: () => resolve(false)
+				}
+			);
 		});
+
 		if (!keepTheme) {
-			const previousSettingsId = this.currentColorTheme.type === ColorScheme.LIGHT ? 'Light Modern' : 'Dark Modern';
 			const previousTheme = this.colorThemeRegistry.findThemeBySettingsId(previousSettingsId);
 			if (previousTheme) {
 				this.setColorTheme(previousTheme.id, 'auto');
