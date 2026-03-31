@@ -242,6 +242,8 @@ export interface ICommonNativeHostService {
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
+	startTracingRenderer(session: string): Promise<void>;
+	stopTracingRenderer(): Promise<string>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

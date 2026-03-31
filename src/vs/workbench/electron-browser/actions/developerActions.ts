@@ -140,6 +140,47 @@ export class ShowContentTracingAction extends Action2 {
 	}
 }
 
+export class RecordPerformanceTrace extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.recordPerformanceTrace',
+			title: localize2('recordPerformanceTrace', 'Record Performance Trace'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		const dialogService = accessor.get(IDialogService);
+		const progressService = accessor.get(IProgressService);
+
+		await nativeHostService.startTracingRenderer(`session-${Date.now()}`);
+
+		let stopResolve: ((path: string) => void) | undefined;
+		const path = await progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: localize('recordPerformanceTrace.recording', "Recording performance trace... Click cancel to stop."),
+			cancellable: true
+		}, () => new Promise<string>(resolve => {
+			stopResolve = resolve;
+		}), () => {
+			nativeHostService.stopTracingRenderer().then(p => stopResolve?.(p));
+		});
+
+		const { confirmed } = await dialogService.confirm({
+			message: localize('recordPerformanceTrace.done', "Performance trace saved"),
+			detail: localize('recordPerformanceTrace.detail', "Trace file saved to:\n{0}\n\nYou can load this file in chrome://tracing or the DevTools Performance tab.", path),
+			primaryButton: localize({ key: 'recordPerformanceTrace.reveal', comment: ['&& denotes a mnemonic'] }, "&&Reveal in Finder")
+		});
+
+		if (confirmed) {
+			nativeHostService.showItemInFolder(path);
+		}
+	}
+}
+
 export class StopTracing extends Action2 {
 
 	static readonly ID = 'workbench.action.stopTracing';

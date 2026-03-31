@@ -39,6 +39,7 @@ import { IWorkspacesManagementMainService } from '../../workspaces/electron-main
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { hasWSLFeatureInstalled } from '../../remote/node/wsl.js';
 import { WindowProfiler } from '../../profiling/electron-main/windowProfiling.js';
+import { WindowTracer } from '../../profiling/electron-main/windowTracing.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
@@ -1190,6 +1191,40 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const profiler = new WindowProfiler(window.win, session, this.logService);
 		const result = await profiler.inspect(duration);
 		return result;
+	}
+
+	private _activeTracer: WindowTracer | undefined;
+
+	async startTracingRenderer(windowId: number | undefined, session: string): Promise<void> {
+		if (this._activeTracer) {
+			// Clean up stale session (e.g. from a previous error)
+			try { await this._activeTracer.stop(); } catch { /* best effort */ }
+			this._activeTracer = undefined;
+		}
+
+		const window = this.codeWindowById(windowId);
+		if (!window?.win) {
+			throw new Error();
+		}
+
+		const tracer = new WindowTracer(window.win, session, this.logService);
+		await tracer.start();
+		this._activeTracer = tracer;
+	}
+
+	async stopTracingRenderer(windowId: number | undefined): Promise<string> {
+		const tracer = this._activeTracer;
+		if (!tracer) {
+			throw new Error('No tracing session is in progress');
+		}
+
+		this._activeTracer = undefined;
+		const result = await tracer.stop();
+
+		const path = `${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.json`;
+		await fs.promises.writeFile(path, JSON.stringify(result));
+
+		return path;
 	}
 
 	// #endregion
