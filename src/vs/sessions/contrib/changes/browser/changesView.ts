@@ -19,7 +19,7 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IObservabl
 import { basename } from '../../../../base/common/path.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
+import { dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -1170,7 +1170,7 @@ export class ChangesViewPane extends ViewPane {
 			if (viewMode === ChangesViewMode.Tree) {
 				// Tree mode: build hierarchical tree from file entries
 				const rootUri = this.sessionManagementService.activeSession.read(undefined)?.sessionType === CopilotCLISessionType.id
-					? this.workspaceContextService.getWorkspace().folders[0]?.uri
+					? dirname(this.workspaceContextService.getWorkspace().folders[0]?.uri)
 					: undefined;
 
 				const treeChildren = buildTreeChildren(entries, rootUri);
