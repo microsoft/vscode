@@ -1034,6 +1034,17 @@ export class CommandCenter {
 		return this.cloneManager.clone(url, { parentPath, ...options });
 	}
 
+	@command('git.cloneFromGithub')
+	async cloneFromGithub(url?: string, parentPath?: string, options?: { ref?: string; postCloneAction?: 'none' }): Promise<string | undefined> {
+		return this.cloneManager.clone(url, {
+			parentPath,
+			...options,
+			providerName: 'GitHub',
+			title: l10n.t('Clone from GitHub'),
+			placeholder: l10n.t('Search public GitHub repositories or paste a URL')
+		});
+	}
+
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
 		await this.cloneManager.clone(url, { parentPath, recursive: true });
