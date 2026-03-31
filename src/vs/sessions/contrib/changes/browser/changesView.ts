@@ -1022,6 +1022,9 @@ export class ChangesViewPane extends ViewPane {
 							) {
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
+							if (action.id === 'agentFeedbackEditor.action.submitActiveSession') {
+								return { showIcon: false, showLabel: true, isSecondary: false };
+							}
 							if (
 								action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR' ||
 								action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge' ||
