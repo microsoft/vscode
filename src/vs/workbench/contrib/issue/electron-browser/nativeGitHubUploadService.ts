@@ -310,4 +310,23 @@ export class NativeGitHubUploadService extends Disposable implements IGitHubUplo
 			await this.nativeHostService.removeTempDir(tempDir);
 		}
 	}
+
+	async saveAttachmentsToFolder(screenshots: { name: string; bytes: Uint8Array }[], recordings: { name: string; bytes: Uint8Array }[]): Promise<string> {
+		const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+		const dirPath = await this.nativeHostService.makeTempDir(`vscode-issue-attachments-${timestamp}`);
+		this.logService.info(`[GitHubUpload] Saving attachments to ${dirPath}`);
+
+		const allFiles = [...screenshots, ...recordings];
+		for (const file of allFiles) {
+			await this.nativeHostService.writeFileToPath(`${dirPath}/${file.name}`, VSBuffer.wrap(file.bytes));
+			this.logService.info(`[GitHubUpload] Saved ${file.name}`);
+		}
+
+		// Reveal folder in OS file explorer by showing the first file
+		if (allFiles.length > 0) {
+			await this.nativeHostService.showItemInFolder(`${dirPath}/${allFiles[0].name}`);
+		}
+
+		return dirPath;
+	}
 }

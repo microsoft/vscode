@@ -531,12 +531,14 @@ body.wizard-resizing {
 	background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
-.wizard-submit-preview {
+.wizard-submit-preview,
+.wizard-submit-manual {
 	background: transparent;
 	color: var(--vscode-foreground, #ccc);
 	border: 1px solid var(--vscode-input-border, #3c3c3c);
 }
-.wizard-submit-preview:hover {
+.wizard-submit-preview:hover,
+.wizard-submit-manual:hover {
 	background: var(--vscode-list-hoverBackground, #2a2d2e);
 }
 

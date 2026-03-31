@@ -39,8 +39,8 @@ export class IssueReporterOverlay {
 	private readonly disposables = new DisposableStore();
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
-	private readonly _onDidSubmit = new Emitter<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean; uploadMethod: 'gist' | 'playwright' | 'none' }>();
-	readonly onDidSubmit: Event<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean; uploadMethod: 'gist' | 'playwright' | 'none' }> = this._onDidSubmit.event;
+	private readonly _onDidSubmit = new Emitter<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean; uploadMethod: 'gist' | 'playwright' | 'manual' | 'none' }>();
+	readonly onDidSubmit: Event<{ title: string; body: string; shouldCreate: boolean; isPrivate: boolean; uploadMethod: 'gist' | 'playwright' | 'manual' | 'none' }> = this._onDidSubmit.event;
 	private readonly _onDidRequestScreenshot = new Emitter<void>();
 	readonly onDidRequestScreenshot: Event<void> = this._onDidRequestScreenshot.event;
 	private readonly _onDidRequestStartRecording = new Emitter<void>();
@@ -405,6 +405,11 @@ export class IssueReporterOverlay {
 		previewBtn.textContent = localize('submitPreviewOnly', "Preview on GitHub (No Upload)");
 		previewBtn.title = 'Open issue on GitHub without uploading attachments';
 		this.disposables.add(addDisposableListener(previewBtn, EventType.CLICK, () => this.submitWithMethod('none')));
+
+		const manualBtn = append(submitGroup, $('button.wizard-submit-btn.wizard-submit-manual'));
+		manualBtn.textContent = localize('submitManualDragDrop', "Manual Drag & Drop");
+		manualBtn.title = 'Save attachments to folder, open issue page - drag and drop files manually';
+		this.disposables.add(addDisposableListener(manualBtn, EventType.CLICK, () => this.submitWithMethod('manual')));
 	}
 
 	private toggleCollapsed(): void {
@@ -715,7 +720,7 @@ export class IssueReporterOverlay {
 		this.submitWithMethod('none');
 	}
 
-	private submitWithMethod(uploadMethod: 'gist' | 'playwright' | 'none'): void {
+	private submitWithMethod(uploadMethod: 'gist' | 'playwright' | 'manual' | 'none'): void {
 		const title = this.titleInput.value.trim();
 		if (!title) {
 			this.titleInput.classList.add('invalid-input');

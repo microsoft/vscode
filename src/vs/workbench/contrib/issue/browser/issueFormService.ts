@@ -250,6 +250,29 @@ export class IssueFormService implements IIssueFormService {
 				} catch (err) {
 					this.logService.error('[IssueFormService] Playwright upload failed:', err);
 				}
+			} else if (hasAttachments && uploadMethod === 'manual') {
+				this.logService.info('[IssueFormService] Manual drag & drop mode');
+				try {
+					// Save attachments to a temp folder
+					const tempDir = await this.githubUploadService.saveAttachmentsToFolder(
+						screenshots.map((s, i) => ({
+							name: `screenshot-${i + 1}.png`,
+							bytes: this.dataUrlToBytes(s.annotatedDataUrl ?? s.dataUrl) ?? new Uint8Array(0),
+						})),
+						await Promise.all(recordings.map(async rec => {
+							const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
+							const ext = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
+							return { name: `recording.${ext}`, bytes: fileContent.value.buffer };
+						})),
+					);
+					this.logService.info(`[IssueFormService] Attachments saved to: ${tempDir}`);
+
+					// Add placeholder in issue body
+					mediaMarkdown = '\n\n### Attachments\n\n';
+					mediaMarkdown += '> **Please drag and drop the attachment files from the folder that just opened into this text area.**\n\n';
+				} catch (err) {
+					this.logService.error('[IssueFormService] Manual save failed:', err);
+				}
 			}
 
 			const issueBody = body + mediaMarkdown;
