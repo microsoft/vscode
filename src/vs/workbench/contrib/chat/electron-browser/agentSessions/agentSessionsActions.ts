@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -26,6 +26,12 @@ export class OpenSessionsWindowAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate()),
 			f1: true,
+			menu: [{
+				id: MenuId.ChatTitleBarMenu,
+				group: 'c_sessions',
+				order: 1,
+				when: IsSessionsWindowContext.negate()
+			}]
 		});
 	}
 
