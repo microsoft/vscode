@@ -1065,10 +1065,16 @@ suite('vscode API - window', () => {
 		// Verify the API surface exists
 		assert.strictEqual(typeof window.onDidChangeActiveChatSession, 'function');
 
-		// Subscribe and wait until we see a non-undefined Uri payload
-		const sessionUriPromise = new Promise<Uri>(resolve => {
+		// Subscribe and wait until we see a non-undefined Uri payload (with timeout)
+		const timeout = env.uiKind === UIKind.Desktop ? 5000 : 15000;
+		const sessionUriPromise = new Promise<Uri>((resolve, reject) => {
+			const handle = setTimeout(() => {
+				subscription.dispose();
+				reject(new Error('onDidChangeActiveChatSession did not fire with a Uri within timeout'));
+			}, timeout);
 			const subscription = window.onDidChangeActiveChatSession(value => {
 				if (value instanceof Uri) {
+					clearTimeout(handle);
 					subscription.dispose();
 					resolve(value);
 				}
