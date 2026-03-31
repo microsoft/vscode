@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
+import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
 import {
@@ -37,14 +37,14 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	private readonly _connections = new Map<string, SSHAgentHostConnectionHandle>();
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		this._mainService = ProxyChannel.toService<ISSHRemoteAgentHostMainService>(
-			mainProcessService.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL),
+			sharedProcessService.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL),
 		);
 
 		this.onDidReportConnectProgress = this._mainService.onDidReportConnectProgress;

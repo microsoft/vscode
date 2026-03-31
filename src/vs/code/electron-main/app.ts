@@ -135,8 +135,6 @@ import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cs
 import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
 import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
-import { ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { SSHRemoteAgentHostMainService } from '../../platform/agentHost/electron-main/sshRemoteAgentHostMainService.js';
 import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -1197,10 +1195,6 @@ export class CodeApplication extends Disposable {
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
-		// SSH Remote Agent Host
-		services.set(ISSHRemoteAgentHostMainService, new SyncDescriptor(SSHRemoteAgentHostMainService, undefined, true));
-
-
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
@@ -1337,10 +1331,6 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
 		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService), accessor.get(ILoggerMainService)));
 		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
-
-		// SSH Remote Agent Host
-		const sshRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(ISSHRemoteAgentHostMainService), disposables);
-		mainProcessElectronServer.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, sshRemoteAgentHostChannel);
 
 		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);

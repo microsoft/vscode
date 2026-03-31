@@ -13,7 +13,7 @@ import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
+import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 
 import type { IAgentConnection } from '../common/agentService.js';
@@ -65,12 +65,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IMainProcessService mainProcessService: IMainProcessService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
 		super();
 
 		this._sshMainService = ProxyChannel.toService<ISSHRemoteAgentHostMainService>(
-			mainProcessService.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL),
+			sharedProcessService.getChannel(SSH_REMOTE_AGENT_HOST_CHANNEL),
 		);
 
 		// React to setting changes
