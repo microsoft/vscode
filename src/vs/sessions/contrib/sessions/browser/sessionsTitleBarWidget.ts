@@ -18,6 +18,8 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -304,6 +306,7 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		options: IBaseActionViewItemOptions | undefined,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 	) {
 		super(context, action, { ...options, icon: true, label: false });
 	}
@@ -316,6 +319,11 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 			? SidebarToggleFocusTarget.Sidebar
 			: SidebarToggleFocusTarget.Titlebar;
 		this._restoreFocusIfRequested(container);
+		this._register(this.paneCompositePartService.onDidPaneCompositeOpen(e => {
+			if (e.viewContainerLocation === ViewContainerLocation.Sidebar) {
+				this._restoreFocusIfRequested(container, true);
+			}
+		}));
 
 		// Add badge element for unread session count
 		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
@@ -346,12 +354,27 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	private _restoreFocusIfRequested(container: HTMLElement): void {
-		if (!this._focusTarget || !consumeSidebarToggleFocusRequest(this._focusTarget)) {
+	private _restoreFocusIfRequested(container: HTMLElement, fromSidebarOpen: boolean = false): void {
+		if (!this._focusTarget) {
 			return;
 		}
 
-		this._register(scheduleAtNextAnimationFrame(getWindow(container), () => this.focus()));
+		if (this._focusTarget === SidebarToggleFocusTarget.Titlebar) {
+			if (fromSidebarOpen) {
+				return;
+			}
+		} else if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return;
+		}
+
+		if (!consumeSidebarToggleFocusRequest(this._focusTarget)) {
+			return;
+		}
+
+		const targetWindow = getWindow(container);
+		this._register(scheduleAtNextAnimationFrame(targetWindow, () => {
+			this._register(scheduleAtNextAnimationFrame(targetWindow, () => this.focus()));
+		}));
 	}
 
 	protected override getClass(): string | undefined {

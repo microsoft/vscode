@@ -111,6 +111,7 @@ The toggle sidebar action:
 - Shows `layoutSidebarLeftOff` icon when sidebar is hidden
 - Bound to `Ctrl+B` / `Cmd+B` keybinding
 - Announces visibility changes to screen readers
+- Preserves keyboard focus on the toggle as it moves between the titlebar and sidebar surfaces
 
 The Run Script action:
 - Displayed as a split button via `RunScriptDropdownMenuId` submenu on `Menus.TitleBarRight`
@@ -644,6 +645,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-03-31 | Updated the sidebar toggle documentation to reflect the `layoutSidebarLeft` / `layoutSidebarLeftOff` visibility icons and the keyboard focus handoff that keeps focus on the toggle when it moves between the hidden-sidebar titlebar surface and the visible-sidebar sidebar title surface |
 | 2026-03-30 | Adjusted `.agent-sessions-titlebar-container` padding so it sits flush when the sidebar is visible and restores 16px left padding when the sidebar is hidden |
 | 2026-03-26 | Updated the sessions sidebar appear animation so only the body content (`.part.sidebar > .content`) slides/fades in during reveal while the sidebar title/header and footer remain fixed |
 | 2026-03-24 | Polished the sessions task configuration quick input modal to use stronger modal-style header chrome, increased horizontal padding in the quick input/form content, and added an explicit close action in the modal header |
