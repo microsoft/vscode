@@ -38,8 +38,7 @@ export class AgenticPromptsService extends PromptsService {
 
 	private getCopilotRoot(): URI {
 		if (!this._copilotRoot) {
-			const pathService = this.instantiationService.invokeFunction(accessor => accessor.get(IPathService));
-			this._copilotRoot = joinPath(pathService.userHome({ preferLocal: true }), '.copilot');
+			this._copilotRoot = joinPath(this.pathService.userHome({ preferLocal: true }), '.copilot');
 		}
 		return this._copilotRoot;
 	}
@@ -62,9 +61,8 @@ export class AgenticPromptsService extends PromptsService {
 	 * Each subdirectory containing a SKILL.md is treated as a skill.
 	 */
 	private async discoverBuiltinSkills(): Promise<readonly IAgentSkill[]> {
-		const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		try {
-			const stat = await fileService.resolve(BUILTIN_SKILLS_URI);
+			const stat = await this.fileService.resolve(BUILTIN_SKILLS_URI);
 			if (!stat.children) {
 				return [];
 			}

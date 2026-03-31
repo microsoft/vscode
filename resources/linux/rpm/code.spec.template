@@ -9,6 +9,7 @@ License:  @@LICENSE@@
 URL:      https://code.visualstudio.com/
 Icon:     @@NAME@@.xpm
 Requires: @@DEPENDENCIES@@
+Recommends: @@RECOMMENDS@@
 AutoReq:  0
 
 %global __provides_exclude_from ^%{_datadir}/%{name}/.*\\.so.*$
