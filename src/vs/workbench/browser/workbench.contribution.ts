@@ -363,7 +363,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.modalMinWidth': {
 				'type': 'number',
-				'description': localize('modalMinWidth', "Controls the minimum width of the modal editor overlay in pixels."),
+				'description': localize('modalMinWidth', "Controls the minimum width of the editor area in the modal editor overlay in pixels. The overall overlay may be wider when a sidebar is visible."),
 				'default': 400,
 				'minimum': 200,
 				'tags': ['experimental']
