@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserEditorViewState } from './browserView.js';
-import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
@@ -21,6 +21,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
+import { LRUCachedFunction } from '../../../../base/common/cache.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -184,31 +185,54 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return truncate(this.getTitle(), MAX_TITLE_LENGTH);
+		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
+		const name = hasTitle ? this.title! : this.getDescription(Verbosity.SHORT) || BrowserEditorInput.DEFAULT_LABEL;
+		return truncate(name, MAX_TITLE_LENGTH);
 	}
 
-	override getTitle(): string {
-		// Use model data if available, otherwise fall back to initial data
-		if (this._model && this._model.url) {
-			if (this._model.title) {
-				return this._model.title;
+	override getTitle(verbosity = Verbosity.MEDIUM): string {
+		const hasTitle = this._model ? !!this._model.title : !!this._initialData.title;
+		const description = this.getDescription(verbosity);
+		const title = hasTitle ? `${this.title} (${description})` : description;
+		return title || BrowserEditorInput.DEFAULT_LABEL;
+	}
+
+	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
+		return this.url && this.getURLTitles.get(this.url)[verbosity];
+	}
+
+	private readonly getURLTitles = new LRUCachedFunction((url: string) => {
+		let _parsed: URI | undefined = undefined;
+		let _short: string | undefined = undefined;
+		let _medium: string | undefined = undefined;
+		let _long: string | undefined = undefined;
+		function getParsed() {
+			if (!_parsed) {
+				_parsed = URI.parse(url);
 			}
-			// Model exists, use its URL for authority
-			const authority = URI.parse(this._model.url).authority;
-			return authority || BrowserEditorInput.DEFAULT_LABEL;
+			return _parsed;
 		}
-		// Model not created yet, use initial data
-		if (this._initialData.title) {
-			return this._initialData.title;
-		}
-		const url = this._initialData.url ?? '';
-		const authority = URI.parse(url).authority;
-		return authority || BrowserEditorInput.DEFAULT_LABEL;
-	}
-
-	override getDescription(): string | undefined {
-		return this.url;
-	}
+		return {
+			get [Verbosity.SHORT]() {
+				if (!_short) {
+					_short = getParsed().authority;
+				}
+				return _short;
+			},
+			get [Verbosity.MEDIUM]() {
+				if (!_medium) {
+					_medium = getParsed().with({ query: '', fragment: '' }).toString();
+				}
+				return _medium;
+			},
+			get [Verbosity.LONG]() {
+				if (!_long) {
+					_long = getParsed().with({ fragment: '' }).toString();
+				}
+				return _long;
+			}
+		};
+	});
 
 	override canReopen(): boolean {
 		return true;
