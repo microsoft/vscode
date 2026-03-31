@@ -959,7 +959,7 @@
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	/* padding: 4px 0; */
+	padding: 4px 0;
 	flex-shrink: 0;
 }
 
