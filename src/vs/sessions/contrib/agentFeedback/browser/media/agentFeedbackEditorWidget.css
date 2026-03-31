@@ -242,11 +242,11 @@
 }
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid var(--vscode-editorWarning-foreground);
+	border-left: 1px solid  color-mix(in srgb, var(--vscode-editorWarning-foreground) 50%, transparent);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid var(--vscode-editorInfo-foreground);
+	border-left: 1px solid  color-mix(in srgb, var(--vscode-editorInfo-foreground) 50%, transparent);
 }
 
 .agent-feedback-widget-suggestion-title,
