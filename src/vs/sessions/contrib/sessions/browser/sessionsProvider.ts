@@ -110,9 +110,6 @@ export interface ISessionsProvider {
 	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
-	 *
-	 * @internal This is an implementation detail of the Copilot Chat sessions
-	 * provider. Do not implement or consume this event in other providers.
 	 */
 	readonly onDidReplaceSession?: Event<{ readonly from: ISessionData; readonly to: ISessionData }>;
 
