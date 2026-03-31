@@ -5,7 +5,10 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import {
+	escapeMarkdownSyntaxTokens,
+	MarkdownString
+} from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -35,16 +38,33 @@ export const TypeBrowserToolData: IToolData = {
 				type: 'string',
 				description: 'A key or key combination to press (e.g., "Enter", "Tab", "Control+c"). One of "text" or "key" must be provided.'
 			},
-			selector: {
-				type: 'string',
-				description: 'Playwright selector of element to target. If omitted, types into the focused element.'
-			},
 			ref: {
 				type: 'string',
 				description: 'Element reference to target. If omitted, types into the focused element.'
 			},
+			selector: {
+				type: 'string',
+				description: 'Playwright selector of element to target when "ref" is not available. If omitted, types into the focused element.'
+			},
+			element: {
+				type: 'string',
+				description: 'Human-readable description of the element to type into (e.g., "search box", "comment field"). Required when "ref" or "selector" is specified.'
+			},
 		},
 		required: ['pageId'],
+		oneOf: [
+			{
+				required: ['ref', 'element'],
+				not: { required: ['selector'] }
+			},
+			{
+				required: ['selector', 'element'],
+				not: { required: ['ref'] }
+			},
+			{
+				not: { anyOf: [{ required: ['ref'] }, { required: ['selector'] }] }
+			}
+		]
 	},
 };
 
@@ -52,8 +72,9 @@ interface ITypeBrowserToolParams {
 	pageId: string;
 	text?: string;
 	key?: string;
-	selector?: string;
 	ref?: string;
+	selector?: string;
+	element?: string;
 }
 
 export class TypeBrowserTool implements IToolImpl {
@@ -64,10 +85,28 @@ export class TypeBrowserTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = context.parameters as ITypeBrowserToolParams;
 		const link = createBrowserPageLink(params.pageId);
+		const hasTarget = params.ref || params.selector;
+
 		if (params.key) {
+			const key = escapeMarkdownSyntaxTokens(params.key);
+			if (hasTarget && params.element) {
+				const element = escapeMarkdownSyntaxTokens(params.element);
+				return {
+					invocationMessage: new MarkdownString(localize('browser.pressKey.invocation.element', "Pressing key `{0}` in {1} in {2}", key, element, link)),
+					pastTenseMessage: new MarkdownString(localize('browser.pressKey.past.element', "Pressed key `{0}` in {1} in {2}", key, element, link)),
+				};
+			}
 			return {
-				invocationMessage: new MarkdownString(localize('browser.pressKey.invocation', "Pressing key `{0}` in {1}", params.key, link)),
-				pastTenseMessage: new MarkdownString(localize('browser.pressKey.past', "Pressed key `{0}` in {1}", params.key, link)),
+				invocationMessage: new MarkdownString(localize('browser.pressKey.invocation', "Pressing key `{0}` in {1}", key, link)),
+				pastTenseMessage: new MarkdownString(localize('browser.pressKey.past', "Pressed key `{0}` in {1}", key, link)),
+			};
+		}
+
+		if (hasTarget && params.element) {
+			const element = escapeMarkdownSyntaxTokens(params.element);
+			return {
+				invocationMessage: new MarkdownString(localize('browser.type.invocation.element', "Typing text in {0} in {1}", element, link)),
+				pastTenseMessage: new MarkdownString(localize('browser.type.past.element', "Typed text in {0} in {1}", element, link)),
 			};
 		}
 		return {

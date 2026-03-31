@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -11,6 +12,8 @@ import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Page } from 'playwright-core';
+
+export const DEFAULT_ELEMENT_LABEL = localize('browser.element', 'element');
 
 /**
  * Creates a markdown link to a browser page.
