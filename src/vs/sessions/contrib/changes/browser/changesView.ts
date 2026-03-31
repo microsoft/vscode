@@ -32,7 +32,7 @@ import { IActionWidgetDropdownActionProvider } from '../../../../platform/action
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -74,6 +74,7 @@ import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/
 import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 const $ = dom.$;
 
@@ -117,7 +118,7 @@ const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOut
 
 // --- List Item
 
-type ChangeType = 'added' | 'modified' | 'deleted';
+type ChangeType = 'added' | 'modified' | 'deleted' | 'none';
 
 interface IChangesFileItem {
 	readonly type: 'file';
@@ -142,14 +143,13 @@ function isChangesFileItem(element: ChangesTreeElement): element is IChangesFile
  * Builds a tree of `ICompressedTreeElement<ChangesTreeElement>` from a flat list of file items
  * using a `ResourceTree` to group files by their directory path segments.
  */
-function buildTreeChildren(items: IChangesFileItem[]): ICompressedTreeElement<ChangesTreeElement>[] {
+function buildTreeChildren(items: IChangesFileItem[], rootUri = URI.file('/')): ICompressedTreeElement<ChangesTreeElement>[] {
 	if (items.length === 0) {
 		return [];
 	}
 
 	// For github-remote-file URIs, set the root to /{owner}/{repo}/{ref}
 	// so the tree shows repo-relative paths instead of internal URI segments.
-	let rootUri = URI.file('/');
 	if (items[0].uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 		const parts = items[0].uri.path.split('/').filter(Boolean);
 		if (parts.length >= 3) {
@@ -218,6 +218,45 @@ function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undef
 	});
 }
 
+async function collectWorkspaceFiles(fileService: IFileService, rootUri: URI): Promise<IChangesFileItem[]> {
+	const files: IChangesFileItem[] = [];
+
+	const collect = async (uri: URI): Promise<void> => {
+		let stat;
+		try {
+			stat = await fileService.resolve(uri);
+		} catch {
+			return;
+		}
+
+		if (!stat.children) {
+			return;
+		}
+
+		for (const child of stat.children) {
+			if (child.isDirectory) {
+				await collect(child.resource);
+				continue;
+			}
+
+			files.push({
+				type: 'file',
+				uri: child.resource,
+				state: ModifiedFileEntryState.Accepted,
+				isDeletion: false,
+				changeType: 'none',
+				linesAdded: 0,
+				linesRemoved: 0,
+				reviewCommentCount: 0,
+				agentFeedbackCount: 0,
+			});
+		}
+	};
+
+	await collect(rootUri);
+	return files;
+}
+
 // --- View Model
 
 class ChangesViewModel extends Disposable {
@@ -229,6 +268,7 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
+	readonly activeSessionWorkspaceFilesObs: IObservableWithChange<IObservable<readonly IChangesFileItem[] | undefined>>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
@@ -252,9 +292,11 @@ class ChangesViewModel extends Disposable {
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IFileService private readonly fileService: IFileService,
 		@IGitService private readonly gitService: IGitService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -376,6 +418,24 @@ class ChangesViewModel extends Disposable {
 			return model?.metadata?.lastCheckpointRef as string | undefined;
 		});
 
+		// Active session workspace files
+		this.activeSessionWorkspaceFilesObs = derived(reader => {
+			if (!this.activeSessionResourceObs.read(reader)) {
+				return constObservable([]);
+			}
+
+			if (this.activeSessionHasGitRepositoryObs.read(reader)) {
+				return constObservable([]);
+			}
+
+			const rootUri = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+			if (!rootUri) {
+				return constObservable([]);
+			}
+
+			return new ObservablePromise(collectWorkspaceFiles(this.fileService, rootUri)).resolvedValue;
+		});
+
 		// Version mode
 		this.versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.BranchChanges);
 
@@ -437,6 +497,7 @@ export class ChangesViewPane extends ViewPane {
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -721,6 +782,11 @@ export class ChangesViewPane extends ViewPane {
 		});
 
 		const isLoadingChangesObs = derived(reader => {
+			if (!this.viewModel.activeSessionHasGitRepositoryObs.read(reader)) {
+				const files = this.viewModel.activeSessionWorkspaceFilesObs.read(reader).read(reader);
+				return files === undefined;
+			}
+
 			const versionMode = this.viewModel.versionModeObs.read(reader);
 			if (versionMode !== ChangesVersionMode.AllChanges && versionMode !== ChangesVersionMode.LastTurn) {
 				return false;
@@ -751,8 +817,14 @@ export class ChangesViewPane extends ViewPane {
 
 			const sourceEntries: IChangesFileItem[] = [];
 			if (versionMode === ChangesVersionMode.BranchChanges) {
-				const sessionFiles = sessionFilesObs.read(reader);
-				sourceEntries.push(...sessionFiles);
+				const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+				if (hasGitRepository) {
+					const sessionFiles = sessionFilesObs.read(reader);
+					sourceEntries.push(...sessionFiles);
+				} else {
+					const files = this.viewModel.activeSessionWorkspaceFilesObs.read(reader).read(reader) ?? [];
+					sourceEntries.push(...files);
+				}
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
 				const allChanges = allChangesObs.read(reader).read(reader) ?? [];
 				const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(reader);
@@ -1097,7 +1169,11 @@ export class ChangesViewPane extends ViewPane {
 
 			if (viewMode === ChangesViewMode.Tree) {
 				// Tree mode: build hierarchical tree from file entries
-				const treeChildren = buildTreeChildren(entries);
+				const rootUri = this.sessionManagementService.activeSession.read(undefined)?.sessionType === CopilotCLISessionType.id
+					? this.workspaceContextService.getWorkspace().folders[0]?.uri
+					: undefined;
+
+				const treeChildren = buildTreeChildren(entries, rootUri);
 				this.tree.setChildren(null, treeChildren);
 			} else {
 				// List mode: flat list of file items
@@ -1472,9 +1548,11 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			hidePath: false
 		});
 
-		// Show file-specific decorations
-		templateData.lineCountsContainer.style.display = '';
-		templateData.decorationBadge.style.display = '';
+		const showChangeDecorations = data.changeType !== 'none';
+
+		// Show file-specific decorations for changed files only
+		templateData.lineCountsContainer.style.display = showChangeDecorations ? '' : 'none';
+		templateData.decorationBadge.style.display = showChangeDecorations ? '' : 'none';
 
 		if (data.reviewCommentCount > 0) {
 			templateData.reviewCommentsBadge.style.display = '';
@@ -1500,30 +1578,36 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			templateData.agentFeedbackBadge.replaceChildren();
 		}
 
-		// Update decoration badge (A/M/D)
 		const badge = templateData.decorationBadge;
 		badge.className = 'changes-decoration-badge';
-		switch (data.changeType) {
-			case 'added':
-				badge.textContent = 'A';
-				badge.classList.add('added');
-				break;
-			case 'deleted':
-				badge.textContent = 'D';
-				badge.classList.add('deleted');
-				break;
-			case 'modified':
-			default:
-				badge.textContent = 'M';
-				badge.classList.add('modified');
-				break;
+		if (showChangeDecorations) {
+			// Update decoration badge (A/M/D)
+			switch (data.changeType) {
+				case 'added':
+					badge.textContent = 'A';
+					badge.classList.add('added');
+					break;
+				case 'deleted':
+					badge.textContent = 'D';
+					badge.classList.add('deleted');
+					break;
+				case 'modified':
+				default:
+					badge.textContent = 'M';
+					badge.classList.add('modified');
+					break;
+			}
+
+			templateData.addedSpan.textContent = `+${data.linesAdded}`;
+			templateData.removedSpan.textContent = `-${data.linesRemoved}`;
+
+			// eslint-disable-next-line no-restricted-syntax
+			templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
+		} else {
+			badge.textContent = '';
+			// eslint-disable-next-line no-restricted-syntax
+			templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 		}
-
-		templateData.addedSpan.textContent = `+${data.linesAdded}`;
-		templateData.removedSpan.textContent = `-${data.linesRemoved}`;
-
-		// eslint-disable-next-line no-restricted-syntax
-		templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 
 		if (templateData.toolbar) {
 			templateData.toolbar.context = data;
@@ -1639,18 +1723,24 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const branchName = viewModel.activeSessionBranchNameObs.get();
 				const baseBranchName = viewModel.activeSessionBaseBranchNameObs.get();
+				const hasGitRepository = viewModel.activeSessionHasGitRepositoryObs.get();
 
 				return [
 					{
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
-						label: localize('chatEditing.versionsBranchChanges', 'Branch Changes'),
-						description: `${branchName} → ${baseBranchName}`,
+						label: hasGitRepository
+							? localize('chatEditing.versionsBranchChanges', 'Branch Changes')
+							: localize('chatEditing.versionsFolderChanges', 'Folder Changes'),
+						description: hasGitRepository
+							? `${branchName} → ${baseBranchName}`
+							: this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
 						category: { label: 'changes', order: 1, showHeader: false },
 						run: async () => {
@@ -1708,8 +1798,11 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 	protected override renderLabel(element: HTMLElement): null {
 		const mode = this.viewModel.versionModeObs.get();
+		const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.get();
 		const label = mode === ChangesVersionMode.BranchChanges
-			? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
+			? hasGitRepository
+				? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
+				: localize('sessionsChanges.versionsFolderChanges', "Folder Changes")
 			: mode === ChangesVersionMode.AllChanges
 				? localize('sessionsChanges.versionsAllChanges', "All Changes")
 				: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
