@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import { IGitHubUploadResult, IGitHubUploadService } from '../browser/githubUploadService.js';
 
-const GITHUB_PARTITION = 'persist:github-upload';
-
 /**
- * Electron-specific GitHub upload service.
+ * GitHub upload service using the integrated browser + Playwright.
  *
- * Uses a hidden <webview> element with a persistent session partition to
- * maintain GitHub session cookies. The upload flow (policy -> S3 -> confirm)
- * runs via executeJavaScript() inside the webview which has github.com cookies.
+ * Opens github.com in the integrated browser, then uses page.evaluate()
+ * via Playwright to execute the upload flow (policy -> S3 -> confirm).
  */
 export class NativeGitHubUploadService extends Disposable implements IGitHubUploadService {
 
@@ -24,208 +22,162 @@ export class NativeGitHubUploadService extends Disposable implements IGitHubUplo
 	private readonly _onDidChangeLoginState = this._register(new Emitter<boolean>());
 	readonly onDidChangeLoginState: Event<boolean> = this._onDidChangeLoginState.event;
 
+	private activePageId: string | undefined;
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
+		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 	) {
 		super();
 	}
 
 	async isLoggedIn(): Promise<boolean> {
-		this.logService.info('[GitHubUpload] Checking isLoggedIn...');
-		const webview = this.createHiddenWebview();
-		try {
-			await this.loadUrl(webview, 'https://github.com');
-			this.logService.info('[GitHubUpload] github.com loaded, checking user meta...');
-			const user = await webview.executeJavaScript(
-				`document.querySelector('meta[name="user-login"]')?.getAttribute('content') || null`
-			);
-			this.logService.info(`[GitHubUpload] isLoggedIn user=${user}`);
-			return !!user;
-		} catch (err) {
-			this.logService.error('[GitHubUpload] isLoggedIn failed:', err);
-			return false;
-		} finally {
-			webview.remove();
-		}
+		return !!this.activePageId;
 	}
 
 	async login(): Promise<boolean> {
-		if (await this.isLoggedIn()) {
-			return true;
-		}
+		this.logService.info('[GitHubUpload] Opening browser to GitHub login...');
+		const { pageId } = await this.playwrightService.openPage('https://github.com/login');
+		this.activePageId = pageId;
+		this.logService.info(`[GitHubUpload] Page opened: ${pageId}, polling for login...`);
 
-		return new Promise<boolean>(resolve => {
-			const webview = document.createElement('webview') as Electron.WebviewTag;
-			webview.setAttribute('partition', GITHUB_PARTITION);
-			webview.setAttribute('style', 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;height:700px;z-index:999999;border:2px solid var(--vscode-focusBorder);border-radius:8px;');
-			webview.setAttribute('src', 'https://github.com/login');
-			document.body.appendChild(webview);
-
-			const backdrop = document.createElement('div');
-			backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999998;';
-			document.body.appendChild(backdrop);
-
-			const cleanup = () => {
-				webview.remove();
-				backdrop.remove();
-			};
-
-			const checkLogin = async () => {
-				try {
-					const user = await webview.executeJavaScript(
-						`document.querySelector('meta[name="user-login"]')?.getAttribute('content') || null`
-					);
-					if (user) {
-						this.logService.info(`[GitHubUpload] Logged in as ${user}`);
-						this._onDidChangeLoginState.fire(true);
-						cleanup();
-						resolve(true);
-					}
-				} catch {
-					// page still loading
+		// Poll until user logs in. Navigations (login -> 2FA -> home) destroy
+		// the execution context, so we catch and retry instead of bailing out.
+		for (let i = 0; i < 150; i++) {
+			await new Promise(r => setTimeout(r, 2000));
+			try {
+				const user = await this.playwrightService.invokeFunctionRaw<string | null>(pageId,
+					`async (page) => {
+						return await page.evaluate(() =>
+							document.querySelector('meta[name="user-login"]')?.getAttribute('content') || null
+						);
+					}`
+				);
+				if (user) {
+					this.logService.info(`[GitHubUpload] Logged in as ${user}`);
+					this._onDidChangeLoginState.fire(true);
+					return true;
 				}
-			};
-
-			webview.addEventListener('did-navigate', checkLogin);
-			webview.addEventListener('did-navigate-in-page', checkLogin);
-
-			backdrop.addEventListener('click', () => {
-				cleanup();
-				resolve(false);
-			});
-		});
+			} catch {
+				// Navigation destroyed execution context (e.g. login -> 2FA -> home).
+				// This is expected — just keep polling.
+			}
+		}
+		this.logService.warn('[GitHubUpload] Login timed out (5 min)');
+		return false;
 	}
 
 	async resolveRepositoryId(owner: string, repo: string): Promise<string> {
-		const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-			headers: {
-				'Accept': 'application/vnd.github+json',
-				'X-GitHub-Api-Version': '2022-11-28',
-			},
+		this.logService.info(`[GitHubUpload] Resolving repo ID: ${owner}/${repo}`);
+		const r = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+			headers: { 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
 		});
-		if (!response.ok) {
-			throw new Error(`Failed to resolve repository ID for ${owner}/${repo}: ${response.status}`);
+		if (!r.ok) {
+			throw new Error(`Repo ID lookup failed: ${r.status}`);
 		}
-		const json = await response.json();
+		const json = await r.json();
+		this.logService.info(`[GitHubUpload] Repo ID: ${json.id}`);
 		return String(json.id);
 	}
 
 	async uploadAsset(owner: string, repo: string, repoId: string, fileName: string, fileBytes: Uint8Array, contentType: string): Promise<IGitHubUploadResult> {
-		this.logService.info(`[GitHubUpload] Uploading ${fileName} (${fileBytes.length} bytes, ${contentType})`);
+		this.logService.info(`[GitHubUpload] Uploading ${fileName} (${fileBytes.length} bytes)`);
 
-		const webview = this.createHiddenWebview();
-		try {
-			await this.loadUrl(webview, `https://github.com/${owner}/${repo}`);
-			await new Promise(r => setTimeout(r, 500));
+		if (!this.activePageId) {
+			throw new Error('No active browser page');
+		}
 
-			// Step 1: Get upload policy
-			const policyResult = await webview.executeJavaScript(`
-				(async () => {
+		const pageId = this.activePageId;
+
+		// Navigate to repo page for CSRF tokens
+		this.logService.info(`[GitHubUpload] Navigating to ${owner}/${repo}...`);
+		await this.playwrightService.invokeFunctionRaw(pageId,
+			`async (page) => { await page.goto('https://github.com/${owner}/${repo}', { waitUntil: 'domcontentloaded' }); }`
+		);
+		await new Promise(r => setTimeout(r, 1000));
+
+		// Step 1: Get upload policy
+		this.logService.info('[GitHubUpload] Step 1/3: policy');
+		const policyResult = await this.playwrightService.invokeFunctionRaw<{ error?: string; policy?: Record<string, unknown> }>(pageId,
+			`async (page, repoId, fileName, fileSize, contentType) => {
+				return await page.evaluate(async ({ repoId, fileName, fileSize, contentType }) => {
 					const token =
 						document.querySelector('input[name="authenticity_token"]')?.value ||
-						document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-						null;
-
+						document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null;
 					const fd = new FormData();
-					fd.append('repository_id', ${JSON.stringify(repoId)});
-					fd.append('name', ${JSON.stringify(fileName)});
-					fd.append('size', ${JSON.stringify(String(fileBytes.length))});
-					fd.append('content_type', ${JSON.stringify(contentType)});
+					fd.append('repository_id', repoId);
+					fd.append('name', fileName);
+					fd.append('size', String(fileSize));
+					fd.append('content_type', contentType);
 					if (token) { fd.append('authenticity_token', token); }
-
 					const r = await fetch('https://github.com/upload/policies/assets', {
 						method: 'POST', body: fd, credentials: 'same-origin',
 						headers: { 'github-verified-fetch': 'true', 'x-requested-with': 'XMLHttpRequest' },
 					});
-					if (!r.ok) {
-						return { error: 'Policy ' + r.status + ': ' + (await r.text()).substring(0, 300) };
-					}
+					if (!r.ok) { return { error: 'Policy ' + r.status + ': ' + (await r.text()).substring(0, 200) }; }
 					return { policy: await r.json() };
-				})()
-			`);
+				}, { repoId, fileName, fileSize, contentType });
+			}`,
+			repoId, fileName, String(fileBytes.length), contentType
+		);
 
-			if (policyResult.error) {
-				throw new Error(policyResult.error);
-			}
-			const policy = policyResult.policy;
-			this.logService.info(`[GitHubUpload] Policy OK, asset_id=${policy.asset.id}`);
+		this.logService.info(`[GitHubUpload] policyResult: ${JSON.stringify(policyResult)?.substring(0, 300)}`);
+		if (!policyResult || policyResult.error) {
+			throw new Error(policyResult?.error ?? 'Policy request failed');
+		}
+		const policy = policyResult.policy as Record<string, unknown>;
+		const asset = policy.asset as Record<string, unknown>;
+		this.logService.info(`[GitHubUpload] Policy OK: asset=${asset.id}`);
 
-			// Step 2: Upload to S3
-			const bytesArray = Array.from(fileBytes);
-			const s3Result = await webview.executeJavaScript(`
-				(async () => {
+		// Step 2: S3 upload
+		this.logService.info('[GitHubUpload] Step 2/3: S3');
+		const bytesArray = Array.from(fileBytes);
+		const s3 = await this.playwrightService.invokeFunctionRaw<{ ok: boolean; error?: string }>(pageId,
+			`async (page, uploadUrl, formFields, bytesArray, contentType, assetName) => {
+				return await page.evaluate(async ({ uploadUrl, formFields, bytesArray, contentType, assetName }) => {
 					const fd = new FormData();
-					const formFields = ${JSON.stringify(policy.form)};
-					for (const [key, value] of Object.entries(formFields)) { fd.append(key, value); }
-					const blob = new Blob([new Uint8Array(${JSON.stringify(bytesArray)})], { type: ${JSON.stringify(contentType)} });
-					fd.append('file', blob, ${JSON.stringify(policy.asset.name)});
+					for (const [k, v] of Object.entries(formFields)) { fd.append(k, v); }
+					fd.append('file', new Blob([new Uint8Array(bytesArray)], { type: contentType }), assetName);
+					const r = await fetch(uploadUrl, { method: 'POST', body: fd, mode: 'cors' });
+					return r.status >= 200 && r.status < 300 ? { ok: true } : { ok: false, error: 'S3 ' + r.status };
+				}, { uploadUrl, formFields, bytesArray, contentType, assetName });
+			}`,
+			policy.upload_url, policy.form, bytesArray, contentType, asset.name
+		);
 
-					const r = await fetch(${JSON.stringify(policy.upload_url)}, { method: 'POST', body: fd, mode: 'cors' });
-					return r.status >= 200 && r.status < 300
-						? { ok: true }
-						: { ok: false, error: 'S3 ' + r.status };
-				})()
-			`);
+		if (!s3 || !s3.ok) {
+			throw new Error(s3?.error ?? 'S3 upload failed');
+		}
+		this.logService.info('[GitHubUpload] S3 OK');
 
-			if (!s3Result.ok) {
-				throw new Error(s3Result.error);
-			}
-			this.logService.info(`[GitHubUpload] S3 upload OK`);
-
-			// Step 3: Confirm
-			await webview.executeJavaScript(`
-				(async () => {
-					await fetch('https://github.com' + ${JSON.stringify(policy.asset_upload_url)}, {
+		// Step 3: confirm
+		this.logService.info('[GitHubUpload] Step 3/3: confirm');
+		await this.playwrightService.invokeFunctionRaw(pageId,
+			`async (page, assetUploadUrl, confirmToken) => {
+				await page.evaluate(async ({ assetUploadUrl, confirmToken }) => {
+					await fetch('https://github.com' + assetUploadUrl, {
 						method: 'PUT', credentials: 'same-origin',
 						headers: { 'github-verified-fetch': 'true', 'x-requested-with': 'XMLHttpRequest', 'content-type': 'application/json' },
-						body: JSON.stringify({ authenticity_token: ${JSON.stringify(policy.asset_upload_authenticity_token)} }),
+						body: JSON.stringify({ authenticity_token: confirmToken }),
 					});
-				})()
-			`);
+				}, { assetUploadUrl, confirmToken });
+			}`,
+			policy.asset_upload_url, policy.asset_upload_authenticity_token
+		);
 
-			this.logService.info(`[GitHubUpload] Confirmed: ${policy.asset.href}`);
-			return { fileName, assetUrl: policy.asset.href, contentType };
-		} finally {
-			webview.remove();
+		const assetHref = asset.href as string;
+		this.logService.info(`[GitHubUpload] Done: ${assetHref}`);
+		return { fileName, assetUrl: assetHref, contentType };
+	}
+
+	async navigateTo(url: string): Promise<void> {
+		if (!this.activePageId) {
+			return;
 		}
-	}
-
-	private createHiddenWebview(): Electron.WebviewTag {
-		const webview = document.createElement('webview') as Electron.WebviewTag;
-		webview.setAttribute('partition', GITHUB_PARTITION);
-		// DEBUG: make visible so we can see what github.com shows
-		webview.setAttribute('style', 'position:fixed;bottom:10px;right:10px;width:400px;height:300px;z-index:999999;border:2px solid red;border-radius:4px;');
-		document.body.appendChild(webview);
-		return webview;
-	}
-
-	private loadUrl(webview: Electron.WebviewTag, url: string): Promise<void> {
-		this.logService.info(`[GitHubUpload] loadUrl: ${url}`);
-		return new Promise((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				webview.removeEventListener('did-finish-load', onLoad);
-				webview.removeEventListener('did-fail-load', onError);
-				this.logService.error(`[GitHubUpload] loadUrl TIMEOUT: ${url}`);
-				reject(new Error(`Timeout loading ${url}`));
-			}, 15000);
-
-			const onLoad = () => {
-				clearTimeout(timeout);
-				webview.removeEventListener('did-finish-load', onLoad);
-				webview.removeEventListener('did-fail-load', onError);
-				this.logService.info(`[GitHubUpload] loadUrl done: ${url}`);
-				resolve();
-			};
-			const onError = (e: Electron.DidFailLoadEvent) => {
-				clearTimeout(timeout);
-				webview.removeEventListener('did-finish-load', onLoad);
-				webview.removeEventListener('did-fail-load', onError);
-				this.logService.error(`[GitHubUpload] loadUrl FAILED: ${url} -- ${e.errorDescription}`);
-				reject(new Error(`Failed to load ${url}: ${e.errorDescription}`));
-			};
-			webview.addEventListener('did-finish-load', onLoad);
-			webview.addEventListener('did-fail-load', onError);
-			webview.setAttribute('src', url);
-		});
+		this.logService.info(`[GitHubUpload] Navigating to: ${url}`);
+		await this.playwrightService.invokeFunctionRaw(this.activePageId,
+			`async (page, url) => { await page.goto(url, { waitUntil: 'domcontentloaded' }); }`,
+			url
+		);
 	}
 }

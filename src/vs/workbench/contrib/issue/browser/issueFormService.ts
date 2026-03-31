@@ -198,60 +198,49 @@ export class IssueFormService implements IIssueFormService {
 			if (screenshots.length > 0 || recordings.length > 0) {
 				this.logService.info(`[IssueFormService] Submit: ${screenshots.length} screenshots, ${recordings.length} recordings`);
 				try {
-					this.logService.info('[IssueFormService] Checking GitHub login...');
-					const isLoggedIn = await this.githubUploadService.isLoggedIn();
-					this.logService.info(`[IssueFormService] isLoggedIn=${isLoggedIn}`);
-					if (!isLoggedIn) {
-						this.logService.info('[IssueFormService] Opening GitHub login...');
-						const didLogin = await this.githubUploadService.login();
-						this.logService.info(`[IssueFormService] login result=${didLogin}`);
-						if (!didLogin) {
-							this.logService.warn('[IssueFormService] User cancelled GitHub login for upload');
+					// Open integrated browser and prepare for upload
+					await this.githubUploadService.login();
+
+					this.logService.info('[IssueFormService] Resolving repository ID...');
+					const repoId = await this.githubUploadService.resolveRepositoryId(owner, repo);
+					this.logService.info(`[IssueFormService] repoId=${repoId}`);
+					const uploadResults: { name: string; url: string; isVideo: boolean }[] = [];
+
+					for (let i = 0; i < screenshots.length; i++) {
+						this.logService.info(`[IssueFormService] Uploading screenshot ${i + 1}...`);
+						const screenshot = screenshots[i];
+						const imageData = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
+						const bytes = this.dataUrlToBytes(imageData);
+						if (bytes) {
+							const result = await this.githubUploadService.uploadAsset(
+								owner, repo, repoId,
+								`screenshot-${i + 1}.png`, bytes, 'image/png'
+							);
+							uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: false });
+							this.logService.info(`[IssueFormService] Screenshot uploaded: ${result.assetUrl}`);
 						}
 					}
 
-					if (await this.githubUploadService.isLoggedIn()) {
-						this.logService.info('[IssueFormService] Resolving repository ID...');
-						const repoId = await this.githubUploadService.resolveRepositoryId(owner, repo);
-						this.logService.info(`[IssueFormService] repoId=${repoId}`);
-						const uploadResults: { name: string; url: string; isVideo: boolean }[] = [];
+					for (const rec of recordings) {
+						this.logService.info(`[IssueFormService] Uploading recording ${rec.filePath}...`);
+						const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
+						const extension = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
+						const contentType = extension === 'mp4' ? 'video/mp4' : 'video/webm';
+						const result = await this.githubUploadService.uploadAsset(
+							owner, repo, repoId,
+							`recording.${extension}`, fileContent.value.buffer, contentType
+						);
+						uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: true });
+						this.logService.info(`[IssueFormService] Recording uploaded: ${result.assetUrl}`);
+					}
 
-						for (let i = 0; i < screenshots.length; i++) {
-							this.logService.info(`[IssueFormService] Uploading screenshot ${i + 1}...`);
-							const screenshot = screenshots[i];
-							const imageData = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
-							const bytes = this.dataUrlToBytes(imageData);
-							if (bytes) {
-								const result = await this.githubUploadService.uploadAsset(
-									owner, repo, repoId,
-									`screenshot-${i + 1}.png`, bytes, 'image/png'
-								);
-								uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: false });
-								this.logService.info(`[IssueFormService] Screenshot uploaded: ${result.assetUrl}`);
-							}
-						}
-
-						for (const rec of recordings) {
-							this.logService.info(`[IssueFormService] Uploading recording ${rec.filePath}...`);
-							const fileContent = await this.fileService.readFile(URI.file(rec.filePath));
-							const extension = rec.filePath.endsWith('.mp4') ? 'mp4' : 'webm';
-							const contentType = extension === 'mp4' ? 'video/mp4' : 'video/webm';
-							const result = await this.githubUploadService.uploadAsset(
-								owner, repo, repoId,
-								`recording.${extension}`, fileContent.value.buffer, contentType
-							);
-							uploadResults.push({ name: result.fileName, url: result.assetUrl, isVideo: true });
-							this.logService.info(`[IssueFormService] Recording uploaded: ${result.assetUrl}`);
-						}
-
-						if (uploadResults.length > 0) {
-							mediaMarkdown = '\n\n### Attachments\n\n';
-							for (const r of uploadResults) {
-								if (r.isVideo) {
-									mediaMarkdown += `${r.url}\n\n`;
-								} else {
-									mediaMarkdown += `![${r.name}](${r.url})\n\n`;
-								}
+					if (uploadResults.length > 0) {
+						mediaMarkdown = '\n\n### Attachments\n\n';
+						for (const r of uploadResults) {
+							if (r.isVideo) {
+								mediaMarkdown += `${r.url}\n\n`;
+							} else {
+								mediaMarkdown += `![${r.name}](${r.url})\n\n`;
 							}
 						}
 					}
@@ -262,7 +251,7 @@ export class IssueFormService implements IIssueFormService {
 
 			const issueBody = body + mediaMarkdown;
 			const gitHubDetails = this.parseGitHubUrl(issueUrl);
-			this.logService.info(`[IssueFormService] Opening issue preview: issueUrl=${issueUrl}, hasToken=${!!data.githubAccessToken}, gitHubDetails=${JSON.stringify(gitHubDetails)}, bodyLen=${issueBody.length}`);
+			this.logService.info(`[IssueFormService] Opening issue preview: issueUrl=${issueUrl}, bodyLen=${issueBody.length}`);
 
 			if (data.githubAccessToken && gitHubDetails && shouldCreate) {
 				await this.submitToGitHub(title, issueBody, gitHubDetails, data.githubAccessToken);
@@ -277,7 +266,13 @@ export class IssueFormService implements IIssueFormService {
 					url = `${issueUrl}${issueUrl.indexOf('?') === -1 ? '?' : '&'}title=${encodeURIComponent(title)}&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 				}
 
-				await this.openerService.open(URI.parse(url));
+				// Navigate the existing integrated browser tab if available,
+				// otherwise fall back to opening externally
+				try {
+					await this.githubUploadService.navigateTo(url);
+				} catch {
+					await this.openerService.open(URI.parse(url));
+				}
 			}
 
 			this.closeOverlay();

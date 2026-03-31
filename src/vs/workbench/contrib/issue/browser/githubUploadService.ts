@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 
 export interface IGitHubUploadResult {
 	readonly fileName: string;
@@ -23,6 +21,7 @@ export interface IGitHubUploadService {
 	login(): Promise<boolean>;
 	resolveRepositoryId(owner: string, repo: string): Promise<string>;
 	uploadAsset(owner: string, repo: string, repoId: string, fileName: string, fileBytes: Uint8Array, contentType: string): Promise<IGitHubUploadResult>;
+	navigateTo(url: string): Promise<void>;
 }
 
 /**
@@ -36,4 +35,5 @@ export class BrowserGitHubUploadService implements IGitHubUploadService {
 	async login(): Promise<boolean> { return false; }
 	async resolveRepositoryId(): Promise<string> { throw new Error('Not supported in browser'); }
 	async uploadAsset(): Promise<IGitHubUploadResult> { throw new Error('Not supported in browser'); }
+	async navigateTo(): Promise<void> { }
 }

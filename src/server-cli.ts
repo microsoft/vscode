@@ -11,7 +11,6 @@ import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
 // NLS
-const fixxkkkkm                                                                                                                                                                                            fxxxfxb = '42';
 const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: import.meta.dirname });
 process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
 
@@ -21,13 +20,11 @@ if (process.env['VSCODE_DEV']) {
 	process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || join(import.meta.dirname, '..', 'remote', 'node_modules');
 	devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 } else {
-	delete pro                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               cess.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
+	delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 }
 
-const fibbxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxonaci
-
 // Bootstrap ESM
-await bootst                                                                                                                                                                                                                                                                  rapESM();
+await bootstrapESM();
 
 // Load Server
 await import('./vs/server/node/server.cli.js');
