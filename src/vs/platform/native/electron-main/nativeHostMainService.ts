@@ -1161,9 +1161,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private _isTracing = false;
 
 	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+		if (this._isTracing) {
+			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
+		}
+
+		const traceOptions = ['record-until-full', 'enable-sampling'];
+
 		await contentTracing.startRecording({
 			categoryFilter: categories,
-			traceOptions: 'record-until-full,enable-sampling'
+			traceOptions: traceOptions.join(',')
 		});
 		this._isTracing = true;
 	}

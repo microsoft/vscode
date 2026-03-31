@@ -156,8 +156,23 @@ export class StartTracing extends Action2 {
 		const nativeHostService = accessor.get(INativeHostService);
 		const statusbarService = accessor.get(IStatusbarService);
 
-		const categories = 'content,renderer_host,browser,renderer,blink,blink.user_timing,net,v8,disabled-by-default-v8.cpu_profiler,disabled-by-default-devtools.timeline,disabled-by-default-network,disabled-by-default-net,disabled-by-default-v8.gc_stats,disabled-by-default-v8.stack_trace';
-		await nativeHostService.startTracing(categories);
+		const categories = [
+			'content',
+			'renderer_host',
+			'browser',
+			'renderer',
+			'blink',
+			'blink.user_timing',
+			'net',
+			'v8',
+			'disabled-by-default-v8.cpu_profiler',
+			'disabled-by-default-devtools.timeline',
+			'disabled-by-default-network',
+			'disabled-by-default-net',
+			'disabled-by-default-v8.gc_stats',
+			'disabled-by-default-v8.stack_trace',
+		];
+		await nativeHostService.startTracing(categories.join(','));
 
 		activeTracingEntry?.dispose();
 		activeTracingEntry = statusbarService.addEntry({
