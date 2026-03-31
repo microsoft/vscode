@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -128,18 +129,31 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISessionData; readonly to: ISessionData }>());
+	readonly onDidReplaceSession: Event<{ readonly from: ISessionData; readonly to: ISessionData }> = this._onDidReplaceSession.event;
+
 	readonly browseActions: readonly ISessionsBrowseAction[];
 
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	private readonly _sessionCache = new Map<string, RemoteSessionAdapter>();
 
+	/**
+	 * Temporary session that has been sent (first turn dispatched) but not yet
+	 * committed to a real backend session. Shown in the session list until the
+	 * server creates the backend session, at which point it is replaced via
+	 * {@link _onDidReplaceSession}.
+	 */
+	private _pendingSession: ISessionData | undefined;
+
 	/** Selected model for the current new session. */
 	private _selectedModelId: string | undefined;
+	/** Settable status for the current new session, kept to avoid unsafe cast from IObservable. */
+	private _currentNewSessionStatus: ISettableObservable<SessionStatus> | undefined;
 
 	private _connection: IAgentConnection | undefined;
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
-	private readonly _disconnectListeners = this._register(new DisposableStore());
+	private readonly _onDidDisconnect = this._register(new Emitter<void>());
 	private readonly _connectionAuthority: string;
 
 	constructor(
@@ -230,11 +244,15 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	 */
 	clearConnection(): void {
 		this._connectionListeners.clear();
-		this._disconnectListeners.clear();
+		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
 
-		const removed = Array.from(this._sessionCache.values());
+		const removed: ISessionData[] = Array.from(this._sessionCache.values());
+		if (this._pendingSession) {
+			removed.push(this._pendingSession);
+			this._pendingSession = undefined;
+		}
 		this._sessionCache.clear();
 		this._cacheInitialized = false;
 		if (removed.length > 0) {
@@ -279,7 +297,11 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	getSessions(): ISessionData[] {
 		this._ensureSessionCache();
-		return Array.from(this._sessionCache.values());
+		const sessions: ISessionData[] = Array.from(this._sessionCache.values());
+		if (this._pendingSession) {
+			sessions.push(this._pendingSession);
+		}
+		return sessions;
 	}
 
 	// -- Session Lifecycle --
@@ -305,6 +327,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		this._selectedModelId = undefined;
 
 		const resource = URI.from({ scheme: this._sessionTypeForProvider('copilot'), path: `/untitled-${generateUuid()}` });
+		const status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const session: ISessionData = {
 			id: `${this.id}:${resource.toString()}`,
 			resource,
@@ -315,7 +338,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			workspace: observableValue(this, workspace),
 			title: observableValue(this, ''),
 			updatedAt: observableValue(this, new Date()),
-			status: observableValue(this, SessionStatus.Untitled),
+			status,
 			changes: observableValue<readonly IChatSessionFileChange[]>(this, []),
 			modelId: observableValue(this, undefined),
 			mode: observableValue(this, undefined),
@@ -327,6 +350,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			gitHubInfo: observableValue(this, undefined),
 		};
 		this._currentNewSession = session;
+		this._currentNewSessionStatus = status;
 		return session;
 	}
 
@@ -431,7 +455,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			modelRef.dispose();
 		}
 
-		// Track existing sessions before sending so we can detect the new one
+		// Capture existing session keys before sending so we can detect the new
+		// backend session. Must be captured before sendRequest because the
+		// backend session may be created during the send and arrive via
+		// notification before sendRequest resolves.
 		const existingKeys = new Set(this._sessionCache.keys());
 
 		// Send request through the chat service, which delegates to the
@@ -441,13 +468,34 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			throw new Error(`[RemoteAgentHost] sendRequest rejected: ${result.reason}`);
 		}
 
-		// After sending, the session handler creates the backend session.
-		this._currentNewSession = undefined;
-		this._selectedModelId = undefined;
+		// Add the untitled session to the pending set so it stays visible in the
+		// session list while the turn is in progress. It will be replaced
+		// by the committed session once the backend session appears.
+		this._currentNewSessionStatus?.set(SessionStatus.InProgress, undefined);
+		this._pendingSession = session;
+		this._onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 
-		// Wait for the new session to appear via notification or refresh
-		const newSession = await this._waitForNewSession(existingKeys);
-		return newSession ?? session;
+		this._selectedModelId = undefined;
+		this._currentNewSessionStatus = undefined;
+
+		// Wait for the real backend session to appear (via server notification
+		// after the handler creates it), then replace the temporary entry.
+		try {
+			const committedSession = await this._waitForNewSession(existingKeys);
+			if (committedSession) {
+				this._currentNewSession = undefined;
+				this._onDidReplaceSession.fire({ from: session, to: committedSession });
+				return committedSession;
+			}
+		} catch {
+			// Connection lost or timeout — clean up
+		} finally {
+			this._pendingSession = undefined;
+		}
+
+		// Fallback: keep the temp session visible
+		this._currentNewSession = undefined;
+		return session;
 	}
 
 	// -- Private: Session Cache --
@@ -508,7 +556,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	/**
 	 * Wait for a new session to appear in the cache that wasn't present before.
 	 * Tries an immediate refresh, then listens for the session-added notification.
-	 * Rejects if the connection is cleared before a session appears.
+	 * Returns `undefined` if the connection is lost or a timeout expires.
 	 */
 	private async _waitForNewSession(existingKeys: Set<string>): Promise<ISessionData | undefined> {
 		// First, try an immediate refresh
@@ -519,30 +567,26 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			}
 		}
 
-		// If not found yet, wait for the next onDidChangeSessions event
-		// or reject if the connection is cleared.
-		return new Promise<ISessionData | undefined>((resolve, reject) => {
-			let settled = false;
-			const listener = this._onDidChangeSessions.event(e => {
-				const newSession = e.added.find(s => {
-					const rawId = s.resource.path.substring(1);
-					return !existingKeys.has(rawId);
-				});
-				if (newSession) {
-					settled = true;
-					listener.dispose();
-					disconnectListener.dispose();
-					resolve(newSession);
-				}
+		// If not found yet, wait for the next onDidChangeSessions event,
+		// bounded by a timeout and aborted on disconnect.
+		const waitDisposables = new DisposableStore();
+		try {
+			const sessionPromise = new Promise<ISessionData | undefined>((resolve) => {
+				waitDisposables.add(this._onDidChangeSessions.event(e => {
+					const newSession = e.added.find(s => {
+						const rawId = s.resource.path.substring(1);
+						return !existingKeys.has(rawId);
+					});
+					if (newSession) {
+						resolve(newSession);
+					}
+				}));
+				waitDisposables.add(this._onDidDisconnect.event(() => resolve(undefined)));
 			});
-			const disconnectListener = toDisposable(() => {
-				if (!settled) {
-					listener.dispose();
-					reject(new Error('Connection lost while waiting for session'));
-				}
-			});
-			this._disconnectListeners.add(disconnectListener);
-		});
+			return await raceTimeout(sessionPromise, 30_000);
+		} finally {
+			waitDisposables.dispose();
+		}
 	}
 
 	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string }): void {
