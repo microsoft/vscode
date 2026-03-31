@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../../base/common/event.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SendToTerminalTool, SendToTerminalToolData } from '../../browser/tools/sendToTerminalTool.js';
@@ -14,6 +15,7 @@ import type { ITerminalExecuteStrategyResult } from '../../browser/executeStrate
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 
 suite('SendToTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,6 +27,13 @@ suite('SendToTerminalTool', () => {
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService({}, store);
+		instantiationService.stub(IChatService, {
+			onDidDisposeSession: Event.None,
+			getSession: () => undefined,
+		});
+		instantiationService.stub(ITerminalChatService, {
+			hasChatSessionAutoApproval: () => false,
+		});
 		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
 		originalGetExecution = RunInTerminalTool.getExecution;
 	});
