@@ -17,6 +17,7 @@ import { INativeWorkbenchEnvironmentService } from '../../services/environment/e
 import { URI } from '../../../base/common/uri.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../services/statusbar/browser/statusbar.js';
 
 export class ToggleDevToolsAction extends Action2 {
 
@@ -138,6 +139,8 @@ export class ShowContentTracingAction extends Action2 {
 	}
 }
 
+let activeTracingEntry: IStatusbarEntryAccessor | undefined;
+
 export class StartTracing extends Action2 {
 
 	constructor() {
@@ -151,9 +154,20 @@ export class StartTracing extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
+		const statusbarService = accessor.get(IStatusbarService);
 
 		const categories = 'content,renderer_host,browser,renderer,blink,blink.user_timing,net,v8,disabled-by-default-v8.cpu_profiler,disabled-by-default-devtools.timeline,disabled-by-default-network,disabled-by-default-net,disabled-by-default-v8.gc_stats,disabled-by-default-v8.stack_trace';
 		await nativeHostService.startTracing(categories);
+
+		activeTracingEntry?.dispose();
+		activeTracingEntry = statusbarService.addEntry({
+			name: localize('startTracing.name', "Performance Trace"),
+			text: '$(record) ' + localize('startTracing.recording', "Recording trace (click to stop)"),
+			ariaLabel: localize('startTracing.ariaLabel', "Recording performance trace. Click to stop recording."),
+			tooltip: localize('startTracing.tooltip', "Click to stop recording"),
+			kind: 'error',
+			command: StopTracing.ID
+		}, 'status.tracing', StatusbarAlignment.LEFT, -Number.MAX_VALUE);
 	}
 }
 
@@ -180,5 +194,8 @@ export class StopTracing extends Action2 {
 			cancellable: false,
 			detail: localize('stopTracing.detail', "This can take up to one minute to complete.")
 		}, () => nativeHostService.stopTracing());
+
+		activeTracingEntry?.dispose();
+		activeTracingEntry = undefined;
 	}
 }
