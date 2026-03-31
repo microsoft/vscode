@@ -135,7 +135,7 @@ This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manua
 
 The merge script reads `extensionConfigurationPolicy` entries from the distro commit pinned in `package.json`. Common issues:
 
-- **"Skipped N entries missing 'description' or 'category'"**: The pinned distro commit has extension policy entries in the old format (only `name` and `minimumVersion`). This means a distro PR adding those fields hasn't merged yet, or `package.json` hasn't been updated to point to the new distro commit. The script will skip those entries — they won't appear in `policyData.jsonc` until the distro is updated.
+- **"Extension policy '...' must have a 'description'" or "'category'"**: The pinned distro commit has extension policy entries missing required fields. This means a distro PR adding `description` and `category` hasn't merged yet, or `package.json` hasn't been updated to point to the new distro commit. Merge the distro PR first, then bump the distro commit in `package.json`.
 - **"GITHUB_TOKEN environment variable is required"**: No local `.build/distro/` directory exists and no token was provided. Use `GITHUB_TOKEN=$(gh auth token)` or download the distro first.
 - **"No distro commit found in package.json"**: The `distro` field is missing from `package.json`. This is expected in pure OSS builds — extension policies won't be merged.
 - **"Failed to fetch distro product.json: 404"**: The pinned commit doesn't exist or your token doesn't have access to `microsoft/vscode-distro`.
