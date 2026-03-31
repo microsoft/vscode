@@ -32,6 +32,9 @@ import { Event } from '../../../../base/common/event.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 import { IVersion, tryParseVersion } from '../common/updateUtils.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
+import { TitleBarSetting } from '../../../../platform/window/common/window.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -215,6 +218,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
 		@IHostService private readonly hostService: IHostService,
@@ -244,7 +248,24 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
 		}
 
+		// Re-evaluate the badge when the title bar visibility changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY) ||
+				e.affectsConfiguration(TitleBarSetting.TITLE_BAR_STYLE)) {
+				this.onUpdateStateChange(this.state);
+			}
+		}));
+
 		this.registerGlobalActivityActions();
+	}
+
+	/**
+	 * Returns whether the badge on the settings gear should be shown.
+	 * The badge is only shown on web (where there is no title bar indicator) or
+	 * on desktop when the title bar is hidden (e.g. on macOS with a native title bar).
+	 */
+	private shouldShowBadge(): boolean {
+		return isWeb || !shouldShowCustomTitleBar(this.configurationService, mainWindow);
 	}
 
 	private async onUpdateStateChange(state: UpdateState): Promise<void> {
@@ -282,7 +303,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		this.badgeDisposable.clear();
 
-		if (badge) {
+		if (badge && this.shouldShowBadge()) {
 			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
 		}
 

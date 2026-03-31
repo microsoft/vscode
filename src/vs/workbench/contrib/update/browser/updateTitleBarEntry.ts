@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -74,6 +75,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -96,13 +98,20 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			this.onStateChange();
 		}));
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('update.mode')) {
+				this.onStateChange();
+			}
+		}));
+
 		this._register(actionViewItemService.register(
 			MenuId.TitleBarAdjacentCenter,
 			UPDATE_TITLE_BAR_ACTION_ID,
 			(action, options) => {
 				this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
 					this.tooltipVisible = false;
-					if (!ACTIONABLE_STATES.includes(this.state.type) && !DETAILED_STATES.includes(this.state.type)) {
+					const showStates = this.isDetailedMode() ? DETAILED_STATES : ACTIONABLE_STATES;
+					if (!showStates.includes(this.state.type)) {
 						this.context.set(false);
 					}
 				});
@@ -116,9 +125,15 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		void this.onStateChange(true);
 	}
 
+	private isDetailedMode(): boolean {
+		return this.configurationService.getValue<string>('update.mode') === 'manual';
+	}
+
 	private async onStateChange(startup = false) {
 		this.pendingShow.clear();
-		if (ACTIONABLE_STATES.includes(this.state.type)) {
+		const showStates = this.isDetailedMode() ? DETAILED_STATES : ACTIONABLE_STATES;
+
+		if (showStates.includes(this.state.type)) {
 			await this.setContextWhenChatIdle(true);
 		} else {
 			this.context.set(false);
@@ -147,7 +162,12 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 				case StateType.Downloading:
 				case StateType.Updating:
 				case StateType.Overwriting:
-					this.context.set(this.state.explicit);
+					// In detailed mode, the context was already set to true by setContextWhenChatIdle above.
+					// In actionable mode, these states are not in showStates so the context was set to false;
+					// override it to show the indicator only when the operation was explicitly triggered.
+					if (!this.isDetailedMode()) {
+						this.context.set(this.state.explicit);
+					}
 					break;
 				case StateType.Restarting:
 					this.context.set(true);
