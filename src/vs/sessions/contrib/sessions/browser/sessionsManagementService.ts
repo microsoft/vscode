@@ -7,9 +7,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader, autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { COPILOT_CLI_SESSION_TYPE } from './sessionTypes.js';
@@ -19,26 +18,7 @@ import { SessionsGroupModel } from './sessionsGroupModel.js';
 import { ISession, ISessionWorkspace, ISessionData, IChat, SessionStatus } from '../common/sessionData.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-
-/**
- * Configuration properties available on new/pending sessions.
- * Not part of the public {@link ISession} contract but present on
- * concrete session implementations (CopilotCLISession, RemoteNewSession, AgentHostNewSession).
- */
-
-export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
-
-/**
- * The provider ID of the active session (e.g., 'default-copilot', 'agenthost-hostA').
- */
-export const ActiveSessionProviderIdContext = new RawContextKey<string>('activeSessionProviderId', '', localize('activeSessionProviderId', "The provider ID of the active session"));
-
-/**
- * The session type of the active session (e.g., 'copilotcli', 'cloud').
- */
-export const ActiveSessionTypeContext = new RawContextKey<string>('activeSessionType', '', localize('activeSessionType', "The session type of the active session"));
-
-export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
+import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 
 //#region Active Session Service
 
@@ -487,6 +467,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[SessionsManagement] openChat: ${chatResource.toString()} provider=${chat?.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		if (sessionData) {
+			this.setRead(sessionData, true); // mark as read when opened
+		}
 
 		await this.chatWidgetService.openSession(chatResource, ChatViewPaneTarget);
 	}
@@ -500,6 +483,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		this.setRead(sessionData, true); // mark as read when opened
 
 		const activeChatResource = sessionData.activeChat.get().resource;
 		await this.chatWidgetService.openSession(activeChatResource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });

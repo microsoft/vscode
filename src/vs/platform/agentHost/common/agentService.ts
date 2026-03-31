@@ -251,6 +251,12 @@ export interface IAgentReasoningEvent extends IAgentProgressEventBase {
 	readonly content: string;
 }
 
+/** A steering message was consumed (sent to the model). */
+export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
+	readonly type: 'steering_consumed';
+	readonly id: string;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
@@ -261,7 +267,8 @@ export type IAgentProgressEvent =
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
 	| IAgentUsageEvent
-	| IAgentReasoningEvent;
+	| IAgentReasoningEvent
+	| IAgentSteeringConsumedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -474,6 +481,9 @@ export interface IAgentService {
 export interface IAgentConnection extends IAgentService {
 	/** Unique identifier for this client connection, used as the origin in action envelopes. */
 	readonly clientId: string;
+
+	/** Allocate the next client sequence number for action dispatch on this connection. */
+	nextClientSeq(): number;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');

@@ -100,7 +100,8 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			renderOptions: firstPart.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.context.editorPool.get());
+		const key = CodeBlockPart.poolKey(this.context.element.id, firstPart.codeBlockIndex);
+		const editorReference = this._register(this.context.editorPool.get(key));
 		editorReference.object.render(data, this.context.currentWidth.get());
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);

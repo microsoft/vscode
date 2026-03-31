@@ -9,20 +9,21 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import type { IActionEnvelope, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ISessionAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
+import { ActionType, type IActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChatService, type ChatSendResult } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatService, type ChatSendResult } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { SessionStatus } from '../../../sessions/common/sessionData.js';
 import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
 import { CopilotCLISessionType } from '../../../sessions/browser/sessionTypes.js';
+import { SessionStatus } from '../../../sessions/common/sessionData.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 
 // ---- Mock connection --------------------------------------------------------
@@ -38,6 +39,13 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
+	public dispatchedActions: { action: ISessionAction; clientId: string; clientSeq: number }[] = [];
+
+	private _nextSeq = 0;
+
+	override nextClientSeq(): number {
+		return this._nextSeq++;
+	}
 
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		return [...this._sessions.values()];
@@ -47,6 +55,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this.disposedSessions.push(session);
 		const rawId = AgentSession.id(session);
 		this._sessions.delete(rawId);
+	}
+
+	override dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+		this.dispatchedActions.push({ action, clientId, clientSeq });
 	}
 
 	// Test helpers
@@ -349,6 +361,128 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(target!.isRead.get(), true);
 		provider.setRead(target!.id, false);
 		assert.strictEqual(target!.isRead.get(), false);
+	});
+
+	// ---- Rename -------
+
+	test('renameSession dispatches SessionTitleChanged action with correct session URI', async () => {
+		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'rename-sess', { title: 'Old Title' });
+
+		const sessions = provider.getSessions();
+		const target = sessions.find((s) => s.title.get() === 'Old Title');
+		assert.ok(target, 'Session should exist');
+
+		await provider.renameSession(target!.id, 'New Title');
+
+		assert.strictEqual(connection.dispatchedActions.length, 1);
+		const dispatched = connection.dispatchedActions[0];
+		assert.strictEqual(dispatched.action.type, ActionType.SessionTitleChanged);
+		assert.strictEqual((dispatched.action as { title: string }).title, 'New Title');
+		// The session URI in the action must be the backend agent session URI
+		const actionSession = (dispatched.action as { session: string }).session;
+		assert.strictEqual(AgentSession.provider(actionSession), 'copilot');
+		assert.strictEqual(AgentSession.id(actionSession), 'rename-sess');
+		assert.strictEqual(dispatched.clientId, 'test-client-1');
+	});
+
+	test('renameSession updates local title optimistically', async () => {
+		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'rename-opt', { title: 'Before' });
+
+		const sessions = provider.getSessions();
+		const target = sessions.find((s) => s.title.get() === 'Before');
+		assert.ok(target);
+
+		await provider.renameSession(target!.id, 'After');
+
+		assert.strictEqual(target!.title.get(), 'After');
+	});
+
+	test('renameSession is no-op for unknown chatId', async () => {
+		const provider = createProvider(disposables, connection);
+		await provider.renameSession('nonexistent-id', 'Ignored');
+
+		assert.strictEqual(connection.dispatchedActions.length, 0);
+	});
+
+	test('renameSession increments clientSeq on successive calls', async () => {
+		connection.addSession(createSession('seq-sess', { summary: 'Seq Test' }));
+		const provider = createProvider(disposables, connection);
+		provider.getSessions();
+		await new Promise(resolve => setTimeout(resolve, 50));
+
+		const sessions = provider.getSessions();
+		const target = sessions.find((s) => s.title.get() === 'Seq Test');
+		assert.ok(target);
+
+		const chatId = target!.id;
+		await provider.renameSession(chatId, 'Title 1');
+		await provider.renameSession(chatId, 'Title 2');
+
+		assert.strictEqual(connection.dispatchedActions.length, 2);
+		assert.strictEqual(connection.dispatchedActions[0].clientSeq, 0);
+		assert.strictEqual(connection.dispatchedActions[1].clientSeq, 1);
+	});
+
+	test('server-echoed SessionTitleChanged updates cached title', () => {
+		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'echo-sess', { title: 'Original' });
+
+		const sessions = provider.getSessions();
+		const target = sessions.find((s) => s.title.get() === 'Original');
+		assert.ok(target);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
+
+		// Simulate the server echoing a title change (from auto-generation or another client)
+		connection.fireAction({
+			action: {
+				type: ActionType.SessionTitleChanged,
+				session: AgentSession.uri('copilot', 'echo-sess').toString(),
+				title: 'Server Title',
+			},
+			serverSeq: 1,
+			origin: undefined,
+		} as IActionEnvelope);
+
+		assert.strictEqual(target!.title.get(), 'Server Title');
+		assert.strictEqual(changes.length, 1);
+		assert.strictEqual(changes[0].changed.length, 1);
+	});
+
+	test('renamed title survives session refresh from listSessions', async () => {
+		// Simulate server persisting the renamed title: after rename, listSessions
+		// returns the updated summary
+		connection.addSession(createSession('persist-sess', { summary: 'Original Title' }));
+		const provider = createProvider(disposables, connection);
+		provider.getSessions();
+		await new Promise(resolve => setTimeout(resolve, 50));
+
+		// Verify initial title
+		let sessions = provider.getSessions();
+		let target = sessions.find((s) => s.title.get() === 'Original Title');
+		assert.ok(target, 'Session should exist with original title');
+
+		// Simulate server updating the summary (as would happen after persist + reload)
+		connection.addSession(createSession('persist-sess', { summary: 'Renamed Title', modifiedTime: 5000 }));
+
+		// Trigger refresh via turnComplete action (simulates what happens on reload)
+		connection.fireAction({
+			action: {
+				type: 'session/turnComplete',
+				session: AgentSession.uri('copilot', 'persist-sess').toString(),
+			},
+			serverSeq: 1,
+			origin: undefined,
+		} as IActionEnvelope);
+
+		await new Promise(resolve => setTimeout(resolve, 50));
+
+		sessions = provider.getSessions();
+		target = sessions.find((s) => s.title.get() === 'Renamed Title');
+		assert.ok(target, 'Session should have renamed title after refresh');
 	});
 
 	// ---- Send -------

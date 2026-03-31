@@ -8,6 +8,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IObservable } from '../../../../base/common/observable.js';
 
 /**
  * A platform-level session type identifying an agent backend.
@@ -73,6 +75,25 @@ export interface ISessionsProvider {
 	/** Session types this provider supports. */
 	readonly sessionTypes: readonly ISessionType[];
 
+	/**
+	 * Observable connection status for remote providers.
+	 * When defined, indicates the provider represents a remote connection
+	 * and its status should be shown in the workspace picker.
+	 */
+	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+
+	/**
+	 * The address of the remote agent host, if this provider represents one.
+	 * Used by the workspace picker to offer management actions (reconnect, remove, etc.).
+	 */
+	readonly remoteAddress?: string;
+
+	/**
+	 * Output channel ID for this provider's IPC log.
+	 * When set, a "Show Output" action is available in the workspace picker.
+	 */
+	readonly outputChannelId?: string;
+
 	// -- Workspaces --
 
 	/** Browse actions shown in the workspace picker. */
@@ -89,9 +110,6 @@ export interface ISessionsProvider {
 	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
-	 *
-	 * @internal This is an implementation detail of the Copilot Chat sessions
-	 * provider. Do not implement or consume this event in other providers.
 	 */
 	readonly onDidReplaceSession?: Event<{ readonly from: ISessionData; readonly to: ISessionData }>;
 
