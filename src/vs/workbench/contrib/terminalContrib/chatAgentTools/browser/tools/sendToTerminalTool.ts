@@ -60,7 +60,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		pastTenseMessage.appendText(localize('send.past', "Sent {0} to terminal", displayCommand));
 
 		const confirmationMessage = new MarkdownString();
-		confirmationMessage.appendText(localize('send.confirm.message', "Run {0} in background terminal {1}", args.command, args.id));
+		confirmationMessage.appendText(localize('send.confirm.message', "Run {0} in background terminal {1}", displayCommand, args.id));
 
 		return {
 			invocationMessage,
