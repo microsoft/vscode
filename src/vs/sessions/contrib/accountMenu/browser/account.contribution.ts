@@ -5,7 +5,8 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/accountWidget.css';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -17,7 +18,8 @@ import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -31,6 +33,10 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
@@ -91,9 +97,12 @@ registerUpdateMenuItems(AccountMenu, '3_updates');
 export class AccountWidget extends ActionViewItem {
 
 	private accountButton: Button | undefined;
+	private copilotStatusButton: Button | undefined;
+	private copilotStatusContainer: HTMLElement | undefined;
 	private updateButton: Button | undefined;
 	private readonly updateHoverWidget: UpdateHoverWidget;
 	private readonly viewItemDisposables = this._register(new DisposableStore());
+	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		action: IAction,
@@ -108,6 +117,9 @@ export class AccountWidget extends ActionViewItem {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService,
+		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
@@ -134,6 +146,20 @@ export class AccountWidget extends ActionViewItem {
 			buttonSecondaryBorder: undefined,
 		}));
 		this.accountButton.element.classList.add('account-widget-account-button', 'sidebar-action-button');
+
+		// Copilot status button (between account and update)
+		this.copilotStatusContainer = append(container, $('.account-widget-copilot-status'));
+		this.copilotStatusButton = this.viewItemDisposables.add(new Button(this.copilotStatusContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			title: false,
+			supportIcons: true,
+			buttonSecondaryBackground: 'transparent',
+			buttonSecondaryHoverBackground: undefined,
+			buttonSecondaryForeground: undefined,
+			buttonSecondaryBorder: undefined,
+		}));
+		this.copilotStatusButton.element.classList.add('account-widget-copilot-status-button', 'sidebar-action-button');
 
 		// Update button (right)
 		const updateContainer = append(container, $('.account-widget-update'));
@@ -162,6 +188,19 @@ export class AccountWidget extends ActionViewItem {
 		}));
 
 		this.viewItemDisposables.add(this.updateButton.onDidClick(() => this.update()));
+
+		// Copilot status: update icon and show/hide based on update button
+		this.updateCopilotStatusButton();
+		this.viewItemDisposables.add(this.chatEntitlementService.onDidChangeEntitlement(() => this.updateCopilotStatusButton()));
+		this.viewItemDisposables.add(this.chatEntitlementService.onDidChangeSentiment(() => this.updateCopilotStatusButton()));
+		this.viewItemDisposables.add(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.updateCopilotStatusButton()));
+		this.viewItemDisposables.add(this.chatSessionsService.onDidChangeInProgress(() => this.updateCopilotStatusButton()));
+
+		this.viewItemDisposables.add(this.copilotStatusButton.onDidClick(e => {
+			e?.preventDefault();
+			e?.stopPropagation();
+			this.showCopilotStatusDashboard(this.copilotStatusButton!.element);
+		}));
 	}
 
 	private showAccountMenu(anchor: HTMLElement): void {
@@ -174,6 +213,66 @@ export class AccountWidget extends ActionViewItem {
 			getAnchor: () => anchor,
 			getActions: () => actions,
 		});
+	}
+
+	private updateCopilotStatusButton(): void {
+		if (!this.copilotStatusButton || !this.copilotStatusContainer) {
+			return;
+		}
+
+		this.copilotStatusContainer.classList.remove('hidden');
+
+		let icon = Codicon.copilot.id;
+		const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
+		const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+			icon = 'copilot-not-connected';
+		} else if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (chatQuotaExceeded || completionsQuotaExceeded)) {
+			icon = 'copilot-warning';
+		}
+
+		this.copilotStatusButton.label = `$(${icon})`;
+		this.copilotStatusButton.element.setAttribute('aria-label', localize('copilotStatus', "Copilot status"));
+
+		// Hide when update button is visible
+		this.updateCopilotStatusVisibility();
+	}
+
+	private updateCopilotStatusVisibility(): void {
+		if (!this.copilotStatusContainer || !this.updateButton) {
+			return;
+		}
+
+		const updateVisible = !this.updateButton.element.classList.contains('hidden');
+		this.copilotStatusContainer.classList.toggle('hidden', updateVisible || this.chatEntitlementService.sentiment.hidden);
+	}
+
+	private showCopilotStatusDashboard(anchor: HTMLElement): void {
+		const store = new DisposableStore();
+		this.copilotDashboardStore.value = store;
+		const dashboardElement = ChatStatusDashboard.instantiateInContents(this.instantiationService, store, {
+			disableInlineSuggestionsSettings: true,
+			disableModelSelection: true,
+			disableProviderOptions: true,
+			disableCompletionsSnooze: true,
+			disableContributions: true,
+		});
+
+		this.hoverService.showInstantHover({
+			content: dashboardElement,
+			target: anchor,
+			position: { hoverPosition: HoverPosition.ABOVE },
+			persistence: { sticky: true, hideOnHover: false },
+			appearance: { skipFadeInAnimation: true },
+		});
+
+		// Dispose the dashboard when the hover is hidden
+		store.add(disposableWindowInterval(mainWindow, () => {
+			if (!dashboardElement.isConnected) {
+				store.dispose();
+			}
+		}, 2000));
 	}
 
 	private async updateAccountButton(): Promise<void> {
@@ -205,26 +304,23 @@ export class AccountWidget extends ActionViewItem {
 			this.updateButton.enabled = true;
 			this.updateButton.label = localize('updateAvailable', "Update Available");
 			this.updateButton.element.title = localize('updateInVSCodeHover', "Updates are managed by VS Code. Click to open VS Code.");
-			return;
-		}
-
-		if (this.shouldHideUpdateButton(state.type)) {
+		} else if (this.shouldHideUpdateButton(state.type)) {
 			this.clearUpdateButtonStyling();
 			this.updateButton.element.classList.add('hidden');
-			return;
+		} else {
+			this.updateButton.element.classList.remove('hidden');
+			this.updateButton.element.style.backgroundImage = '';
+			this.updateButton.enabled = state.type === StateType.Ready;
+			this.updateButton.label = this.getUpdateProgressMessage(state.type);
+
+			if (state.type === StateType.Ready) {
+				this.updateButton.element.classList.add('account-widget-update-button-ready');
+			} else {
+				this.updateButton.element.classList.remove('account-widget-update-button-ready');
+			}
 		}
 
-		this.updateButton.element.classList.remove('hidden');
-		this.updateButton.element.style.backgroundImage = '';
-		this.updateButton.enabled = state.type === StateType.Ready;
-		this.updateButton.label = this.getUpdateProgressMessage(state.type);
-
-		if (state.type === StateType.Ready) {
-			this.updateButton.element.classList.add('account-widget-update-button-ready');
-			return;
-		}
-
-		this.updateButton.element.classList.remove('account-widget-update-button-ready');
+		this.updateCopilotStatusVisibility();
 	}
 
 	private shouldHideUpdateButton(type: StateType): boolean {
