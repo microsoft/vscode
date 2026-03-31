@@ -258,8 +258,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			loggedConnection.logError('subscribe(root)', err);
 		});
 
-		// Authenticate with this new connection
-		this._authenticateWithConnection(loggedConnection);
+		// Authenticate with this new connection and refresh models afterward
+		this._authenticateWithConnection(loggedConnection).then(() => loggedConnection.refreshModels()).catch(() => { /* best-effort */ });
 
 		// Wire connection to existing sessions provider
 		this._providerInstances.get(address)?.setConnection(loggedConnection, connectionInfo.defaultDirectory);
@@ -380,7 +380,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _authenticateAllConnections(): void {
 		for (const [, connState] of this._connections) {
-			this._authenticateWithConnection(connState.loggedConnection);
+			this._authenticateWithConnection(connState.loggedConnection).then(() => connState.loggedConnection.refreshModels()).catch(() => { /* best-effort */ });
 		}
 	}
 
