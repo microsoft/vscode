@@ -39,9 +39,9 @@
 		}
 
 		// minimal color configuration (works with or without persisted data)
-		let baseTheme;
-		let shellBackground;
-		let shellForeground;
+		let baseTheme = 'vs-dark';
+		let shellBackground = '#1E1E1E';
+		let shellForeground = '#CCCCCC';
 		if (data) {
 			baseTheme = data.baseTheme;
 			shellBackground = data.colorInfo.editorBackground;
