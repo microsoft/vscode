@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Changes Titlebar Indicator (in right toolbar) ---- */
+
+.agent-sessions-workbench .changes-titlebar-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 22px;
+	padding: 0 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: pointer;
+	color: inherit;
+	gap: 3px;
+}
+
+.agent-sessions-workbench .changes-titlebar-indicator:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .changes-titlebar-indicator.toggled,
+.agent-sessions-workbench .changes-titlebar-indicator.toggled:hover {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.agent-sessions-workbench .changes-titlebar-indicator .codicon {
+	font-size: 16px;
+	color: inherit;
+}
+
+.agent-sessions-workbench .changes-titlebar-count {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	line-height: 16px;
+	color: inherit;
+}
+
+.agent-sessions-workbench .changes-titlebar-insertions {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+	font-weight: 600;
+}
+
+.agent-sessions-workbench .changes-titlebar-deletions {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+	font-weight: 600;
+}

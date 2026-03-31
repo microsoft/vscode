@@ -9,7 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ActionType, NotificationType, IActionEnvelope, IActionOrigin, INotification, ISessionAction, IRootAction, IStateAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, type IRootState, type ISessionState, type ISessionSummary, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, SessionLifecycle, type IRootState, type ISessionState, type ISessionSummary, type ITurn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
 
 /**
  * Server-side state manager for the sessions process protocol.
@@ -115,7 +115,37 @@ export class SessionStateManager extends Disposable {
 	}
 
 	/**
-	 * Removes a session from state and emits a sessionRemoved notification.
+	 * Restores a session from a previous server lifetime into the state manager
+	 * with pre-populated turns. The session is created in `ready` lifecycle
+	 * state since it already exists on the backend.
+	 *
+	 * Unlike {@link createSession}, this does NOT emit a `sessionAdded`
+	 * notification because the session is already known to clients via
+	 * `listSessions`.
+	 */
+	restoreSession(summary: ISessionSummary, turns: ITurn[]): ISessionState {
+		const key = summary.resource;
+		if (this._sessionStates.has(key)) {
+			this._logService.warn(`[SessionStateManager] Session already exists (restore): ${key}`);
+			return this._sessionStates.get(key)!;
+		}
+
+		const state: ISessionState = {
+			...createSessionState(summary),
+			lifecycle: SessionLifecycle.Ready,
+			turns,
+		};
+		this._sessionStates.set(key, state);
+
+		this._logService.trace(`[SessionStateManager] Restored session: ${key} (${turns.length} turns)`);
+
+		return state;
+	}
+
+	/**
+	 * Removes a session from in-memory state without emitting a notification.
+	 * Use {@link deleteSession} when the session is being permanently deleted
+	 * and clients need to be notified.
 	 */
 	removeSession(session: URI): void {
 		const state = this._sessionStates.get(session);
@@ -130,7 +160,15 @@ export class SessionStateManager extends Disposable {
 
 		this._sessionStates.delete(session);
 		this._logService.trace(`[SessionStateManager] Removed session: ${session}`);
+	}
 
+	/**
+	 * Permanently deletes a session from state and emits a
+	 * {@link NotificationType.SessionRemoved} notification so that clients
+	 * know the session is no longer accessible.
+	 */
+	deleteSession(session: URI): void {
+		this.removeSession(session);
 		this._onDidEmitNotification.fire({
 			type: NotificationType.SessionRemoved,
 			session,

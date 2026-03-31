@@ -20,7 +20,6 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
-import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatCollapsibleMarkdownContentPart } from './chatCollapsibleMarkdownContentPart.js';
@@ -116,7 +115,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
 	 */
 	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined } {
-		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent...');
+		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent');
 
 		// Only parent subagent tools contain the full subagent info
 		if (!ChatSubagentContentPart.isParentSubagentTool(toolInvocation)) {
@@ -158,7 +157,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		private readonly listPool: CollapsibleListPool,
 		private readonly editorPool: EditorPool,
 		private readonly currentWidthDelegate: () => number,
-		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly announcedToolProgressKeys: Set<string>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -783,7 +781,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.listPool,
 			this.editorPool,
 			this.currentWidthDelegate,
-			this.codeBlockModelCollection,
 			this.announcedToolProgressKeys,
 			codeBlockStartIndex
 		);

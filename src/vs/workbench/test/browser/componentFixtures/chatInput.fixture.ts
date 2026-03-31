@@ -30,7 +30,7 @@ import { IChatAttachmentResolveService } from '../../../contrib/chat/browser/att
 import { IChatAttachmentWidgetRegistry } from '../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextService } from '../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../contrib/chat/browser/widget/input/chatInputPart.js';
-import { IChatArtifactsService } from '../../../contrib/chat/common/tools/chatArtifactsService.js';
+import { IChatArtifacts, IChatArtifactsService } from '../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo, IChatTodoListService } from '../../../contrib/chat/common/tools/chatTodoListService.js';
@@ -51,6 +51,7 @@ import { IUpdateService, StateType } from '../../../../platform/update/common/up
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
 import { INotebookDocumentService } from '../../../services/notebook/common/notebookDocumentService.js';
+import { ISCMService } from '../../../contrib/scm/common/scm.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 
 import '../../../contrib/chat/browser/widget/media/chat.css';
@@ -133,16 +134,27 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 			reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
 			reg.defineInstance(IListService, new ListService());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
+			reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {
+				override readonly onDidAddRepository = Event.None;
+				override readonly onDidRemoveRepository = Event.None;
+				override readonly repositories = [];
+				override readonly repositoryCount = 0;
+			}());
 			reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { override show() { } override hide() { } override get isVisible() { return false; } }());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() { }());
 			reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {
-				override readonly onDidUpdateArtifacts = Event.None;
-				override getArtifacts() { return [...artifacts]; }
-				override setArtifacts() { }
-				override migrateArtifacts() { }
-				override artifacts() { return artifactsObs; }
+				override getArtifacts(): IChatArtifacts {
+					const mutableObs = observableValue<boolean>('mutable', true);
+					return new class extends mock<IChatArtifacts>() {
+						override readonly artifacts = artifactsObs;
+						override readonly mutable = mutableObs;
+						override set() { }
+						override clear() { }
+						override migrate() { }
+					}();
+				}
 			}());
 			reg.defineInstance(IChatTodoListService, new class extends mock<IChatTodoListService>() {
 				override readonly onDidUpdateTodos = Event.None;
