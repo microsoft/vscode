@@ -22,7 +22,7 @@ import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/co
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './fixCIChecksAction.js';
 
 const $ = dom.$;
@@ -66,6 +66,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 	constructor(
 		private readonly _labels: ResourceLabels,
 		private readonly _openerService: IOpenerService,
+		private readonly _getModel: () => GitHubPullRequestCIModel | undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICICheckTemplateData {
@@ -103,6 +104,18 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 		});
 
 		const actions: Action[] = [];
+
+		if (element.group === CICheckGroup.Failed && parseWorkflowRunId(element.check.detailsUrl) !== undefined) {
+			actions.push(templateData.elementDisposables.add(new Action(
+				'ci.rerunCheck',
+				localize('ci.rerunCheck', "Rerun Check"),
+				ThemeIcon.asClassName(Codicon.debugRerun),
+				true,
+				async () => {
+					await this._getModel()?.rerunFailedCheck(element.check);
+				},
+			)));
+		}
 
 		if (element.check.detailsUrl) {
 			actions.push(templateData.elementDisposables.add(new Action(
@@ -210,7 +223,7 @@ export class CIStatusWidget extends Disposable {
 			'CIStatusWidget',
 			listContainer,
 			new CICheckListDelegate(),
-			[new CICheckListRenderer(this._labels, this._openerService)],
+			[new CICheckListRenderer(this._labels, this._openerService, () => this._model)],
 			{
 				multipleSelectionSupport: false,
 				openOnSingleClick: false,
@@ -330,21 +343,11 @@ export class CIStatusWidget extends Disposable {
 	 * Layout the widget body list to the given height.
 	 * Called by the parent view after computing available space.
 	 */
-	layout(maxBodyHeight: number): void {
-		if (this._checkCount === 0) {
-			return;
-		}
-		const contentHeight = this._checkCount * CICheckListDelegate.ITEM_HEIGHT;
-		const bodyHeight = Math.min(contentHeight, maxBodyHeight);
-		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
-		this._list.layout(bodyHeight);
+	layout(height: number): void {
+		this._list.layout(height);
 	}
 
 	private _renderBody(checks: readonly ICICheckListItem[]): void {
-		const contentHeight = checks.length * CICheckListDelegate.ITEM_HEIGHT;
-		const bodyHeight = Math.min(contentHeight, CIStatusWidget.MAX_BODY_HEIGHT);
-		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
-		this._list.layout(bodyHeight);
 		this._list.splice(0, this._list.length, checks);
 	}
 

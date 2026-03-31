@@ -157,6 +157,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 export interface IExtensionPromptFileResult {
 	readonly uri: UriComponents;
 	readonly type: PromptsType;
+	readonly extensionId: string;
 }
 
 /**
@@ -178,7 +179,7 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 	const result: IExtensionPromptFileResult[] = [];
 	for (const file of [...agents, ...instructions, ...prompts, ...skills, ...hooks]) {
 		if (file.storage === PromptsStorage.extension) {
-			result.push({ uri: file.uri.toJSON(), type: file.type });
+			result.push({ uri: file.uri.toJSON(), type: file.type, extensionId: file.extension.identifier.value });
 		}
 	}
 

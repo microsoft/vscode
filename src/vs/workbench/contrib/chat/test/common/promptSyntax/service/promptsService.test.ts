@@ -18,7 +18,7 @@ import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
-import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
@@ -40,8 +40,8 @@ import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry 
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -299,8 +299,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240 },
-					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257 },
+					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240, fullLength: 13 },
+					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257, fullLength: 19 },
 				]
 			);
 
@@ -846,7 +846,7 @@ suite('PromptsService', () => {
 					tools: ['tool1', 'tool2'],
 					agentInstructions: {
 						content: 'Do it with #tool:tool1',
-						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 22 } }],
 						metadata: undefined
 					},
 					handOffs: undefined,
@@ -864,8 +864,8 @@ suite('PromptsService', () => {
 					agentInstructions: {
 						content: 'First use #tool:tool2\nThen use #tool:tool1',
 						toolReferences: [
-							{ name: 'tool1', range: { start: 31, endExclusive: 37 } },
-							{ name: 'tool2', range: { start: 10, endExclusive: 16 } }
+							{ name: 'tool1', range: { start: 31, endExclusive: 42 } },
+							{ name: 'tool2', range: { start: 10, endExclusive: 21 } }
 						],
 						metadata: undefined
 					},
@@ -1665,7 +1665,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 2, 'Should find 2 skills');
 
@@ -1756,7 +1756,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 0, 'Should not find any skills in non-skill locations');
 		});
@@ -1842,7 +1842,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 1, 'Should find only 1 skill (from enabled folder)');
 			assert.ok(result[0].uri.path.includes('.claude/skills'), 'Should only find skill from .claude/skills');
@@ -1878,7 +1878,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const result = (await service.listPromptFiles(PromptsType.skill, CancellationToken.None)).filter(s => s.storage !== PromptsStorage.internal);
+			const result = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 
 			assert.strictEqual(result.length, 1, 'Should find 1 skill from tilde-expanded path');
 			assert.ok(result[0].uri.path.includes('/home/user/my-custom-skills'), 'Path should be expanded from tilde');
@@ -2101,8 +2101,10 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
-			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
+
+
+			await testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
+			await testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, false);
 
 			// With parent search disabled, should not find parent files
 			let promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
@@ -2115,6 +2117,7 @@ suite('PromptsService', () => {
 
 			// With parent search enabled, should find parent files
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+			fireConfigChange(testConfigService, PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS);
 
 			promptFiles = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 			agentFiles = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
@@ -2181,6 +2184,8 @@ suite('PromptsService', () => {
 
 			testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+			fireConfigChange(testConfigService, PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS);
+
 
 			// Mark the parent repo root as untrusted
 			workspaceTrustService.getUriTrustInfo = (uri: URI) => {
@@ -2235,7 +2240,7 @@ suite('PromptsService', () => {
 		assert.ok(providerInstruction, 'Provider instruction should be found');
 		assert.strictEqual(providerInstruction!.uri.toString(), instructionUri.toString());
 		assert.strictEqual(providerInstruction!.storage, PromptsStorage.extension);
-		assert.strictEqual(providerInstruction!.source, ExtensionAgentSourceType.provider);
+		assert.strictEqual(providerInstruction!.source, PromptFileSource.ExtensionAPI);
 
 		registered.dispose();
 
@@ -2280,7 +2285,7 @@ suite('PromptsService', () => {
 		assert.ok(providerPrompt, 'Provider prompt should be found');
 		assert.strictEqual(providerPrompt!.uri.toString(), promptUri.toString());
 		assert.strictEqual(providerPrompt!.storage, PromptsStorage.extension);
-		assert.strictEqual(providerPrompt!.source, ExtensionAgentSourceType.provider);
+		assert.strictEqual(providerPrompt!.source, PromptFileSource.ExtensionAPI);
 
 		registered.dispose();
 
@@ -2329,7 +2334,7 @@ suite('PromptsService', () => {
 		assert.ok(providerSkill, 'Provider skill should be found');
 		assert.strictEqual(providerSkill!.uri.toString(), skillUri.toString());
 		assert.strictEqual(providerSkill!.storage, PromptsStorage.extension);
-		assert.strictEqual(providerSkill!.source, ExtensionAgentSourceType.provider);
+		assert.strictEqual(providerSkill!.source, PromptFileSource.ExtensionAPI);
 
 		registered.dispose();
 
@@ -2426,7 +2431,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results when agent skills are enabled');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 5, 'Should find 5 skills total');
 
 			// Check project skills (both from .github/skills and .claude/skills)
@@ -2502,7 +2507,7 @@ suite('PromptsService', () => {
 
 			// Should return both skills - the malformed one uses folder name as fallback
 			assert.ok(allResult, 'Should return results even with parsing errors');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills');
 
 			const validSkill = result.find(s => s.name === 'Valid Skill');
@@ -2529,7 +2534,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results array');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 0, 'Should find no skills');
 		});
 
@@ -2564,7 +2569,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			assert.strictEqual(result[0].name.length, 64, 'Name should be truncated to 64 characters');
 			assert.strictEqual(result[0].description?.length, 1024, 'Description should be truncated to 1024 characters');
@@ -2597,7 +2602,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			assert.strictEqual(result[0].name, 'Skill with XML tags', 'XML tags should be removed from name');
 			assert.strictEqual(result[0].description, 'Description with HTML and other tags', 'XML tags should be removed from description');
@@ -2634,7 +2639,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill');
 			// XML tags are removed first, then truncation happens
 			assert.ok(!result[0].name.includes('<'), 'Name should not contain XML tags');
@@ -2693,7 +2698,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (duplicate skipped)');
 
 			const duplicateSkill = result.find(s => s.name === 'Duplicate Skill');
@@ -2742,7 +2747,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 1, 'Should find 1 skill (duplicates resolved by priority)');
 			assert.strictEqual(result[0].description, 'Workspace version - highest priority', 'Workspace should win over user');
 			assert.strictEqual(result[0].storage, PromptsStorage.local);
@@ -2786,7 +2791,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find both skills');
 
 			const mismatchedSkill = result.find(s => s.name === 'wrong-folder-name');
@@ -2832,7 +2837,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find both skills');
 
 			const noNameSkill = result.find(s => s.name === 'no-name-skill');
@@ -2894,7 +2899,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (workspace + extension)');
 
 			const workspaceSkill = result.find(s => s.name === 'Workspace Skill');
@@ -2957,7 +2962,7 @@ suite('PromptsService', () => {
 			const allResult = await service.findAgentSkills(CancellationToken.None);
 
 			assert.ok(allResult, 'Should return results');
-			const result = allResult.filter(s => s.storage !== PromptsStorage.internal);
+			const result = allResult;
 			assert.strictEqual(result.length, 2, 'Should find 2 skills (local + contributed)');
 
 			const localSkill = result.find(s => s.name === 'Local Skill');
@@ -2971,7 +2976,7 @@ suite('PromptsService', () => {
 			registered.dispose();
 
 			// After disposal, only local skill should remain
-			const resultAfterDispose = (await service.findAgentSkills(CancellationToken.None))?.filter(s => s.storage !== PromptsStorage.internal);
+			const resultAfterDispose = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(resultAfterDispose?.length, 1, 'Should find 1 skill after disposal');
 			assert.strictEqual(resultAfterDispose?.[0].name, 'Local Skill');
 		});
@@ -3123,7 +3128,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(providerSkillCommand.description, 'A skill from extension provider');
 			assert.strictEqual(providerSkillCommand.promptPath.storage, PromptsStorage.extension);
 			assert.strictEqual(providerSkillCommand.promptPath.type, PromptsType.skill);
-			assert.strictEqual(providerSkillCommand.promptPath.source, ExtensionAgentSourceType.provider);
+			assert.strictEqual(providerSkillCommand.promptPath.source, PromptFileSource.ExtensionAPI);
 
 			registered.dispose();
 
@@ -3177,7 +3182,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(contributedSkillCommand.description, 'A skill from extension contribution');
 			assert.strictEqual(contributedSkillCommand.promptPath.storage, PromptsStorage.extension);
 			assert.strictEqual(contributedSkillCommand.promptPath.type, PromptsType.skill);
-			assert.strictEqual(contributedSkillCommand.promptPath.source, ExtensionAgentSourceType.contribution);
+			assert.strictEqual(contributedSkillCommand.promptPath.source, PromptFileSource.ExtensionContribution);
 
 			registered.dispose();
 
@@ -3645,7 +3650,7 @@ suite('PromptsService', () => {
 				},
 			]);
 
-			const slashCommands = (await service.getPromptSlashCommands(CancellationToken.None)).filter(c => c.promptPath.storage !== PromptsStorage.internal);
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
 
 			// All commands should be present in the raw list
 			assert.strictEqual(slashCommands.length, 4, 'Should find all 4 commands');
@@ -3992,3 +3997,9 @@ suite('PromptsService', () => {
 		});
 	});
 });
+
+function fireConfigChange(configService: TestConfigurationService, ...key: string[]): void {
+	configService.onDidChangeConfigurationEmitter.fire({
+		affectsConfiguration: (k: string) => key.includes(k),
+	} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
+}

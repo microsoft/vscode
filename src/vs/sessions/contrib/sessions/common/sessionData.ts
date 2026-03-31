@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -57,21 +58,78 @@ export interface ISessionWorkspace {
 }
 
 /**
- * Pull request information associated with a session.
+ * GitHub information associated with a session.
  */
-export interface ISessionPullRequest {
-	/** URI of the pull request. */
-	readonly uri: URI;
-	/** Icon reflecting the PR state. */
-	readonly icon?: ThemeIcon;
+export interface IGitHubInfo {
+	/** GitHub repository owner. */
+	readonly owner: string;
+	/** GitHub repository name. */
+	readonly repo: string;
+	/** Pull request associated with this session, if any. */
+	readonly pullRequest?: {
+		/** Pull request number. */
+		readonly number: number;
+		/** URI of the pull request. */
+		readonly uri: URI;
+		/** Icon reflecting the PR state. */
+		readonly icon?: ThemeIcon;
+	};
 }
 
 /**
- * A single chat as exposed by sessions providers.
+ * A single session as exposed by sessions providers.
  * Self-contained facade — components should not reach back to underlying
  * services to resolve additional data.
  */
-export interface IChatData {
+export interface ISessionData {
+	/** Globally unique session ID (`providerId:localId`). */
+	readonly id: string;
+	/** Resource URI identifying this session. */
+	readonly resource: URI;
+	/** ID of the provider that owns this session. */
+	readonly providerId: string;
+	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud'). */
+	readonly sessionType: string;
+	/** Icon for this session. */
+	readonly icon: ThemeIcon;
+	/** When the session was created. */
+	readonly createdAt: Date;
+	/** Workspace this session operates on. */
+	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+
+	// Reactive properties
+
+	/** Session display title (changes when auto-titled or renamed). */
+	readonly title: IObservable<string>;
+	/** When the session was last updated. */
+	readonly updatedAt: IObservable<Date>;
+	/** Current session status. */
+	readonly status: IObservable<SessionStatus>;
+	/** File changes produced by the session. */
+	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	/** Currently selected model identifier. */
+	readonly modelId: IObservable<string | undefined>;
+	/** Currently selected mode identifier and kind. */
+	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/** Whether the session is still initializing (e.g., resolving git repository). */
+	readonly loading: IObservable<boolean>;
+	/** Whether the session is archived. */
+	readonly isArchived: IObservable<boolean>;
+	/** Whether the session has been read. */
+	readonly isRead: IObservable<boolean>;
+	/** Status description shown while the session is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
+	/** Timestamp of when the last agent turn ended, if any. */
+	readonly lastTurnEnd: IObservable<Date | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
+}
+
+/**
+ * A single chat within a session, produced by the sessions management layer.
+ * Has the same shape as {@link ISessionData} but uses `chatId` as its identifier.
+ */
+export interface IChat {
 	/** Globally unique chat ID (`providerId:localId`). */
 	readonly chatId: string;
 	/** Resource URI identifying this chat. */
@@ -107,19 +165,19 @@ export interface IChatData {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the chat has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the chat is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the chat is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 }
 
 /**
  * A session groups one or more chats together.
- * All {@link IChatData} fields are propagated from the primary (first) chat.
+ * All {@link ISessionData} fields are propagated from the primary (first) chat.
  */
-export interface ISessionData {
+export interface ISession {
 	/** Globally unique session ID (`providerId:localId`). */
 	readonly sessionId: string;
 	/** Resource URI identifying this session. */
@@ -155,14 +213,16 @@ export interface ISessionData {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the session is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the session is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
-	readonly chats: IObservable<readonly IChatData[]>;
+	readonly chats: IObservable<readonly IChat[]>;
 	/** The currently active chat within this session group. */
-	readonly activeChat: IObservable<IChatData>;
+	readonly activeChat: IObservable<IChat>;
+	/** The main chat within this session group (the first chat of the session). */
+	readonly mainChat: IChat;
 }

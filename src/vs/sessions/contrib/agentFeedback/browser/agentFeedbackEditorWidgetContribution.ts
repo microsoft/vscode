@@ -88,6 +88,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		// Header
 		this._headerNode = $('div.agent-feedback-widget-header');
 
+		// Comment icon (decorative, hidden from screen readers)
+		const commentIcon = renderIcon(Codicon.comment);
+		commentIcon.setAttribute('aria-hidden', 'true');
+		this._headerNode.appendChild(commentIcon);
+
 		// Title showing feedback count
 		this._titleNode = $('span.agent-feedback-widget-title');
 		this._updateTitle();
@@ -148,7 +153,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _updateTitle(): void {
 		const count = this._commentItems.length;
 		if (count === 1) {
-			this._titleNode.textContent = nls.localize('oneComment', "1 comment");
+			this._titleNode.textContent = this._commentItems[0].text;
 		} else {
 			this._titleNode.textContent = nls.localize('nComments', "{0} comments", count);
 		}

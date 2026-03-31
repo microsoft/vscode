@@ -16,7 +16,6 @@ import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js
 import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 import { countWords } from './chatWordCounter.js';
@@ -94,6 +93,7 @@ export interface IChatRequestViewModel {
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
+	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
 	readonly timestamp: number;
 	/** The kind of pending request, or undefined if not pending */
@@ -274,7 +274,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	constructor(
 		private readonly _model: IChatModel,
-		public readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly _options: IChatViewModelOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -461,6 +460,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	currentRenderedHeight: number | undefined;
+
+	get attachedContext() {
+		return this._model.attachedContext;
+	}
 
 	get modelId() {
 		return this._model.modelId;
