@@ -22,10 +22,17 @@ const root = path.resolve(import.meta.dirname, '../../..');
 const defaultPolicyDataPath = path.join(import.meta.dirname, 'policyData.jsonc');
 
 /**
- * Reads the distro product.json for the 'stable' quality. Checks local .build/distro first,
+ * Reads the distro product.json for the 'stable' quality. Checks the
+ * DISTRO_PRODUCT_JSON env var first (for testing), then local .build/distro,
  * then falls back to fetching from the GitHub API using the distro commit in package.json.
  */
 async function getDistroProductJson(): Promise<Record<string, unknown>> {
+	const envPath = process.env['DISTRO_PRODUCT_JSON'];
+	if (envPath && fs.existsSync(envPath)) {
+		console.log(`Reading distro product.json from ${envPath}`);
+		return JSON.parse(fs.readFileSync(envPath, 'utf8'));
+	}
+
 	const localPath = path.join(root, '.build/distro/mixin/stable/product.json');
 	if (fs.existsSync(localPath)) {
 		console.log(`Reading distro product.json from ${localPath}`);
