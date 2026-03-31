@@ -44,7 +44,8 @@ import { ILanguageService } from '../../../../editor/common/languages/language.j
 import { mainWindow } from '../../../../base/browser/window.js';
 import { generateColorThemeCSS } from './colorThemeCss.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IHostService } from '../../host/browser/host.js';
+import { toAction } from '../../../../base/common/actions.js';
 
 // implementation
 
@@ -114,12 +115,11 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ICommandService private readonly commandService: ICommandService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 		this.container = layoutService.mainContainer;
-		const isNewUser = this.storageService.isNew(StorageScope.APPLICATION);
-		this.settings = new ThemeConfiguration(configurationService, hostColorService, isNewUser);
+		this.settings = new ThemeConfiguration(configurationService, hostColorService);
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
@@ -246,34 +246,64 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 
 		this.migrateColorThemeSettings();
-		await this.migrateAutoDetectColorScheme();
 		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
-		this.showNewDefaultThemeNotification();
+		await this.showNewDefaultThemeNotification();
 		return result;
 	}
 
 	private static readonly NEW_THEME_NOTIFICATION_KEY = 'workbench.newDefaultThemeNotification';
 
-	private showNewDefaultThemeNotification(): void {
-		const newDefaultThemes = new Set([ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]);
-		if (newDefaultThemes.has(this.currentColorTheme.settingsId)) {
-			return; // already using a new default theme
-		}
+	private async showNewDefaultThemeNotification(): Promise<void> {
 		if (this.storageService.getBoolean(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
 			return; // already shown
 		}
-
-		const handle = this.notificationService.prompt(
-			Severity.Info,
-			nls.localize('newDefaultTheme', "New default themes are available for VS Code."),
-			[{
-				label: nls.localize('tryNewTheme', "Try Them Out"),
-				run: () => this.commandService.executeCommand('workbench.action.tryNewDefaultThemes')
-			}]
-		);
-		this._register(Event.once(handle.onDidClose)(() => {
+		if (!(await this.hostService.hadLastFocus()) || this.environmentService.isSessionsWindow) {
+			return;
+		}
+		let previousSettingsId: string | undefined = undefined;
+		try {
+			if (!this.settings.isDefaultColorTheme()) {
+				return;
+			}
+			const themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
+			if (!themeData || !['Dark Modern', 'Light Modern'].includes(themeData.settingsId)) {
+				return;
+			}
+			previousSettingsId = themeData.settingsId;
+			if (![ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT].includes(this.settings.colorTheme)) {
+				return;
+			}
+		} finally {
+			// remeber to not show the dialog again
 			this.storageService.store(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-		}));
+		}
+
+		let keepTheme = false;
+		await this.notificationService.notify({
+			id: 'themeUpdatedNotification',
+			severity: Severity.Info,
+			message: nls.localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code now ships with a new default theme '{0}'. Do you want to give it a try?", this.getColorTheme().label),
+			actions: {
+				primary: [
+					toAction({
+						id: 'themeUpdated.tryItOut',
+						label: nls.localize('tryNewTheme', "Try Them Out"),
+						run: () => { keepTheme = true; }
+					}),
+					toAction({
+						id: 'themeUpdated.noThanks',
+						label: nls.localize('noThanks', "No Thanks"),
+						run: () => { keepTheme = false; }
+					})
+				]
+			},
+		});
+		if (!keepTheme) {
+			const previousTheme = this.colorThemeRegistry.findThemeBySettingsId(previousSettingsId);
+			if (previousTheme) {
+				this.setColorTheme(previousTheme.id, 'auto');
+			}
+		}
 	}
 
 	/**
@@ -302,29 +332,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 					}
 				}
 			}
-		}
-	}
-
-	/**
-	 * For new users who haven't explicitly configured `window.autoDetectColorScheme`,
-	 * persist `true` so that auto-detect becomes the default going forward.
-	 */
-	private async migrateAutoDetectColorScheme(): Promise<void> {
-		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
-			return;
-		}
-
-		// Ensure that user data (including synced settings) has finished initializing
-		// so we do not overwrite values that arrive via settings sync.
-		await this.userDataInitializationService.whenInitializationFinished();
-
-		const inspection = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
-
-		// Treat any of userValue, userLocalValue, or userRemoteValue as an explicit configuration.
-		if (inspection.userValue === undefined
-			&& inspection.userLocalValue === undefined
-			&& inspection.userRemoteValue === undefined) {
-			await this.configurationService.updateValue(ThemeSettings.DETECT_COLOR_SCHEME, true, ConfigurationTarget.USER);
 		}
 	}
 
