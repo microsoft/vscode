@@ -8,6 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
@@ -118,12 +119,12 @@ export class CopilotAgentSession extends Disposable {
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 
-	private readonly _workingDirectory: string | undefined;
+	private readonly _workingDirectory: URI | undefined;
 
 	constructor(
 		sessionUri: URI,
 		rawSessionId: string,
-		workingDirectory: string | undefined,
+		workingDirectory: URI | undefined,
 		private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>,
 		private readonly _wrapperFactory: SessionWrapperFactory,
 		@IFileService private readonly _fileService: IFileService,
@@ -193,14 +194,21 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
-	sendSteering(steeringMessage: IPendingMessage): void {
+	async sendSteering(steeringMessage: IPendingMessage): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
-		this._wrapper.session.send({
-			prompt: steeringMessage.userMessage.text,
-			mode: 'immediate',
-		}).catch(err => {
+		try {
+			await this._wrapper.session.send({
+				prompt: steeringMessage.userMessage.text,
+				mode: 'immediate',
+			});
+			this._onDidSessionProgress.fire({
+				session: this.sessionUri,
+				type: 'steering_consumed',
+				id: steeringMessage.id,
+			});
+		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
-		});
+		}
 	}
 
 	async getMessages(): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
@@ -240,7 +248,7 @@ export class CopilotAgentSession extends Disposable {
 		// Auto-approve reads inside the working directory
 		if (request.kind === 'read') {
 			const requestPath = typeof request.path === 'string' ? request.path : undefined;
-			if (requestPath && this._workingDirectory && requestPath.startsWith(this._workingDirectory)) {
+			if (requestPath && this._workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(requestPath)), this._workingDirectory)) {
 				this._logService.trace(`[Copilot:${this.sessionId}] Auto-approving read inside working directory: ${requestPath}`);
 				return { kind: 'approved' };
 			}

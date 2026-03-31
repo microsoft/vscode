@@ -116,7 +116,9 @@ export interface ICreateModalEditorPartResult {
 }
 
 interface IModalEditorSidebar {
+
 	readonly onDidResize: Event<void>;
+
 	getWidth(): number;
 	layout(height: number): void;
 	updateContent(content: IModalEditorSidebarContent): void;
@@ -180,12 +182,7 @@ export class ModalEditorPart {
 		const resizableElement = new ResizableHTMLElement();
 		disposables.add(toDisposable(() => resizableElement.dispose()));
 		resizableElement.domNode.classList.add('modal-editor-resizable');
-		const configuredMinWidth = options?.minWidth ?? this.configurationService.getValue<number>('workbench.editor.modalMinWidth');
-		const baseMinWidth = (typeof configuredMinWidth === 'number' && Number.isFinite(configuredMinWidth) && configuredMinWidth >= MODAL_MIN_WIDTH)
-			? configuredMinWidth
-			: MODAL_MIN_WIDTH;
-		const sidebarContent = options?.sidebar;
-		const effectiveMinWidth = baseMinWidth + (sidebarContent ? MODAL_SIDEBAR_MIN_WIDTH : 0);
+		const effectiveMinWidth = MODAL_MIN_WIDTH + (options?.sidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
 		resizableElement.minSize = new Dimension(effectiveMinWidth, MODAL_MIN_HEIGHT);
 		modalElement.appendChild(resizableElement.domNode);
 
@@ -240,12 +237,13 @@ export class ModalEditorPart {
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
 		// Sidebar
-		const sidebarResult = this.createSidebar(editorPartContainer, sidebarContent, disposables);
+		const sidebarResult = this.createSidebar(editorPartContainer, options?.sidebar, disposables);
 		if (sidebarResult) {
 			editorPartContainer.classList.add('has-sidebar');
+			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
 		}
 
-		// Create the editor part (.content is appended as direct child of editorPartContainer)
+		// Create the editor part
 		const editorPart = disposables.add(this.instantiationService.createInstance(
 			ModalEditorPartImpl,
 			mainWindow.vscodeWindowId,
@@ -304,16 +302,6 @@ export class ModalEditorPart {
 			highlightToggledItems: true,
 			menuOptions: { shouldForwardArgs: true }
 		}));
-
-		// Wire sidebar resize to layout and content updates
-		if (sidebarResult) {
-			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
-			disposables.add(editorPart.onDidChangeSidebar(content => {
-				if (content) {
-					sidebarResult.updateContent(content);
-				}
-			}));
-		}
 
 		// Create label
 		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
@@ -708,9 +696,6 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	private readonly _onDidChangeNavigation = this._register(new Emitter<IModalEditorNavigation | undefined>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
 
-	private readonly _onDidChangeSidebar = this._register(new Emitter<IModalEditorSidebarContent | undefined>());
-	readonly onDidChangeSidebar = this._onDidChangeSidebar.event;
-
 	private _maximized: boolean;
 	get maximized(): boolean { return this._maximized; }
 
@@ -800,7 +785,6 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		this._navigation = options?.navigation;
 
 		this._onDidChangeNavigation.fire(options?.navigation);
-		this._onDidChangeSidebar.fire(options?.sidebar);
 	}
 
 	toggleMaximized(): void {

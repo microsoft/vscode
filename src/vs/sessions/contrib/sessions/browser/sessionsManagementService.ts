@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { COPILOT_CLI_SESSION_TYPE } from './sessionTypes.js';
@@ -19,26 +18,7 @@ import { SessionsGroupModel } from './sessionsGroupModel.js';
 import { ISession, ISessionWorkspace, ISessionData, IChat, SessionStatus } from '../common/sessionData.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-
-/**
- * Configuration properties available on new/pending sessions.
- * Not part of the public {@link ISession} contract but present on
- * concrete session implementations (CopilotCLISession, RemoteNewSession, AgentHostNewSession).
- */
-
-export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
-
-/**
- * The provider ID of the active session (e.g., 'default-copilot', 'agenthost-hostA').
- */
-export const ActiveSessionProviderIdContext = new RawContextKey<string>('activeSessionProviderId', '', localize('activeSessionProviderId', "The provider ID of the active session"));
-
-/**
- * The session type of the active session (e.g., 'copilotcli', 'cloud').
- */
-export const ActiveSessionTypeContext = new RawContextKey<string>('activeSessionType', '', localize('activeSessionType', "The session type of the active session"));
-
-export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
+import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 
 //#region Active Session Service
 
@@ -243,6 +223,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
 	private readonly _groupModel: SessionsGroupModel;
 	private readonly _sessionDataCache = new Map<string, ISession>();
+	private _activeSessionDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -394,24 +375,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				return;
 			}
 		}
-
-		if (e.changed.length) {
-			const updated = e.changed.find(s => currentActive.chats.get().find(c => c.chatId === s.id));
-			if (updated?.isArchived.get()) {
-				// Only open new session view if all chats in the group are archived
-				const groupId = this._groupModel.getSessionIdForChat(currentActive.sessionId);
-				const chatIds = groupId ? this._groupModel.getChatIds(groupId) : [];
-				const allChats = this.sessionsProvidersService.getSessions();
-				const allArchived = chatIds.length === 0 || chatIds.every(id => {
-					const chat = allChats.find(c => c.id === id);
-					return !chat || chat.isArchived.get();
-				});
-				if (allArchived) {
-					this.openNewSessionView();
-				}
-				return;
-			}
-		}
 	}
 
 	getSessions(): ISession[] {
@@ -504,6 +467,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[SessionsManagement] openChat: ${chatResource.toString()} provider=${chat?.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		if (sessionData) {
+			this.setRead(sessionData, true); // mark as read when opened
+		}
 
 		await this.chatWidgetService.openSession(chatResource, ChatViewPaneTarget);
 	}
@@ -517,6 +483,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
+		this.setRead(sessionData, true); // mark as read when opened
 
 		const activeChatResource = sessionData.activeChat.get().resource;
 		await this.chatWidgetService.openSession(activeChatResource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
@@ -609,6 +576,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private setActiveSession(session: ISession | undefined): void {
+		if (this._activeSession.get()?.sessionId === session?.sessionId) {
+			return;
+		}
+
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
@@ -625,6 +596,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._activeSession.set(session, undefined);
+
+		this._activeSessionDisposables.clear();
+		// Listen for the active session becoming archived
+		if (session && !session.isArchived.get()) {
+			this._activeSessionDisposables.add(autorun(reader => {
+				if (session.isArchived.read(reader)) {
+					this.openNewSessionView();
+				}
+			}));
+		}
 	}
 
 	/**
