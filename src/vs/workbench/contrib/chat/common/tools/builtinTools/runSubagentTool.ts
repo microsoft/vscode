@@ -50,7 +50,8 @@ const BaseModelDescription = `Launch a new agent to handle complex, multi-step t
 - When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
 - Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
 - The agent's outputs should generally be trusted
-- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent`;
+- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent
+- **Cost-efficiency**: Before invoking a subagent, assess the complexity of the subtask you are delegating. Use the cheapest model that can reliably complete the task. Reserve expensive models for tasks that genuinely require advanced reasoning. For straightforward tasks like file searches, simple code edits, or data lookups, prefer a fast/cheap model. For multi-step analysis, architectural decisions, or nuanced code generation, use a more capable model. Your role as the orchestrating agent is to maximize output quality per unit cost.`;
 
 export interface IRunSubagentToolInputParams {
 	prompt: string;
@@ -118,14 +119,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 			inputSchema.properties.model = {
 				type: 'string',
-				description: 'Optional model identifier for this subagent invocation. Overrides the agent definition\'s default model. Examples: claude-sonnet-4-6, claude-haiku-4-5, gpt-4o, gpt-4o-mini.'
+				description: 'Optional model identifier for this subagent invocation. Overrides the agent definition\'s default model. Choose the model based on subtask complexity: use a cheap/fast model (e.g., claude-haiku-4-5, gpt-4o-mini) for simple lookups, searches, and mechanical edits; use a capable model (e.g., claude-sonnet-4-6, gpt-4o) for multi-step reasoning or complex code generation. Always prefer the latest version of a model family when available.'
 			};
 
 			inputSchema.properties.tier = {
 				type: 'string',
-				description: 'Optional capability tier for this subagent invocation. Selects a model from the agent\'s `tiers` frontmatter. Standard tiers: fast (low cost), standard (balanced), deep (maximum capability).'
+				description: 'Optional capability tier for this subagent invocation. Selects a model from the agent\'s `tiers` frontmatter. Standard tiers: fast (low cost, simple tasks), standard (balanced), deep (maximum capability, complex reasoning). Prefer \'fast\' for most subtasks and escalate only when the task demands it.'
 			};
-			modelDescription += `\n- You may optionally specify a \`model\` to run the subagent with a specific language model, or a \`tier\` to select from the agent's predefined capability tiers (fast, standard, deep). Use \`model\` for explicit control or \`tier\` for semantic intent.`;
+			modelDescription += `\n- You may specify a \`model\` to run the subagent with a specific language model, or a \`tier\` to select from the agent's predefined capability tiers. **Always match the model to the subtask complexity**: use fast/cheap models for file searches, simple edits, lookups, and data gathering; use standard models for code generation and moderate reasoning; reserve expensive models for complex multi-step analysis. When choosing a specific model, prefer the most recent version available in each model family (e.g., prefer claude-sonnet-4-6 over claude-sonnet-4, prefer gpt-4o over gpt-4).`;
 		}
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentTool.Id,
