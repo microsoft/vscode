@@ -1000,6 +1000,15 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return false;
 		}
 
+		// For auto-update extensions defined in product, only allow versions with same major.minor as the product version
+		if (this.productService.autoUpdateBuiltinExtensions?.some(id => id.toLowerCase() === extension.id.toLowerCase())) {
+			const productMajorMinor = `${semver.major(productVersion.version)}.${semver.minor(productVersion.version)}`;
+			const extensionMajorMinor = `${semver.major(extension.version)}.${semver.minor(extension.version)}`;
+			if (productMajorMinor !== extensionMajorMinor) {
+				return false;
+			}
+		}
+
 		// Specific version
 		if (isString(version)) {
 			if (extension.version !== version) {
