@@ -164,7 +164,6 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 			return JSON.parse(content);
 		}
 
-		// 2. Local .build/distro/
 		const localPath = join(root, '.build/distro/mixin/stable/product.json');
 		try {
 			const content = (await this.fileService.readFile(URI.file(localPath))).value.toString();
@@ -174,7 +173,7 @@ export class PolicyExportContribution extends Disposable implements IWorkbenchCo
 			// Not available locally, try GitHub API
 		}
 
-		// 3. GitHub API with GITHUB_TOKEN
+		// 2. GitHub API with GITHUB_TOKEN
 		const packageJsonPath = join(root, 'package.json');
 		const packageJsonContent = (await this.fileService.readFile(URI.file(packageJsonPath))).value.toString();
 		const packageJson = JSON.parse(packageJsonContent);
