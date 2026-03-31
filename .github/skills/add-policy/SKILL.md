@@ -165,8 +165,11 @@ Each entry in `extensionConfigurationPolicy` must include:
 ### Adding a new extension policy
 
 1. Add the entry to `extensionConfigurationPolicy` in **all three** quality `product.json` files in `vscode-distro` (`mixin/stable/`, `mixin/insider/`, `mixin/exploration/`)
-2. After the distro PR merges, update the test fixture at `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` with the new entry
-3. Regenerate `policyData.jsonc` by running `npm run export-policy-data` (see Step 4 above)
+2. Regenerate `policyData.jsonc` by running `npm run export-policy-data` (see Step 4 above)
+
+### Test fixtures
+
+The file `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` is a static test fixture used purely for testing — it catches regressions in the policy generation code. It is **not** expected to stay in sync with the distro's actual extension policies, and policy values will intentionally drift from it. Do not update this file when adding new extension policies.
 
 ### Downstream consumers
 
