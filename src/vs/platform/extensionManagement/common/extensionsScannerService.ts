@@ -403,7 +403,12 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
 				return;
 			}
-			if (productMajorMinor && autoUpdateBuiltinExtensions?.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
+			if (autoUpdateBuiltinExtensions?.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
+				if (!extension.autoUpdate) {
+					// autoUpdate is disabled - skip user-installed versions
+					this.logService.info(`Skipping auto-update builtin extension ${extension.identifier.id} because auto-update is not enabled`);
+					return;
+				}
 				const extensionMajorMinor = `${semver.major(extension.manifest.version)}.${semver.minor(extension.manifest.version)}`;
 				if (productMajorMinor !== extensionMajorMinor) {
 					this.logService.info(`Skipping auto-update builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it does not match the product version ${productVersion!.version}`);
@@ -731,7 +736,7 @@ class ExtensionsScanner extends Disposable {
 			isValid,
 			validations,
 			preRelease: !!metadata?.preRelease,
-			autoUpdate: type === ExtensionType.System && this.autoUpdateBuiltinExtensions.has(id.toLowerCase()) && this.productQuality === 'stable',
+			autoUpdate: this.autoUpdateBuiltinExtensions.has(id.toLowerCase()) && this.productQuality === 'stable',
 		};
 		if (input.validate) {
 			extension = this.validate(extension, input);
