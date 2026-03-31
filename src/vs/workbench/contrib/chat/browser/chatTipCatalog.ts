@@ -8,8 +8,10 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
@@ -409,5 +411,24 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 		excludeWhenToolsInvoked: ['listDebugEvents'],
+	},
+	{
+		id: 'tip.openSessionsWindow',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.openSessionsWindow',
+					"Try the [Sessions Window](command:workbench.action.openSessionsWindow \"Open Sessions Window\") to run multiple agents simultaneously and manage your coding sessions."
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			ProductQualityContext.notEqualsTo('stable'),
+			IsSessionsWindowContext.negate(),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		),
+		excludeWhenCommandsExecuted: ['workbench.action.openSessionsWindow'],
+		dismissWhenCommandsClicked: ['workbench.action.openSessionsWindow'],
 	},
 ];
