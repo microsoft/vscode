@@ -5,4 +5,5 @@
 
 // Re-export from the workbench layer so both local and remote contributions
 // can share the same bundler implementation.
-export { SyncedCustomizationBundler, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+export { SyncedCustomizationBundler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+export { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';

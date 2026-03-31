@@ -538,6 +538,228 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- handleAction: session/toolCallConfirmed ------------------------
+
+	suite('handleAction — session/toolCallConfirmed', () => {
+
+		test('routes confirmation to correct agent via _toolCallAgents', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Fire tool_start to register the tool call
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-conf-1',
+				toolName: 'read',
+				displayName: 'Read File',
+				invocationMessage: 'Reading file',
+			});
+
+			// Fire tool_ready asking for permission (non-write, so not auto-approved)
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-conf-1',
+				invocationMessage: 'Read file.txt',
+				confirmationTitle: 'Read file.txt',
+			});
+
+			// Now confirm the tool call
+			sideEffects.handleAction({
+				type: ActionType.SessionToolCallConfirmed,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				toolCallId: 'tc-conf-1',
+				approved: true,
+				confirmed: 'user-action' as const,
+			} as ISessionAction);
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-conf-1', approved: true },
+			]);
+		});
+
+		test('handles denial of tool call', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-deny-1',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Running command',
+			});
+
+			sideEffects.handleAction({
+				type: ActionType.SessionToolCallConfirmed,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				toolCallId: 'tc-deny-1',
+				approved: false,
+				reason: 'denied' as const,
+			} as ISessionAction);
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-deny-1', approved: false },
+			]);
+		});
+	});
+
+	// ---- Edit auto-approve ----------------------------------------------
+
+	suite('edit auto-approve', () => {
+
+		test('auto-approves writes to regular source files', async () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-auto-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write file',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-auto-1',
+				invocationMessage: 'Write src/app.ts',
+				permissionKind: 'write',
+				permissionPath: '/workspace/src/app.ts',
+			});
+
+			// Auto-approved writes call respondToPermissionRequest directly
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-auto-1', approved: true },
+			]);
+		});
+
+		test('blocks writes to .env files', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-env-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write .env',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-env-1',
+				invocationMessage: 'Write .env',
+				permissionKind: 'write',
+				permissionPath: '/workspace/.env',
+				confirmationTitle: 'Write .env',
+			});
+
+			// Should NOT auto-approve — .env is excluded
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+
+			// Should dispatch a tool_ready action for the client to confirm
+			const readyAction = envelopes.find(e => e.action.type === ActionType.SessionToolCallReady);
+			assert.ok(readyAction, 'should dispatch tool_ready for blocked write');
+		});
+
+		test('blocks writes to package.json', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-pkg-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write package.json',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-pkg-1',
+				invocationMessage: 'Write package.json',
+				permissionKind: 'write',
+				permissionPath: '/workspace/package.json',
+				confirmationTitle: 'Write package.json',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+		});
+
+		test('blocks writes to .lock files', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-lock-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write yarn.lock',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-lock-1',
+				invocationMessage: 'Write yarn.lock',
+				permissionKind: 'write',
+				permissionPath: '/workspace/yarn.lock',
+				confirmationTitle: 'Write yarn.lock',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+		});
+
+		test('blocks writes to .git directory', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-git-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write .git/config',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-git-1',
+				invocationMessage: 'Write .git/config',
+				permissionKind: 'write',
+				permissionPath: '/workspace/.git/config',
+				confirmationTitle: 'Write .git/config',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+		});
+	});
+
 	// ---- Title persistence --------------------------------------------------
 
 	suite('title persistence', () => {

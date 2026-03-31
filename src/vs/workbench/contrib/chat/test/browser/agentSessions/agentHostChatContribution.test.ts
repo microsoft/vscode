@@ -39,7 +39,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
-import { IAgentHostFileSystemService } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
+import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -190,6 +190,7 @@ function createTestServices(disposables: DisposableStore) {
 	});
 	instantiationService.stub(IAgentHostFileSystemService, {
 		registerAuthority: () => toDisposable(() => { }),
+		ensureSyncedCustomizationProvider: () => { },
 	});
 
 	return { instantiationService, agentHostService, chatAgentService };

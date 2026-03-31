@@ -9,33 +9,13 @@ import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type ICustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 
-/**
- * Scheme used for the in-memory plugin filesystem backing synced customizations.
- *
- * URIs under this scheme are served by a registered {@link InMemoryFileSystemProvider}
- * and are reachable by the agent host via `fetchContent`.
- */
-export const SYNCED_CUSTOMIZATION_SCHEME = 'vscode-synced-customization';
-
-/**
- * Shared in-memory FS provider for all bundlers. Registered lazily on first
- * use so that only one provider exists per scheme regardless of how many
- * contributions or bundler instances are created.
- */
-let _sharedProvider: InMemoryFileSystemProvider | undefined;
-
-function getSharedProvider(fileService: IFileService): InMemoryFileSystemProvider {
-	if (!_sharedProvider) {
-		_sharedProvider = new InMemoryFileSystemProvider();
-		fileService.registerProvider(SYNCED_CUSTOMIZATION_SCHEME, _sharedProvider);
-	}
-	return _sharedProvider;
-}
+// Re-export so existing consumers don't need to change their import source.
+export { SYNCED_CUSTOMIZATION_SCHEME };
 
 const DISPLAY_NAME = 'VS Code Synced Data';
 
@@ -99,11 +79,11 @@ export class SyncedCustomizationBundler extends Disposable {
 	constructor(
 		authority: string,
 		@IFileService private readonly _fileService: IFileService,
+		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
 	) {
 		super();
 		this._authority = authority;
-		// Ensure the shared provider is registered
-		getSharedProvider(this._fileService);
+		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
 
 	/**
