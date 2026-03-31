@@ -9,7 +9,7 @@ import { MarkdownItEngine } from '../markdownEngine';
 import { MarkdownPreviewManager } from '../preview/previewManager';
 import { ContentSecurityPolicyArbiter, PreviewSecuritySelector } from '../preview/security';
 import { TelemetryReporter } from '../telemetryReporter';
-import { InsertLinkFromWorkspace, InsertImageFromWorkspace } from './insertResource';
+import { InsertLinkFromWorkspace, InsertImageFromWorkspace, InsertHeaderLink } from './insertResource';
 import { RefreshPreviewCommand } from './refreshPreview';
 import { ReloadPlugins } from './reloadPlugins';
 import { RenderDocument } from './renderDocument';
@@ -42,6 +42,7 @@ export function registerMarkdownCommands(
 	commandManager.register(new ReloadPlugins(previewManager, engine));
 	commandManager.register(new InsertLinkFromWorkspace());
 	commandManager.register(new InsertImageFromWorkspace());
+	commandManager.register(new InsertHeaderLink(engine.slugifier));
 
 	return commandManager;
 }

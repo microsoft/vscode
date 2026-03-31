@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Command } from '../commandManager';
 import { createUriListSnippet, linkEditKind } from '../languageFeatures/copyFiles/shared';
+import { ISlugifier } from '../slugify';
 import { mediaFileExtensions } from '../util/mimes';
 import { coalesce } from '../util/arrays';
 import { getParentDocumentUri } from '../util/document';
@@ -63,6 +64,81 @@ export class InsertImageFromWorkspace implements Command {
 		}
 
 		return insertLink(activeEditor, resources, true);
+	}
+}
+
+export class InsertHeaderLink implements Command {
+	public readonly id = 'markdown.editor.insertHeaderLink';
+
+	readonly #slugifier: ISlugifier;
+
+	constructor(slugifier: ISlugifier) {
+		this.#slugifier = slugifier;
+	}
+
+	public async execute() {
+		const activeEditor = vscode.window.activeTextEditor;
+		if (!activeEditor) {
+			return;
+		}
+
+		const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+			'vscode.executeDocumentSymbolProvider',
+			activeEditor.document.uri
+		);
+
+		if (!symbols?.length) {
+			return;
+		}
+
+		const headers = this.#flattenHeaders(symbols);
+
+		if (!headers.length) {
+			return;
+		}
+
+		const slugBuilder = this.#slugifier.createBuilder();
+
+		const items: vscode.QuickPickItem[] = headers.map(header => {
+			const slug = slugBuilder.add(header.name);
+			return {
+				label: header.name,
+				description: slug.value,
+			};
+		});
+
+		const picked = await vscode.window.showQuickPick(items, {
+			placeHolder: vscode.l10n.t("Select a header to link to"),
+		});
+
+		if (!picked) {
+			return;
+		}
+
+		const slug = picked.description!;
+		const selectionText = activeEditor.document.getText(activeEditor.selection);
+		const linkText = selectionText || picked.label;
+		const snippet = new vscode.SnippetString();
+		snippet.appendText('[');
+		if (selectionText) {
+			snippet.appendText(linkText);
+		} else {
+			snippet.appendPlaceholder(linkText);
+		}
+		snippet.appendText('](#' + slug + ')');
+
+		await activeEditor.insertSnippet(snippet);
+	}
+
+	#flattenHeaders(symbols: vscode.DocumentSymbol[]): { name: string }[] {
+		const result: { name: string }[] = [];
+		for (const symbol of symbols) {
+			result.push({ name: symbol.name });
+			if (symbol.children.length) {
+				result.push(...this.#flattenHeaders(symbol.children));
+			}
+		}
+		return result;
 	}
 }
 

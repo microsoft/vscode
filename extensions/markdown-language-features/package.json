@@ -189,6 +189,12 @@
         "title": "%markdown.editor.insertImageFromWorkspace%",
         "category": "Markdown",
         "enablement": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !activeEditorIsReadonly"
+      },
+      {
+        "command": "markdown.editor.insertHeaderLink",
+        "title": "%markdown.editor.insertHeaderLink%",
+        "category": "Markdown",
+        "enablement": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !activeEditorIsReadonly"
       }
     ],
     "menus": {
