@@ -855,7 +855,8 @@ suite('MainThreadChatSessions', function () {
 		const call = asSinonMethodStub(proxy.$provideHandleOptionsChange).firstCall;
 		assert.strictEqual(call.args[0], handle);
 		assert.deepStrictEqual(call.args[1], resource);
-		assert.deepStrictEqual(call.args[2], { models: 'gpt-4-turbo' });
+		// args[2] is inputStateHandle (undefined here since no controller registered)
+		assert.deepStrictEqual(call.args[3], { models: 'gpt-4-turbo' });
 
 		mainThread.$unregisterChatSessionContentProvider(handle);
 	});
