@@ -127,7 +127,7 @@ Regenerate the auto-generated policy catalog:
 npm run export-policy-data
 ```
 
-This script handles transpilation, sets up `GITHUB_TOKEN` (via `gh auth token` if needed), and runs `--export-policy-data`. The export command reads extension configuration policies from the distro's `product.json` (via local `.build/distro/` or the GitHub API) and merges them into the output.
+This script handles transpilation, sets up `GITHUB_TOKEN` (via `gh` CLI or GitHub OAuth device flow), and runs `--export-policy-data`. The export command reads extension configuration policies from the distro's `product.json` (via local `.build/distro/` or the GitHub API) and merges them into the output.
 
 This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
 
@@ -165,11 +165,13 @@ Each entry in `extensionConfigurationPolicy` must include:
 ### Adding a new extension policy
 
 1. Add the entry to `extensionConfigurationPolicy` in **all three** quality `product.json` files in `vscode-distro` (`mixin/stable/`, `mixin/insider/`, `mixin/exploration/`)
-2. Regenerate `policyData.jsonc` by running `npm run export-policy-data` (see Step 4 above)
+2. Update the `distro` commit hash in `package.json` to point to the distro commit that includes your new entry — the export command fetches extension policies from the pinned distro commit
+3. Regenerate `policyData.jsonc` by running `npm run export-policy-data` (see Step 4 above)
+4. Update the test fixture at `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` with the new entry
 
 ### Test fixtures
 
-The file `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` is a static test fixture used purely for testing — it catches regressions in the policy generation code. It is **not** expected to stay in sync with the distro's actual extension policies, and policy values will intentionally drift from it. Do not update this file when adding new extension policies.
+The file `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` is a test fixture that must stay in sync with the extension policies in the checked-in `policyData.jsonc`. When extension policies are added or changed in the distro, this fixture must be updated to match — otherwise the integration test will fail because the test output (generated from the fixture) won't match the checked-in file (generated from the real distro).
 
 ### Downstream consumers
 
