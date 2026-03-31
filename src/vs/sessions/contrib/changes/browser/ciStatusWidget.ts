@@ -148,7 +148,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
  */
 export class CIStatusWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 38;
+	static readonly HEADER_HEIGHT = 36; // min-height 22px + 12px vertical padding
 	static readonly MIN_BODY_HEIGHT = 84; // at least 3 checks (3 * 28)
 	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
@@ -241,7 +241,7 @@ export class CIStatusWidget extends Disposable {
 			this._toggleCollapsed();
 		}));
 		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.KEY_DOWN, e => {
-			if (e.key === 'Enter' || e.key === ' ') {
+			if ((e.key === 'Enter' || e.key === ' ') && e.target === this._headerNode) {
 				e.preventDefault();
 				this._toggleCollapsed();
 			}
@@ -295,6 +295,7 @@ export class CIStatusWidget extends Disposable {
 
 			if (checks.length === 0) {
 				this._checkCount = 0;
+				this._setCollapsed(false);
 				this._renderBody([]);
 				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';

@@ -19,13 +19,22 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 6px 2px;
+	padding: 6px 4px;
 	margin-top: 2px;
 	border-radius: 8px;
 	min-height: 22px;
 	font-weight: 500;
 	cursor: pointer;
 	user-select: none;
+}
+
+.ci-status-widget-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ci-status-widget-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 /* Chevron — right-aligned, visible on hover only */
