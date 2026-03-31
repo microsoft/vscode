@@ -1828,7 +1828,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;
 	$save(uri: UriComponents, options: { saveAs: boolean }): Promise<UriComponents | undefined>;
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
-	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents; name?: string }[], suppressConfirmation?: boolean): Promise<void>;
+	$updateWorkspaceFolders(extensionName: string, extensionId: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents; name?: string }[], suppressConfirmation?: boolean): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
 	$lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	$lookupKerberosAuthorization(url: string): Promise<string | undefined>;

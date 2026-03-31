@@ -329,7 +329,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		// Trigger on main side
 		if (this._proxy) {
 			const extName = extension.displayName || extension.name;
-			this._proxy.$updateWorkspaceFolders(extName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd, suppressConfirmation).then(undefined, error => {
+			this._proxy.$updateWorkspaceFolders(extName, extension.identifier.value, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd, suppressConfirmation).then(undefined, error => {
 
 				// in case of an error, make sure to clear out the unconfirmed workspace
 				// because we cannot expect the acknowledgement from the main side for this

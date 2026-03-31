@@ -528,11 +528,13 @@ suite('ExtHostWorkspace', function () {
 
 	test('updateWorkspaceFolders - suppressConfirmation forwarded to proxy', function () {
 		let capturedSuppressConfirmation: boolean | undefined;
+		let capturedExtensionId: string | undefined;
 		const protocol: IMainContext = {
 			getProxy: (id: any) => {
 				if (id === MainContext.MainThreadWorkspace) {
 					return {
-						$updateWorkspaceFolders(_extName: string, _index: number, _deleteCount: number, _folders: any[], suppressConfirmation?: boolean) {
+						$updateWorkspaceFolders(_extName: string, extensionId: string, _index: number, _deleteCount: number, _folders: any[], suppressConfirmation?: boolean) {
+							capturedExtensionId = extensionId;
 							capturedSuppressConfirmation = suppressConfirmation;
 							return Promise.resolve();
 						}
@@ -550,6 +552,7 @@ suite('ExtHostWorkspace', function () {
 
 		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 0, true, asUpdateWorkspaceFolderData(URI.parse('foo:bar'))));
 		assert.strictEqual(capturedSuppressConfirmation, true);
+		assert.strictEqual(capturedExtensionId, extensionDescriptor.identifier.value);
 	});
 	test('Multiroot change event is immutable', function (done) {
 		let finished = false;
