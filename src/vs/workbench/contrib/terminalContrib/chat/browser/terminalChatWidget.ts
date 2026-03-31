@@ -373,7 +373,24 @@ export class TerminalChatWidget extends Disposable {
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
 		try {
 			this._requestActiveContextKey.set(true);
-			if (response) {
+			if (!response) {
+				// Request was rejected (e.g. quota exceeded or model unavailable) — the widget
+				// must not remain stuck in a busy state, so resolve immediately.
+				this._requestActiveContextKey.set(false);
+				responsePromise.complete(undefined);
+			} else if (response.isCanceled || response.isComplete) {
+				// Handle the race where the response already reached its final state before we
+				// could subscribe to onDidChange.
+				this._requestActiveContextKey.set(false);
+				if (response.isComplete) {
+					const firstCodeBlock = await this._inlineChatWidget.getCodeBlockInfo(0);
+					const secondCodeBlock = await this._inlineChatWidget.getCodeBlockInfo(1);
+					this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
+					this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
+					this._inlineChatWidget.updateToolbar(true);
+				}
+				responsePromise.complete(response.isComplete ? response : undefined);
+			} else {
 				store.add(response.onDidChange(async () => {
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
@@ -381,7 +398,6 @@ export class TerminalChatWidget extends Disposable {
 						return;
 					}
 					if (response.isComplete) {
-						this._requestActiveContextKey.set(false);
 						this._requestActiveContextKey.set(false);
 						const firstCodeBlock = await this._inlineChatWidget.getCodeBlockInfo(0);
 						const secondCodeBlock = await this._inlineChatWidget.getCodeBlockInfo(1);
