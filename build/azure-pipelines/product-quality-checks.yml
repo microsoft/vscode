@@ -149,7 +149,37 @@ jobs:
           sourceScanPath: $(Build.SourcesDirectory)
           alertWarningLevel: Medium
         continueOnError: true
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
+      # -- Shadow Mode: Dynamic NOTICE Generation --
+      - task: notice@0
+        displayName: "[Shadow] Generate CG NOTICE file"
+        inputs:
+          outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
+          outputformat: text
+        continueOnError: true
+
+      - script: |
+          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --outDir .oss-build-out build/azure-pipelines/oss/generate-notices.ts
+          node .oss-build-out/generate-notices.js \
+            --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
+            --static "build/azure-pipelines/oss/static-notices.json" \
+            --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt" \
+            --report "$(Build.ArtifactStagingDirectory)/notice-merge-report.json" \
+            --repo "$(Build.SourcesDirectory)"
+        displayName: "[Shadow] Merge CG + dynamic notices"
+        env:
+          VSCODE_QUALITY: $(VSCODE_QUALITY)
+        continueOnError: true
+
+      - script: |
+          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --outDir .oss-build-out build/azure-pipelines/oss/validate-notices.ts
+          node .oss-build-out/validate-notices.js \
+            --notices "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt" \
+            --static "build/azure-pipelines/oss/static-notices.json" \
+            --package-json "package.json"
+        displayName: "[Shadow] Validate NOTICE coverage"
+        continueOnError: true
+      # -- End Shadow Mode --
 
       - task: AzureCLI@2
         displayName: Fetch secrets

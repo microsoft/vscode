@@ -1,0 +1,31 @@
+{
+	"version": 1,
+	"packages": [
+		{
+			"name": "ffmpeg",
+			"version": "6.0",
+			"license": "LGPL-2.1-or-later",
+			"url": "https://ffmpeg.org/",
+			"licenseText": "ffmpeg is released under the GNU Lesser General Public License version 2.1 or later (LGPL v2.1+). See https://ffmpeg.org/legal.html for full license text. FFmpeg includes code under various licenses including LGPL, GPL, and permissive licenses. VS Code uses FFmpeg through Electron for media codec support."
+		},
+		{
+			"name": "lib-oniguruma",
+			"version": "6.9.8",
+			"license": "BSD-2-Clause",
+			"url": "https://github.com/kkos/oniguruma",
+			"licenseText": "BSD 2-Clause License\n\nCopyright (c) 2002-2021  K.Kosako  <kkosako0@gmail.com>\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice,\n   this list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice,\n   this list of conditions and the following disclaimer in the documentation\n   and/or other materials provided with the distribution.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\"\nAND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE\nIMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\nDISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE\nFOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL\nDAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR\nSERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER\nCAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,\nOR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\nOF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
+		}
+	],
+	"devDepFilter": [
+		"mocha",
+		"mocha-junit-reporter"
+	],
+	"overrides": {
+		"@microsoft/applicationinsights-web-basic": {
+			"license": "MIT"
+		}
+	},
+	"requiredPackages": [
+		"ffmpeg"
+	]
+}
