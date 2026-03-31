@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { newWriteableBufferStream } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
@@ -482,7 +483,7 @@ suite.skip('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAllowedExtensionsService, { isAllowed: () => true });
-		instantiationService.stub(IExtensionGalleryManifestService, 'extensionGalleryManifestStatus', ExtensionGalleryManifestStatus.Available);
+		instantiationService.stub(IExtensionGalleryManifestService, { extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available, onDidChangeExtensionGalleryManifestStatus: Event.None, onDidChangeExtensionGalleryManifest: Event.None, getExtensionGalleryManifest: async () => null });
 		instantiationService.stub(IProductService, {
 			_serviceBrand: undefined,
 			version: productVersion,
@@ -503,7 +504,7 @@ suite.skip('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 			properties: {
 				isPreReleaseVersion: false,
 				targetPlatform: TargetPlatform.UNDEFINED,
-				engine: undefined,
+				engine: '*',
 				enabledApiProposals: undefined,
 			},
 			assets: { manifest: null },
