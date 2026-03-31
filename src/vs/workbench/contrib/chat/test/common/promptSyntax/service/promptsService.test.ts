@@ -55,8 +55,6 @@ import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../..
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
-import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
-import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -180,8 +178,6 @@ suite('PromptsService', () => {
 			plugins: testPluginsObservable,
 			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
 		});
-
-		instaService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
