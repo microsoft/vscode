@@ -25,6 +25,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { TipEligibilityTracker } from './chatTipEligibilityTracker.js';
 import { ChatTipTier, extractCommandIds, ITipBuildContext, ITipDefinition, TIP_CATALOG } from './chatTipCatalog.js';
 import { ChatTipStorageKeys, TipTrackingCommands } from './chatTipStorageKeys.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -61,6 +62,13 @@ export interface IChatTip {
 	readonly id: string;
 	readonly content: MarkdownString;
 	readonly enabledCommands?: readonly string[];
+	/**
+	 * Optional action button rendered as a proper button widget alongside the tip text.
+	 */
+	readonly actionButton?: {
+		readonly label: string;
+		readonly commandId: string;
+	};
 }
 
 export interface IChatTipService {
@@ -156,6 +164,13 @@ export interface IChatTipService {
 	 * Clears all dismissed tips so they can be shown again.
 	 */
 	clearDismissedTips(): void;
+
+	/**
+	 * The model ID that the tryNewModel tip is currently advertising.
+	 * Stored when the tip is shown so the "Try It" action can switch to
+	 * it even after the model picker has marked all models as seen.
+	 */
+	readonly tryNewModelId: string | undefined;
 }
 
 // Re-export types for backwards compatibility
@@ -200,6 +215,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private _thinkingPhrasesEverModified: boolean;
 	private _tipsHiddenForSession = false;
 	private readonly _tipCommandListener = this._register(new MutableDisposable());
+	private _tryNewModelId: string | undefined;
+
+	get tryNewModelId(): string | undefined {
+		return this._tryNewModelId;
+	}
 
 	constructor(
 		@IProductService private readonly _productService: IProductService,
@@ -212,6 +232,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._tracker = this._register(instantiationService.createInstance(TipEligibilityTracker, TIP_CATALOG));
@@ -253,6 +274,40 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				}
 			}));
 		}
+
+		// When new models appear, un-dismiss tip.tryNewModel so it can show
+		// again, then swap to it if a lower-priority tip is currently shown.
+		this._register(this._languageModelsService.onDidChangeNewModels(() => {
+			const hasNew = this._languageModelsService.getNewModelIds().length > 0;
+			if (!hasNew) {
+				// New models were marked as seen — the tip stays visible until
+				// the user explicitly dismisses it or clicks "Try It".
+				return;
+			}
+
+			// New models detected — clear any previous dismissal of the tip
+			// so it is eligible again for this round of new models.
+			this._undismissTip('tip.tryNewModel');
+
+			if (!this._shownTip || !this._contextKeyService) {
+				return;
+			}
+			const tryNewModelTip = TIP_CATALOG.find(tip => tip.id === 'tip.tryNewModel');
+			if (!tryNewModelTip) {
+				return;
+			}
+			const currentPriority = this._shownTip.priority ?? Number.POSITIVE_INFINITY;
+			const newModelPriority = tryNewModelTip.priority ?? Number.POSITIVE_INFINITY;
+			if (newModelPriority < currentPriority && this._shownTip.id !== tryNewModelTip.id) {
+				this._shownTip = tryNewModelTip;
+				this._tryNewModelId = this._languageModelsService.getNewModelIds()[0];
+				this._storageService.store(ChatTipStorageKeys.LastTipId, tryNewModelTip.id, StorageScope.APPLICATION, StorageTarget.USER);
+				const tip = this._createTip(tryNewModelTip);
+				this._logTipTelemetry(tryNewModelTip.id, 'shown');
+				this._trackTipCommandClicks(tryNewModelTip);
+				this._onDidNavigateTip.fire(tip);
+			}
+		}));
 	}
 
 	private _hasFileOrFolderReference(message: IParsedChatRequest): boolean {
@@ -317,6 +372,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
 		this._tipsHiddenForSession = false;
+		this._tryNewModelId = undefined;
 	}
 
 	dismissTip(): void {
@@ -380,6 +436,19 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._onDidHideTip.fire();
+	}
+
+	/**
+	 * Removes a specific tip from the dismissed set so it can be shown again.
+	 * Used for tips like tryNewModel that should resurface for each new model.
+	 */
+	private _undismissTip(tipId: string): void {
+		const dismissed = new Set(this._getDismissedTipIds());
+		if (!dismissed.has(tipId)) {
+			return;
+		}
+		dismissed.delete(tipId);
+		this._storageService.store(ChatTipStorageKeys.DismissedTips, JSON.stringify([...dismissed]), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	hideTipsForSession(): void {
@@ -548,6 +617,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		// Record that we've shown a tip this session
 		this._tipRequestId = sourceId;
 		this._shownTip = selectedTip;
+
+		// Snapshot the new model ID so the "Try It" action can use it
+		// even after the model picker marks all models as seen.
+		if (selectedTip.id === 'tip.tryNewModel') {
+			this._tryNewModelId = this._languageModelsService.getNewModelIds()[0];
+		}
 
 		this._logTipTelemetry(selectedTip.id, 'shown');
 		this._trackTipCommandClicks(selectedTip);
@@ -810,11 +885,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	private _createTip(tipDef: ITipDefinition): IChatTip {
 		// Build the tip message with dynamic keybindings and command labels
-		const ctx: ITipBuildContext = { keybindingService: this._keybindingService };
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, languageModelsService: this._languageModelsService };
 		const rawMessage = tipDef.buildMessage(ctx);
 
-		// Add "Tip:" prefix once here, avoiding duplication in individual tip definitions
-		const prefixedMessage = localize('tipPrefix', "**Tip:** {0}", rawMessage.value);
+		// Add "Tip:" prefix unless the tip opts out
+		const prefixedMessage = tipDef.noPrefix
+			? rawMessage.value
+			: localize('tipPrefix', "**Tip:** {0}", rawMessage.value);
 
 		// Auto-extract enabled commands from the built message
 		const enabledCommands = extractCommandIds(prefixedMessage);
@@ -826,6 +903,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			id: tipDef.id,
 			content: markdown,
 			enabledCommands,
+			actionButton: tipDef.actionButton,
 		};
 	}
 
@@ -841,14 +919,16 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipCommandListener.clear();
 
 		// Build message to extract enabled commands dynamically
-		const ctx: ITipBuildContext = { keybindingService: this._keybindingService };
+		const ctx: ITipBuildContext = { keybindingService: this._keybindingService, languageModelsService: this._languageModelsService };
 		const rawMessage = tip.buildMessage(ctx);
-		const enabledCommands = extractCommandIds(rawMessage.value);
+		const extractedCommands = extractCommandIds(rawMessage.value);
+		const dismissCommands = tip.dismissWhenCommandsClicked ?? [];
+		const allCommands = [...new Set([...extractedCommands, ...dismissCommands])];
 
-		if (!enabledCommands.length) {
+		if (!allCommands.length) {
 			return;
 		}
-		const enabledCommandSet = new Set(enabledCommands);
+		const enabledCommandSet = new Set(allCommands);
 		this._tipCommandListener.value = this._commandService.onDidExecuteCommand(e => {
 			if (enabledCommandSet.has(e.commandId) && this._shownTip?.id === tip.id) {
 				this._logTipTelemetry(tip.id, 'commandClicked', e.commandId);

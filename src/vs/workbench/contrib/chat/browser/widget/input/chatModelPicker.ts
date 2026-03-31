@@ -94,6 +94,7 @@ function createModelItem(
 	model?: ILanguageModelChatMetadataAndIdentifier,
 	hoverPosition?: IHoverPositionOptions,
 	languageModelsService?: ILanguageModelsService,
+	badge?: string,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	return {
 		item: action,
@@ -105,6 +106,7 @@ function createModelItem(
 		section: action.section,
 		hover: model ? { content: getModelHoverContent(model, languageModelsService), position: hoverPosition } : undefined,
 		submenuActions: action.toolbarActions,
+		badge,
 	};
 }
 
@@ -215,7 +217,12 @@ export function buildModelPickerItems(
 	showFeatured: boolean,
 	hoverPosition?: IHoverPositionOptions,
 	languageModelsService?: ILanguageModelsService,
+	newModelIds?: ReadonlySet<string>,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
+	const newBadgeLabel = localize('chat.modelPicker.newBadge', "New");
+	function getNewBadge(id: string): string | undefined {
+		return newModelIds?.has(id) ? newBadgeLabel : undefined;
+	}
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
 		items.push(createModelItem({
@@ -354,9 +361,9 @@ export function buildModelPickerItems(
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model, hoverPosition, languageModelsService));
+						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model, hoverPosition, languageModelsService, getNewBadge(item.model.identifier)));
 					} else {
-						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
+						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition, getNewBadge(`copilot/${item.id}`)));
 					}
 				}
 			}
@@ -385,18 +392,19 @@ export function buildModelPickerItems(
 				if (items.length > 0) {
 					items.push({ kind: ActionListItemKind.Separator });
 				}
+				const otherModelsLabel = localize('chat.modelPicker.otherModels', "Other Models");
 				items.push({
 					item: {
 						id: 'otherModels',
 						enabled: true,
 						checked: false,
 						class: undefined,
-						tooltip: localize('chat.modelPicker.otherModels', "Other Models"),
-						label: localize('chat.modelPicker.otherModels', "Other Models"),
+						tooltip: otherModelsLabel,
+						label: otherModelsLabel,
 						run: () => { /* toggle handled by isSectionToggle */ }
 					},
 					kind: ActionListItemKind.Action,
-					label: localize('chat.modelPicker.otherModels', "Other Models"),
+					label: otherModelsLabel,
 					group: { title: '', icon: Codicon.chevronDown },
 					hideIcon: false,
 					section: ModelPickerSection.Other,
@@ -404,10 +412,11 @@ export function buildModelPickerItems(
 				});
 				for (const model of otherModels) {
 					const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
+					const badge = getNewBadge(model.identifier);
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
+						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition, badge));
 					} else {
-						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model, hoverPosition, languageModelsService));
+						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model, hoverPosition, languageModelsService, badge));
 					}
 				}
 			}
@@ -475,6 +484,7 @@ function createUnavailableModelItem(
 	updateStateType: StateType,
 	section?: string,
 	hoverPosition?: IHoverPositionOptions,
+	badge?: string,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
 
@@ -519,6 +529,7 @@ function createUnavailableModelItem(
 		className: 'chat-model-picker-unavailable',
 		section,
 		hover: { content: hoverContent, position: hoverPosition },
+		badge,
 	};
 }
 
@@ -667,6 +678,7 @@ export class ModelPickerWidget extends Disposable {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
 		const manageSettingsUrl = this._productService.defaultChatAgent?.manageSettingsUrl;
+		const newModelIds = new Set(this._languageModelsService.getNewModelIds());
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
@@ -683,7 +695,12 @@ export class ModelPickerWidget extends Disposable {
 			this._delegate.showFeatured(),
 			this._hoverPosition,
 			this._languageModelsService,
+			newModelIds,
 		);
+
+		// Mark promoted new models as seen (they are immediately visible)
+		// Deferred to when the picker is hidden so the user actually sees the badges.
+		const hasNewModelsToMark = newModelIds.size > 0;
 
 		const listOptions = {
 			showFilter,
@@ -715,6 +732,9 @@ export class ModelPickerWidget extends Disposable {
 			},
 			onHide: () => {
 				this._domNode?.setAttribute('aria-expanded', 'false');
+				if (hasNewModelsToMark) {
+					this._languageModelsService.markModelsAsSeen();
+				}
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}

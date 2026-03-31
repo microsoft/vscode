@@ -28,7 +28,7 @@ import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IC
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -38,7 +38,9 @@ import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
+import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
+import { IChatTipService } from '../chatTipService.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -1180,6 +1182,69 @@ class ExecuteHandoffAction extends Action2 {
 }
 
 
+export const TryNewModelActionId = 'workbench.action.chat.tryNewModel';
+
+export class TryNewModelAction extends Action2 {
+	static readonly ID = TryNewModelActionId;
+
+	constructor() {
+		super({
+			id: TryNewModelAction.ID,
+			title: localize2('interactive.tryNewModel.label', "Try New Model"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const languageModelsService = accessor.get(ILanguageModelsService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const chatTipService = accessor.get(IChatTipService);
+
+		const newModelIds = languageModelsService.getNewModelIds();
+		// Fall back to the model ID saved by the tip service when the tip was
+		// shown.  The model picker marks all models as seen on close, so
+		// getNewModelIds() may already be empty if the picker was opened first.
+		const targetModelId = newModelIds[0] ?? chatTipService.tryNewModelId;
+		if (!targetModelId) {
+			return;
+		}
+		const widget = widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		// Check access: admin-disabled models and unavailable models for
+		// free/edu users should open the picker instead of switching directly.
+		const entitlement = chatEntitlementService.entitlement;
+		const isFreeOrEdu = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
+		const manifest = languageModelsService.getModelsControlManifest();
+		const isPro = isProUser(entitlement);
+		const controlModels = isPro ? manifest.paid : manifest.free;
+		const metadataId = targetModelId.startsWith('copilot/') ? targetModelId.slice('copilot/'.length) : targetModelId;
+		const controlEntry = controlModels[metadataId];
+		const isAdminDisabled = controlEntry && !controlEntry.exists && !controlEntry.featured;
+		const isModelUnavailable = isFreeOrEdu && !controlEntry?.exists;
+
+		if (isAdminDisabled || isModelUnavailable) {
+			// Open model picker so user can see upgrade/admin info
+			await widgetService.reveal(widget);
+			widget.input.openModelPicker();
+		} else {
+			// Switch to the new model on all widgets
+			const model = languageModelsService.lookupLanguageModel(targetModelId);
+			if (model) {
+				for (const w of widgetService.getAllWidgets()) {
+					w.input.switchModel(model);
+				}
+				languageModelsService.markModelsAsSeen([targetModelId]);
+			}
+		}
+	}
+}
+
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
 	registerAction2(ChatEditingSessionSubmitAction);
@@ -1200,4 +1265,35 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelEdit);
 	registerAction2(GetHandoffsAction);
 	registerAction2(ExecuteHandoffAction);
+	registerAction2(TryNewModelAction);
+	registerAction2(SimulateNewModelAction);
+}
+
+class SimulateNewModelAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.dev.simulateNewModel',
+			title: localize2('interactive.simulateNewModel.label', "Developer: Simulate New Model in Picker"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const languageModelsService = accessor.get(ILanguageModelsService);
+		const dialogService = accessor.get(IDialogService);
+
+		const removed = languageModelsService.simulateNewModel();
+		if (!removed) {
+			await dialogService.info(
+				localize('simulateNewModel.noModels', "No Copilot models are registered yet. Open a chat session first to ensure models are loaded, then try again."),
+			);
+			return;
+		}
+
+		await dialogService.info(
+			localize('simulateNewModel.done', "Marked '{0}' as a new model. Open the model picker or start a new chat session to see the badge and tip.", removed),
+		);
+	}
 }

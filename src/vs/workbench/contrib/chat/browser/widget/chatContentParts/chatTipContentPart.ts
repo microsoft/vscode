@@ -6,10 +6,11 @@
 import './media/chatTipContent.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -21,6 +22,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer, openLinkFromMarkdown } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IChatTip, IChatTipService } from '../../chatTipService.js';
@@ -36,6 +38,7 @@ export class ChatTipContentPart extends Disposable {
 
 	private readonly _renderedContent = this._register(new MutableDisposable());
 	private readonly _toolbar = this._register(new MutableDisposable<MenuWorkbenchToolBar>());
+	private readonly _actionButton = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _inChatTipContextKey: IContextKey<boolean>;
 	private readonly _multipleChatTipsContextKey: IContextKey<boolean>;
@@ -121,6 +124,21 @@ export class ChatTipContentPart extends Disposable {
 		});
 		this._renderedContent.value = markdownContent;
 		this.domNode.appendChild(markdownContent.element);
+
+		// Render action button if the tip defines one
+		this._actionButton.clear();
+		if (tip.actionButton) {
+			const store = new DisposableStore();
+			const buttonContainer = $('.chat-tip-action-button');
+			const button = store.add(new Button(buttonContainer, { ...defaultButtonStyles }));
+			button.label = tip.actionButton.label;
+			const commandId = tip.actionButton.commandId;
+			store.add(button.onDidClick(() => {
+				this._commandService.executeCommand(commandId);
+			}));
+			this.domNode.appendChild(buttonContainer);
+			this._actionButton.value = store;
+		}
 
 		// Toolbar with previous, next, and dismiss actions via MenuWorkbenchToolBar
 		const toolbarContainer = $('.chat-tip-toolbar');
