@@ -38,7 +38,9 @@ export function registerChatDeveloperActions() {
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 }
 
-function formatChatModelReferenceInspection(chatService: IChatService, agentSessionsService: IAgentSessionsService): string {
+function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {
+	const chatService = accessor.get(IChatService);
+	const agentSessionsService = accessor.get(IAgentSessionsService);
 	const debugInfo = chatService.getChatModelReferenceDebugInfo();
 	const referencedModels = debugInfo.models.filter(model => model.referenceCount > 0);
 	const pendingEditModels = debugInfo.models.filter(model => model.hasPendingEdits);
@@ -199,13 +201,11 @@ class InspectChatModelReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const editorService = accessor.get(IEditorService);
 
 		await editorService.openEditor({
 			resource: undefined,
-			contents: formatChatModelReferenceInspection(chatService, agentSessionsService),
+			contents: formatChatModelReferenceInspection(accessor),
 			languageId: 'markdown',
 			options: {
 				pinned: true

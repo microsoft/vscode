@@ -223,9 +223,12 @@ export function registerChatForkActions() {
 			}
 
 			// Navigate to the new session in the chat view pane
-			const newSessionResource = modelRef.object.sessionResource;
-			await chatWidgetService.openSession(newSessionResource, ChatViewPaneTarget);
-			modelRef.dispose();
+			try {
+				const newSessionResource = modelRef.object.sessionResource;
+				await chatWidgetService.openSession(newSessionResource, ChatViewPaneTarget);
+			} finally {
+				modelRef.dispose();
+			}
 		}
 
 		private pendingFork = new Map<string, Promise<void>>();

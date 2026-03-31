@@ -124,16 +124,20 @@ export function registerChatExportActions() {
 
 				if (opts?.target === 'chatViewPane') {
 					const modelRef = chatService.loadSessionFromData(data, 'ChatImportExport#importToChatView');
-					sessionResource = modelRef.object.sessionResource;
-					resolvedTarget = ChatViewPaneTarget;
-					options = { pinned: true };
+					try {
+						sessionResource = modelRef.object.sessionResource;
+						resolvedTarget = ChatViewPaneTarget;
+						options = { pinned: true };
+						await widgetService.openSession(sessionResource, resolvedTarget, options);
+					} finally {
+						modelRef.dispose();
+					}
 				} else {
 					sessionResource = ChatEditorInput.getNewEditorUri();
 					resolvedTarget = ACTIVE_GROUP;
 					options = { target: { data }, pinned: true };
+					await widgetService.openSession(sessionResource, resolvedTarget, options);
 				}
-
-				await widgetService.openSession(sessionResource, resolvedTarget, options);
 			} catch (err) {
 				throw err;
 			}
