@@ -111,7 +111,7 @@ agent-browser snapshot -i
 - Code OSS uses the default user data directory. Unlike VS Code Insiders, you don't typically need `--user-data-dir` since there's usually only one Code OSS instance running.
 - If you see "Sent env to running instance. Terminating..." it means Code OSS is already running and forwarded your args to the existing instance. Quit Code OSS and relaunch with the flag, or use `--user-data-dir=/tmp/code-oss-debug` to force a new instance.
 
-## Launching the Agents App (Agent Sessions Window)
+## Launching the Agents App (Agents Window)
 
 The Agents app is a separate workbench mode launched with the `--agents` flag. It uses a dedicated user data directory to avoid conflicts with the main Code OSS instance.
 
@@ -132,7 +132,7 @@ agent-browser snapshot -i
 ```
 
 **Tips:**
-- The `--agents` flag launches the Agent Sessions workbench instead of the standard VS Code workbench.
+- The `--agents` flag launches the Agents workbench instead of the standard VS Code workbench.
 - Set `VSCODE_SKIP_PRELAUNCH=1` to skip the compile step if you've already built.
 
 ## Launching VS Code Extensions for Debugging
