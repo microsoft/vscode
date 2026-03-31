@@ -314,7 +314,6 @@
 	vertical-align: middle;
 	gap: 4px;
 	font-size: 11px;
-	/* margin: 0 2px; */
 	color: var(--vscode-descriptionForeground);
 }
 
