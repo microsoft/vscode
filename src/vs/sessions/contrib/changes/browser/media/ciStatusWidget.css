@@ -90,6 +90,10 @@
 	padding-right: 8px;
 }
 
+.ci-status-widget-header:hover .ci-status-widget-counts, .ci-status-widget-header:focus .ci-status-widget-counts {
+	visibility: hidden;
+}
+
 .ci-status-widget-count-badge {
 	display: inline-flex;
 	align-items: center;
