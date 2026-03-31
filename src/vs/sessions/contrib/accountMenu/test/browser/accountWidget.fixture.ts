@@ -148,7 +148,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	Updating: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderAccountWidget(ctx, State.Updating(mockUpdate), Promise.resolve(signedInAccount)),
+		render: ctx => renderAccountWidget(ctx, State.Updating(mockUpdate, true), Promise.resolve(signedInAccount)),
 	}),
 
 	Overwriting: defineComponentFixture({
