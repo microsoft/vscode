@@ -85,6 +85,7 @@
 /* Title */
 .agent-feedback-widget-title {
 	font-weight: 500;
+	line-height: 12px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -196,12 +197,12 @@
 }
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, var(--vscode-editorWidget-background));
 	color: var(--vscode-editorWarning-foreground);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, var(--vscode-editorWidget-background));
 	color: var(--vscode-editorInfo-foreground);
 }
 
@@ -242,11 +243,11 @@
 }
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 10%, var(--vscode-editorWidget-background));
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
-	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 10%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 10%, var(--vscode-editorWidget-background));
 }
 
 .agent-feedback-widget-suggestion-title,
@@ -273,7 +274,7 @@
 	font-family: monospace;
 	font-size: 11px;
 	line-height: 1.45;
-	background: color-mix(in srgb, var(--vscode-editor-background) 65%, transparent);
+	background: var(--vscode-editorWidget-background);
 }
 
 /* Gutter decoration for range indicator on hover */
