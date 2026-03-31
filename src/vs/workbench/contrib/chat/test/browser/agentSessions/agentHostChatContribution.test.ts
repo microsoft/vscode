@@ -36,6 +36,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
+import { IAgentHostFileSystemService } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -178,6 +179,9 @@ function createTestServices(disposables: DisposableStore) {
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
+	});
+	instantiationService.stub(IAgentHostFileSystemService, {
+		registerAuthority: () => toDisposable(() => { }),
 	});
 
 	return { instantiationService, agentHostService, chatAgentService };
