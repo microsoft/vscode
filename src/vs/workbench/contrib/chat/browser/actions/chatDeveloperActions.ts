@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow } from '../../../../../base/common/date.js';
 import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
@@ -36,7 +38,7 @@ export function registerChatDeveloperActions() {
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 }
 
-function formatChatModelReferenceInspection(chatService: IChatService): string {
+function formatChatModelReferenceInspection(chatService: IChatService, agentSessionsService: IAgentSessionsService): string {
 	const debugInfo = chatService.getChatModelReferenceDebugInfo();
 	const referencedModels = debugInfo.models.filter(model => model.referenceCount > 0);
 	const pendingEditModels = debugInfo.models.filter(model => model.hasPendingEdits);
@@ -56,9 +58,16 @@ function formatChatModelReferenceInspection(chatService: IChatService): string {
 	}
 
 	for (const model of debugInfo.models) {
+		const liveModel = chatService.getSession(model.sessionResource);
+		const agentSession = agentSessionsService.getSession(model.sessionResource);
+		const archived = agentSession ? agentSession.isArchived() : 'unknown';
+		const age = liveModel ? fromNow(liveModel.timing.created, true, true, true) : 'unknown';
+
 		output += `## ${model.title || '(untitled)'}\n\n`;
 		output += `- Session: ${model.sessionResource.toString()}\n`;
 		output += `- Created by: ${model.createdBy}\n`;
+		output += `- Archived: ${archived}\n`;
+		output += `- Age: ${age}\n`;
 		output += `- Initial location: ${model.initialLocation}\n`;
 		output += `- Imported: ${model.isImported}\n`;
 		output += `- Pending edits: ${model.hasPendingEdits}\n`;
@@ -191,11 +200,12 @@ class InspectChatModelReferencesAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const chatService = accessor.get(IChatService);
+		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const editorService = accessor.get(IEditorService);
 
 		await editorService.openEditor({
 			resource: undefined,
-			contents: formatChatModelReferenceInspection(chatService),
+			contents: formatChatModelReferenceInspection(chatService, agentSessionsService),
 			languageId: 'markdown',
 			options: {
 				pinned: true
