@@ -421,7 +421,7 @@ function getCheckCounts(checks: readonly IGitHubCICheck[]): ICICheckCounts {
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return Codicon.circleFilled;
+			return Codicon.sync;
 		case GitHubCheckStatus.Queued:
 			return Codicon.circleFilled;
 		case GitHubCheckStatus.Completed:
