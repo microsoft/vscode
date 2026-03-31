@@ -27,6 +27,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
@@ -40,6 +41,7 @@ class SessionsWelcomeOverlay extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -71,8 +73,11 @@ class SessionsWelcomeOverlay extends Disposable {
 
 		this._register(actionButton.onDidClick(() => this._runSetup(actionButton, spinnerContainer, errorContainer)));
 
-		// Focus the button so the overlay traps keyboard input
-		actionButton.focus();
+		// Focus the button so the overlay traps keyboard input,
+		// but only if no quick input is currently visible.
+		if (!this.quickInputService.currentQuickInput) {
+			actionButton.focus();
+		}
 	}
 
 	private async _runSetup(button: Button, spinner: HTMLElement, error: HTMLElement): Promise<void> {

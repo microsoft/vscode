@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -57,13 +58,22 @@ export interface ISessionWorkspace {
 }
 
 /**
- * Pull request information associated with a session.
+ * GitHub information associated with a session.
  */
-export interface ISessionPullRequest {
-	/** URI of the pull request. */
-	readonly uri: URI;
-	/** Icon reflecting the PR state. */
-	readonly icon?: ThemeIcon;
+export interface IGitHubInfo {
+	/** GitHub repository owner. */
+	readonly owner: string;
+	/** GitHub repository name. */
+	readonly repo: string;
+	/** Pull request associated with this session, if any. */
+	readonly pullRequest?: {
+		/** Pull request number. */
+		readonly number: number;
+		/** URI of the pull request. */
+		readonly uri: URI;
+		/** Icon reflecting the PR state. */
+		readonly icon?: ThemeIcon;
+	};
 }
 
 /**
@@ -107,12 +117,12 @@ export interface ISessionData {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the session is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the session is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 }
 
 /**
@@ -155,12 +165,12 @@ export interface IChat {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the chat has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the chat is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the chat is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 }
 
 /**
@@ -203,12 +213,12 @@ export interface ISession {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the session is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the session is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
-	/** Pull request associated with this session, if any. */
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	/** GitHub information associated with this session, if any. */
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The currently active chat within this session group. */
