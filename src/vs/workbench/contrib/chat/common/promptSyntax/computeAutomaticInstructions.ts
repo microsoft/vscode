@@ -27,10 +27,11 @@ import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -78,6 +79,7 @@ export class ComputeAutomaticInstructions {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 	) {
 	}
 
@@ -432,6 +434,21 @@ export class ComputeAutomaticInstructions {
 			}
 		}
 		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+			const generalPurposeAgentEnabled = !!(await this._assignmentService.getTreatment<boolean>('chat.generalPurposeAgent'));
+
+			if (generalPurposeAgentEnabled) {
+				entries.push('<agents>');
+				entries.push('Here is a list of agents that can be used when running a subagent.');
+				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
+				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+
+				// Built-in General Purpose agent, always available
+				entries.push('<agent>');
+				entries.push(`<name>${GeneralPurposeAgentName}</name>`);
+				entries.push(`<description>Full-capability agent for complex multi-step tasks requiring the complete toolset and high-quality reasoning. Has access to all tools. Inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
+				entries.push('</agent>');
+			}
+
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
@@ -441,11 +458,16 @@ export class ComputeAutomaticInstructions {
 				}
 			})();
 			const agents = await this._promptsService.getCustomAgents(token);
-			if (agents.length > 0) {
-				entries.push('<agents>');
-				entries.push('Here is a list of agents that can be used when running a subagent.');
-				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+			if (!generalPurposeAgentEnabled && agents.length === 0) {
+				// No agents to show at all when experiment is off and no custom agents
+			} else {
+				if (!generalPurposeAgentEnabled) {
+					// Only render the agents block header when not already rendered by GP
+					entries.push('<agents>');
+					entries.push('Here is a list of agents that can be used when running a subagent.');
+					entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
+					entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+				}
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
 						entries.push('<agent>');

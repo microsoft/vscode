@@ -45,11 +45,13 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { IRemoteAgentService } from '../../../../../../workbench/services/remote/common/remoteAgentService.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { match } from '../../../../../../base/common/glob.js';
-import { ChatModeKind } from '../../../common/constants.js';
+import { ChatModeKind, GeneralPurposeAgentName } from '../../../common/constants.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
+import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 
 suite('ComputeAutomaticInstructions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -192,6 +194,8 @@ suite('ComputeAutomaticInstructions', () => {
 			plugins: observableValue('testPlugins', []),
 			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
 		});
+
+		instaService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -1503,6 +1507,69 @@ suite('ComputeAutomaticInstructions', () => {
 
 			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 5');
 			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-5`);
+		});
+
+		test('should include General Purpose agent first when experiment is enabled', async () => {
+			const rootFolderName = 'gp-agents-list-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
+
+			// Override the assignment service to enable the GP experiment
+			instaService.stub(IWorkbenchAssignmentService, {
+				_serviceBrand: undefined,
+				onDidRefetchAssignments: Event.None,
+				async getCurrentExperiments() { return []; },
+				async getTreatment<T>(name: string): Promise<T | undefined> {
+					return (name === 'chat.generalPurposeAgent' ? true : undefined) as T | undefined;
+				},
+				addTelemetryAssignmentFilter() { },
+			} as IWorkbenchAssignmentService);
+
+			testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, {
+				[AGENTS_SOURCE_FOLDER]: true,
+			});
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 1\'',
+						'---',
+						'Test agent content',
+					]
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_runSubagent': true },
+				['*'],
+				undefined
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for agents list');
+
+			const agentsList = xmlContents(textVariables[0].value, 'agents');
+			assert.equal(agentsList.length, 1, 'There should be one agents list');
+
+			const agents = xmlContents(agentsList[0], 'agent');
+			assert.equal(agents.length, 2, 'There should be two agents (General Purpose + 1 custom)');
+
+			// First agent should always be the built-in General Purpose agent
+			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
+
+			assert.equal(xmlContents(agents[1], 'name')[0], 'test-agent-1');
+			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 1');
 		});
 
 		test('should include skills list when readFile tool available', async () => {
