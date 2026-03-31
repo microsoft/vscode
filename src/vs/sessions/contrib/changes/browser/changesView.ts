@@ -19,7 +19,7 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IObservabl
 import { basename } from '../../../../base/common/path.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { dirname, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -74,7 +74,6 @@ import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/
 import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 const $ = dom.$;
 
@@ -133,24 +132,42 @@ interface IChangesFileItem {
 	readonly agentFeedbackCount: number;
 }
 
-type ChangesTreeElement = IChangesFileItem | IResourceNode<IChangesFileItem, undefined>;
+interface IChangesRootItem {
+	readonly type: 'root';
+	readonly uri: URI;
+	readonly name: string;
+	readonly description?: string;
+}
+
+interface IChangesTreeRootInfo {
+	readonly root: IChangesRootItem;
+	readonly resourceTreeRootUri: URI;
+}
+
+type ChangesTreeElement = IChangesRootItem | IChangesFileItem | IResourceNode<IChangesFileItem, undefined>;
 
 function isChangesFileItem(element: ChangesTreeElement): element is IChangesFileItem {
-	return !ResourceTree.isResourceNode(element);
+	return !ResourceTree.isResourceNode(element) && element.type === 'file';
+}
+
+function isChangesRootItem(element: ChangesTreeElement): element is IChangesRootItem {
+	return !ResourceTree.isResourceNode(element) && element.type === 'root';
 }
 
 /**
  * Builds a tree of `ICompressedTreeElement<ChangesTreeElement>` from a flat list of file items
  * using a `ResourceTree` to group files by their directory path segments.
  */
-function buildTreeChildren(items: IChangesFileItem[], rootUri = URI.file('/')): ICompressedTreeElement<ChangesTreeElement>[] {
+function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTreeRootInfo): ICompressedTreeElement<ChangesTreeElement>[] {
 	if (items.length === 0) {
 		return [];
 	}
 
+	let rootUri = treeRootInfo?.resourceTreeRootUri ?? URI.file('/');
+
 	// For github-remote-file URIs, set the root to /{owner}/{repo}/{ref}
 	// so the tree shows repo-relative paths instead of internal URI segments.
-	if (items[0].uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+	if (!treeRootInfo && items[0].uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 		const parts = items[0].uri.path.split('/').filter(Boolean);
 		if (parts.length >= 3) {
 			rootUri = items[0].uri.with({ path: '/' + parts.slice(0, 3).join('/') });
@@ -185,7 +202,18 @@ function buildTreeChildren(items: IChangesFileItem[], rootUri = URI.file('/')): 
 		return result;
 	}
 
-	return convertChildren(resourceTree.root);
+	const children = convertChildren(resourceTree.root);
+	if (!treeRootInfo) {
+		return children;
+	}
+
+	return [{
+		element: treeRootInfo.root,
+		children,
+		collapsible: true,
+		collapsed: false,
+		incompressible: true,
+	}];
 }
 
 function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChangesFileItem[] {
@@ -1169,11 +1197,8 @@ export class ChangesViewPane extends ViewPane {
 
 			if (viewMode === ChangesViewMode.Tree) {
 				// Tree mode: build hierarchical tree from file entries
-				const rootUri = this.sessionManagementService.activeSession.read(undefined)?.sessionType === CopilotCLISessionType.id
-					? dirname(this.workspaceContextService.getWorkspace().folders[0]?.uri)
-					: undefined;
-
-				const treeChildren = buildTreeChildren(entries, rootUri);
+				const treeRootInfo = this.getTreeRootInfo(entries);
+				const treeChildren = buildTreeChildren(entries, treeRootInfo);
 				this.tree.setChildren(null, treeChildren);
 			} else {
 				// List mode: flat list of file items
@@ -1223,6 +1248,39 @@ export class ChangesViewPane extends ViewPane {
 		return selection.filter(item => !!item && isChangesFileItem(item));
 	}
 
+	private getTreeRootInfo(items: readonly IChangesFileItem[]): IChangesTreeRootInfo | undefined {
+		if (items.length === 0) {
+			return undefined;
+		}
+
+		const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+		if (!workspaceFolder) {
+			return undefined;
+		}
+
+		const sampleUri = items[0].uri;
+		let resourceTreeRootUri = workspaceFolder.uri;
+
+		if (sampleUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = sampleUri.path.split('/').filter(Boolean);
+			if (parts.length >= 3) {
+				resourceTreeRootUri = sampleUri.with({ path: '/' + parts.slice(0, 3).join('/'), query: '', fragment: '' });
+			}
+		} else if (sampleUri.scheme !== workspaceFolder.uri.scheme || sampleUri.authority !== workspaceFolder.uri.authority) {
+			resourceTreeRootUri = sampleUri.with({ path: workspaceFolder.uri.path, authority: workspaceFolder.uri.authority, query: '', fragment: '' });
+		}
+
+		return {
+			root: {
+				type: 'root',
+				uri: workspaceFolder.uri,
+				name: workspaceFolder.name,
+				description: this.viewModel.activeSessionBranchNameObs.get(),
+			},
+			resourceTreeRootUri,
+		};
+	}
+
 	private getSessionDiscardRef(): string {
 		const versionMode = this.viewModel.versionModeObs.get();
 		const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.get();
@@ -1263,7 +1321,7 @@ export class ChangesViewPane extends ViewPane {
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
 
 		if (viewMode === ChangesViewMode.Tree) {
-			tree.setChildren(null, buildTreeChildren(items));
+			tree.setChildren(null, buildTreeChildren(items, this.getTreeRootInfo(items)));
 		} else {
 			tree.setChildren(null, items.map(item => ({ element: item as ChangesTreeElement, collapsible: false })));
 		}
@@ -1421,7 +1479,13 @@ class ChangesViewActionRunner extends ActionRunner {
 
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
-		const args = actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]).flat();
+		const args = actualContext.map(e => {
+			if (ResourceTree.isResourceNode(e)) {
+				return ResourceTree.collect(e);
+			}
+
+			return isChangesFileItem(e) ? [e] : [];
+		}).flat();
 		await action.run(sessionResource, discardRef, ...args.map(item => item.uri));
 	}
 }
@@ -1514,9 +1578,14 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		const element = node.element;
 		templateData.label.element.style.display = 'flex';
 
-		if (ResourceTree.isResourceNode(element)) {
+		if (isChangesRootItem(element)) {
+			// Root element
+			this.renderRootElement(element, templateData);
+		} else if (ResourceTree.isResourceNode(element)) {
+			// Folder element
 			this.renderFolderElement(element, templateData);
 		} else {
+			// File element
 			this.renderFileElement(element, templateData);
 		}
 	}
@@ -1621,6 +1690,28 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		}
 		if (templateData.contextKeyService) {
 			chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+		}
+	}
+
+	private renderRootElement(data: IChangesRootItem, templateData: IChangesTreeTemplate): void {
+		templateData.label.setResource({
+			resource: data.uri,
+			name: data.name,
+		}, {
+			fileKind: FileKind.ROOT_FOLDER,
+			separator: this.labelService.getSeparator(data.uri.scheme, data.uri.authority),
+		});
+
+		templateData.reviewCommentsBadge.style.display = 'none';
+		templateData.agentFeedbackBadge.style.display = 'none';
+		templateData.decorationBadge.style.display = 'none';
+		templateData.lineCountsContainer.style.display = 'none';
+
+		if (templateData.toolbar) {
+			templateData.toolbar.context = undefined;
+		}
+		if (templateData.contextKeyService) {
+			chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(undefined!);
 		}
 	}
 
@@ -1805,7 +1896,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		}));
 	}
 
-	protected override renderLabel(element: HTMLElement): null {
+	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const mode = this.viewModel.versionModeObs.get();
 		const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.get();
 
