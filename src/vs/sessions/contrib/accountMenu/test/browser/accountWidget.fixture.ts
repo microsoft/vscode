@@ -80,7 +80,7 @@ function renderAccountWidget(ctx: ComponentFixtureContext, state: State, account
 		additionalServices: registerWorkbenchServices,
 	});
 
-	const action = ctx.disposableStore.add(new Action('sessions.action.accountWidget', 'Sessions Account'));
+	const action = ctx.disposableStore.add(new Action('sessions.action.accountWidget', 'Agents Account'));
 	const contextMenuService = instantiationService.get(IContextMenuService);
 	const menuService = instantiationService.get(IMenuService);
 	const contextKeyService = instantiationService.get(IContextKeyService);
