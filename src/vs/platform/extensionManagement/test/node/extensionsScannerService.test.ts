@@ -447,6 +447,30 @@ suite('NativeExtensionsScanerService Test', () => {
 			assert.deepStrictEqual(actual[0].autoUpdate, false);
 		});
 
+		test('scan user extension is excluded when autoUpdate is disabled (non-stable quality)', async () => {
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', autoUpdateBuiltinExtensions: ['pub.name'] });
+			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+			const actual = await testObject.scanUserExtensions({ profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource });
+
+			assert.deepStrictEqual(actual.length, 0);
+		});
+
+		test('scan all extensions uses system version when autoUpdate is disabled (non-stable quality)', async () => {
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', autoUpdateBuiltinExtensions: ['pub.name'] });
+			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.0' }));
+			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+			const actual = await testObject.scanAllExtensions({}, { profileLocation: instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource, includeInvalid: false });
+
+			const extension = actual.find(e => e.identifier.id === 'pub.name');
+			assert.ok(extension);
+			assert.deepStrictEqual(extension.manifest.version, '1.66.0');
+			assert.deepStrictEqual(extension.type, ExtensionType.System);
+		});
+
 	});
 });
 
