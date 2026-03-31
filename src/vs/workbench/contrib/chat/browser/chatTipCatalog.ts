@@ -13,7 +13,6 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
-import { ILanguageModelsService } from '../common/languageModels.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
@@ -464,6 +463,8 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			commandId: 'workbench.action.chat.tryNewModel',
 		},
 		noPrefix: true,
+	},
+	{
 		id: 'tip.openSessionsWindow',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
@@ -481,40 +482,5 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		),
 		excludeWhenCommandsExecuted: ['workbench.action.openSessionsWindow'],
 		dismissWhenCommandsClicked: ['workbench.action.openSessionsWindow'],
-	},
-	{
-		id: 'tip.tryNewModel',
-		tier: ChatTipTier.Foundational,
-		priority: 5,
-		buildMessage(ctx) {
-			const newModelIds = ctx.languageModelsService.getNewModelIds();
-			if (newModelIds.length > 0) {
-				const modelId = newModelIds[0];
-				const meta = ctx.languageModelsService.lookupLanguageModel(modelId);
-				const name = meta?.name ?? ctx.languageModelsService.getModelNameFromManifest(modelId);
-				if (name) {
-					return new MarkdownString(
-						localize(
-							'tip.tryNewModelNamed',
-							"{0} is now available!",
-							name,
-						)
-					);
-				}
-			}
-			return new MarkdownString(
-				localize(
-					'tip.tryNewModel',
-					"A new model is now available!"
-				)
-			);
-		},
-		when: ChatContextKeys.hasNewModels.isEqualTo(true),
-		dismissWhenCommandsClicked: ['workbench.action.chat.tryNewModel'],
-		actionButton: {
-			label: localize('tip.tryNewModel.button', "Try It"),
-			commandId: 'workbench.action.chat.tryNewModel',
-		},
-		noPrefix: true,
 	},
 ];
