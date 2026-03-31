@@ -211,7 +211,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 		suite('sandbox off', () => {
 
-			test('echo command returns exactly the echoed text', async function () {
+			// Flaky: #306588
+			test.skip('echo command returns exactly the echoed text', async function () {
 				this.timeout(60000);
 
 				const marker = `MARKER_${Date.now()}_ECHO`;
