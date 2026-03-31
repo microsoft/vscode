@@ -914,6 +914,35 @@ export class AICustomizationListWidget extends Disposable {
 			}];
 		}
 
+		// Check for menu-contributed create actions from extensions.
+		// Extensions contribute to AICustomizationManagementCreateMenuId with
+		// when-clauses targeting aiCustomizationManagementHarness and
+		// aiCustomizationManagementSection context keys.
+		// When a harness contributes create actions, they REPLACE the built-in ones
+		// for all section types, including hooks.
+		const menuActions = this.menuService.getMenuActions(
+			AICustomizationManagementCreateMenuId,
+			this.contextKeyService,
+			{ shouldForwardArgs: true },
+		);
+		const extensionCreateActions: ICreateAction[] = [];
+		for (const [, group] of menuActions) {
+			for (const menuItem of group) {
+				if (menuItem instanceof MenuItemAction) {
+					const icon = ThemeIcon.isThemeIcon(menuItem.item.icon) ? menuItem.item.icon.id : Codicon.add.id;
+					extensionCreateActions.push({
+						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
+						enabled: menuItem.enabled,
+						run: () => { menuItem.run(); },
+					});
+				}
+			}
+		}
+
+		if (extensionCreateActions.length > 0) {
+			return extensionCreateActions;
+		}
+
 		const createTypeLabel = override?.typeLabel ?? typeLabel;
 		const actions: ICreateAction[] = [];
 		const addedTargets = new Set<string>();
@@ -1013,34 +1042,6 @@ export class AICustomizationListWidget extends Disposable {
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', rootFileName: fileName }); },
 				});
 			}
-		}
-
-		// Check for menu-contributed create actions from extensions.
-		// Extensions contribute to AICustomizationManagementCreateMenuId with
-		// when-clauses targeting aiCustomizationManagementHarness and
-		// aiCustomizationManagementSection context keys.
-		// When a harness contributes create actions, they REPLACE the built-in ones.
-		const menuActions = this.menuService.getMenuActions(
-			AICustomizationManagementCreateMenuId,
-			this.contextKeyService,
-			{ shouldForwardArgs: true },
-		);
-		const extensionCreateActions: ICreateAction[] = [];
-		for (const [, group] of menuActions) {
-			for (const menuItem of group) {
-				if (menuItem instanceof MenuItemAction) {
-					const icon = ThemeIcon.isThemeIcon(menuItem.item.icon) ? menuItem.item.icon.id : Codicon.add.id;
-					extensionCreateActions.push({
-						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
-						enabled: menuItem.enabled,
-						run: () => { menuItem.run(); },
-					});
-				}
-			}
-		}
-
-		if (extensionCreateActions.length > 0) {
-			return extensionCreateActions;
 		}
 
 		return actions;
