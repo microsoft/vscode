@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { join } from 'path';
 import { CancellationTokenSource, commands, MarkdownString, TabInputNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabInputText, Uri, ViewColumn, window, workspace, TabInputTextDiff, UIKind, env } from 'vscode';
-import { assertNoRpc, asPromise, closeAllEditors, createRandomFile, pathEquals } from '../utils';
+import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
 suite('vscode API - window', () => {
