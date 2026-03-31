@@ -526,14 +526,15 @@ registerAction2(class RenameSessionAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, context?: ISession): Promise<void> {
-		if (!context) {
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const session = Array.isArray(context) ? context[0] : context;
+		if (!session) {
 			return;
 		}
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const newTitle = await quickInputService.input({
-			value: context.title.get(),
+			value: session.title.get(),
 			prompt: localize('renameSession.prompt', "New agent session title"),
 			validateInput: async value => {
 				if (!value.trim()) {
@@ -545,7 +546,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(context.mainChat, trimmedTitle);
+				await sessionsManagementService.renameChat(session.mainChat, trimmedTitle);
 			}
 		}
 	}
