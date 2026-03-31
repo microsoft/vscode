@@ -266,13 +266,9 @@ export class IssueFormService implements IIssueFormService {
 					url = `${issueUrl}${issueUrl.indexOf('?') === -1 ? '?' : '&'}title=${encodeURIComponent(title)}&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`;
 				}
 
-				// Navigate the existing integrated browser tab if available,
-				// otherwise fall back to opening externally
-				try {
-					await this.githubUploadService.navigateTo(url);
-				} catch {
-					await this.openerService.open(URI.parse(url));
-				}
+				// Open issue preview in external browser where SSO/auth works
+				// (the integrated browser gets blocked by Microsoft Entra compliance)
+				await this.openerService.open(URI.parse(url));
 			}
 
 			this.closeOverlay();
