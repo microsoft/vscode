@@ -33,10 +33,13 @@
 	padding-right: 22px;
 }
 
+.ci-status-widget-header:focus {
+	padding-right: 22px;
+}
+
 .ci-status-widget-header:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
-	padding-right: 22px;
 }
 
 /* Chevron — right-aligned, visible on hover only */
