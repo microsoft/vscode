@@ -120,7 +120,7 @@ suite('RunSubagentTool', () => {
 				addTelemetryAssignmentFilter() { },
 			};
 
-			return testDisposables.add(new RunSubagentTool(
+			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
 				mockToolsService,
@@ -132,11 +132,17 @@ suite('RunSubagentTool', () => {
 				{} as IProductService,
 				assignmentService,
 			));
+			return tool;
+		}
+
+		async function createToolWithGPReady(opts?: { customAgents?: ICustomAgent[] }) {
+			const tool = createToolWithGP(opts);
+			await Event.toPromise(tool.onDidUpdateToolData);
+			return tool;
 		}
 
 		test('treats undefined agentName as General Purpose when experiment is enabled', async () => {
-			const tool = createToolWithGP();
-			await new Promise(resolve => setTimeout(resolve, 0));
+			const tool = await createToolWithGPReady();
 
 			const result = await tool.prepareToolInvocation(
 				{
@@ -158,8 +164,7 @@ suite('RunSubagentTool', () => {
 		});
 
 		test('treats empty string agentName as General Purpose when experiment is enabled', async () => {
-			const tool = createToolWithGP();
-			await new Promise(resolve => setTimeout(resolve, 0));
+			const tool = await createToolWithGPReady();
 
 			const result = await tool.prepareToolInvocation(
 				{
@@ -181,8 +186,7 @@ suite('RunSubagentTool', () => {
 		});
 
 		test('treats explicit General Purpose agentName as GP path', async () => {
-			const tool = createToolWithGP();
-			await new Promise(resolve => setTimeout(resolve, 0));
+			const tool = await createToolWithGPReady();
 
 			const result = await tool.prepareToolInvocation(
 				{
@@ -204,8 +208,7 @@ suite('RunSubagentTool', () => {
 		});
 
 		test('passes through unknown agentName when experiment is enabled', async () => {
-			const tool = createToolWithGP();
-			await new Promise(resolve => setTimeout(resolve, 0));
+			const tool = await createToolWithGPReady();
 
 			const result = await tool.prepareToolInvocation(
 				{
@@ -281,8 +284,8 @@ suite('RunSubagentTool', () => {
 				assignmentService,
 			));
 
-			// Wait a tick for the constructor's async experiment resolution
-			await new Promise(resolve => setTimeout(resolve, 0));
+			// Wait for the constructor's async experiment resolution via onDidUpdateToolData
+			await Event.toPromise(tool.onDidUpdateToolData);
 
 			const toolData = tool.getToolData();
 			assert.ok(toolData.inputSchema?.properties?.agentName);

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -66,7 +66,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	static readonly Id = 'runSubagent';
 
-	readonly onDidUpdateToolData: Event<void>;
+	private readonly _onDidUpdateToolData = this._register(new Emitter<void>());
+	readonly onDidUpdateToolData: Event<void> = this._onDidUpdateToolData.event;
 
 	/** Hack to port data between prepare/invoke */
 	private readonly _resolvedModels = new Map<string, { modeModelId: string | undefined; resolvedModelName: string | undefined }>();
@@ -91,11 +92,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	) {
 		super();
 
-		const configEvent = Event.filter(this.configurationService.onDidChangeConfiguration, e =>
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e =>
 			e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents)
-		);
-		const refetchEvent = Event.map(this.assignmentService.onDidRefetchAssignments, () => { });
-		this.onDidUpdateToolData = Event.any(configEvent as Event<void>, refetchEvent);
+		)((() => this._onDidUpdateToolData.fire())));
 
 		// Resolve the experiment value asynchronously and re-resolve on refetch
 		this._resolveExperiment();
@@ -104,7 +103,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	private _resolveExperiment(): void {
 		this.assignmentService.getTreatment<boolean>('chat.generalPurposeAgent').then(value => {
+			const changed = this._generalPurposeAgentEnabled !== !!value;
 			this._generalPurposeAgentEnabled = !!value;
+			if (changed) {
+				this._onDidUpdateToolData.fire();
+			}
 		});
 	}
 

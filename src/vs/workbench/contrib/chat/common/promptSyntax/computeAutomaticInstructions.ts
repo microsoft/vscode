@@ -434,7 +434,12 @@ export class ComputeAutomaticInstructions {
 			}
 		}
 		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
-			const generalPurposeAgentEnabled = !!(await this._assignmentService.getTreatment<boolean>('chat.generalPurposeAgent'));
+			let generalPurposeAgentEnabled = false;
+			try {
+				generalPurposeAgentEnabled = !!(await this._assignmentService.getTreatment<boolean>('chat.generalPurposeAgent'));
+			} catch (error) {
+				this._logService.error('[AutomaticInstructions] Failed to resolve treatment chat.generalPurposeAgent', error);
+			}
 
 			if (generalPurposeAgentEnabled) {
 				entries.push('<agents>');
