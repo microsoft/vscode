@@ -159,7 +159,7 @@
 
 .ai-customization-management-editor .content-inner {
 	height: 100%;
-	padding: 8px 12px;
+	padding: 10px;
 	box-sizing: border-box;
 }
 
@@ -552,7 +552,6 @@
 .ai-customization-list-widget .section-footer .section-footer-description {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
 	margin: 0 0 8px 0;
 }
 
@@ -960,8 +959,7 @@
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	padding: 8px 4px 12px 4px;
-	border-bottom: 1px solid var(--vscode-widget-border);
+	padding: 4px 0;
 	flex-shrink: 0;
 }
 
