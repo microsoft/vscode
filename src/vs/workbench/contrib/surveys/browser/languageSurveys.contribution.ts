@@ -158,5 +158,5 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 
 if (language === 'en') {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Restored);
+	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Eventually);
 }
