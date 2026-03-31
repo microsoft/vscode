@@ -1,9 +1,6 @@
 name: $(Date:yyyyMMdd)$(Rev:.r)
 
-trigger:
-  branches:
-    include:
-      - main
+trigger: none
 pr: none
 
 resources:
@@ -17,10 +14,6 @@ resources:
 parameters:
   - name: customNPMRegistry
     displayName: Custom NPM Registry (Terrapin)
-    type: boolean
-    default: true
-  - name: generateNotice
-    displayName: Generate Notice
     type: boolean
     default: true
   - name: publishExtension
@@ -41,12 +34,24 @@ extends:
     vscePackageArgs: '--allow-package-secrets sendgrid'
 
     buildSteps:
+      - ${{ if and(eq(parameters.publishExtension, true), not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
+        - script: |
+            echo "##vso[task.logissue type=error]publishExtension requires a release/* branch"
+            exit 1
+          displayName: Validate release branch
+
       - script: |
           set -e
           git submodule update --init extensions/copilot
         displayName: Initialize copilot submodule
 
       - template: copilot/setup-steps.yml
+      - script: |
+          set -e
+          VERSION=$(node build/azure-pipelines/common/computeCopilotChatVersion.ts)
+          echo "Computed Copilot Chat version: $VERSION"
+          echo "##vso[task.setvariable variable=COPILOT_CHAT_VERSION]$VERSION"
+        displayName: Compute Copilot Chat version
       - template: copilot/build-steps.yml
 
     uploadSourceMaps:
@@ -73,7 +78,7 @@ extends:
     ${{ if eq(parameters.customNPMRegistry, false) }}:
       customNPMRegistry: ''
 
-    generateNotice: ${{ parameters.generateNotice }}
+    generateNotice: true
 
     publishExtension: ${{ parameters.publishExtension }}
     ghReleasePublishVSIX: true
