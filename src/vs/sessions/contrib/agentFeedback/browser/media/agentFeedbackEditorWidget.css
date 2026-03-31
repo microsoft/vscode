@@ -105,6 +105,7 @@
 	justify-content: center;
 	width: 22px;
 	height: 22px;
+	min-width: 22px;
 	border-radius: var(--vscode-cornerRadius-medium);
 	cursor: pointer;
 	color: var(--vscode-foreground);
@@ -242,11 +243,11 @@
 }
 
 .agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid  color-mix(in srgb, var(--vscode-editorWarning-foreground) 50%, transparent);
+	border-left: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground) 50%, transparent);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid  color-mix(in srgb, var(--vscode-editorInfo-foreground) 50%, transparent);
+	border-left: 1px solid color-mix(in srgb, var(--vscode-editorInfo-foreground) 50%, transparent);
 }
 
 .agent-feedback-widget-suggestion-header {

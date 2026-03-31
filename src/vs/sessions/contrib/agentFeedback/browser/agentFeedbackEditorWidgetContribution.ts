@@ -286,9 +286,8 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	private _renderSuggestion(comment: ISessionEditorComment): HTMLElement {
 		const suggestionNode = $('div.agent-feedback-widget-suggestion');
-		const edits = comment.suggestion?.edits ?? [];
 
-		for (const edit of edits) {
+		for (const edit of comment.suggestion?.edits ?? []) {
 			const editNode = $('div.agent-feedback-widget-suggestion-edit');
 
 			const header = $('div.agent-feedback-widget-suggestion-header');
