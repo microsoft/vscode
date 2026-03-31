@@ -9,7 +9,8 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import type { Database } from '@vscode/sqlite3';
 
-(isWindows ? suite.skip /* flaky */ : suite)('SessionDatabase', () => {
+suite('SessionDatabase', () => {
+
 	const disposables = new DisposableStore();
 	let db: SessionDatabase | undefined;
 	let db2: SessionDatabase | undefined;
