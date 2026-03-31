@@ -66,7 +66,7 @@ suite('PolicyExport Integration Tests', () => {
 			assert.strictEqual(
 				exportedContent,
 				checkedInContent,
-				'Exported policy data should match the checked-in file. If this fails, run: ./scripts/export-policy-data.sh'
+				'Exported policy data should match the checked-in file. If this fails, run: npm run export-policy-data'
 			);
 		} finally {
 			// Clean up temp file

@@ -124,10 +124,10 @@ npm run compile-check-ts-native
 Regenerate the auto-generated policy catalog:
 
 ```bash
-./scripts/export-policy-data.sh
+npm run export-policy-data
 ```
 
-This script handles transpilation, sets up `GITHUB_TOKEN` (via `gh auth token`), and runs `--export-policy-data`. The export command reads extension configuration policies from the distro's `product.json` (via local `.build/distro/` or the GitHub API) and merges them into the output.
+This script handles transpilation, sets up `GITHUB_TOKEN` (via `gh auth token` if needed), and runs `--export-policy-data`. The export command reads extension configuration policies from the distro's `product.json` (via local `.build/distro/` or the GitHub API) and merges them into the output.
 
 This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
 
@@ -166,7 +166,7 @@ Each entry in `extensionConfigurationPolicy` must include:
 
 1. Add the entry to `extensionConfigurationPolicy` in **all three** quality `product.json` files in `vscode-distro` (`mixin/stable/`, `mixin/insider/`, `mixin/exploration/`)
 2. After the distro PR merges, update the test fixture at `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` with the new entry
-3. Regenerate `policyData.jsonc` by running `./scripts/export-policy-data.sh` (see Step 4 above)
+3. Regenerate `policyData.jsonc` by running `npm run export-policy-data` (see Step 4 above)
 
 ### Downstream consumers
 
