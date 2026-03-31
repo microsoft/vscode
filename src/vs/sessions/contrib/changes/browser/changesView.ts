@@ -1000,13 +1000,7 @@ export class ChangesViewPane extends ViewPane {
 						menuOptions: sessionResource
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
-						buttonConfigProvider: (action) => {
-							if (
-								action.id === 'chatEditing.viewAllSessionChanges' ||
-								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
-							) {
-								return { showIcon: true, showLabel: false, isSecondary: true };
-							}
+						buttonConfigProvider: (action, index) => {
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
 								const customLabel = outgoingChanges > 0
 									? `${action.label} ${outgoingChanges}↑`
@@ -1023,6 +1017,12 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (
+								action.id === 'chatEditing.viewAllSessionChanges' ||
+								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
+							) {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
+							if (
 								action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR' ||
 								action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge' ||
 								action.id === 'github.copilot.sessions.initializeRepository' ||
@@ -1032,7 +1032,10 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 
-							return undefined;
+							// Unknown actions (e.g. extension-contributed):
+							// first action is primary, rest are icon-only secondary
+							const isSecondary = index > 0;
+							return { showIcon: true, showLabel: !isSecondary, isSecondary };
 						}
 					}
 				));
