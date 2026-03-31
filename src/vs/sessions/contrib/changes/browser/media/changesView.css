@@ -290,6 +290,7 @@
 .changes-file-list .working-set-line-counts {
 	margin: 0 6px;
 	display: inline-flex;
+	align-items: center;
 	gap: 4px;
 	font-size: 11px;
 }
@@ -310,9 +311,10 @@
 .changes-file-list .changes-agent-feedback-badge {
 	display: inline-flex;
 	align-items: center;
+	vertical-align: middle;
 	gap: 4px;
 	font-size: 11px;
-	margin-right: 6px;
+	/* margin: 0 2px; */
 	color: var(--vscode-descriptionForeground);
 }
 
