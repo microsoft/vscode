@@ -121,6 +121,7 @@ interface IModalEditorSidebarController {
 
 	getWidth(): number;
 	hasCustomWidth(): boolean;
+	clampWidth(modalWidth: number): void;
 
 	layout(height: number): void;
 	updateContent(content: IModalEditorSidebar): void;
@@ -548,6 +549,7 @@ export class ModalEditorPart {
 		};
 
 		// Layout the modal editor part
+		let isFirstLayout = true;
 		const layoutModal = () => {
 			if (isResizing) {
 				return; // skip layout during interactive resize
@@ -575,6 +577,12 @@ export class ModalEditorPart {
 			}
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
+
+			// On first layout, clamp sidebar width if it would leave the editor too narrow
+			if (isFirstLayout) {
+				isFirstLayout = false;
+				sidebarResult?.clampWidth(width);
+			}
 
 			// Update resizable element size and constraints
 			resizableElement.maxSize = new Dimension(containerDimension.width, availableHeight);
@@ -673,6 +681,13 @@ export class ModalEditorPart {
 			onDidResize: onDidResizeEmitter.event,
 			getWidth: () => sidebarWidth,
 			hasCustomWidth: () => customWidth,
+			clampWidth: (modalWidth: number) => {
+				if (sidebarWidth + 300 /* good reasonable editor min-width */ > modalWidth) {
+					sidebarWidth = MODAL_SIDEBAR_DEFAULT_WIDTH;
+					customWidth = false;
+					sidebarContainer.style.width = `${sidebarWidth}px`;
+				}
+			},
 			layout: (height: number) => {
 				onDidLayoutEmitter.fire({ height, width: sidebarWidth });
 				sash.layout();
