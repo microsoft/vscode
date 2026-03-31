@@ -233,6 +233,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _connectTo(address: string, connectionToken?: string): void {
+		// Dispose any existing entry for this address before creating a new one
+		// to avoid leaking disposables on reconnect.
+		const existingEntry = this._entries.get(address);
+		if (existingEntry) {
+			this._entries.delete(address);
+			existingEntry.store.dispose();
+		}
+
 		const store = new DisposableStore();
 		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, connectionToken));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.Connecting };

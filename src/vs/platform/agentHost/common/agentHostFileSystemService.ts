@@ -4,25 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILabelService } from '../../label/common/label.js';
-import { AgentHostFileSystemProvider } from './agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider, type IRemoteFilesystemConnection } from './agentHostFileSystemProvider.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME } from './agentHostUri.js';
-import { IBrowseDirectoryResult, IFetchContentResult } from './state/protocol/commands.js';
 
-/**
- * Minimal interface for browsing and fetching files from a remote endpoint.
- *
- * Both {@link IAgentConnection} (client→server) and client-exposed
- * filesystems (server→client) satisfy this contract.
- */
-export interface IRemoteFilesystemConnection {
-	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
-	fetchContent(uri: URI): Promise<IFetchContentResult>;
-}
+export type { IRemoteFilesystemConnection } from './agentHostFileSystemProvider.js';
 
 export const IAgentHostFileSystemService = createDecorator<IAgentHostFileSystemService>('agentHostFileSystemService');
 

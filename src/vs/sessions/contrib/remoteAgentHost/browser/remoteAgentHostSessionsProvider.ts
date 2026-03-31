@@ -119,7 +119,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly sessionTypes: readonly ISessionType[];
 	readonly remoteAddress: string;
-	outputChannelId: string | undefined;
+	private _outputChannelId: string | undefined;
+	get outputChannelId(): string | undefined { return this._outputChannelId; }
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.Disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -176,6 +177,13 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	 */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this._connectionStatus.set(status, undefined);
+	}
+
+	/**
+	 * Set the output channel ID for this provider's IPC log.
+	 */
+	setOutputChannelId(id: string): void {
+		this._outputChannelId = id;
 	}
 
 	// -- Connection Management --

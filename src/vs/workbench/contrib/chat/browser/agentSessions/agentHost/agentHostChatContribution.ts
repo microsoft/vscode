@@ -7,13 +7,11 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_LABEL_FORMATTER } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -54,7 +52,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService
 	) {
@@ -71,10 +68,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			'agentHostIpc.local',
 			'Agent Host (Local)'));
 
-		_agentHostFileSystemService.registerAuthority('local', this._agentHostService);
-
-		// Display agent-host URIs with the original file path
-		this._register(this._labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
+		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
 		// Shared client state for protocol reconciliation
 		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService));

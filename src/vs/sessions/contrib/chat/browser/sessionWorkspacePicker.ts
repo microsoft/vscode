@@ -443,13 +443,13 @@ export class WorkspacePicker extends Disposable {
 		const md = new MarkdownString(undefined, { supportThemeIcons: true });
 		switch (status) {
 			case RemoteAgentHostConnectionStatus.Connected:
-				md.appendMarkdown('Online');
+				md.appendText(localize('workspacePicker.statusOnline', "Online"));
 				break;
 			case RemoteAgentHostConnectionStatus.Connecting:
-				md.appendMarkdown('Connecting');
+				md.appendText(localize('workspacePicker.statusConnecting', "Connecting"));
 				break;
 			case RemoteAgentHostConnectionStatus.Disconnected:
-				md.appendMarkdown('Offline');
+				md.appendText(localize('workspacePicker.statusOffline', "Offline"));
 				break;
 		}
 		return md;
@@ -459,14 +459,19 @@ export class WorkspacePicker extends Disposable {
 	 * Returns detailed hover text for a remote host's connection status.
 	 */
 	private _getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
-		const addressText = address ? `\n\nAddress: ${address}` : '';
 		switch (status) {
 			case RemoteAgentHostConnectionStatus.Connected:
-				return localize('workspacePicker.hoverConnected', "Remote agent host is connected and ready.{0}", addressText);
+				return address
+					? localize('workspacePicker.hoverConnectedAddr', "Remote agent host is connected and ready.\n\nAddress: {0}", address)
+					: localize('workspacePicker.hoverConnected', "Remote agent host is connected and ready.");
 			case RemoteAgentHostConnectionStatus.Connecting:
-				return localize('workspacePicker.hoverConnecting', "Attempting to connect to remote agent host...{0}", addressText);
+				return address
+					? localize('workspacePicker.hoverConnectingAddr', "Attempting to connect to remote agent host...\n\nAddress: {0}", address)
+					: localize('workspacePicker.hoverConnecting', "Attempting to connect to remote agent host...");
 			case RemoteAgentHostConnectionStatus.Disconnected:
-				return localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected. Click the gear icon for options.{0}", addressText);
+				return address
+					? localize('workspacePicker.hoverDisconnectedAddr', "Remote agent host is disconnected. Click the gear icon for options.\n\nAddress: {0}", address)
+					: localize('workspacePicker.hoverDisconnected', "Remote agent host is disconnected. Click the gear icon for options.");
 		}
 	}
 
@@ -476,7 +481,8 @@ export class WorkspacePicker extends Disposable {
 	 * preventing focus conflicts that cause the quickpick to flash and disappear.
 	 */
 	private _showRemoteHostOptionsDelayed(provider: ISessionsProvider): void {
-		setTimeout(() => this._showRemoteHostOptions(provider), 1);
+		const timeout = setTimeout(() => this._showRemoteHostOptions(provider), 1);
+		this._renderDisposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
 	private async _showRemoteHostOptions(provider: ISessionsProvider): Promise<void> {
