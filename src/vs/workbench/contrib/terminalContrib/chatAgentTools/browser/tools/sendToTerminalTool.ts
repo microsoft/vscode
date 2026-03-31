@@ -133,7 +133,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 					analyzerResult.isAutoApproved === true &&
 					analyzerResult.isAutoApproveAllowed
 				);
-				isFinalAutoApproved = wouldBeAutoApproved || !!analyzerResult.forceAutoApproval;
+				isFinalAutoApproved = analyzerResult.isAutoApproveAllowed && (wouldBeAutoApproved || !!analyzerResult.forceAutoApproval);
 			}
 		}
 
