@@ -124,10 +124,10 @@ npm run compile-check-ts-native
 Regenerate the auto-generated policy catalog:
 
 ```bash
-npm run transpile-client && ./scripts/code.sh --export-policy-data
+./scripts/export-policy-data.sh
 ```
 
-This single command exports all policies from the configuration registry **and** merges extension configuration policies from `build/lib/policies/extensionPolicies.json`.
+This script handles transpilation, sets up `GITHUB_TOKEN` (via `gh auth token`), and runs `--export-policy-data`. The export command reads extension configuration policies from the distro's `product.json` (via local `.build/distro/` or the GitHub API) and merges them into the output.
 
 This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
 
@@ -140,7 +140,7 @@ Extension authors cannot add `policy:` fields directly—their settings are defi
 
 1. **Source of truth**: The `extensionConfigurationPolicy` map lives in `vscode-distro` under `mixin/{quality}/product.json` (stable, insider, exploration).
 2. **Runtime**: When VS Code starts with a distro-mixed `product.json`, `configurationExtensionPoint.ts` reads `extensionConfigurationPolicy` and attaches matching `policy` objects to extension-contributed configuration properties.
-3. **Export/build**: The `--export-policy-data` command reads `build/lib/policies/extensionPolicies.json` and merges those entries into the exported output. This file is a checked-in copy of the distro's extension policy data.
+3. **Export/build**: The `--export-policy-data` command fetches the distro's `product.json` at the commit pinned in `package.json` and merges extension policies into the output. Use `scripts/export-policy-data.sh` which sets up authentication automatically.
 
 ### Distro format
 
@@ -165,8 +165,8 @@ Each entry in `extensionConfigurationPolicy` must include:
 ### Adding a new extension policy
 
 1. Add the entry to `extensionConfigurationPolicy` in **all three** quality `product.json` files in `vscode-distro` (`mixin/stable/`, `mixin/insider/`, `mixin/exploration/`)
-2. Copy the new entry into `build/lib/policies/extensionPolicies.json` in this repo
-3. Regenerate `policyData.jsonc` by running `./scripts/code.sh --export-policy-data` (see Step 4 above)
+2. After the distro PR merges, update the test fixture at `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` with the new entry
+3. Regenerate `policyData.jsonc` by running `./scripts/export-policy-data.sh` (see Step 4 above)
 
 ### Downstream consumers
 
