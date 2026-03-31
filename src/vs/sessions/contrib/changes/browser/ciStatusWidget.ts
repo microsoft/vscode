@@ -230,6 +230,7 @@ export class CIStatusWidget extends Disposable {
 		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
 		this._headerNode.setAttribute('role', 'button');
+		this._headerNode.setAttribute('aria-label', localize('ci.toggleChecks', "Toggle PR Checks"));
 		this._headerNode.setAttribute('aria-expanded', 'true');
 		this._headerNode.tabIndex = 0;
 
