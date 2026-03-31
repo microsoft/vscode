@@ -612,7 +612,7 @@ registerAction2(class extends Action2 {
 				return;
 			}
 
-			themeService.setColorTheme(theme, 'auto');
+			themeService.setColorTheme(theme, 'auto').catch(onUnexpectedError);
 		}));
 
 		const result = new Promise<void>(resolve => {
