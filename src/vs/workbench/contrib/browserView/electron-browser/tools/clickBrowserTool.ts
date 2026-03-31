@@ -27,13 +27,17 @@ export const ClickBrowserToolData: IToolData = {
 				type: 'string',
 				description: `The browser page ID, acquired from context or the open tool.`
 			},
-			selector: {
-				type: 'string',
-				description: 'Playwright selector of the element to click.'
-			},
 			ref: {
 				type: 'string',
-				description: 'Element reference to click. One of "selector" or "ref" must be provided.'
+				description: 'Element reference to click.'
+			},
+			selector: {
+				type: 'string',
+				description: 'Playwright selector of the element to click when "ref" is not available.'
+			},
+			element: {
+				type: 'string',
+				description: 'Human-readable description of the element to click (e.g., "submit button", "search icon").'
 			},
 			dblClick: {
 				type: 'boolean',
@@ -45,14 +49,19 @@ export const ClickBrowserToolData: IToolData = {
 				description: 'Mouse button to click with. Default is "left".'
 			},
 		},
-		required: ['pageId'],
+		required: ['pageId', 'element'],
+		oneOf: [
+			{ required: ['ref'] },
+			{ required: ['selector'] },
+		]
 	},
 };
 
 interface IClickBrowserToolParams {
 	pageId: string;
-	selector?: string;
 	ref?: string;
+	selector?: string;
+	element?: string;
 	dblClick?: boolean;
 	button?: 'left' | 'right' | 'middle';
 }
@@ -63,10 +72,12 @@ export class ClickBrowserTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const link = createBrowserPageLink(_context.parameters.pageId);
+		const params = _context.parameters as IClickBrowserToolParams;
+		const link = createBrowserPageLink(params.pageId);
+		const element = params.element ?? 'element';
 		return {
-			invocationMessage: new MarkdownString(localize('browser.click.invocation', "Clicking element in {0}", link)),
-			pastTenseMessage: new MarkdownString(localize('browser.click.past', "Clicked element in {0}", link)),
+			invocationMessage: new MarkdownString(localize('browser.click.invocation', "Clicking {0} in {1}", element, link)),
+			pastTenseMessage: new MarkdownString(localize('browser.click.past', "Clicked {0} in {1}", element, link)),
 		};
 	}
 
@@ -83,7 +94,7 @@ export class ClickBrowserTool implements IToolImpl {
 		}
 
 		if (!selector) {
-			return errorResult('Either a "selector" or "ref" parameter is required.');
+			return errorResult('Either a "ref" or "selector" parameter is required.');
 		}
 
 		const button = params.button ?? 'left';

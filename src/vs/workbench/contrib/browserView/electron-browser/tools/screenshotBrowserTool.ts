@@ -5,6 +5,7 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
@@ -28,13 +29,17 @@ export const ScreenshotBrowserToolData: IToolData = {
 				type: 'string',
 				description: `The browser page ID to capture, acquired from context or the open tool.`
 			},
-			selector: {
-				type: 'string',
-				description: 'Playwright selector of an element to capture. If omitted, captures the whole viewport.'
-			},
 			ref: {
 				type: 'string',
 				description: 'Element reference to capture. If omitted, captures the whole viewport.'
+			},
+			selector: {
+				type: 'string',
+				description: 'Playwright selector of an element to capture when "ref" is not available. If omitted, captures the whole viewport.'
+			},
+			element: {
+				type: 'string',
+				description: 'Human-readable description of the element to capture (e.g., "chart diagram", "product image").'
 			},
 			scrollIntoViewIfNeeded: {
 				type: 'boolean',
@@ -47,8 +52,9 @@ export const ScreenshotBrowserToolData: IToolData = {
 
 interface IScreenshotBrowserToolParams {
 	pageId: string;
-	selector?: string;
 	ref?: string;
+	selector?: string;
+	element?: string;
 	scrollIntoViewIfNeeded?: boolean;
 }
 
@@ -59,9 +65,17 @@ export class ScreenshotBrowserTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const params = _context.parameters as IScreenshotBrowserToolParams;
+		const element = params.element;
+		if (element) {
+			return {
+				invocationMessage: new MarkdownString(localize('browser.screenshot.invocation.element', "Capturing screenshot of {0}", element)),
+				pastTenseMessage: new MarkdownString(localize('browser.screenshot.past.element', "Captured screenshot of {0}", element)),
+			};
+		}
 		return {
-			invocationMessage: localize('browser.screenshot.invocation', "Capturing browser screenshot"),
-			pastTenseMessage: localize('browser.screenshot.past', "Captured browser screenshot"),
+			invocationMessage: localize('browser.screenshot.invocation', "Capturing screenshot"),
+			pastTenseMessage: localize('browser.screenshot.past', "Captured screenshot"),
 		};
 	}
 
