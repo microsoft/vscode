@@ -57,6 +57,7 @@ export type IClientSessionAction =
 	| ISessionToolCallCompleteAction
 	| ISessionToolCallResultConfirmedAction
 	| ISessionTurnCancelledAction
+	| ISessionTitleChangedAction
 	| ISessionModelChangedAction
 	| ISessionActiveClientChangedAction
 	| ISessionActiveClientToolsChangedAction
@@ -77,7 +78,6 @@ export type IServerSessionAction =
 	| ISessionToolCallReadyAction
 	| ISessionTurnCompleteAction
 	| ISessionErrorAction
-	| ISessionTitleChangedAction
 	| ISessionUsageAction
 	| ISessionReasoningAction
 	| ISessionServerToolsChangedAction
@@ -107,7 +107,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
 	[ActionType.SessionTurnComplete]: false,
 	[ActionType.SessionTurnCancelled]: true,
 	[ActionType.SessionError]: false,
-	[ActionType.SessionTitleChanged]: false,
+	[ActionType.SessionTitleChanged]: true,
 	[ActionType.SessionUsage]: false,
 	[ActionType.SessionReasoning]: false,
 	[ActionType.SessionModelChanged]: true,
