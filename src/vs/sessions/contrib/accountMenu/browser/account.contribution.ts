@@ -220,40 +220,20 @@ export class AccountWidget extends ActionViewItem {
 			return;
 		}
 
-		const sentiment = this.chatEntitlementService.sentiment;
-		if (sentiment.hidden) {
-			this.copilotStatusContainer.classList.add('hidden');
-			return;
-		}
-
 		this.copilotStatusContainer.classList.remove('hidden');
 
 		let icon = Codicon.copilot.id;
-		let tooltip = localize('copilotStatus', "Copilot Status");
-
 		const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 		const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
-		const runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
-		if (sentiment.disabled || sentiment.untrusted) {
-			icon = 'copilot-unavailable';
-			tooltip = localize('copilotDisabled', "Copilot Disabled");
-		} else if (runningSessionsCount > 0) {
-			icon = 'copilot-in-progress';
-			tooltip = runningSessionsCount > 1
-				? localize('sessionsInProgress', "{0} agent sessions in progress", runningSessionsCount)
-				: localize('sessionInProgress', "1 agent session in progress");
-		} else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 			icon = 'copilot-not-connected';
-			tooltip = localize('copilotSignedOut', "Copilot: Signed Out");
 		} else if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (chatQuotaExceeded || completionsQuotaExceeded)) {
 			icon = 'copilot-warning';
-			tooltip = localize('copilotQuotaReached', "Copilot: Quota Reached");
 		}
 
 		this.copilotStatusButton.label = `$(${icon})`;
-		this.copilotStatusButton.element.title = tooltip;
-		this.copilotStatusButton.element.setAttribute('aria-label', tooltip);
+		this.copilotStatusButton.element.setAttribute('aria-label', localize('copilotStatus', "Copilot status"));
 
 		// Hide when update button is visible
 		this.updateCopilotStatusVisibility();
