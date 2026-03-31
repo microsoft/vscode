@@ -112,7 +112,7 @@ async function main(): Promise<void> {
 	let added = 0;
 	for (const [key, entry] of Object.entries(extensionPolicies)) {
 		if (existingKeys.has(key)) {
-			console.log(`  Skipping '${key}': already present in policyData.jsonc`);
+			console.log(`  Skipping '${key}': already present in ${targetPath}`);
 			continue;
 		}
 

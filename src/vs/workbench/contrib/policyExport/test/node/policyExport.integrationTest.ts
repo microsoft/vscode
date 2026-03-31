@@ -54,14 +54,13 @@ suite('PolicyExport Integration Tests', () => {
 			});
 
 			// Merge extension configuration policies from the distro product.json.
-			// This step requires either .build/distro or GITHUB_TOKEN. In OSS CI
-			// neither is available, so we skip it gracefully — the comparison will
-			// still validate the core policy export. If the checked-in file contains
-			// extension policies that the merge step would have added, the comparison
-			// will fail on its own.
+			// This step requires .build/distro to be available locally. We never
+			// use GITHUB_TOKEN here — tests must not depend on network secrets.
+			// If .build/distro is not available (e.g. OSS CI), skip gracefully.
 			try {
 				await exec(`node build/lib/policies/mergeExtensionPolicies.ts "${tempFile}"`, {
 					cwd: rootPath,
+					env: { ...process.env, GITHUB_TOKEN: '' },
 				});
 			} catch {
 				console.log('Skipping extension policy merge (distro not available)');
