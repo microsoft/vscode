@@ -334,23 +334,15 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 				session.status.read(reader);
 				session.isRead.read(reader);
 			}
+			this.updateClass();
 			this._updateBadge();
 		}));
 	}
 
 	protected override getClass(): string | undefined {
-		// Show layout-sidebar-left when sidebar is visible (checked),
-		// layout-sidebar-left-off when sidebar is hidden (unchecked).
-		return this.action.checked
+		return this.layoutService.isVisible(Parts.SIDEBAR_PART)
 			? ThemeIcon.asClassName(Codicon.layoutSidebarLeft)
 			: ThemeIcon.asClassName(Codicon.layoutSidebarLeftOff);
-	}
-
-	protected override updateChecked(): void {
-		super.updateChecked();
-		// Re-apply the icon class whenever the checked state changes so
-		// the open/closed codicon stays in sync with sidebar visibility.
-		this.updateClass();
 	}
 
 	private _updateBadge(): void {
