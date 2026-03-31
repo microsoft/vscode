@@ -644,8 +644,8 @@ export class ChangesViewPane extends ViewPane {
 		const ciWidget = this.ciStatusWidget;
 		const ciPane: IView = {
 			element: ciElement,
-			minimumSize: ciMinHeight,
-			maximumSize: Number.POSITIVE_INFINITY,
+			get minimumSize() { return ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : ciMinHeight; },
+			get maximumSize() { return ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Number.POSITIVE_INFINITY; },
 			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
 				ciElement.style.height = `${height}px`;
@@ -667,6 +667,25 @@ export class ChangesViewPane extends ViewPane {
 
 		// Initially hide CI pane until checks arrive
 		this.splitView.setViewVisible(1, false);
+
+		let savedCIPaneHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT;
+		this._register(this.ciStatusWidget.onDidToggleCollapsed(collapsed => {
+			if (!this.splitView || !this.ciStatusWidget) {
+				return;
+			}
+			if (collapsed) {
+				// Save current size before collapsing
+				const currentSize = this.splitView.getViewSize(1);
+				if (currentSize > CIStatusWidget.HEADER_HEIGHT) {
+					savedCIPaneHeight = currentSize;
+				}
+				this.splitView.resizeView(1, CIStatusWidget.HEADER_HEIGHT);
+			} else {
+				// Restore saved size on expand
+				this.splitView.resizeView(1, savedCIPaneHeight);
+			}
+			this.layoutSplitView();
+		}));
 
 		this._register(this.ciStatusWidget.onDidChangeHeight(() => {
 			if (!this.splitView || !this.ciStatusWidget) {
@@ -1001,12 +1020,6 @@ export class ChangesViewPane extends ViewPane {
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
-							if (
-								action.id === 'chatEditing.viewAllSessionChanges' ||
-								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
-							) {
-								return { showIcon: true, showLabel: false, isSecondary: true };
-							}
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
 								const customLabel = outgoingChanges > 0
 									? `${action.label} ${outgoingChanges}↑`
@@ -1023,8 +1036,19 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (
+								action.id === 'chatEditing.viewAllSessionChanges' ||
+								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
+							) {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
+							if (action.id === 'agentFeedbackEditor.action.submitActiveSession') {
+								return { showIcon: false, showLabel: true, isSecondary: false };
+							}
+							if (
 								action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR' ||
 								action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge' ||
+								action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
+								action.id === 'pr.checkoutFromChat' ||
 								action.id === 'github.copilot.sessions.initializeRepository' ||
 								action.id === 'github.copilot.sessions.commitChanges' ||
 								action.id === 'agentSession.markAsDone'
@@ -1032,6 +1056,16 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 
+							// Unknown actions (e.g. extension-contributed): only hide the label when an icon is present.
+							if (action instanceof MenuItemAction) {
+								const icon = action.item.icon;
+								if (icon) {
+									// Icon-only button (no forced secondary state so primary/secondary can be inferred).
+									return { showIcon: true, showLabel: false };
+								}
+							}
+
+							// Fall back to default button behavior for actions without an icon.
 							return undefined;
 						}
 					}
