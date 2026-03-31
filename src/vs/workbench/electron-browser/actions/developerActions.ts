@@ -17,6 +17,7 @@ import { INativeWorkbenchEnvironmentService } from '../../services/environment/e
 import { URI } from '../../../base/common/uri.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../services/statusbar/browser/statusbar.js';
 
 export class ToggleDevToolsAction extends Action2 {
@@ -201,9 +202,20 @@ export class StopTracing extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
+		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
+		const dialogService = accessor.get(IDialogService);
 		const progressService = accessor.get(IProgressService);
 
-		if (!activeTracingEntry) {
+		if (!activeTracingEntry && !environmentService.args.trace) {
+			const { confirmed } = await dialogService.confirm({
+				message: localize('stopTracing.message', "No tracing session is in progress. Use 'Developer: Start Tracing' or launch with a '--trace' argument to begin tracing."),
+				primaryButton: localize({ key: 'stopTracing.button', comment: ['&& denotes a mnemonic'] }, "&&Relaunch and Enable Tracing"),
+			});
+
+			if (confirmed) {
+				return nativeHostService.relaunch({ addArgs: ['--trace'] });
+			}
+
 			return;
 		}
 
