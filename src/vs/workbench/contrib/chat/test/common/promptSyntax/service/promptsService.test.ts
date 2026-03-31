@@ -3930,7 +3930,7 @@ suite('PromptsService', () => {
 			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				hooks: [{ command: 'echo from-plugin' }],
 				uri: pluginHookUri,
 			}]);
 
