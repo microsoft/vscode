@@ -153,7 +153,10 @@ suite('RunInTerminalTool', () => {
 		terminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
-			wrapCommand: (command: string, requestUnsandboxedExecution?: boolean) => requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
+			wrapCommand: (command: string, requestUnsandboxedExecution?: boolean) => ({
+				command: requestUnsandboxedExecution ? `unsandboxed:${command}` : `sandbox:${command}`,
+				isSandboxWrapped: !requestUnsandboxedExecution,
+			}),
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			checkForSandboxingPrereqs: async () => sandboxPrereqResult,
 			getTempDir: () => undefined,
@@ -363,7 +366,10 @@ suite('RunInTerminalTool', () => {
 				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
 				failedCheck: undefined,
 			};
-			terminalSandboxService.wrapCommand = (command: string) => `sandbox-runtime ${command}`;
+			terminalSandboxService.wrapCommand = (command: string) => ({
+				command: `sandbox-runtime ${command}`,
+				isSandboxWrapped: true,
+			});
 
 			const preparedInvocation = await executeToolTest({ command: 'echo hello' });
 
@@ -613,6 +619,33 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('sandbox bypass requests', () => {
+		test('should mention denied domains when sandbox denies network access explicitly', async () => {
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: undefined,
+			};
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			terminalSandboxService.wrapCommand = (command: string) => ({
+				command: `unsandboxed:${command}`,
+				isSandboxWrapped: false,
+				requiresUnsandboxConfirmation: true,
+				blockedDomains: ['evil.com'],
+				deniedDomains: ['evil.com'],
+			});
+
+			const result = await executeToolTest({ command: 'curl https://evil.com' });
+
+			assertConfirmationRequired(result, 'Run `bash` command outside the [sandbox](https://aka.ms/vscode-sandboxing) to access `evil.com`?');
+			const confirmationMessage = result?.confirmationMessages?.message;
+			ok(confirmationMessage && typeof confirmationMessage !== 'string');
+			if (!confirmationMessage || typeof confirmationMessage === 'string') {
+				throw new Error('Expected markdown confirmation message');
+			}
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandboxNetwork.deniedDomains.'));
+		});
+
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {
 			sandboxEnabled = true;
 			sandboxPrereqResult = {
@@ -2025,7 +2058,10 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 		const terminalSandboxService: ITerminalSandboxService = {
 			_serviceBrand: undefined,
 			isEnabled: async () => sandboxEnabled,
-			wrapCommand: (command: string) => `sandbox:${command}`,
+			wrapCommand: (command: string) => ({
+				command: `sandbox:${command}`,
+				isSandboxWrapped: true,
+			}),
 			getSandboxConfigPath: async () => sandboxEnabled ? '/tmp/sandbox.json' : undefined,
 			checkForSandboxingPrereqs: async () => ({ enabled: sandboxEnabled, sandboxConfigPath: sandboxEnabled ? '/tmp/sandbox.json' : undefined, failedCheck: undefined }),
 			getTempDir: () => undefined,

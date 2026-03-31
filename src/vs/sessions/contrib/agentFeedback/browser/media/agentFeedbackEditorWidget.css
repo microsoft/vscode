@@ -35,13 +35,14 @@
 /* Arrow pointer pointing left toward the code */
 .agent-feedback-widget-arrow {
 	position: absolute;
-	left: -8px;
-	top: 9px;
+	left: -6px;
+	top: 11px;
 	width: 0;
 	height: 0;
-	border-top: 8px solid transparent;
-	border-bottom: 8px solid transparent;
-	border-right: 8px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-top: 6px solid transparent;
+	border-bottom: 6px solid transparent;
+	border-right: 6px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	display: none;
 }
 
 .agent-feedback-widget.collapsed .agent-feedback-widget-arrow {
@@ -52,19 +53,19 @@
 	content: '';
 	position: absolute;
 	left: 2px;
-	top: -7px;
+	top: -5px;
 	width: 0;
 	height: 0;
-	border-top: 7px solid transparent;
-	border-bottom: 7px solid transparent;
-	border-right: 7px solid var(--vscode-editorWidget-background);
+	border-top: 5px solid transparent;
+	border-bottom: 5px solid transparent;
+	border-right: 5px solid var(--vscode-editorWidget-background);
 }
 
 /* Header */
 .agent-feedback-widget-header {
 	display: flex;
 	align-items: center;
-	padding: 8px 10px;
+	padding: 4px 4px 4px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
 	border-radius: 8px 8px 0 0;
 	overflow: hidden;
@@ -86,6 +87,9 @@
 	font-weight: 500;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
 }
 
 /* Spacer to push buttons to the right */
@@ -98,9 +102,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 18px;
-	height: 18px;
-	border-radius: 4px;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	cursor: pointer;
 	color: var(--vscode-foreground);
 	opacity: 0.7;
@@ -130,7 +134,7 @@
 .agent-feedback-widget-item {
 	display: flex;
 	flex-direction: column;
-	padding: 8px 10px;
+	padding: 4px 4px 8px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
 	cursor: pointer;
 	position: relative;
@@ -160,7 +164,7 @@
 
 .agent-feedback-widget-item-header {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	justify-content: space-between;
 	gap: 8px;
 }
@@ -289,7 +293,7 @@
 
 /* Inline edit textarea */
 .agent-feedback-widget-text.editing {
-	padding: 0;
+	padding: 0 4px 0 0;
 }
 
 .agent-feedback-widget-edit-textarea {
@@ -300,6 +304,7 @@
 	border-radius: 4px;
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
+	font: inherit;
 	font-size: 12px;
 	line-height: 1.4;
 	resize: none;

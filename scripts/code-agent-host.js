@@ -12,7 +12,7 @@ const minimist = require('minimist');
 async function main() {
 	const args = minimist(process.argv.slice(2), {
 		boolean: ['help', 'enable-mock-agent', 'quiet', 'without-connection-token'],
-		string: ['port', 'log', 'connection-token', 'connection-token-file'],
+		string: ['port', 'host', 'log', 'connection-token', 'connection-token-file'],
 	});
 
 	if (args.help) {
@@ -21,6 +21,7 @@ async function main() {
 			'\n' +
 			'Options:\n' +
 			'  --port <number>                Port to listen on (default: 8081, or VSCODE_AGENT_HOST_PORT env)\n' +
+			'  --host <host>                  Host/IP to bind to (default: 127.0.0.1, use 0.0.0.0 for all interfaces)\n' +
 			'  --connection-token <token>      A secret that must be included with all requests\n' +
 			'  --connection-token-file <path>  Path to a file containing the connection token\n' +
 			'  --without-connection-token      Run without a connection token\n' +
@@ -36,6 +37,9 @@ async function main() {
 
 	/** @type {string[]} */
 	const serverArgs = ['--port', String(port)];
+	if (args.host) {
+		serverArgs.push('--host', String(args.host));
+	}
 	if (args['enable-mock-agent']) {
 		serverArgs.push('--enable-mock-agent');
 	}
@@ -55,12 +59,15 @@ async function main() {
 		serverArgs.push('--without-connection-token');
 	}
 
-	const addr = await startServer(serverArgs);
-	console.log(`Agent Host server listening on ${addr}`);
+	await startServer(serverArgs);
 }
 
+/**
+ * @param {string[]} programArgs
+ * @returns {Promise<void>}
+ */
 function startServer(programArgs) {
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve) => {
 		const env = { ...process.env };
 		const entryPoint = path.join(
 			__dirname,
@@ -85,7 +92,7 @@ function startServer(programArgs) {
 			process.stdout.write(text);
 			const m = text.match(/READY:(\d+)/);
 			if (m) {
-				resolve(`ws://127.0.0.1:${m[1]}`);
+				resolve();
 			}
 		});
 

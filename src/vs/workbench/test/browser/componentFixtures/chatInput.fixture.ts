@@ -51,6 +51,7 @@ import { IUpdateService, StateType } from '../../../../platform/update/common/up
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
 import { INotebookDocumentService } from '../../../services/notebook/common/notebookDocumentService.js';
+import { ISCMService } from '../../../contrib/scm/common/scm.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
 
 import '../../../contrib/chat/browser/widget/media/chat.css';
@@ -133,6 +134,12 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 			reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
 			reg.defineInstance(IListService, new ListService());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
+			reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {
+				override readonly onDidAddRepository = Event.None;
+				override readonly onDidRemoveRepository = Event.None;
+				override readonly repositories = [];
+				override readonly repositoryCount = 0;
+			}());
 			reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { override show() { } override hide() { } override get isVisible() { return false; } }());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());

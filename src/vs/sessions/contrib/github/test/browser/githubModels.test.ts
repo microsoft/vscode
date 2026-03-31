@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
-import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
+import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryModel.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
@@ -228,6 +228,33 @@ suite('GitHubPullRequestCIModel', () => {
 		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 'abc', mockFetcher as unknown as GitHubPRCIFetcher, logService));
 		const result = await model.getCheckRunAnnotations(1);
 		assert.strictEqual(result, 'mock annotations');
+	});
+});
+
+suite('parseWorkflowRunId', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('extracts run ID from GitHub Actions URL', () => {
+		assert.strictEqual(
+			parseWorkflowRunId('https://github.com/microsoft/vscode/actions/runs/12345/job/67890'),
+			12345,
+		);
+	});
+
+	test('extracts run ID from URL without job segment', () => {
+		assert.strictEqual(
+			parseWorkflowRunId('https://github.com/owner/repo/actions/runs/99999'),
+			99999,
+		);
+	});
+
+	test('returns undefined for non-Actions URL', () => {
+		assert.strictEqual(parseWorkflowRunId('https://example.com/check/1'), undefined);
+	});
+
+	test('returns undefined for undefined input', () => {
+		assert.strictEqual(parseWorkflowRunId(undefined), undefined);
 	});
 });
 

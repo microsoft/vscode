@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { migrateThemeSettingsId } from '../../common/workbenchThemeService.js';
+import { migrateThemeSettingsId, ThemeSettingDefaults } from '../../common/workbenchThemeService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ThemeConfiguration } from '../../common/themeConfiguration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -28,15 +28,15 @@ suite('WorkbenchThemeService', () => {
 
 		test('migrates Experimental theme IDs to VS Code themes', () => {
 			assert.deepStrictEqual(
-				['Experimental Dark', 'Experimental Light'].map(migrateThemeSettingsId),
-				['VS Code Dark', 'VS Code Light']
+				['Experimental Dark', 'Experimental Light', 'VS Code Dark', 'VS Code Light'].map(migrateThemeSettingsId),
+				[ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT, ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT]
 			);
 		});
 
 		test('returns unknown IDs unchanged', () => {
 			assert.deepStrictEqual(
-				['Dark Modern', 'VS Code Dark', 'Some Custom Theme', ''].map(migrateThemeSettingsId),
-				['Dark Modern', 'VS Code Dark', 'Some Custom Theme', '']
+				['Dark Modern', 'Dark 2026', 'Some Custom Theme', ''].map(migrateThemeSettingsId),
+				['Dark Modern', 'Dark 2026', 'Some Custom Theme', '']
 			);
 		});
 	});

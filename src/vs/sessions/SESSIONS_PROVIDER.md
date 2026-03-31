@@ -65,7 +65,7 @@ The common session interface exposed by all providers. It is a self-contained fa
 | `loading` | `IObservable<boolean>` | Whether the session is initializing |
 | `isArchived` | `IObservable<boolean>` | Archive state |
 | `isRead` | `IObservable<boolean>` | Read/unread state |
-| `description` | `IObservable<string \| undefined>` | Status description (e.g., current agent action) |
+| `description` | `IObservable<IMarkdownString \| undefined>` | Status description (e.g., current agent action), supports markdown |
 | `lastTurnEnd` | `IObservable<Date \| undefined>` | When the last agent turn ended |
 | `pullRequest` | `IObservable<ISessionPullRequest \\| undefined>` | Associated pull request |
 

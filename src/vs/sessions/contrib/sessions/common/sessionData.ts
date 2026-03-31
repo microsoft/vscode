@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -116,8 +117,8 @@ export interface ISessionData {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the session is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the session is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
@@ -164,8 +165,8 @@ export interface IChat {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the chat has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the chat is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the chat is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
@@ -212,8 +213,8 @@ export interface ISession {
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
 	readonly isRead: IObservable<boolean>;
-	/** Status description shown while the session is active (e.g., current agent action). */
-	readonly description: IObservable<string | undefined>;
+	/** Status description shown while the session is active (e.g., current agent action). Supports markdown. */
+	readonly description: IObservable<IMarkdownString | undefined>;
 	/** Timestamp of when the last agent turn ended, if any. */
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */

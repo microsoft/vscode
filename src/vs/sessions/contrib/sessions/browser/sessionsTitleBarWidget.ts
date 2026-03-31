@@ -25,11 +25,13 @@ import { ISessionsManagementService } from './sessionsManagementService.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { SessionStatus } from '../common/sessionData.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
+import { SessionsView, SessionsViewId } from './views/sessionsView.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -66,6 +68,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(undefined, action, options);
 
@@ -256,12 +259,17 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return;
 		}
 
+		if (this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key)) {
+			return;
+		}
+
+		const isPinned = this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.isSessionPinned(sessionData) ?? false;
 		const contextOverlay: [string, boolean | string][] = [
-			[IsSessionPinnedContext.key, false],
+			[IsSessionPinnedContext.key, isPinned],
 			[IsSessionArchivedContext.key, sessionData.isArchived.get()],
 			[IsSessionReadContext.key, sessionData.isRead.get()],
 			['chatSessionType', sessionData.sessionType],
-			['chatSessionProviderId', sessionData.providerId],
+			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));

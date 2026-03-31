@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,7 +14,6 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
-import { join } from '../../../../base/common/path.js';
 
 suite('FileEditTracker', () => {
 
@@ -25,17 +21,13 @@ suite('FileEditTracker', () => {
 	let fileService: FileService;
 	let db: SessionDatabase;
 	let tracker: FileEditTracker;
-	let testDir: string;
 
 	setup(async () => {
-		testDir = join(tmpdir(), `vscode-edit-tracker-test-${randomUUID()}`);
-		mkdirSync(testDir, { recursive: true });
-
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const sourceFs = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider('file', sourceFs));
 
-		db = disposables.add(await SessionDatabase.open(join(testDir, 'session.db')));
+		db = disposables.add(await SessionDatabase.open(':memory:'));
 		await db.createTurn('turn-1');
 
 		tracker = new FileEditTracker('copilot:/test-session', db, fileService, new NullLogService());
@@ -44,7 +36,6 @@ suite('FileEditTracker', () => {
 	teardown(async () => {
 		disposables.clear();
 		await db.close();
-		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 

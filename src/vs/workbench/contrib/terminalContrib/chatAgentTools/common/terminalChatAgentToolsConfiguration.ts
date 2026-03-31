@@ -27,6 +27,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	AgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
+	DetachBackgroundProcesses = 'chat.tools.terminal.detachBackgroundProcesses',
 	IdlePollInterval = 'chat.tools.terminal.idlePollInterval',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
@@ -636,6 +637,14 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		},
 		markdownDescription: localize('enforceTimeoutFromModel.description', "Whether to enforce the timeout value provided by the model in the run in terminal tool. When enabled, if the model provides a timeout parameter, the tool will stop tracking the command after that duration and return the output collected so far."),
+	},
+	[TerminalChatAgentToolsSettingId.DetachBackgroundProcesses]: {
+		included: false,
+		restricted: true,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		markdownDescription: localize('detachBackgroundProcesses.description', "Whether to detach background terminal processes so they survive when VS Code exits. When enabled, commands started with `isBackground: true` are wrapped with `nohup` (POSIX) or `Start-Process` (Windows) so the process continues running after the terminal is disposed."),
 	}
 };
 

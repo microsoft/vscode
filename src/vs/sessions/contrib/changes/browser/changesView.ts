@@ -108,6 +108,7 @@ const enum IsolationMode {
 const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.BranchChanges);
 const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
 const isolationModeContextKey = new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace);
+const hasGitRepositoryContextKey = new RawContextKey<boolean>('sessions.hasGitRepository', true);
 const hasPullRequestContextKey = new RawContextKey<boolean>('sessions.hasPullRequest', false);
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
@@ -265,6 +266,7 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
+	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
 
@@ -371,6 +373,19 @@ class ChangesViewModel extends Disposable {
 			return repositoryState?.HEAD?.upstream
 				? `${repositoryState.HEAD.upstream.remote}/${repositoryState.HEAD.upstream.name}`
 				: undefined;
+		});
+
+		// Active session has git repository
+		this.activeSessionHasGitRepositoryObs = derived(reader => {
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return false;
+			}
+
+			this.sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+
+			return model?.metadata?.repositoryPath !== undefined;
 		});
 
 		// Active session first checkpoint ref
@@ -538,7 +553,7 @@ export class ChangesViewPane extends ViewPane {
 		this.changesProgressBar.stop().hide();
 
 		// List container
-		this.listContainer = dom.append(this.contentContainer, $('.chat-editing-session-list'));
+		this.listContainer = dom.append(this.contentContainer, $('.changes-file-list'));
 
 		// Welcome message for empty state
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
@@ -834,6 +849,10 @@ export class ChangesViewPane extends ViewPane {
 				return this.viewModel.activeSessionIsolationModeObs.read(reader);
 			}));
 
+			this.renderDisposables.add(bindContextKey(hasGitRepositoryContextKey, this.scopedContextKeyService, reader => {
+				return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			}));
+
 			this.renderDisposables.add(bindContextKey(isMergeBaseBranchProtectedContextKey, this.scopedContextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
 				return activeSession?.workspace.read(reader)?.repositories[0]?.baseBranchProtected === true;
@@ -952,6 +971,9 @@ export class ChangesViewPane extends ViewPane {
 							if (action.id === 'github.copilot.sessions.commitChanges') {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
+							if (action.id === 'agentSession.markAsDone') {
+								return { showIcon: true, showLabel: true, isSecondary: false };
+							}
 
 							return undefined;
 						}
@@ -1063,7 +1085,7 @@ export class ChangesViewPane extends ViewPane {
 				}
 
 				const items = combinedEntriesObs.get();
-				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, true);
+				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
 			}));
 		}
 
@@ -1194,7 +1216,7 @@ export class ChangesViewPane extends ViewPane {
 	): IDisposable {
 		const disposables = new DisposableStore();
 
-		container.classList.add('chat-editing-session-list');
+		container.classList.add('changes-file-list');
 
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
 
@@ -1258,7 +1280,7 @@ export class ChangesViewPane extends ViewPane {
 			'ChangesViewTree',
 			container,
 			new ChangesTreeDelegate(),
-			[this.instantiationService.createInstance(ChangesTreeRenderer, resourceLabels, MenuId.ChatEditingSessionChangeToolbar, actionRunner)],
+			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, MenuId.ChatEditingSessionChangeToolbar, actionRunner)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -1388,6 +1410,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	readonly templateId: string = ChangesTreeRenderer.TEMPLATE_ID;
 
 	constructor(
+		private viewModel: ChangesViewModel,
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
 		private actionRunner: ActionRunner | undefined,
@@ -1426,6 +1449,10 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
 				return activeSession?.sessionType ?? '';
+			}));
+
+			templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
+				return this.viewModel.versionModeObs.read(reader);
 			}));
 		}
 

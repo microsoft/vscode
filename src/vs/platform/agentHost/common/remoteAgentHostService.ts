@@ -8,6 +8,13 @@ import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
 
+/** Connection status for a remote agent host. */
+export const enum RemoteAgentHostConnectionStatus {
+	Connected = 'connected',
+	Connecting = 'connecting',
+	Disconnected = 'disconnected',
+}
+
 /** Configuration key for the list of remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
@@ -75,6 +82,13 @@ export interface IRemoteAgentHostService {
 	 * Disconnects any active connection and removes the entry from settings.
 	 */
 	removeRemoteAgentHost(address: string): Promise<void>;
+
+	/**
+	 * Forcefully reconnect to a configured remote host.
+	 * Tears down any existing connection and starts a fresh connect attempt
+	 * with reset backoff.
+	 */
+	reconnect(address: string): void;
 }
 
 /** Metadata about a single remote connection. */
@@ -83,6 +97,7 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly name: string;
 	readonly clientId: string;
 	readonly defaultDirectory?: string;
+	readonly status: RemoteAgentHostConnectionStatus;
 }
 
 export class NullRemoteAgentHostService implements IRemoteAgentHostService {
@@ -95,6 +110,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
+	reconnect(_address: string): void { }
 }
 
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {

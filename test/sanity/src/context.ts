@@ -40,6 +40,7 @@ export class TestContext {
 	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
 	private currentTestName: string | undefined;
+	private screenshotCounter = 0;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -92,6 +93,7 @@ export class TestContext {
 		const self = this;
 		return test(name, async function () {
 			self.currentTestName = name;
+			self.screenshotCounter = 0;
 			self.log(`Starting test: ${name}`);
 
 			const homeDir = os.homedir();
@@ -1133,7 +1135,7 @@ export class TestContext {
 			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
 			fs.mkdirSync(screenshotDir, { recursive: true });
 			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
-			const screenshotPath = path.join(screenshotDir, `${sanitizedName}.png`);
+			const screenshotPath = path.join(screenshotDir, `${sanitizedName}-${++this.screenshotCounter}.png`);
 			await page.screenshot({ path: screenshotPath, fullPage: true });
 			this.log(`Screenshot saved to: ${screenshotPath}`);
 		} catch (e) {

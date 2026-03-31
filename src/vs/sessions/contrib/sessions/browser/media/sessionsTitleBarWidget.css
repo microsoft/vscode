@@ -21,6 +21,10 @@
 	cursor: default;
 }
 
+.agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
+	padding-left: 0;
+}
+
 /* Session pill - clickable area for session picker */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
@@ -109,4 +113,3 @@
 	color: var(--vscode-activityBarBadge-foreground);
 	pointer-events: none;
 }
-

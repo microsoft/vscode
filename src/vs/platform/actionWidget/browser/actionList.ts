@@ -1243,13 +1243,20 @@ export class ActionListWidget<T> extends Disposable {
 		const groupsWithActions = submenuGroups.filter(g => g.actions.length > 0);
 		for (let gi = 0; gi < groupsWithActions.length; gi++) {
 			const group = groupsWithActions[gi];
+			if (group.label) {
+				submenuItems.push({
+					kind: ActionListItemKind.Header,
+					group: { title: group.label },
+					label: group.label,
+				});
+			}
 			for (let ci = 0; ci < group.actions.length; ci++) {
 				const child = group.actions[ci];
 				submenuItems.push({
 					item: child,
 					kind: ActionListItemKind.Action,
 					label: child.label,
-					description: ci === 0 && group.label ? group.label : (child.tooltip || undefined),
+					description: child.tooltip || undefined,
 					group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
 					hideIcon: false,
 					hover: {},

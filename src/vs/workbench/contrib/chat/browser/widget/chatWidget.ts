@@ -64,7 +64,6 @@ import { IChatSlashCommandService } from '../../common/participants/chatSlashCom
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
@@ -259,7 +258,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	get domNode() { return this.container; }
 
 	private listWidget!: ChatListWidget;
-	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private inputPartMaxHeightOverride: number | undefined;
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
@@ -509,7 +507,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
-		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
 		this._register(autorun(r => {
@@ -1503,7 +1500,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				},
 				currentChatMode: () => this.input.currentModeKind,
 				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions) } : undefined,
-				codeBlockModelCollection: this._codeBlockModelCollection,
 				viewModel: this.viewModel,
 				editorOptions: this.editorOptions,
 				location: this.location,
@@ -1997,14 +1993,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		dom.clearNode(tipContainer);
 		dom.setVisibility(false, tipContainer);
 
-		this._codeBlockModelCollection.clear();
-
 		// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel
 		// fires onDidChangeViewModel, which ChatInputPart listens to and expects the input model to be initialized.
 		// Pass input model reference to input part for state syncing
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
 
-		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection, undefined);
+		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 
 		this.listWidget.setViewModel(this.viewModel);
 

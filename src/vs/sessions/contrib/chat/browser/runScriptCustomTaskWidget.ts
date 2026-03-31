@@ -120,6 +120,9 @@ export class RunScriptCustomTaskWidget extends Disposable {
 		const storageSection = dom.append(this.domNode, dom.$('.run-script-action-section'));
 		dom.append(storageSection, dom.$('div.run-script-action-label', undefined, localize('storageLabel', "Save In")));
 		const storageDisabledReason = state.targetDisabledReason;
+		if (storageDisabledReason) {
+			dom.append(storageSection, dom.$('div.run-script-action-hint', undefined, storageDisabledReason));
+		}
 		const workspaceTargetDisabled = !!storageDisabledReason;
 		this._storageOptions = this._register(new Radio({
 			items: [
@@ -138,10 +141,9 @@ export class RunScriptCustomTaskWidget extends Disposable {
 			]
 		}));
 		this._storageOptions.domNode.setAttribute('aria-label', localize('storageAriaLabel', "Task storage target"));
+		this._storageOptions.domNode.classList.toggle('run-script-action-radio-disabled', this._targetLocked);
+		this._storageOptions.setEnabled(!this._targetLocked);
 		storageSection.appendChild(this._storageOptions.domNode);
-		if (storageDisabledReason && !this._targetLocked) {
-			dom.append(storageSection, dom.$('div.run-script-action-hint', undefined, storageDisabledReason));
-		}
 
 		const buttonRow = dom.append(this.domNode, dom.$('.run-script-action-buttons'));
 		this._cancelButton = this._register(new Button(buttonRow, { ...defaultButtonStyles, secondary: true }));

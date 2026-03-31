@@ -69,6 +69,17 @@ export class GitHubPRCIFetcher {
 	}
 
 	/**
+	 * Rerun failed jobs in a GitHub Actions workflow run.
+	 */
+	async rerunFailedJobs(owner: string, repo: string, runId: number): Promise<void> {
+		await this._apiClient.request<void>(
+			'POST',
+			`/repos/${e(owner)}/${e(repo)}/actions/runs/${runId}/rerun-failed-jobs`,
+			'githubApi.rerunFailedJobs'
+		);
+	}
+
+	/**
 	 * Get logs/output for a specific check run.
 	 *
 	 * Tries multiple sources in order:

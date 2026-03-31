@@ -61,6 +61,20 @@ export class GitHubPullRequestCIModel extends Disposable {
 	}
 
 	/**
+	 * Rerun a failed check by extracting the workflow run ID from its details URL
+	 * and calling the GitHub Actions rerun-failed-jobs API, then refresh status.
+	 */
+	async rerunFailedCheck(check: IGitHubCICheck): Promise<void> {
+		const runId = parseWorkflowRunId(check.detailsUrl);
+		if (!runId) {
+			this._logService.warn(`${LOG_PREFIX} Cannot rerun check "${check.name}": no workflow run ID found in detailsUrl`);
+			return;
+		}
+		await this._fetcher.rerunFailedJobs(this.owner, this.repo, runId);
+		await this.refresh();
+	}
+
+	/**
 	 * Start periodic polling. Each cycle refreshes CI check data.
 	 */
 	startPolling(intervalMs: number = DEFAULT_POLL_INTERVAL_MS): void {
@@ -87,4 +101,17 @@ export class GitHubPullRequestCIModel extends Disposable {
 		this._disposed = true;
 		super.dispose();
 	}
+}
+
+/**
+ * Extract the GitHub Actions workflow run ID from a check run's details URL.
+ * URLs follow the pattern: `https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}`
+ */
+export function parseWorkflowRunId(detailsUrl: string | undefined): number | undefined {
+	if (!detailsUrl) {
+		return undefined;
+	}
+	const match = /\/actions\/runs\/(?<runId>\d+)/.exec(detailsUrl);
+	const runId = match?.groups?.runId;
+	return runId ? parseInt(runId, 10) : undefined;
 }
