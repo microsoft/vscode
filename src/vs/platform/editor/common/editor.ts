@@ -375,6 +375,11 @@ export interface IModalEditorSidebar {
 	readonly sidebarWidth?: number;
 
 	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden?: boolean;
+
+	/**
 	 * Render the sidebar content into the given container.
 	 *
 	 * @param container The DOM element to render into.
