@@ -40,8 +40,8 @@ import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry 
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -299,8 +299,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240 },
-					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257 },
+					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240, fullLength: 13 },
+					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257, fullLength: 19 },
 				]
 			);
 
@@ -846,7 +846,7 @@ suite('PromptsService', () => {
 					tools: ['tool1', 'tool2'],
 					agentInstructions: {
 						content: 'Do it with #tool:tool1',
-						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 22 } }],
 						metadata: undefined
 					},
 					handOffs: undefined,
@@ -864,8 +864,8 @@ suite('PromptsService', () => {
 					agentInstructions: {
 						content: 'First use #tool:tool2\nThen use #tool:tool1',
 						toolReferences: [
-							{ name: 'tool1', range: { start: 31, endExclusive: 37 } },
-							{ name: 'tool2', range: { start: 10, endExclusive: 16 } }
+							{ name: 'tool1', range: { start: 31, endExclusive: 42 } },
+							{ name: 'tool2', range: { start: 10, endExclusive: 21 } }
 						],
 						metadata: undefined
 					},
@@ -2240,7 +2240,7 @@ suite('PromptsService', () => {
 		assert.ok(providerInstruction, 'Provider instruction should be found');
 		assert.strictEqual(providerInstruction!.uri.toString(), instructionUri.toString());
 		assert.strictEqual(providerInstruction!.storage, PromptsStorage.extension);
-		assert.strictEqual(providerInstruction!.source, ExtensionAgentSourceType.provider);
+		assert.strictEqual(providerInstruction!.source, PromptFileSource.ExtensionAPI);
 
 		registered.dispose();
 
@@ -2285,7 +2285,7 @@ suite('PromptsService', () => {
 		assert.ok(providerPrompt, 'Provider prompt should be found');
 		assert.strictEqual(providerPrompt!.uri.toString(), promptUri.toString());
 		assert.strictEqual(providerPrompt!.storage, PromptsStorage.extension);
-		assert.strictEqual(providerPrompt!.source, ExtensionAgentSourceType.provider);
+		assert.strictEqual(providerPrompt!.source, PromptFileSource.ExtensionAPI);
 
 		registered.dispose();
 
@@ -2334,7 +2334,7 @@ suite('PromptsService', () => {
 		assert.ok(providerSkill, 'Provider skill should be found');
 		assert.strictEqual(providerSkill!.uri.toString(), skillUri.toString());
 		assert.strictEqual(providerSkill!.storage, PromptsStorage.extension);
-		assert.strictEqual(providerSkill!.source, ExtensionAgentSourceType.provider);
+		assert.strictEqual(providerSkill!.source, PromptFileSource.ExtensionAPI);
 
 		registered.dispose();
 
@@ -3128,7 +3128,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(providerSkillCommand.description, 'A skill from extension provider');
 			assert.strictEqual(providerSkillCommand.promptPath.storage, PromptsStorage.extension);
 			assert.strictEqual(providerSkillCommand.promptPath.type, PromptsType.skill);
-			assert.strictEqual(providerSkillCommand.promptPath.source, ExtensionAgentSourceType.provider);
+			assert.strictEqual(providerSkillCommand.promptPath.source, PromptFileSource.ExtensionAPI);
 
 			registered.dispose();
 
@@ -3182,7 +3182,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(contributedSkillCommand.description, 'A skill from extension contribution');
 			assert.strictEqual(contributedSkillCommand.promptPath.storage, PromptsStorage.extension);
 			assert.strictEqual(contributedSkillCommand.promptPath.type, PromptsType.skill);
-			assert.strictEqual(contributedSkillCommand.promptPath.source, ExtensionAgentSourceType.contribution);
+			assert.strictEqual(contributedSkillCommand.promptPath.source, PromptFileSource.ExtensionContribution);
 
 			registered.dispose();
 

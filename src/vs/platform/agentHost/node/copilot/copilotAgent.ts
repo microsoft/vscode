@@ -11,6 +11,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
@@ -150,7 +151,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			startTime: s.startTime.getTime(),
 			modifiedTime: s.modifiedTime.getTime(),
 			summary: s.summary,
-			workingDirectory: typeof s.context?.cwd === 'string' ? s.context.cwd : undefined,
+			workingDirectory: typeof s.context?.cwd === 'string' ? URI.file(s.context.cwd) : undefined,
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} sessions`);
 		return result;
@@ -185,7 +186,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				model: config?.model,
 				sessionId: config?.session ? AgentSession.id(config.session) : undefined,
 				streaming: true,
-				workingDirectory: config?.workingDirectory,
+				workingDirectory: config?.workingDirectory?.fsPath,
 				onPermissionRequest: callbacks.onPermissionRequest,
 				hooks: callbacks.hooks,
 			});
@@ -283,8 +284,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
 	 * to wire up the SDK session.
 	 */
-	private _createAgentSession(wrapperFactory: SessionWrapperFactory, workingDirectory: string | undefined, sessionIdOverride?: string): CopilotAgentSession {
-		const rawId = sessionIdOverride ?? crypto.randomUUID();
+	private _createAgentSession(wrapperFactory: SessionWrapperFactory, workingDirectory: URI | undefined, sessionIdOverride?: string): CopilotAgentSession {
+		const rawId = sessionIdOverride ?? generateUuid();
 		const sessionUri = AgentSession.uri(this.id, rawId);
 
 		const agentSession = this._instantiationService.createInstance(

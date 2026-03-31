@@ -55,7 +55,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		isRead: observableValue('isRead', true),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
-		pullRequest: observableValue('pullRequest', undefined),
+		gitHubInfo: observableValue('gitHubInfo', undefined),
 	};
 	const session: ISession = { ...chat, sessionId: chat.chatId, chats: observableValue('chats', [chat]), activeChat: observableValue('activeChat', chat), mainChat: chat };
 	return session;

@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
@@ -18,7 +19,7 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, ISessionPullRequest } from '../../sessions/common/sessionData.js';
+import { ISessionData, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo } from '../../sessions/common/sessionData.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionsBrowseAction, ISessionChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
@@ -77,8 +78,8 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	private readonly _title = observableValue(this, '');
 	readonly title: IObservable<string> = this._title;
 
-	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
-	readonly description: IObservable<string | undefined>;
+	private readonly _description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
+	readonly description: IObservable<IMarkdownString | undefined>;
 
 	private readonly _updatedAt = observableValue(this, new Date());
 	readonly updatedAt: IObservable<Date> = this._updatedAt;
@@ -113,7 +114,7 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined> = observableValue(this, undefined);
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = observableValue(this, undefined);
 
 	private _gitRepository: IGitRepository | undefined;
 	private readonly _loadBranchesCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -199,8 +200,12 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 		if (repoUri) {
 			try {
 				this._gitRepository = await this.gitService.openRepository(repoUri);
+				if (!this._gitRepository) {
+					this.setIsolationMode('workspace');
+				}
 			} catch {
 				// No git repository available
+				this.setIsolationMode('workspace');
 			}
 		}
 		this._loading.set(false, undefined);
@@ -377,9 +382,9 @@ export class RemoteNewSession extends Disposable implements ISessionData {
 
 	readonly isArchived: IObservable<boolean> = observableValue(this, false);
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
-	readonly description: IObservable<string | undefined> = observableValue(this, undefined);
+	readonly description: IObservable<IMarkdownString | undefined> = observableValue(this, undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined> = observableValue(this, undefined);
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = observableValue(this, undefined);
 
 	readonly _hasGitRepo = observableValue(this, false);
 	readonly hasGitRepo: IObservable<boolean> = this._hasGitRepo;
@@ -619,14 +624,14 @@ class AgentSessionAdapter implements ISessionData {
 	private readonly _isRead: ReturnType<typeof observableValue<boolean>>;
 	readonly isRead: IObservable<boolean>;
 
-	private readonly _description: ReturnType<typeof observableValue<string | undefined>>;
-	readonly description: IObservable<string | undefined>;
+	private readonly _description: ReturnType<typeof observableValue<IMarkdownString | undefined>>;
+	readonly description: IObservable<IMarkdownString | undefined>;
 
 	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 
-	private readonly _pullRequest: ReturnType<typeof observableValue<ISessionPullRequest | undefined>>;
-	readonly pullRequest: IObservable<ISessionPullRequest | undefined>;
+	private readonly _gitHubInfo: ReturnType<typeof observableValue<IGitHubInfo | undefined>>;
+	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 
 	constructor(
 		session: IAgentSession,
@@ -636,7 +641,7 @@ class AgentSessionAdapter implements ISessionData {
 		this.resource = session.resource;
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
-		this.icon = session.icon;
+		this.icon = this._getSessionTypeIcon(session);
 		this.createdAt = new Date(session.timing.created);
 		this._workspace = observableValue(this, this._buildWorkspace(session));
 		this.workspace = this._workspace;
@@ -666,8 +671,8 @@ class AgentSessionAdapter implements ISessionData {
 		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
 		this.lastTurnEnd = this._lastTurnEnd;
-		this._pullRequest = observableValue(this, this._extractPullRequest(session));
-		this.pullRequest = this._pullRequest;
+		this._gitHubInfo = observableValue(this, this._extractGitHubInfo(session));
+		this.gitHubInfo = this._gitHubInfo;
 	}
 
 	/**
@@ -684,24 +689,101 @@ class AgentSessionAdapter implements ISessionData {
 			this._isRead.set(session.isRead(), tx);
 			this._description.set(this._extractDescription(session), tx);
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
-			this._pullRequest.set(this._extractPullRequest(session), tx);
+			this._gitHubInfo.set(this._extractGitHubInfo(session), tx);
 		});
 	}
 
-	private _extractDescription(session: IAgentSession): string | undefined {
+	private _getSessionTypeIcon(session: IAgentSession): ThemeIcon {
+		switch (session.providerType) {
+			case AgentSessionProviders.Background:
+				return CopilotCLISessionType.icon;
+			case AgentSessionProviders.Cloud:
+				return CopilotCloudSessionType.icon;
+			default:
+				return session.icon;
+		}
+	}
+
+	private _extractDescription(session: IAgentSession): IMarkdownString | undefined {
 		if (!session.description) {
 			return undefined;
 		}
-		return typeof session.description === 'string' ? session.description : session.description.value;
+		return typeof session.description === 'string' ? new MarkdownString(session.description) : session.description;
 	}
 
-	private _extractPullRequest(session: IAgentSession): ISessionPullRequest | undefined {
-		const uri = this._extractPullRequestUri(session);
-		if (!uri) {
+	private _extractGitHubInfo(session: IAgentSession): IGitHubInfo | undefined {
+		const metadata = session.metadata;
+		if (!metadata) {
 			return undefined;
 		}
-		const icon = this._extractPullRequestStateIcon(session);
-		return { uri, icon: icon };
+
+		const { owner, repo } = this._extractOwnerRepo(session);
+		if (!owner || !repo) {
+			return undefined;
+		}
+
+		const pullRequestUri = this._extractPullRequestUri(session);
+		if (!pullRequestUri) {
+			return { owner, repo };
+		}
+
+		const prNumber = this._extractPullRequestNumber(session, pullRequestUri);
+		if (prNumber === undefined) {
+			return { owner, repo };
+		}
+
+		return { owner, repo, pullRequest: { number: prNumber, uri: pullRequestUri, icon: this._extractPullRequestStateIcon(session) } };
+	}
+
+	private _extractPullRequestNumber(session: IAgentSession, pullRequestUri: URI): number | undefined {
+		const metadata = session.metadata;
+		if (typeof metadata?.pullRequestNumber === 'number') {
+			return metadata.pullRequestNumber as number;
+		}
+		const match = /\/pull\/(\d+)/.exec(pullRequestUri.path);
+		if (match) {
+			return parseInt(match[1], 10);
+		}
+		return undefined;
+	}
+
+	private _extractOwnerRepo(session: IAgentSession): { owner: string | undefined; repo: string | undefined } {
+		const metadata = session.metadata;
+		if (!metadata) {
+			return { owner: undefined, repo: undefined };
+		}
+
+		// Direct owner + name fields
+		if (typeof metadata.owner === 'string' && typeof metadata.name === 'string') {
+			return { owner: metadata.owner, repo: metadata.name };
+		}
+
+		// repositoryNwo: "owner/repo"
+		if (typeof metadata.repositoryNwo === 'string') {
+			const parts = (metadata.repositoryNwo as string).split('/');
+			if (parts.length === 2) {
+				return { owner: parts[0], repo: parts[1] };
+			}
+		}
+
+		// Parse from workspace repository URI (cloud sessions)
+		const repoUri = this._buildWorkspace(session)?.repositories[0]?.uri;
+		if (repoUri && repoUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = repoUri.path.split('/').filter(Boolean);
+			if (parts.length >= 2) {
+				return { owner: decodeURIComponent(parts[0]), repo: decodeURIComponent(parts[1]) };
+			}
+		}
+
+		// Parse from pullRequestUrl
+		if (typeof metadata.pullRequestUrl === 'string') {
+			const match = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(metadata.pullRequestUrl as string);
+			if (match) {
+				return { owner: match[1], repo: match[2] };
+			}
+		}
+
+		return { owner: undefined, repo: undefined };
 	}
 
 	private _extractPullRequestStateIcon(session: IAgentSession): ThemeIcon | undefined {

@@ -23,6 +23,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatSessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -37,10 +38,10 @@ import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../.
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Separator } from '../../../../../base/common/actions.js';
-import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { CopilotCLISessionType } from '../sessionTypes.js';
 
 const $ = DOM.$;
 
@@ -234,9 +235,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const sessionStatus = element.status.read(reader);
 			const isRead = element.isRead.read(reader);
 			const isArchived = element.isArchived.read(reader);
-			const pullRequest = element.pullRequest.read(reader);
+			const gitHubInfo = element.gitHubInfo.read(reader);
 			DOM.clearNode(template.iconContainer);
-			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, pullRequest?.icon);
+			const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 			const iconSpan = DOM.append(template.iconContainer, $(`span${ThemeIcon.asCSSSelector(icon)}`));
 			iconSpan.style.color = icon.color ? asCssVariable(icon.color.id) : '';
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
@@ -250,6 +251,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 		// Details row — reactive: badge · diff stats · time
 		const timeDisposable = template.elementDisposables.add(new MutableDisposable());
+		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
 			const changes = element.changes.read(reader);
@@ -269,7 +271,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 			// Session type icon in details row
 			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
-			if (element.sessionType !== AgentSessionProviders.Background) {
+			if (element.sessionType !== CopilotCLISessionType.id) {
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
 				parts.push(typeIconEl);
@@ -316,22 +318,39 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				statusEl.textContent = description ?? localize('working', "Working...");
+				if (description) {
+					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
+				} else {
+					descriptionDisposable.clear();
+					statusEl.textContent = localize('working', "Working...");
+				}
 				parts.push(statusEl);
 			} else if (sessionStatus === SessionStatus.NeedsInput) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				statusEl.textContent = description ?? localize('needsInput', "Input needed");
+				if (description) {
+					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
+				} else {
+					descriptionDisposable.clear();
+					statusEl.textContent = localize('needsInput', "Input needed");
+				}
 				parts.push(statusEl);
 			} else if (sessionStatus === SessionStatus.Error) {
 				if (parts.length > 0) {
 					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
 				}
 				const statusEl = DOM.append(template.detailsRow, $('span.session-description'));
-				statusEl.textContent = localize('failed', "Failed");
+				if (description) {
+					descriptionDisposable.value = this.markdownRendererService.render(description, { sanitizerConfig: { replaceWithPlaintext: true } }, statusEl);
+				} else {
+					descriptionDisposable.clear();
+					statusEl.textContent = localize('failed', "Failed");
+				}
 				parts.push(statusEl);
+			} else {
+				descriptionDisposable.clear();
 			}
 
 			// Timestamp — visible when not hiding details
@@ -689,11 +708,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
 
+		const delegate = new SessionsTreeDelegate(approvalModel);
+
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsListTree',
 			this.listContainer,
-			new SessionsTreeDelegate(approvalModel),
+			delegate,
 			[
 				sessionRenderer,
 				new SessionSectionRenderer(true /* hideSectionCount */, instantiationService, contextKeyService),
@@ -751,7 +772,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(sessionRenderer.onDidChangeItemHeight(session => {
 			if (this.tree.hasElement(session)) {
-				this.tree.updateElementHeight(session, undefined);
+				this.tree.updateElementHeight(session, delegate.getHeight(session));
 			}
 		}));
 
@@ -956,18 +977,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return;
 		}
 
+		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && !isSessionSection(s) && !isSessionShowMore(s));
+		const selectedSessions = selection.includes(element) ? [element, ...selection.filter(s => s !== element)] : [element];
+
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[IsSessionArchivedContext.key, element.isArchived.get()],
 			[IsSessionReadContext.key, element.isRead.get()],
 			['chatSessionType', element.sessionType],
-			['chatSessionProviderId', element.providerId],
+			[ChatSessionProviderIdContext.key, element.providerId],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: element, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => e.anchor,
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id) ?? undefined,
 		});
@@ -1233,7 +1257,7 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	const groups = new Map<string, ISession[]>();
 	for (const session of sessions) {
 		const workspace = session.workspace.get();
-		const label = workspace?.label ?? localize('unknown', "Unknown");
+		const label = workspace?.label || localize('unknown', "Unknown");
 		let group = groups.get(label);
 		if (!group) {
 			group = [];

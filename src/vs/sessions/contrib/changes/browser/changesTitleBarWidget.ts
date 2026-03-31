@@ -21,7 +21,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IsAuxiliaryWindowContext, AuxiliaryBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { getAgentChangesSummary } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -48,7 +47,6 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
@@ -61,7 +59,7 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 		}));
 
 		// Re-render when sessions data changes
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+		this._register(this.activeSessionService.onDidChangeSessions(() => {
 			this._rebuildIndicators();
 		}));
 
@@ -103,8 +101,8 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 		// Get change summary from the active session
 		const activeSession = this.activeSessionService.activeSession.get();
 		const resource = activeSession?.resource;
-		const session = resource ? this.agentSessionsService.getSession(resource) : undefined;
-		const summary = session ? getAgentChangesSummary(session.changes) : undefined;
+		const session = resource ? this.activeSessionService.getSession(resource) : undefined;
+		const summary = session ? getAgentChangesSummary(session.changes.get()) : undefined;
 
 		// Rebuild inner content: [diff icon] +insertions -deletions
 		append(btn, $(ThemeIcon.asCSSSelector(Codicon.diffMultiple)));
