@@ -140,7 +140,7 @@ Extension authors cannot add `policy:` fields directly—their settings are defi
 
 1. **Source of truth**: The `extensionConfigurationPolicy` map lives in `vscode-distro` under `mixin/{quality}/product.json` (stable, insider, exploration).
 2. **Runtime**: When VS Code starts with a distro-mixed `product.json`, `configurationExtensionPoint.ts` reads `extensionConfigurationPolicy` and attaches matching `policy` objects to extension-contributed configuration properties.
-3. **Export/build**: The `--export-policy-data` command fetches the distro's `product.json` at the commit pinned in `package.json` and merges extension policies into the output. Use `scripts/export-policy-data.sh` which sets up authentication automatically.
+3. **Export/build**: The `--export-policy-data` command fetches the distro's `product.json` at the commit pinned in `package.json` and merges extension policies into the output. Use `npm run export-policy-data` which sets up authentication automatically.
 
 ### Distro format
 
