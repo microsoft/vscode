@@ -16,7 +16,7 @@ import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/widget/input/modelPi
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
@@ -573,6 +573,90 @@ suite('LanguageModels - Model Change Events', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('resolves models on registration without stored preferences', async function () {
+		const eventPromise = new Promise<string>((resolve) => {
+			disposables.add(languageModelsService.onDidChangeLanguageModels((vendorId) => {
+				resolve(vendorId);
+			}));
+		});
+
+		// No stored preferences — models should still be resolved on registration
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				return [{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Model 1',
+						vendor: 'test-vendor',
+						family: 'family1',
+						version: '1.0',
+						id: 'model1',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						modelPickerCategory: undefined,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'test-vendor/model1'
+				}];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		const firedVendorId = await eventPromise;
+		assert.strictEqual(firedVendorId, 'test-vendor');
+
+		const modelIds = languageModelsService.getLanguageModelIds();
+		assert.ok(modelIds.includes('test-vendor/model1'));
+	});
+
+	test('models populated before registration are resolved eagerly', async function () {
+		// Simulates the AgentHostLanguageModelProvider pattern where
+		// updateModels (fires onDidChange) is called before registerLanguageModelProvider.
+		const onDidChange = disposables.add(new Emitter<void>());
+		let models: { metadata: ILanguageModelChatMetadata; identifier: string }[] = [];
+
+		const provider = {
+			onDidChange: onDidChange.event,
+			provideLanguageModelChatInfo: async () => models,
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		};
+
+		// Populate models and fire onDidChange BEFORE registration (no listener yet)
+		models = [{
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: 'Pre-registered Model',
+				vendor: 'test-vendor',
+				family: 'family1',
+				version: '1.0',
+				id: 'pre-model',
+				maxInputTokens: 100,
+				maxOutputTokens: 100,
+				modelPickerCategory: undefined,
+				isDefaultForLocation: {}
+			} satisfies ILanguageModelChatMetadata,
+			identifier: 'test-vendor/pre-model'
+		}];
+		onDidChange.fire();
+
+		// Now register — the model should be resolved eagerly
+		const eventPromise = new Promise<string>((resolve) => {
+			disposables.add(languageModelsService.onDidChangeLanguageModels((vendorId) => {
+				resolve(vendorId);
+			}));
+		});
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', provider));
+
+		const firedVendorId = await eventPromise;
+		assert.strictEqual(firedVendorId, 'test-vendor');
+
+		const modelIds = languageModelsService.getLanguageModelIds();
+		assert.ok(modelIds.includes('test-vendor/pre-model'), `Expected pre-model in [${modelIds.join(', ')}]`);
+	});
+
 	test('fires onChange event when new models are added', async function () {
 		// Create a promise that resolves when the event fires
 		const eventPromise = new Promise<string>((resolve) => {
@@ -826,8 +910,8 @@ suite('LanguageModels - Model Change Events', function () {
 			onDidChange: Event.None, // Provider doesn't emit change events
 			provideLanguageModelChatInfo: async () => {
 				callCount++;
-				if (callCount === 1) {
-					// First call returns initial model
+				if (callCount <= 2) {
+					// First calls return initial model (registration + first selectLanguageModels)
 					return [{
 						metadata: {
 							extension: nullExtensionDescription.identifier,

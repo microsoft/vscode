@@ -41,7 +41,7 @@ const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeConte
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex('activeSessionProviderId', /^agenthost-/);
+const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, /^agenthost-/);
 
 // -- Actions --
 
