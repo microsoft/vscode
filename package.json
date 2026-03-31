@@ -240,7 +240,9 @@
       "node-addon-api": "7.1.0"
     },
     "serialize-javascript": "^7.0.3",
-    "cpu-features": "0.0.0"
+    "ssh2": {
+      "cpu-features": "0.0.0"
+    }
   },
   "repository": {
     "type": "git",

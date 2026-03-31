@@ -301,9 +301,16 @@ async function connectWithProgress(
 		progress: { infinite: true },
 	});
 
-	// Listen for progress updates from the main process
+	// Build the expected connection key to filter progress events.
+	// Must match the key logic in the shared process service.
+	const expectedKey = config.sshConfigHost
+		? `ssh:${config.sshConfigHost}`
+		: `${config.username}@${config.host}:${config.port ?? 22}`;
+
 	const progressListener = sshService.onDidReportConnectProgress?.(progress => {
-		handle.updateMessage(progress.message);
+		if (progress.connectionKey === expectedKey) {
+			handle.updateMessage(progress.message);
+		}
 	});
 
 	try {

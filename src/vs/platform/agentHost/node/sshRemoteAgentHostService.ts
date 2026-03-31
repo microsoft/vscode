@@ -25,14 +25,14 @@ import {
 
 const _require = createRequire(import.meta.url);
 
-/** Minimal subset of ssh2.ClientChannel used by this module. */
-interface SSHChannel {
-	on(event: 'data', listener: (data: Buffer) => void): SSHChannel;
-	on(event: 'close', listener: (code: number) => void): SSHChannel;
-	on(event: 'error', listener: (err: Error) => void): SSHChannel;
+/** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
+interface SSHChannel extends NodeJS.ReadWriteStream {
+	on(event: 'data', listener: (data: Buffer) => void): this;
+	on(event: 'close', listener: (code: number) => void): this;
+	on(event: 'error', listener: (err: Error) => void): this;
+	on(event: string, listener: (...args: unknown[]) => void): this;
 	stderr: { on(event: 'data', listener: (data: Buffer) => void): void };
 	close(): void;
-	pipe(destination: SSHChannel | net.Socket): SSHChannel | net.Socket;
 }
 
 /** Minimal subset of ssh2.Client used by this module. */
@@ -206,7 +206,7 @@ function createLocalForwarder(
 						socket.end();
 						return;
 					}
-					socket.pipe(channel as unknown as net.Socket).pipe(socket);
+					socket.pipe(channel).pipe(socket);
 				},
 			);
 		});

@@ -49,14 +49,15 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 		this.onDidReportConnectProgress = this._mainService.onDidReportConnectProgress;
 
-		// When main process fires onDidCloseConnection, clean up the renderer-side handle
+		// When shared process fires onDidCloseConnection, clean up the renderer-side handle.
+		// Do NOT remove the configured entry — it stays in settings so startup reconnect
+		// can re-establish the SSH tunnel on next launch.
 		this._register(this._mainService.onDidCloseConnection(localAddress => {
 			const handle = this._connections.get(localAddress);
 			if (handle) {
 				this._connections.delete(localAddress);
 				handle.fireClose();
 				handle.dispose();
-				this._remoteAgentHostService.removeRemoteAgentHost(localAddress).catch(() => { /* best effort */ });
 				this._onDidChangeConnections.fire();
 			}
 		}));

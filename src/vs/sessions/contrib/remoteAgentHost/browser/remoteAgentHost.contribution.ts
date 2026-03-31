@@ -12,7 +12,7 @@ import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHost
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -462,7 +462,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: false,
-			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
 		},
 		[RemoteAgentHostsSettingId]: {
 			type: 'array',
@@ -478,7 +479,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 			description: nls.localize('chat.remoteAgentHosts', "A list of remote agent host addresses to connect to (e.g. \"localhost:3000\")."),
 			default: [],
-			tags: ['experimental', 'advanced'],
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced', 'usesOnlineServices'],
 		},
 	},
 });

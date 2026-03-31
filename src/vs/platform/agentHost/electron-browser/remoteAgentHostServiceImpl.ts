@@ -362,7 +362,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._pendingSSHReconnects.add(alias);
 		this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${alias} (saved address: ${savedEntry.address})`);
 
-		this._sshMainService.reconnect(alias, savedEntry.name).then(result => {
+		this._sshMainService.reconnect(alias, savedEntry.name).then(async result => {
 			this._pendingSSHReconnects.delete(alias);
 			const newAddress = normalizeRemoteAgentHostAddress(result.localAddress);
 			this._logService.info(`[RemoteAgentHost] SSH tunnel re-established: ${alias} -> ${newAddress}`);
@@ -377,7 +377,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					? { ...e, address: result.localAddress, connectionToken: result.connectionToken }
 					: e
 			);
-			this._configurationService.updateValue(RemoteAgentHostsSettingId, updated, this._getConfigurationTarget());
+			try {
+				await this._configurationService.updateValue(RemoteAgentHostsSettingId, updated, this._getConfigurationTarget());
+			} catch (err) {
+				this._logService.error(`[RemoteAgentHost] Failed to persist updated SSH address for ${alias}`, err);
+			}
 			this._connectTo(newAddress, result.connectionToken);
 		}).catch(err => {
 			this._pendingSSHReconnects.delete(alias);
