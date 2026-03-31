@@ -50,6 +50,8 @@ const MODAL_SNAP_THRESHOLD = 20;
 const MODAL_MAXIMIZED_PADDING = 16;
 const MODAL_SIDEBAR_MIN_WIDTH = 160;
 const MODAL_SIDEBAR_DEFAULT_WIDTH = 260;
+const MODAL_SIDEBAR_PADDING = 8; // matches CSS padding on sidebar container
+const MODAL_SIDEBAR_BORDER_RIGHT = 1; // matches CSS border-right on sidebar container
 
 const defaultModalEditorAllowableCommands = new Set([
 
@@ -716,7 +718,7 @@ export class ModalEditorPart {
 			hasCustomWidth: () => customWidth,
 			clampWidth: (modalWidth: number) => {
 				if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
-					sidebarWidth = MODAL_SIDEBAR_DEFAULT_WIDTH;
+					sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
 					customWidth = false;
 					sidebarContainer.style.width = `${sidebarWidth}px`;
 					sash.layout();
@@ -733,7 +735,10 @@ export class ModalEditorPart {
 			},
 			layout: (height: number) => {
 				if (visible) {
-					onDidLayoutEmitter.fire({ height, width: sidebarWidth });
+					onDidLayoutEmitter.fire({
+						height: height - MODAL_SIDEBAR_PADDING * 2,
+						width: sidebarWidth - MODAL_SIDEBAR_PADDING * 2 - MODAL_SIDEBAR_BORDER_RIGHT
+					});
 				}
 				sash.layout();
 			},
@@ -825,6 +830,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		this._navigation = options?.navigation;
 		this._hasSidebar = !!options?.sidebar;
 		this._sidebarHidden = options?.sidebar?.sidebarHidden ?? false;
+		this._sidebarWidth = options?.sidebar?.sidebarWidth;
 
 		// When restoring a maximized state with custom layout,
 		// initialize saved state so un-maximize can restore it

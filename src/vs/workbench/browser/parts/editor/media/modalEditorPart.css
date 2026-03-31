@@ -99,6 +99,7 @@
 		grid-column: 1;
 		display: flex;
 		align-items: center;
+		margin-right: 4px;
 	}
 
 	/* Modal Editor Title */

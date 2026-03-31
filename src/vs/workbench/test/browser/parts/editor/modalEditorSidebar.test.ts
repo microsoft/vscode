@@ -103,7 +103,7 @@ class TestModalEditorSidebarHost extends Disposable {
 
 	clampWidth(modalWidth: number): void {
 		if (this._sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
-			this._sidebarWidth = MODAL_SIDEBAR_DEFAULT_WIDTH;
+			this._sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
 			this._customWidth = undefined;
 			this._onDidResize.fire();
 		}
@@ -359,7 +359,7 @@ suite('Modal Editor Sidebar', () => {
 
 		assert.strictEqual(host.sidebarWidth, 500);
 
-		host.clampWidth(600); // 500 + 400 (MODAL_MIN_WIDTH) > 600
+		host.clampWidth(800); // 500 + 400 (MODAL_MIN_WIDTH) > 800, default 260 fits
 
 		assert.deepStrictEqual(
 			{ sidebarWidth: host.sidebarWidth, customWidth: host.customWidth },
@@ -402,6 +402,18 @@ suite('Modal Editor Sidebar', () => {
 		host.clampWidth(1000);
 
 		assert.strictEqual(fired, false);
+	});
+
+	test('clampWidth uses constrained width when modal is very narrow', () => {
+		const host = disposables.add(new TestModalEditorSidebarHost(400));
+		host.addSidebar(stubSidebarContent());
+
+		host.clampWidth(500); // 400 + 400 > 500, default 260 + 400 > 500 too
+
+		assert.deepStrictEqual(
+			{ sidebarWidth: host.sidebarWidth, customWidth: host.customWidth },
+			{ sidebarWidth: MODAL_SIDEBAR_MIN_WIDTH, customWidth: undefined }
+		);
 	});
 
 	// --- layout propagation -------------------------------------------------
