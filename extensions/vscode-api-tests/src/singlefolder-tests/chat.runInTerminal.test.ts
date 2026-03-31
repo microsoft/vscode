@@ -27,9 +27,16 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('chat - run_in_terminal', () => {
 
 	let disposables: vscode.Disposable[] = [];
+	let originalShellIntegrationEnabled: boolean | undefined;
 
 	setup(async () => {
 		disposables = [];
+
+		// Force shell integration on so tests that rely on exit code / output
+		// reporting are not dependent on prior test suites or user settings.
+		const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
+		originalShellIntegrationEnabled = terminalConfig.get<boolean>('shellIntegration.enabled');
+		await terminalConfig.update('shellIntegration.enabled', true, vscode.ConfigurationTarget.Global);
 
 		// Register a dummy default model required for participant requests
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('copilot', {
@@ -72,6 +79,10 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		const chatToolsConfig = vscode.workspace.getConfiguration('chat.tools.global');
 		await chatToolsConfig.update('autoApprove', undefined, vscode.ConfigurationTarget.Global);
 		await vscode.commands.executeCommand('setContext', 'vscode.chat.tools.global.autoApprove.testMode', undefined);
+
+		// Restore shell integration setting
+		const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
+		await terminalConfig.update('shellIntegration.enabled', originalShellIntegrationEnabled, vscode.ConfigurationTarget.Global);
 	});
 
 	/**
