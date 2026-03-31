@@ -359,25 +359,19 @@ export interface IAgent {
 	authenticate(resource: string, token: string): Promise<boolean>;
 
 	/**
-	 * Returns customizations (Open Plugins) this agent knows about.
-	 * These are published in {@link IAgentInfo.customizations} in root state.
-	 */
-	getCustomizations?(): ICustomizationRef[];
-
-	/**
 	 * Receives client-provided customization refs and syncs them (e.g. copies
 	 * plugin files to local storage). Returns per-customization status with
 	 * local plugin directories.
 	 *
 	 * The agent MAY defer a client restart until all active sessions are idle.
 	 */
-	setClientCustomizations?(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+	setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
 
 	/**
 	 * Notifies the agent that a customization has been toggled on or off.
 	 * The agent MAY restart its client before the next message is sent.
 	 */
-	setCustomizationEnabled?(uri: string, enabled: boolean): void;
+	setCustomizationEnabled(uri: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;

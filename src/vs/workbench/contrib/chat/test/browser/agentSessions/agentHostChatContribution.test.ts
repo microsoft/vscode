@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -16,6 +17,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction, IToolCallConfirmedAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -1930,6 +1932,79 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 
 			assert.strictEqual(serverRequestEvents.length, 0, 'Client-dispatched turns should not trigger onDidStartServerRequest');
+		});
+	});
+
+	// ---- Customizations dispatch ------------------------------------------
+
+	suite('customizations', () => {
+
+		test('dispatches activeClientChanged when a new session is created', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const customizations = observableValue<ICustomizationRef[]>('customizations', [
+				{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
+			]);
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				customizations,
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			const activeClientAction = agentHostService.dispatchedActions.find(
+				d => d.action.type === 'session/activeClientChanged'
+			);
+			assert.ok(activeClientAction, 'should dispatch activeClientChanged');
+			const ac = activeClientAction!.action as { activeClient: { customizations?: ICustomizationRef[] } };
+			assert.strictEqual(ac.activeClient.customizations?.length, 1);
+			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-a');
+		});
+
+		test('re-dispatches activeClientChanged when customizations observable changes', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const customizations = observableValue<ICustomizationRef[]>('customizations', []);
+
+			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'agent-host-copilot',
+				sessionType: 'agent-host-copilot',
+				fullName: 'Agent Host - Copilot',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+				customizations,
+			}));
+
+			// Create a session first
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			agentHostService.dispatchedActions.length = 0;
+
+			// Update customizations
+			customizations.set([
+				{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
+			], undefined);
+
+			const activeClientAction = agentHostService.dispatchedActions.find(
+				d => d.action.type === 'session/activeClientChanged'
+			);
+			assert.ok(activeClientAction, 'should re-dispatch activeClientChanged on change');
+			const ac = activeClientAction!.action as { activeClient: { customizations?: ICustomizationRef[] } };
+			assert.strictEqual(ac.activeClient.customizations?.length, 1);
+			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-b');
 		});
 	});
 });

@@ -8,16 +8,19 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { ROOT_STATE_URI, type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type URI as ProtocolURI } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -28,15 +31,15 @@ import { LoggingAgentConnection } from '../../../../workbench/contrib/chat/brows
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { IAgentHostFileSystemService } from '../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { AgentCustomizationSyncProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationSyncProvider.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { createRemoteAgentHarnessDescriptor, RemoteAgentCustomizationItemProvider, RemoteAgentSyncProvider } from './remoteAgentHostCustomizationHarness.js';
+import { IAgentHostFileSystemService } from '../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
+import { createRemoteAgentHarnessDescriptor, RemoteAgentCustomizationItemProvider } from './remoteAgentHostCustomizationHarness.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
 /** Per-connection state bundle, disposed when a connection is removed. */
@@ -75,6 +78,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/** Per-connection state: client state + per-agent registrations. */
 	private readonly _connections = this._register(new DisposableMap<string, ConnectionState>());
 
+	/** Per-address sessions providers, registered for all configured entries. */
+	private readonly _providerStores = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
+
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
@@ -85,6 +92,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -92,17 +101,79 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	) {
 		super();
 
+		// Display agent-host URIs with the original file path
+		this._register(this._labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
+
+		// Reconcile providers when configured entries change
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._reconcile();
+			}
+		}));
+
 		// Reconcile when connections change (added/removed/reconnected)
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
-			this._reconcileConnections();
+			this._reconcile();
 		}));
 
 		// Push auth token whenever the default account or sessions change
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this._authenticateAllConnections()));
 		this._register(this._authenticationService.onDidChangeSessions(() => this._authenticateAllConnections()));
 
-		// Initial setup for already-connected remotes
+		// Initial setup for configured entries and connected remotes
+		this._reconcile();
+	}
+
+	private _reconcile(): void {
+		this._reconcileProviders();
 		this._reconcileConnections();
+
+		// Ensure every live connection is wired to its provider.
+		// This covers the case where a provider was recreated (e.g. name
+		// change) while a connection for that address already existed.
+		for (const [address, connState] of this._connections) {
+			const provider = this._providerInstances.get(address);
+			if (provider) {
+				const connectionInfo = this._remoteAgentHostService.connections.find(c => c.address === address);
+				provider.setConnection(connState.loggedConnection, connectionInfo?.defaultDirectory);
+			}
+		}
+	}
+
+	private _reconcileProviders(): void {
+		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
+		const entries = enabled ? this._remoteAgentHostService.configuredEntries : [];
+		const desiredAddresses = new Set(entries.map(e => e.address));
+
+		// Remove providers no longer configured
+		for (const [address] of this._providerStores) {
+			if (!desiredAddresses.has(address)) {
+				this._providerStores.deleteAndDispose(address);
+			}
+		}
+
+		// Add or recreate providers for configured entries
+		for (const entry of entries) {
+			const existing = this._providerInstances.get(entry.address);
+			if (existing && existing.label !== (entry.name || entry.address)) {
+				// Name changed — recreate since ISessionsProvider.label is readonly
+				this._providerStores.deleteAndDispose(entry.address);
+			}
+			if (!this._providerStores.has(entry.address)) {
+				this._createProvider(entry);
+			}
+		}
+	}
+
+	private _createProvider(entry: IRemoteAgentHostEntry): void {
+		const store = new DisposableStore();
+		const provider = this._instantiationService.createInstance(
+			RemoteAgentHostSessionsProvider, { address: entry.address, name: entry.name });
+		store.add(provider);
+		store.add(this._sessionsProvidersService.registerProvider(provider));
+		this._providerInstances.set(entry.address, provider);
+		store.add(toDisposable(() => this._providerInstances.delete(entry.address)));
+		this._providerStores.set(entry.address, store);
 	}
 
 	private _reconcileConnections(): void {
@@ -112,6 +183,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		for (const [address] of this._connections) {
 			if (!currentAddresses.has(address)) {
 				this._logService.info(`[RemoteAgentHost] Removing contribution for ${address}`);
+				this._providerInstances.get(address)?.clearConnection();
 				this._connections.deleteAndDispose(address);
 			}
 		}
@@ -123,6 +195,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				// If the name changed, tear down and re-register with new name
 				if (existing.name !== connectionInfo.name) {
 					this._logService.info(`[RemoteAgentHost] Name changed for ${connectionInfo.address}: ${existing.name} -> ${connectionInfo.name}`);
+					this._providerInstances.get(connectionInfo.address)?.clearConnection();
 					this._connections.deleteAndDispose(connectionInfo.address);
 					this._setupConnection(connectionInfo);
 				}
@@ -182,12 +255,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		// Authenticate with this new connection
 		this._authenticateWithConnection(loggedConnection);
 
-		// Register a single sessions provider for the entire connection.
-		// It handles all agents discovered on this connection.
-		const sessionsProvider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { connectionInfo, connection: loggedConnection });
-		store.add(sessionsProvider);
-		store.add(this._sessionsProvidersService.registerProvider(sessionsProvider));
+		// Wire connection to existing sessions provider
+		this._providerInstances.get(address)?.setConnection(loggedConnection, connectionInfo.defaultDirectory);
 	}
 
 	private _handleRootStateChange(address: string, loggedConnection: LoggingAgentConnection, rootState: IRootState): void {
@@ -241,11 +310,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const displayName = configuredName || `${agent.displayName} (${address})`;
 
 		// Per-agent working directory cache, scoped to the agent store lifetime
-		const sessionWorkingDirs = new Map<string, string>();
+		const sessionWorkingDirs = new Map<string, URI>();
 		agentStore.add(toDisposable(() => sessionWorkingDirs.clear()));
 
 		// Capture the working directory from the active session for new sessions
-		const resolveWorkingDirectory = (resourceKey: string): string | undefined => {
+		const resolveWorkingDirectory = (resourceKey: string): URI | undefined => {
 			const cached = sessionWorkingDirs.get(resourceKey);
 			if (cached) {
 				return cached;
@@ -253,12 +322,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			const activeSession = this._sessionsManagementService.activeSession.get();
 			const repoUri = activeSession?.workspace.get()?.repositories[0]?.uri;
 			if (repoUri) {
-				// The repository URI may be wrapped as a vscode-agent-host:// URI.
-				// Unwrap to get the original filesystem path.
-				const originalUri = repoUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(repoUri) : repoUri;
-				const dir = originalUri.path;
-				sessionWorkingDirs.set(resourceKey, dir);
-				return dir;
+				sessionWorkingDirs.set(resourceKey, repoUri);
+				return repoUri;
 			}
 			return undefined;
 		};
@@ -276,16 +341,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		// Customization harness for this remote agent
 		const itemProvider = agentStore.add(new RemoteAgentCustomizationItemProvider(agent, connState.clientState));
-		const syncProvider = agentStore.add(new RemoteAgentSyncProvider(sessionType, this._storageService));
+		const syncProvider = agentStore.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
 		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, itemProvider, syncProvider);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Bundler for packaging individual files into a virtual Open Plugin
 		const bundler = agentStore.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
 
-		// Agent-level customizations observable: resolves sync provider
-		// selections into ICustomizationRef[] and updates whenever the
-		// sync provider selection changes.
+		// Agent-level customizations observable
 		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
 		const updateCustomizations = async () => {
 			const refs = await this._resolveCustomizations(syncProvider, bundler);
@@ -330,12 +393,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 *
 	 * Entries are classified as either:
 	 * - **Plugin**: A selected URI matches an installed plugin's root URI.
-	 *   The plugin directory is synced directly as an {@link ICustomizationRef}.
 	 * - **Individual file**: All other selected files are bundled into a
 	 *   synthetic Open Plugin via {@link SyncedCustomizationBundler}.
 	 */
 	private async _resolveCustomizations(
-		syncProvider: RemoteAgentSyncProvider,
+		syncProvider: AgentCustomizationSyncProvider,
 		bundler: SyncedCustomizationBundler,
 	): Promise<ICustomizationRef[]> {
 		const entries = syncProvider.getSelectedEntries();
@@ -348,7 +410,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const individualFiles: { uri: URI; type: PromptsType }[] = [];
 
 		for (const entry of entries) {
-			// Check if this URI matches an installed plugin's root directory
 			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
 			if (plugin) {
 				refs.push({
@@ -360,7 +421,6 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 		}
 
-		// Bundle individual files into a synthetic plugin
 		if (individualFiles.length > 0) {
 			const result = await bundler.bundle(individualFiles);
 			if (result) {

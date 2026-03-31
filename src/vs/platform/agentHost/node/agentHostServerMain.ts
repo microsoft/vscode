@@ -39,6 +39,8 @@ import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionDataService } from './sessionDataService.js';
+import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
+import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -182,12 +184,17 @@ async function main(): Promise<void> {
 			: undefined,
 	}, logService));
 
+
+	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
+	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+
 	// Wire up protocol handler
 	disposables.add(new ProtocolServerHandler(
 		agentService,
 		agentService.stateManager,
 		wsServer,
 		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		clientFileSystemProvider,
 		logService,
 	));
 
