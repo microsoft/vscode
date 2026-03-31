@@ -398,6 +398,16 @@ export interface IAgentDiscoveryInfo extends IPromptDiscoveryInfo {
 	readonly files: readonly IAgentDiscoveryResult[];
 }
 
+export function sanitizePromptDiscoveryInfo(info: IPromptDiscoveryInfo): IPromptDiscoveryInfo {
+	return {
+		...info,
+		files: info.files.map(file => ({
+			...file,
+			errorMessage: file.errorMessage ? 'REDACTED' : undefined,
+		})),
+	};
+}
+
 export interface IConfiguredHooksInfo {
 	readonly hooks: ChatRequestHooks;
 	readonly hasDisabledClaudeHooks: boolean;

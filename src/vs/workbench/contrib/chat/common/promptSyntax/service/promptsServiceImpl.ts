@@ -620,8 +620,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Computes discovery info for slash commands, combining prompts and skills.
 	 */
 	private async computeSlashCommandDiscoveryInfo(token: CancellationToken): Promise<ISlashCommandDiscoveryInfo> {
-		const files: ISlashCommandDiscoveryResult[] = [];
-
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
@@ -631,22 +629,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 			...skills.filter(s => !disabledSkills.has(s.uri)),
 		];
 
-		for (const promptPath of slashCommandFiles) {
+		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
 				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
 				const description = parsedPromptFile?.header?.description ?? promptPath.description;
-				files.push({ status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), parsedPromptFile });
+				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), parsedPromptFile } satisfies ISlashCommandDiscoveryResult;
 			} catch (e) {
 				this.logger.error(`[computeSlashCommandDiscoveryInfo] Failed to parse prompt file for slash command: ${promptPath.uri}`, e instanceof Error ? e.message : String(e));
-				files.push({
-					status: 'skipped',
-					skipReason: 'parse-error',
-					errorMessage: e instanceof Error ? e.message : String(e),
-					promptPath,
-				});
+				return { status: 'skipped', skipReason: 'parse-error', errorMessage: e instanceof Error ? e.message : String(e), promptPath } satisfies ISlashCommandDiscoveryResult;
 			}
-		}
+		}));
+
+		const files = parseResults;
 
 		const promptSourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt);
 		const sourceFolders = [...promptSourceFolders];
@@ -761,7 +756,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeAgentDiscoveryInfo(token: CancellationToken): Promise<IAgentDiscoveryInfo> {
-		const files: IAgentDiscoveryResult[] = [];
 		const allAgentFiles = await this.listPromptFiles(PromptsType.agent, token);
 		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
 
@@ -770,12 +764,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
-		for (const promptPath of allAgentFiles) {
+		const files = await Promise.all(allAgentFiles.map(async (promptPath): Promise<IAgentDiscoveryResult> => {
 			const uri = promptPath.uri;
 
 			if (disabledAgents.has(uri)) {
-				files.push({ status: 'skipped', skipReason: 'disabled', promptPath });
-				continue;
+				return { status: 'skipped', skipReason: 'disabled', promptPath };
 			}
 
 			try {
@@ -818,8 +811,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {
 					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true } };
-					files.push({ status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent });
-					continue;
+					return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 				}
 				const visibility = {
 					userInvocable: ast.header.userInvocable !== false,
@@ -846,7 +838,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };
-				files.push({ status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent });
+				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));
 				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
@@ -854,14 +846,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} else {
 					this.logger.error(`[computeAgentDiscoveryInfo] Failed to parse agent file: ${uri}`, error);
 				}
-				files.push({
+				return {
 					status: 'skipped',
 					skipReason: 'parse-error',
 					errorMessage: error.message,
 					promptPath,
-				});
+				};
 			}
-		}
+		}));
 
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent);
 		return { type: PromptsType.agent, files, sourceFolders };
