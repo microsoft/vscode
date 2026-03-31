@@ -206,7 +206,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.strictEqual(output.trim(), `${m1}\n${m2}\n${m3}`);
 		});
 
-		(isWindows ? test.skip : test.skip)('&& operators are converted to ; on PowerShell', async function () {
+		(isWindows ? test : test.skip)('&& operators are converted to ; on PowerShell', async function () {
 			this.timeout(60000);
 
 			const m1 = `CHAIN_${Date.now()}_A`;
