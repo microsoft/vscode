@@ -115,13 +115,13 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			}
 		));
 
-		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', () => this.showUpdateInfo()));
+		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
 
 		void this.onStateChange(true);
 	}
 
-	private async showUpdateInfo() {
-		const rendered = await this.tooltip.renderPostInstall();
+	private async showUpdateInfo(markdown?: string) {
+		const rendered = await this.tooltip.renderPostInstall(markdown);
 		if (rendered) {
 			this.tooltipVisible = true;
 			this.context.set(true);
