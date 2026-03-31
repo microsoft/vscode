@@ -284,7 +284,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				[
 					toAction({
 						id: 'themeUpdated.tryItOut',
-						label: nls.localize('tryNewTheme', "Try It Out"),
+						label: nls.localize('tryNewTheme', "Keep It"),
 						run: () => resolve(true)
 					}),
 					toAction({
