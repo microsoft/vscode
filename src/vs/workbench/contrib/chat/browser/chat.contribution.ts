@@ -1304,6 +1304,23 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
+		[ChatConfiguration.AllowedGitHubOrganizations]: {
+			type: 'string',
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+			policy: {
+				name: 'AllowedGitHubOrganizations',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.113',
+				localization: {
+					description: {
+						key: 'chat.allowedGitHubOrganizations',
+						value: nls.localize('chat.allowedGitHubOrganizations', "A comma-separated list of GitHub organization login names. When set, policy-gated chat features (such as MCP) are only available if the signed-in GitHub user is a member of one of the listed organizations."),
+					}
+				}
+			},
+		},
 		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
 			type: 'boolean',
 			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),

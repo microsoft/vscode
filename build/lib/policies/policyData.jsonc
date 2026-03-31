@@ -67,6 +67,20 @@
             "default": ""
         },
         {
+            "key": "chat.allowedGitHubOrganizations",
+            "name": "AllowedGitHubOrganizations",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.113",
+            "localization": {
+                "description": {
+                    "key": "chat.allowedGitHubOrganizations",
+                    "value": "A comma-separated list of GitHub organization login names. When set, policy-gated chat features (such as MCP) are only available if the signed-in GitHub user is a member of one of the listed organizations."
+                }
+            },
+            "type": "string",
+            "default": ""
+        },
+        {
             "key": "extensions.allowed",
             "name": "AllowedExtensions",
             "category": "Extensions",

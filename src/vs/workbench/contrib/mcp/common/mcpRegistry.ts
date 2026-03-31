@@ -10,7 +10,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue, autorunSelfDisposable } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, autorunSelfDisposable, observableFromEvent } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -27,6 +27,7 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../
 import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
@@ -45,8 +46,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
 	private readonly _mcpAccessValue: IObservable<string>;
+	private readonly _orgPolicySatisfied: IObservable<boolean>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
 		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
+			return [];
+		}
+		if (!this._orgPolicySatisfied.read(reader)) {
 			return [];
 		}
 		return this._collections.read(reader);
@@ -58,7 +63,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
-		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None || !this._orgPolicySatisfied.read(reader)) {
 			return { state: LazyCollectionState.AllKnown, collections: [] };
 		}
 
@@ -90,9 +95,11 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IMcpSandboxService private readonly _mcpSandboxService: IMcpSandboxService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
+		this._orgPolicySatisfied = observableFromEvent(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.orgPolicySatisfied);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
