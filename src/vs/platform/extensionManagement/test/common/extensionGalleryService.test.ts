@@ -13,8 +13,8 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { IAllowedExtensionsService, IGalleryExtension } from '../../common/extensionManagement.js';
-import { IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { AbstractExtensionGalleryService, ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionVersion, sortExtensionVersions, filterLatestExtensionVersionsForTargetPlatform } from '../../common/extensionGalleryService.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionVersion, sortExtensionVersions, filterLatestExtensionVersionsForTargetPlatform } from '../../common/extensionGalleryService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -469,7 +469,7 @@ suite('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createGalleryService(autoUpdateBuiltinExtensions: string[], productVersion: string = '1.66.0'): AbstractExtensionGalleryService {
+	function createGalleryService(autoUpdateBuiltinExtensions: string[], productVersion: string = '1.66.0') {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
@@ -477,18 +477,18 @@ suite('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 		disposables.add(fileService.registerProvider('vscode-tests', fileSystemProvider));
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IRequestService, { async request() { return { res: { statusCode: 200 }, stream: newWriteableBufferStream() }; } });
+		instantiationService.stub(IRequestService, { async request() { return { res: { statusCode: 200, headers: {} }, stream: newWriteableBufferStream() }; } });
 		instantiationService.stub(IEnvironmentService, new EnvironmentServiceMock(joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid')));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAllowedExtensionsService, { isAllowed: () => true });
-		instantiationService.stub(IExtensionGalleryManifestService, { extensionGalleryManifest: undefined, extensionGalleryManifestStatus: 0 });
+		instantiationService.stub(IExtensionGalleryManifestService, 'extensionGalleryManifestStatus', ExtensionGalleryManifestStatus.Available);
 		instantiationService.stub(IProductService, {
 			_serviceBrand: undefined,
 			version: productVersion,
 			autoUpdateBuiltinExtensions,
 		});
-		return disposables.add(instantiationService.createInstance(ExtensionGalleryServiceWithNoStorageService));
+		return instantiationService.createInstance(ExtensionGalleryServiceWithNoStorageService);
 	}
 
 	function aGalleryExtension(id: string, version: string): IGalleryExtension {
