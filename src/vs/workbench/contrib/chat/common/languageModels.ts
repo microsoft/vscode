@@ -997,9 +997,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		this._providers.set(vendor, provider);
 
-		// Always resolve models on registration so callers don't need to
-		// worry about firing onDidChange after registering the provider.
-		this._resolveAllLanguageModels(vendor, true);
+		if (this._hasStoredModelForVendor(vendor)) {
+			this._resolveAllLanguageModels(vendor, true);
+		}
 
 		const modelChangeListener = provider.onDidChange(() => {
 			this._resolveAllLanguageModels(vendor, true);
