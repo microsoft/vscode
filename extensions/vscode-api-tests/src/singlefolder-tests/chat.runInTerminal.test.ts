@@ -290,6 +290,28 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.strictEqual(output.trim(), `${marker} hello & world`);
 			});
 
+			test('unknown command reports command not found error', async function () {
+				this.timeout(60000);
+
+				// "sdfklsdfs" is a deliberately nonexistent command; the shell should
+				// report a "command not found" error (bash/zsh/fish: exit 127,
+				// PowerShell: exit 1).
+				const output = await invokeRunInTerminal('sdfklsdfs');
+				const trimmed = output.trim();
+
+				// The error message varies by shell:
+				//   bash/zsh:  "sdfklsdfs: command not found"
+				//   fish:      "Unknown command: sdfklsdfs"
+				//   PowerShell: "… is not recognized as a name of a cmdlet …"
+				const hasCommandNotFound = trimmed.includes('command not found') || trimmed.includes('not recognized') || trimmed.includes('Unknown command');
+
+				// Without shell integration the exit code is unavailable, so we allow
+				// the case where only the error text was captured.  With shell integration
+				// at least the error text (and usually the exit code) should appear.
+				const acceptable = hasCommandNotFound || (!hasShellIntegration && trimmed === 'Command produced no output');
+				assert.ok(acceptable, `Unexpected output for unknown command: ${JSON.stringify(trimmed)}`);
+			});
+
 		});
 
 		// --- Sandbox ON tests (macOS and Linux only) ---
