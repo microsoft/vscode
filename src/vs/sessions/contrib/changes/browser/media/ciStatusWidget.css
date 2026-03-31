@@ -18,10 +18,9 @@
 	position: relative;
 	display: flex;
 	align-items: center;
-	/* gap: 6px; */
-	padding: 6px 4px;
+	padding: 4px;
 	margin-top: 4px;
-	border-radius: 8px;
+	border-radius: 4px;
 	min-height: 22px;
 	font-weight: 500;
 	cursor: pointer;
