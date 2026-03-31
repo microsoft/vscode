@@ -148,7 +148,6 @@ suite('ChatService', () => {
 	 */
 	function createChatService(): ChatService {
 		const service = testDisposables.add(instantiationService.createInstance(ChatService));
-		instantiationService.stub(IChatService, service);
 		testServices.push(service);
 		return service;
 	}
@@ -272,6 +271,7 @@ suite('ChatService', () => {
 
 	test('reports modified edit keep-alive holders', () => {
 		const testService = createChatService();
+		instantiationService.stub(IChatService, testService);
 		const rootRef = testService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatServiceTest#root' });
 
 		const modifiedEntry = new class extends mock<IModifiedFileEntry>() {
