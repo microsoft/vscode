@@ -37,6 +37,7 @@ function code() {
 	fi
 
 	# Configuration
+	unset ELECTRON_RUN_AS_NODE
 	export NODE_ENV=development
 	export VSCODE_DEV=1
 	export VSCODE_CLI=1
