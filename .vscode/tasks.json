@@ -235,7 +235,7 @@
 				"command": ".\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions",
+				"--agents",
 				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
 				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
 			],

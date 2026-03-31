@@ -465,13 +465,13 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		noPrefix: true,
 	},
 	{
-		id: 'tip.openSessionsWindow',
+		id: 'tip.openAgentsWindow',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize(
-					'tip.openSessionsWindow',
-					"Try the [Sessions Window](command:workbench.action.openSessionsWindow \"Open Sessions Window\") to run multiple agents simultaneously and manage your coding sessions."
+					'tip.openAgentsWindow',
+					"Try the [Agents Application](command:workbench.action.openAgentsWindow \"Open Agents Application\") to run multiple agents simultaneously and manage your coding sessions."
 				)
 			);
 		},
@@ -480,7 +480,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			IsSessionsWindowContext.negate(),
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		),
-		excludeWhenCommandsExecuted: ['workbench.action.openSessionsWindow'],
-		dismissWhenCommandsClicked: ['workbench.action.openSessionsWindow'],
+		excludeWhenCommandsExecuted: ['workbench.action.openAgentsWindow'],
+		dismissWhenCommandsClicked: ['workbench.action.openAgentsWindow'],
 	},
 ];
