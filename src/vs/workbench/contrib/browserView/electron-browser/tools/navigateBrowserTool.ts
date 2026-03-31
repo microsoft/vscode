@@ -64,14 +64,14 @@ export class NavigateBrowserTool implements IToolImpl {
 				};
 			case 'back':
 				return {
-					invocationMessage: new MarkdownString(localize('browser.goBack.invocation', "Navigating {0} backward", link)),
-					pastTenseMessage: new MarkdownString(localize('browser.goBack.past', "Navigated {0} backward", link)),
+					invocationMessage: new MarkdownString(localize('browser.goBack.invocation', "Navigating backward in {0}", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.goBack.past', "Navigated backward in {0}", link)),
 					icon: Codicon.arrowLeft,
 				};
 			case 'forward':
 				return {
-					invocationMessage: new MarkdownString(localize('browser.goForward.invocation', "Navigating {0} forward", link)),
-					pastTenseMessage: new MarkdownString(localize('browser.goForward.past', "Navigated {0} forward", link)),
+					invocationMessage: new MarkdownString(localize('browser.goForward.invocation', "Navigating forward in {0}", link)),
+					pastTenseMessage: new MarkdownString(localize('browser.goForward.past', "Navigated forward in {0}", link)),
 					icon: Codicon.arrowRight,
 				};
 			default: {
@@ -84,8 +84,8 @@ export class NavigateBrowserTool implements IToolImpl {
 				}
 
 				return {
-					invocationMessage: new MarkdownString(localize('browser.navigate.invocation', "Navigating {0} to {1}", link, parsed.href)),
-					pastTenseMessage: new MarkdownString(localize('browser.navigate.past', "Navigated {0} to {1}", link, parsed.href)),
+					invocationMessage: new MarkdownString(localize('browser.navigate.invocation', "Navigating to {0} in {1}", parsed.href, link)),
+					pastTenseMessage: new MarkdownString(localize('browser.navigate.past', "Navigated to {0} in {1}", parsed.href, link)),
 					confirmationMessages: {
 						title: localize('browser.navigate.confirmTitle', 'Navigate Browser?'),
 						message: localize('browser.navigate.confirmMessage', 'This will navigate the browser to {0} and allow the agent to access its contents.', parsed.href),

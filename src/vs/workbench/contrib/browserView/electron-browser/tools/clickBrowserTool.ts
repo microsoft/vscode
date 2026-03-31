@@ -76,8 +76,20 @@ export class ClickBrowserTool implements IToolImpl {
 		const link = createBrowserPageLink(params.pageId);
 		const element = escapeMarkdownSyntaxTokens(params.element ?? DEFAULT_ELEMENT_LABEL);
 		return {
-			invocationMessage: new MarkdownString(localize('browser.click.invocation', "Clicking {0} in {1}", element, link)),
-			pastTenseMessage: new MarkdownString(localize('browser.click.past', "Clicked {0} in {1}", element, link)),
+			invocationMessage: params.button === 'right'
+				? new MarkdownString(localize('browser.click.invocation.right', "Right-clicking {0} in {1}", element, link))
+				: params.button === 'middle'
+					? new MarkdownString(localize('browser.click.invocation.middle', "Middle-clicking {0} in {1}", element, link))
+					: params.dblClick
+						? new MarkdownString(localize('browser.dblClick.invocation', "Double-clicking {0} in {1}", element, link))
+						: new MarkdownString(localize('browser.click.invocation', "Clicking {0} in {1}", element, link)),
+			pastTenseMessage: params.button === 'right'
+				? new MarkdownString(localize('browser.click.past.right', "Right-clicked {0} in {1}", element, link))
+				: params.button === 'middle'
+					? new MarkdownString(localize('browser.click.past.middle', "Middle-clicked {0} in {1}", element, link))
+					: params.dblClick
+						? new MarkdownString(localize('browser.dblClick.past', "Double-clicked {0} in {1}", element, link))
+						: new MarkdownString(localize('browser.click.past', "Clicked {0} in {1}", element, link)),
 		};
 	}
 
