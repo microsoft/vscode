@@ -26,7 +26,7 @@ function createSession(id: string, opts: {
 		sessionType: 'test',
 		icon: Codicon.account,
 		createdAt,
-		workspace: observableValue(`workspace-${id}`, opts.workspaceLabel ? {
+		workspace: observableValue(`workspace-${id}`, opts.workspaceLabel !== undefined ? {
 			label: opts.workspaceLabel,
 			icon: Codicon.folder,
 			repositories: [],

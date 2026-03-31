@@ -14,17 +14,17 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { EditorsVisibleContext, IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
-import { ISessionsManagementService, IsNewChatSessionContext } from '../sessionsManagementService.js';
+import { ISessionsManagementService } from '../sessionsManagementService.js';
 import { ISession, SessionStatus } from '../../common/sessionData.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 
 //  Constants
 
@@ -513,6 +513,45 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 	}
 });
 
+registerAction2(class RenameSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.renameSession',
+			title: localize2('renameSession', "Rename..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 1,
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, /^agenthost-/),
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const session = Array.isArray(context) ? context[0] : context;
+		if (!session) {
+			return;
+		}
+		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const newTitle = await quickInputService.input({
+			value: session.title.get(),
+			prompt: localize('renameSession.prompt', "New agent session title"),
+			validateInput: async value => {
+				if (!value.trim()) {
+					return localize('renameSession.empty', "Title cannot be empty");
+				}
+				return undefined;
+			}
+		});
+		if (newTitle) {
+			const trimmedTitle = newTitle.trim();
+			if (trimmedTitle) {
+				await sessionsManagementService.renameChat(session.mainChat, trimmedTitle);
+			}
+		}
+	}
+});
+
 registerAction2(class MarkSessionReadAction extends Action2 {
 	constructor() {
 		super({
@@ -633,6 +672,16 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 					IsAuxiliaryWindowContext.negate(),
 					SessionsWelcomeVisibleContext.negate(),
 					IsNewChatSessionContext.negate()
+				)
+			},
+			{
+				id: MenuId.ChatEditingSessionChangesToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					ContextKeyExpr.equals('sessions.hasPullRequest', true),
+					ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
 				)
 			}]
 		});
