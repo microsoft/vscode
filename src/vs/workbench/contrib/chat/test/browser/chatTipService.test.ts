@@ -27,6 +27,7 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
 import { ChatTipTier, TIP_CATALOG } from '../../browser/chatTipCatalog.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
 import { TestChatEntitlementService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { MockChatService } from '../common/chatService/mockChatService.js';
@@ -69,6 +70,10 @@ suite('ChatTipService', () => {
 	let mockInstructionFiles: IResolvedAgentFile[];
 	let mockPromptInstructionFiles: IPromptPath[];
 	let chatEntitlementService: TestChatEntitlementService;
+	let newModelsEmitter: Emitter<void>;
+	let mockNewModelIds: string[];
+	let mockLookupLanguageModel: (id: string) => { name: string } | undefined;
+	let mockGetModelNameFromManifest: (id: string) => string | undefined;
 
 	function createProductService(hasCopilot: boolean): IProductService {
 		return {
@@ -105,6 +110,10 @@ suite('ChatTipService', () => {
 		storageService = testDisposables.add(new InMemoryStorageService());
 		mockInstructionFiles = [];
 		mockPromptInstructionFiles = [];
+		newModelsEmitter = testDisposables.add(new Emitter<void>());
+		mockNewModelIds = [];
+		mockLookupLanguageModel = () => undefined;
+		mockGetModelNameFromManifest = () => undefined;
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IStorageService, storageService);
@@ -127,6 +136,15 @@ suite('ChatTipService', () => {
 		instantiationService.stub(IKeybindingService, {
 			lookupKeybinding: () => undefined,
 		} as Partial<IKeybindingService> as IKeybindingService);
+		instantiationService.stub(ILanguageModelsService, {
+			onDidChangeNewModels: newModelsEmitter.event,
+			getNewModelIds: () => mockNewModelIds,
+			markModelsAsSeen: () => { },
+			refreshNewModels: () => { },
+			simulateNewModel: () => undefined,
+			getModelNameFromManifest: (id: string) => mockGetModelNameFromManifest(id),
+			lookupLanguageModel: (id: string) => mockLookupLanguageModel(id) as ILanguageModelChatMetadata | undefined,
+		} as Partial<ILanguageModelsService> as ILanguageModelsService);
 	});
 
 	test('returns a welcome tip', () => {
@@ -144,6 +162,11 @@ suite('ChatTipService', () => {
 				keybindingService: {
 					lookupKeybinding: () => undefined,
 				} as Partial<IKeybindingService> as IKeybindingService,
+				languageModelsService: {
+					getNewModelIds: () => [],
+					lookupLanguageModel: () => undefined,
+					getModelNameFromManifest: () => undefined,
+				} as Partial<ILanguageModelsService> as ILanguageModelsService,
 			}).value;
 
 			const commandLinkRegex = /\[[^\]]+\]\((command:[^)]+)\)/g;
@@ -1723,6 +1746,24 @@ suite('ChatTipService', () => {
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after refresh finds instruction files');
+	});
+
+	// -----------------------------------------------------------------------
+	// tip.tryNewModel tests
+	// -----------------------------------------------------------------------
+
+	test('tryNewModel tip shows model name from manifest when model is unavailable', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.hasNewModels.key, true);
+		mockNewModelIds = ['copilot/claude-opus-4.6'];
+		// Model is not in the cache (unavailable), but name comes from manifest
+		mockLookupLanguageModel = () => undefined;
+		mockGetModelNameFromManifest = (id: string) => id === 'copilot/claude-opus-4.6' ? 'Claude Opus 4.6' : undefined;
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+		assert.strictEqual(tip.id, 'tip.tryNewModel');
+		assert.ok(tip.content.value.includes('Claude Opus 4.6'), 'Tip should include the model name from manifest even when model is unavailable');
 	});
 
 });

@@ -1143,3 +1143,167 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.2 } });
 	});
 });
+
+suite('LanguageModels - New Model Detection', function () {
+
+	let languageModelsService: LanguageModelsService;
+	let storageService: TestStorageService;
+	const disposables = new DisposableStore();
+
+	function createService(storageOverride?: TestStorageService): LanguageModelsService {
+		const storage = storageOverride ?? storageService;
+		return new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() { return Promise.resolve(); }
+			},
+			new NullLogService(),
+			storage,
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() { return []; }
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		);
+	}
+
+	function registerCopilotModels(service: LanguageModelsService, models: { id: string; name: string }[]): void {
+		service.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'copilot', displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(service.registerLanguageModelProvider('copilot', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				return models.map(m => ({
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: m.name,
+						vendor: 'copilot',
+						family: 'copilot',
+						version: '1.0',
+						id: m.id.replace('copilot/', ''),
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+						isDefaultForLocation: {},
+						isUserSelectable: true,
+					} satisfies ILanguageModelChatMetadata,
+					identifier: m.id,
+				}));
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+	}
+
+	setup(function () {
+		storageService = new TestStorageService();
+	});
+
+	teardown(function () {
+		languageModelsService?.dispose();
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setManifestRawResponse(service: LanguageModelsService, response: { paid?: { id: string; label: string; featured?: boolean; minVSCodeVersion?: string }[]; free?: { id: string; label: string; featured?: boolean }[] }): void {
+		type TestAccess = { _modelsControlRawResponse: typeof response; _refreshModelsControlManifest(): void };
+		(service as unknown as TestAccess)._modelsControlRawResponse = response;
+		(service as unknown as TestAccess)._refreshModelsControlManifest();
+	}
+
+	test('non-featured paid manifest model is tracked for newness (enterprise admin-disabled)', function () {
+		languageModelsService = createService();
+
+		// Seed the seen model IDs directly in storage since async model
+		// resolution does not run in the test environment.
+		storageService.store('chat.seenModelIds', JSON.stringify(['copilot/gpt-4o']), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		languageModelsService.refreshNewModels();
+
+		// Simulate a new model appearing in the paid manifest that is not
+		// featured and not in the cache (admin-disabled for enterprise users).
+		setManifestRawResponse(languageModelsService, {
+			paid: [
+				{ id: 'gpt-4o', label: 'GPT-4o' },
+				{ id: 'new-premium-model', label: 'New Premium Model' },
+			],
+		});
+
+		assert.deepStrictEqual([...languageModelsService.getNewModelIds()], ['copilot/new-premium-model']);
+	});
+
+	test('free manifest model is tracked for newness (unavailable premium model for free users)', function () {
+		languageModelsService = createService();
+
+		// Seed the seen model IDs directly in storage since async model
+		// resolution does not run in the test environment.
+		storageService.store('chat.seenModelIds', JSON.stringify(['copilot/gpt-4o']), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		languageModelsService.refreshNewModels();
+
+		// Simulate a new model appearing in the free manifest with featured
+		// flag (premium model shown with upgrade link for free users).
+		setManifestRawResponse(languageModelsService, {
+			free: [
+				{ id: 'gpt-4o', label: 'GPT-4o' },
+				{ id: 'claude-opus-4.6', label: 'Claude Opus 4.6', featured: true },
+			],
+		});
+
+		assert.deepStrictEqual([...languageModelsService.getNewModelIds()], ['copilot/claude-opus-4.6']);
+	});
+
+	test('manifest model seeded on first launch is not flagged as new', function () {
+		languageModelsService = createService();
+
+		// Set manifest with models including one that is unavailable.
+		// Then trigger the first-launch seeding by refreshing — all models
+		// in the manifest should be seeded as "seen".
+		setManifestRawResponse(languageModelsService, {
+			paid: [
+				{ id: 'gpt-4o', label: 'GPT-4o' },
+				{ id: 'premium-model', label: 'Premium Model' },
+			],
+		});
+
+		assert.deepStrictEqual(languageModelsService.getNewModelIds(), []);
+	});
+
+	test('admin-enabled model stays seen if it was already tracked from manifest', function () {
+		languageModelsService = createService();
+
+		// Seed the seen model IDs directly in storage since async model
+		// resolution does not run in the test environment.
+		storageService.store('chat.seenModelIds', JSON.stringify(['copilot/gpt-4o']), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		languageModelsService.refreshNewModels();
+
+		// A new model appears in the paid manifest (admin-disabled)
+		setManifestRawResponse(languageModelsService, {
+			paid: [
+				{ id: 'gpt-4o', label: 'GPT-4o' },
+				{ id: 'new-model', label: 'New Model' },
+			],
+		});
+		assert.deepStrictEqual([...languageModelsService.getNewModelIds()], ['copilot/new-model']);
+
+		// User sees it, mark as seen
+		languageModelsService.markModelsAsSeen(['copilot/new-model']);
+		assert.deepStrictEqual(languageModelsService.getNewModelIds(), []);
+
+		// Simulate admin enabling the model by refreshing the manifest
+		// with the same model list — model should stay seen.
+		setManifestRawResponse(languageModelsService, {
+			paid: [
+				{ id: 'gpt-4o', label: 'GPT-4o' },
+				{ id: 'new-model', label: 'New Model' },
+			],
+		});
+
+		// Model should still be seen — not flagged as new again
+		assert.deepStrictEqual(languageModelsService.getNewModelIds(), []);
+	});
+});

@@ -1793,13 +1793,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 				.map(([id]) => id)
 		);
 
-		// Include featured models from the control manifest so that
-		// unavailable models (e.g. premium models for free users) are
-		// also tracked for newness.
-		for (const [entryId, entry] of Object.entries(this._modelsControlManifest.paid)) {
-			if (entry.featured) {
-				ids.add(`copilot/${entryId}`);
-			}
+		// Include all models from the control manifest so that
+		// unavailable models are also tracked for newness.  This covers
+		// premium models shown with an upgrade link for free users,
+		// and admin-disabled models shown with "Contact your admin"
+		// for enterprise users.
+		for (const entryId of Object.keys(this._modelsControlManifest.paid)) {
+			ids.add(`copilot/${entryId}`);
+		}
+		for (const entryId of Object.keys(this._modelsControlManifest.free)) {
+			ids.add(`copilot/${entryId}`);
 		}
 
 		return [...ids];

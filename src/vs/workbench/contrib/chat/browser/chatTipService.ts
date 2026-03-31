@@ -932,7 +932,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._tipCommandListener.value = this._commandService.onDidExecuteCommand(e => {
 			if (enabledCommandSet.has(e.commandId) && this._shownTip?.id === tip.id) {
 				this._logTipTelemetry(tip.id, 'commandClicked', e.commandId);
-				this.dismissTip();
+				this.dismissTipForSession();
 			}
 		});
 	}
