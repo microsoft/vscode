@@ -179,7 +179,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			this.installConfigurationListener();
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();
-			this.initialize().catch(errors.onUnexpectedError);
+			this.initialize(themeData?.settingsId).catch(errors.onUnexpectedError);
 		});
 
 		const codiconStyleSheet = createStyleSheet();
@@ -195,7 +195,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		delayer.schedule();
 	}
 
-	private async initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
+	private async initialize(themePreviousSettingsId: string | undefined): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
 		const extDevLocs = this.environmentService.extensionDevelopmentLocationURI;
 		const extDevLoc = extDevLocs && extDevLocs.length === 1 ? extDevLocs[0] : undefined; // in dev mode, switch to a theme provided by the extension under dev.
 
@@ -247,29 +247,26 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		this.migrateColorThemeSettings();
 		const result = await Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
-		await this.showNewDefaultThemeNotification();
+		await this.showNewDefaultThemeNotification(themePreviousSettingsId);
 		return result;
 	}
 
 	private static readonly NEW_THEME_NOTIFICATION_KEY = 'workbench.newDefaultThemeNotification';
 
-	private async showNewDefaultThemeNotification(): Promise<void> {
+	private async showNewDefaultThemeNotification(previousSettingsId: string | undefined): Promise<void> {
 		if (this.storageService.getBoolean(WorkbenchThemeService.NEW_THEME_NOTIFICATION_KEY, StorageScope.APPLICATION)) {
 			return; // already shown
 		}
 		if (!(await this.hostService.hadLastFocus()) || this.environmentService.isSessionsWindow) {
 			return;
 		}
-		let previousSettingsId: string | undefined = undefined;
 		try {
 			if (!this.settings.isDefaultColorTheme()) {
 				return;
 			}
-			const themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
-			if (!themeData || !['Dark Modern', 'Light Modern'].includes(themeData.settingsId)) {
+			if (!previousSettingsId || ['Dark Modern', 'Light Modern'].includes(previousSettingsId)) {
 				return;
 			}
-			previousSettingsId = themeData.settingsId;
 			if (![ThemeSettingDefaults.COLOR_THEME_DARK, ThemeSettingDefaults.COLOR_THEME_LIGHT].includes(this.settings.colorTheme)) {
 				return;
 			}
@@ -287,7 +284,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				primary: [
 					toAction({
 						id: 'themeUpdated.tryItOut',
-						label: nls.localize('tryNewTheme', "Try Them Out"),
+						label: nls.localize('tryNewTheme', "Try It Out"),
 						run: () => { keepTheme = true; }
 					}),
 					toAction({
@@ -299,6 +296,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			},
 		});
 		if (!keepTheme) {
+			const previousSettingsId = this.currentColorTheme.type === ColorScheme.LIGHT ? 'Light Modern' : 'Dark Modern';
 			const previousTheme = this.colorThemeRegistry.findThemeBySettingsId(previousSettingsId);
 			if (previousTheme) {
 				this.setColorTheme(previousTheme.id, 'auto');
