@@ -113,14 +113,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				type: 'string',
 				description: 'Optional name of a specific agent to invoke. If not provided, uses the current agent.'
 			};
+			inputSchema.properties.model = {
+				type: 'string',
+				description: 'Optional model identifier for this subagent invocation. Overrides the agent definition\'s default model. Examples: claude-sonnet-4-6, claude-haiku-4-5, gpt-4o, gpt-4o-mini.'
+			};
 			modelDescription += `\n- If the user asks for a certain agent, you MUST provide that EXACT agent name (case-sensitive) to invoke that specific agent.`;
+			modelDescription += `\n- You may optionally specify a \`model\` to run the subagent with a specific language model. Use this when a task needs a different capability level than your current model.`;
 		}
 
-		inputSchema.properties.model = {
-			type: 'string',
-			description: 'Optional model identifier for this subagent invocation. Overrides the agent definition\'s default model. Examples: claude-sonnet-4-6, claude-haiku-4-5, gpt-4o, gpt-4o-mini.'
-		};
-		modelDescription += `\n- You may optionally specify a \`model\` to run the subagent with a specific language model. Use this when a task needs a different capability level than your current model.`;
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentTool.Id,
 			toolReferenceName: VSCodeToolReference.runSubagent,

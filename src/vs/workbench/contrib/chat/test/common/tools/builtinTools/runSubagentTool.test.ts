@@ -155,9 +155,11 @@ suite('RunSubagentTool', () => {
 
 			assert.ok(toolData.inputSchema?.properties?.agentName, 'agentName should be in schema when custom agents enabled');
 		});
-		test('includes model property in schema', () => {
+		test('includes model property in schema when custom agents enabled', () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
+			const configService = new TestConfigurationService({
+				'chat.customAgentInSubagent.enabled': true,
+			});
 			const promptsService = new MockPromptsService();
 
 			const tool = testDisposables.add(new RunSubagentTool(
@@ -175,7 +177,7 @@ suite('RunSubagentTool', () => {
 
 			const toolData = tool.getToolData();
 
-			assert.ok(toolData.inputSchema?.properties?.model, 'model should be in schema');
+			assert.ok(toolData.inputSchema?.properties?.model, 'model should be in schema when custom agents enabled');
 			assert.strictEqual(toolData.inputSchema?.properties?.model.type, 'string');
 		});
 	});
