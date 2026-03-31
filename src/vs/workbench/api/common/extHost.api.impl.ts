@@ -1129,7 +1129,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				let suppressConfirmation: boolean | undefined;
 				let workspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[];
 				if (rest.length > 0 && rest[0] && typeof rest[0] === 'object' && !('uri' in rest[0])) {
-					suppressConfirmation = (rest[0] as vscode.UpdateWorkspaceFoldersOptions).suppressConfirmation;
+					suppressConfirmation = (rest[0] as { suppressConfirmation?: boolean }).suppressConfirmation;
 					workspaceFoldersToAdd = rest.slice(1) as { uri: vscode.Uri; name?: string }[];
 				} else {
 					workspaceFoldersToAdd = rest as { uri: vscode.Uri; name?: string }[];

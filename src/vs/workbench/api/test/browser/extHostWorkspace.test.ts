@@ -281,7 +281,7 @@ suite('ExtHostWorkspace', function () {
 
 		assert.strictEqual(false, ws.updateWorkspaceFolders(extensionDescriptor, 1, 1));
 		assert.strictEqual(false, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2));
-		assert.strictEqual(false, ws.updateWorkspaceFolders(extensionDescriptor, 0, 1, asUpdateWorkspaceFolderData(URI.parse('foo:bar'))));
+		assert.strictEqual(false, ws.updateWorkspaceFolders(extensionDescriptor, 0, 1, undefined, asUpdateWorkspaceFolderData(URI.parse('foo:bar'))));
 	});
 
 	test('updateWorkspaceFolders - valid arguments', function (done) {
@@ -307,7 +307,7 @@ suite('ExtHostWorkspace', function () {
 		// Add one folder
 		//
 
-		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 0, asUpdateWorkspaceFolderData(URI.parse('foo:bar'))));
+		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 0, undefined, asUpdateWorkspaceFolderData(URI.parse('foo:bar'))));
 		assert.strictEqual(1, ws.workspace!.folders.length);
 		assert.strictEqual(ws.workspace!.folders[0].uri.toString(), URI.parse('foo:bar').toString());
 
@@ -334,7 +334,7 @@ suite('ExtHostWorkspace', function () {
 		// Add two more folders
 		//
 
-		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 1, 0, asUpdateWorkspaceFolderData(URI.parse('foo:bar1')), asUpdateWorkspaceFolderData(URI.parse('foo:bar2'))));
+		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 1, 0, undefined, asUpdateWorkspaceFolderData(URI.parse('foo:bar1')), asUpdateWorkspaceFolderData(URI.parse('foo:bar2'))));
 		assert.strictEqual(3, ws.workspace!.folders.length);
 		assert.strictEqual(ws.workspace!.folders[0].uri.toString(), URI.parse('foo:bar').toString());
 		assert.strictEqual(ws.workspace!.folders[1].uri.toString(), URI.parse('foo:bar1').toString());
@@ -394,7 +394,7 @@ suite('ExtHostWorkspace', function () {
 		// Rename folder
 		//
 
-		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2, asUpdateWorkspaceFolderData(URI.parse('foo:bar'), 'renamed 1'), asUpdateWorkspaceFolderData(URI.parse('foo:bar1'), 'renamed 2')));
+		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2, undefined, asUpdateWorkspaceFolderData(URI.parse('foo:bar'), 'renamed 1'), asUpdateWorkspaceFolderData(URI.parse('foo:bar1'), 'renamed 2')));
 		assert.strictEqual(2, ws.workspace!.folders.length);
 		assert.strictEqual(ws.workspace!.folders[0].uri.toString(), URI.parse('foo:bar').toString());
 		assert.strictEqual(ws.workspace!.folders[1].uri.toString(), URI.parse('foo:bar1').toString());
@@ -427,7 +427,7 @@ suite('ExtHostWorkspace', function () {
 		// Add and remove folders
 		//
 
-		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2, asUpdateWorkspaceFolderData(URI.parse('foo:bar3')), asUpdateWorkspaceFolderData(URI.parse('foo:bar4'))));
+		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2, undefined, asUpdateWorkspaceFolderData(URI.parse('foo:bar3')), asUpdateWorkspaceFolderData(URI.parse('foo:bar4'))));
 		assert.strictEqual(2, ws.workspace!.folders.length);
 		assert.strictEqual(ws.workspace!.folders[0].uri.toString(), URI.parse('foo:bar3').toString());
 		assert.strictEqual(ws.workspace!.folders[1].uri.toString(), URI.parse('foo:bar4').toString());
@@ -459,7 +459,7 @@ suite('ExtHostWorkspace', function () {
 		// Swap folders
 		//
 
-		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2, asUpdateWorkspaceFolderData(URI.parse('foo:bar4')), asUpdateWorkspaceFolderData(URI.parse('foo:bar3'))));
+		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 0, 2, undefined, asUpdateWorkspaceFolderData(URI.parse('foo:bar4')), asUpdateWorkspaceFolderData(URI.parse('foo:bar3'))));
 		assert.strictEqual(2, ws.workspace!.folders.length);
 		assert.strictEqual(ws.workspace!.folders[0].uri.toString(), URI.parse('foo:bar4').toString());
 		assert.strictEqual(ws.workspace!.folders[1].uri.toString(), URI.parse('foo:bar3').toString());
@@ -489,7 +489,7 @@ suite('ExtHostWorkspace', function () {
 		// Add one folder after the other without waiting for confirmation (not supported currently)
 		//
 
-		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 2, 0, asUpdateWorkspaceFolderData(URI.parse('foo:bar5'))));
+		assert.strictEqual(true, ws.updateWorkspaceFolders(extensionDescriptor, 2, 0, undefined, asUpdateWorkspaceFolderData(URI.parse('foo:bar5'))));
 
 		assert.strictEqual(3, ws.workspace!.folders.length);
 		assert.strictEqual(ws.workspace!.folders[0].uri.toString(), URI.parse('foo:bar4').toString());

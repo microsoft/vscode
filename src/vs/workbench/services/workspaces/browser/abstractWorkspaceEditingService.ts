@@ -151,7 +151,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// Delete Folders
 		if (wantsToDelete && !wantsToAdd) {
-			return this.removeFolders(foldersToDelete, false, options);
+			return this.removeFolders(foldersToDelete, donotNotifyError, options);
 		}
 
 		// Add & Delete Folders
