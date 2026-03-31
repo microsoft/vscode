@@ -27,7 +27,7 @@ import { searchNewEditorIcon, searchRefreshIcon } from '../../search/browser/sea
 import * as SearchConstants from '../../search/common/constants.js';
 import * as SearchEditorConstants from './constants.js';
 import { SearchEditor } from './searchEditor.js';
-import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from './searchEditorActions.js';
+import { createEditorFromSearchResult, goToResultCommand, modifySearchEditorContextLinesCommand, openNewSearchEditor, openResultToSideCommand, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from './searchEditorActions.js';
 import { getOrMakeSearchEditorInput, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
@@ -547,6 +547,36 @@ registerAction2(class extends Action2 {
 	}
 	run(accessor: ServicesAccessor) {
 		selectAllSearchEditorMatchesCommand(accessor);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SearchEditorConstants.GoToResultCommandId,
+			title: localize2('searchEditor.action.goToResult', "Go to Result"),
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		goToResultCommand(accessor);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SearchEditorConstants.OpenResultToSideCommandId,
+			title: localize2('searchEditor.action.openResultToSide', "Open Result to the Side"),
+			category,
+			f1: true,
+			precondition: SearchEditorConstants.InSearchEditor,
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		openResultToSideCommand(accessor);
 	}
 });
 
