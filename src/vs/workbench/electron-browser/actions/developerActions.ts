@@ -203,6 +203,10 @@ export class StopTracing extends Action2 {
 		const nativeHostService = accessor.get(INativeHostService);
 		const progressService = accessor.get(IProgressService);
 
+		if (!activeTracingEntry) {
+			return;
+		}
+
 		await progressService.withProgress({
 			location: ProgressLocation.Dialog,
 			title: localize('stopTracing.title', "Creating trace file..."),
