@@ -721,7 +721,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			// The editor toolbar menu is handled by the editor group so we do not need to manage it here.
 			// However, depending on the active editor, we need to update the context and action runner of the toolbar menu.
-			if (this.editorActionsEnabled && this.editorGroupsContainer.activeGroup?.activeEditor !== undefined) {
+			if (this.editorActionsEnabled && this.editorGroupsContainer.activeGroup?.activeEditor) {
 				const context: IEditorCommandsContext = { groupId: this.editorGroupsContainer.activeGroup.id };
 
 				this.actionToolBar.actionRunner = this.editorToolbarMenuDisposables.add(new EditorCommandsContextActionRunner(context));
