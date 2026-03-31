@@ -48,6 +48,55 @@ export type ChatRequestHooks = {
 };
 
 /**
+ * Computes a signature string for a hook command that captures all fields
+ * which determine whether two hooks would execute identically.
+ * Used for deduplication when the same hook is defined in multiple discovery paths.
+ * Uses JSON.stringify for unambiguous encoding (avoids collisions from
+ * separator characters in env keys/values).
+ */
+function computeHookSignature(hook: IHookCommand): string {
+	const envEntries = hook.env
+		? Object.entries(hook.env).sort(([a], [b]) => a.localeCompare(b))
+		: [];
+
+	return JSON.stringify({
+		command: hook.command ?? '',
+		windows: hook.windows ?? '',
+		linux: hook.linux ?? '',
+		osx: hook.osx ?? '',
+		cwd: hook.cwd?.toString() ?? '',
+		timeout: hook.timeout ?? null,
+		env: envEntries.length > 0 ? envEntries : null,
+	});
+}
+
+/**
+ * Removes duplicate hook commands from an array.
+ * Two hooks are considered identical if all their command fields (command, windows,
+ * linux, osx), cwd, env, and timeout match. This handles the case where the same
+ * hook is defined in multiple discovery paths (e.g., `.github/hooks/` and
+ * `.claude/settings.json`). First occurrence is kept, preserving path priority order.
+ */
+export function deduplicateHooks(hooks: readonly IHookCommand[]): readonly IHookCommand[] {
+	if (hooks.length <= 1) {
+		return hooks;
+	}
+
+	const seen = new Set<string>();
+	const result: IHookCommand[] = [];
+
+	for (const hook of hooks) {
+		const signature = computeHookSignature(hook);
+		if (!seen.has(signature)) {
+			seen.add(signature);
+			result.push(hook);
+		}
+	}
+
+	return result;
+}
+
+/**
  * Merges two sets of hooks by concatenating the command arrays for each hook type.
  * Additional hooks are appended after the base hooks.
  */
