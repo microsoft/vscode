@@ -22,7 +22,12 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
-			wrapCommand: (command, _requestUnsandboxedExecution) => command,
+			wrapCommand: (command, _requestUnsandboxedExecution) => {
+				return {
+					command,
+					isSandboxWrapped: false,
+				};
+			},
 			getSandboxConfigPath: async () => '/tmp/sandbox.json',
 			checkForSandboxingPrereqs: async () => ({ enabled: false, sandboxConfigPath: undefined, failedCheck: TerminalSandboxPrerequisiteCheck.Config }),
 			getTempDir: () => undefined,
@@ -49,7 +54,10 @@ suite('CommandLineSandboxRewriter', () => {
 
 	test('returns undefined when sandbox config is unavailable', async () => {
 		stubSandboxService({
-			wrapCommand: command => `wrapped:${command}`,
+			wrapCommand: command => ({
+				command: `wrapped:${command}`,
+				isSandboxWrapped: true,
+			}),
 			checkForSandboxingPrereqs: async () => ({ enabled: false, sandboxConfigPath: undefined, failedCheck: TerminalSandboxPrerequisiteCheck.Config }),
 		});
 
@@ -78,7 +86,10 @@ suite('CommandLineSandboxRewriter', () => {
 		stubSandboxService({
 			wrapCommand: (command, _requestUnsandboxedExecution) => {
 				calls.push('wrapCommand');
-				return `wrapped:${command}`;
+				return {
+					command: `wrapped:${command}`,
+					isSandboxWrapped: true,
+				};
 			},
 			checkForSandboxingPrereqs: async () => {
 				calls.push('checkForSandboxingPrereqs');
@@ -98,7 +109,10 @@ suite('CommandLineSandboxRewriter', () => {
 		stubSandboxService({
 			wrapCommand: (command, requestUnsandboxedExecution) => {
 				calls.push(`wrap:${command}:${String(requestUnsandboxedExecution)}`);
-				return `wrapped:${command}`;
+				return {
+					command: `wrapped:${command}`,
+					isSandboxWrapped: !requestUnsandboxedExecution,
+				};
 			},
 			checkForSandboxingPrereqs: async () => {
 				calls.push('prereqs');

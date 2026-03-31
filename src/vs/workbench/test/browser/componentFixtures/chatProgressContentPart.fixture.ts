@@ -36,7 +36,6 @@ function createMockContext(opts?: { isComplete?: boolean; hasFollowingContent?: 
 		codeBlockStartIndex: 0,
 		treeStartIndex: 0,
 		diffEditorPool: undefined!,
-		codeBlockModelCollection: undefined!,
 		currentWidth: observableValue('currentWidth', 400),
 		onDidChangeVisibility: Event.None,
 	};
