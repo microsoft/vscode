@@ -148,7 +148,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
  */
 export class CIStatusWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 30;
+	static readonly HEADER_HEIGHT = 38;
 	static readonly MIN_BODY_HEIGHT = 84; // at least 3 checks (3 * 28)
 	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
@@ -229,12 +229,22 @@ export class CIStatusWidget extends Disposable {
 		this._chevronNode = dom.append(this._headerNode, $('.group-chevron'));
 		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
+		this._headerNode.setAttribute('role', 'button');
+		this._headerNode.setAttribute('aria-expanded', 'true');
+		this._headerNode.tabIndex = 0;
+
 		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.CLICK, e => {
 			// Don't toggle when clicking the action bar
 			if (dom.isAncestor(e.target as HTMLElement, this._headerActionBarContainer)) {
 				return;
 			}
 			this._toggleCollapsed();
+		}));
+		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.KEY_DOWN, e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				this._toggleCollapsed();
+			}
 		}));
 
 		// Body (list of checks)
@@ -273,6 +283,7 @@ export class CIStatusWidget extends Disposable {
 			this._model = model;
 			if (!model) {
 				this._checkCount = 0;
+				this._setCollapsed(false);
 				this._renderBody([]);
 				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';
@@ -376,10 +387,16 @@ export class CIStatusWidget extends Disposable {
 	}
 
 	private _toggleCollapsed(): void {
-		this._collapsed = !this._collapsed;
-		this._updateChevron();
+		this._setCollapsed(!this._collapsed);
 		this._onDidToggleCollapsed.fire(this._collapsed);
+		// Also fires onDidChangeHeight so the SplitView pane updates its min/max constraints
 		this._onDidChangeHeight.fire();
+	}
+
+	private _setCollapsed(collapsed: boolean): void {
+		this._collapsed = collapsed;
+		this._updateChevron();
+		this._headerNode.setAttribute('aria-expanded', String(!collapsed));
 	}
 
 	private _updateChevron(): void {

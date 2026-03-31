@@ -19,7 +19,9 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 8px 0;
+	padding: 6px 2px;
+	margin-top: 2px;
+	border-radius: 8px;
 	min-height: 22px;
 	font-weight: 500;
 	cursor: pointer;
@@ -70,7 +72,7 @@
 
 .ci-status-widget.has-fix-actions:hover .ci-status-widget-counts,
 .ci-status-widget.has-fix-actions:focus-within .ci-status-widget-counts {
-	display: none;
+	visibility: hidden;
 }
 
 .ci-status-widget-count-badge {
