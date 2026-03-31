@@ -12,6 +12,8 @@ import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/
 import type { IToolInvocation, IToolInvocationPreparationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
 import type { ITerminalExecuteStrategyResult } from '../../browser/executeStrategy/executeStrategy.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('SendToTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -19,9 +21,11 @@ suite('SendToTerminalTool', () => {
 	const KNOWN_TERMINAL_ID = '123e4567-e89b-12d3-a456-426614174001';
 	let tool: SendToTerminalTool;
 	let originalGetExecution: typeof RunInTerminalTool.getExecution;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		tool = store.add(new SendToTerminalTool());
+		instantiationService = workbenchInstantiationService({}, store);
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
 		originalGetExecution = RunInTerminalTool.getExecution;
 	});
 
