@@ -61,9 +61,21 @@ export class SessionDataService implements ISessionDataService {
 		return URI.joinPath(this._basePath, sanitized);
 	}
 
+	private _sanitizedSessionKey(session: URI): string {
+		return AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+	}
+
 	openDatabase(session: URI): IReference<ISessionDatabase> {
-		const sanitized = AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
-		return this._databases.acquire(sanitized);
+		return this._databases.acquire(this._sanitizedSessionKey(session));
+	}
+
+	async tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> {
+		const key = this._sanitizedSessionKey(session);
+		const dbPath = URI.joinPath(this._basePath, key, 'session.db');
+		if (!await this._fileService.exists(dbPath)) {
+			return undefined;
+		}
+		return this._databases.acquire(key);
 	}
 
 	async deleteSessionData(session: URI): Promise<void> {

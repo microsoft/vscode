@@ -504,7 +504,7 @@ export class PromptBody {
 					if (match.groups?.['filePath']) {
 						fileReferences.push({ content: match.groups?.['filePath'], range, isMarkdownLink: false });
 					} else if (match.groups?.['toolName']) {
-						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index });
+						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index, fullLength: fullMatch.length });
 					}
 				}
 				lineStartOffset += line.length;
@@ -544,6 +544,7 @@ export interface IBodyVariableReference {
 	readonly name: string;
 	readonly range: Range;
 	readonly offset: number;
+	readonly fullLength: number;
 }
 
 /**
