@@ -7,8 +7,6 @@ import './media/sessionsWalkthrough.css';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../nls.js';
@@ -57,7 +55,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.overlay = append(container, $('.sessions-walkthrough-overlay'));
 		this.overlay.setAttribute('role', 'dialog');
 		this.overlay.setAttribute('aria-modal', 'true');
-		this.overlay.setAttribute('aria-label', localize('walkthrough.aria', "Sessions onboarding walkthrough"));
+		this.overlay.setAttribute('aria-label', localize('walkthrough.aria', "Agents onboarding walkthrough"));
 		this._register(toDisposable(() => this.overlay.remove()));
 		this._register(addDisposableListener(this.overlay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
@@ -103,7 +101,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		append(layout, $('div.sessions-walkthrough-logo'));
 
 		const right = append(layout, $('.sessions-walkthrough-hero-text'));
-		const titleEl = append(right, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Sessions")));
+		const titleEl = append(right, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Agents")));
 		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.step1.subtitle', "Sign in to continue with agent-powered development.")));
 
 		// If already signed in, go straight to success
@@ -208,7 +206,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 				this.logService.info('[sessions walkthrough] Restarting extension host after setup');
 				const stopped = await this.extensionService.stopExtensionHosts(
-					localize('walkthrough.restart', "Completing sessions setup")
+					localize('walkthrough.restart', "Completing Agents setup")
 				);
 				if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
 					return;
@@ -284,10 +282,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.footerContainer.textContent = '';
 
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
-
-		// Large check circle icon
-		const iconEl = append(layout, $('span.sessions-walkthrough-icon.sessions-walkthrough-icon-large.sessions-walkthrough-success-icon'));
-		iconEl.appendChild(renderIcon(Codicon.check));
 
 		const right = append(layout, $('.sessions-walkthrough-hero-text'));
 

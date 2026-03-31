@@ -51,6 +51,8 @@
 	overflow-y: auto;
 	overflow-x: hidden;
 	min-height: 0;
+	padding: 4px 0 8px;
+	box-sizing: border-box;
 	opacity: 1;
 	transition: opacity 200ms ease-out;
 }
@@ -96,13 +98,6 @@
 	gap: 12px;
 	width: 100%;
 	flex-shrink: 0;
-}
-
-/* ---- Success state ---- */
-
-.sessions-walkthrough-success-icon .codicon {
-	font-size: 64px;
-	color: var(--vscode-testing-iconPassed, #73c991);
 }
 
 .sessions-walkthrough-success-actions {
