@@ -249,8 +249,7 @@
 	border-left: 1px solid  color-mix(in srgb, var(--vscode-editorInfo-foreground) 50%, transparent);
 }
 
-.agent-feedback-widget-suggestion-title,
-.agent-feedback-widget-suggestion-range {
+.agent-feedback-widget-suggestion-header {
 	font-size: 10px;
 	font-weight: 600;
 	text-transform: uppercase;
