@@ -35,6 +35,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 	setup(async () => {
 		disposables = [];
 
+		if (isWindows) {
+			const termConfig = vscode.workspace.getConfiguration('terminal.integrated');
+			await termConfig.update('windowsUseConptyDll', true, vscode.ConfigurationTarget.Global);
+		}
+
 		// Register a dummy default model required for participant requests
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('copilot', {
 			async provideLanguageModelChatInformation(_options, _token) {
@@ -76,6 +81,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		const chatToolsConfig = vscode.workspace.getConfiguration('chat.tools.global');
 		await chatToolsConfig.update('autoApprove', undefined, vscode.ConfigurationTarget.Global);
 		await vscode.commands.executeCommand('setContext', 'vscode.chat.tools.global.autoApprove.testMode', undefined);
+
+		if (isWindows) {
+			const termConfig = vscode.workspace.getConfiguration('terminal.integrated');
+			await termConfig.update('windowsUseConptyDll', undefined, vscode.ConfigurationTarget.Global);
+		}
 	});
 
 	/**
@@ -249,7 +259,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				assert.ok(acceptable.includes(output.trim()), `Unexpected output: ${JSON.stringify(output.trim())}`);
 			});
 
-			(isWindows ? test.skip : test.skip)('&& operators are converted to ; on PowerShell', async function () {
+			(isWindows ? test : test.skip)('&& operators are converted to ; on PowerShell', async function () {
 				this.timeout(60000);
 
 				const m1 = `CHAIN_${Date.now()}_A`;
