@@ -53,6 +53,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
+	public disposedSessions: URI[] = [];
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
 
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -75,7 +76,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return session;
 	}
 
-	override async disposeSession(_session: URI): Promise<void> { }
+	override async disposeSession(session: URI): Promise<void> { this.disposedSessions.push(session); }
 	override async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
 
@@ -1909,6 +1910,20 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
+		});
+
+		test('disposing chat session does not call disposeSession on connection', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/existing-session-1' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			// Dispose the chat session (simulates user navigating away)
+			chatSession.dispose();
+
+			// disposeSession must NOT be called — the backend session should persist
+			assert.strictEqual(agentHostService.disposedSessions.length, 0,
+				'Disposing the UI chat session should not dispose the backend session');
 		});
 
 		test('client-dispatched turns are not treated as server-initiated', async () => {
