@@ -439,14 +439,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
 			// that we will be "forcing through".
 			const recreatingSession = !!(options.forceNewSession && sessions.length);
-
-			// Skip the consent prompt for extensions that are trusted via product configuration
-			const isTrusted = this.authenticationAccessService.isAccessAllowed(providerId, '', extensionId) === true;
-			if (!isTrusted) {
-				const isAllowed = await this.loginPrompt(provider, extensionName, recreatingSession, uiOptions);
-				if (!isAllowed) {
-					throw new Error('User did not consent to login.');
-				}
+			const isAllowed = await this.loginPrompt(provider, extensionName, recreatingSession, uiOptions);
+			if (!isAllowed) {
+				throw new Error('User did not consent to login.');
 			}
 
 			let session: AuthenticationSession;
