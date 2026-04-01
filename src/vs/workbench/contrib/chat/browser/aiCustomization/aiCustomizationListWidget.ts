@@ -970,8 +970,8 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Check for menu-contributed create actions from extensions.
 		// Extensions contribute to AICustomizationManagementCreateMenuId with
-		// when-clauses targeting aiCustomizationManagementHarness and
-		// aiCustomizationManagementSection context keys.
+		// when-clauses targeting chatCustomizationSessionType and
+		// chatCustomizationSection context keys.
 		// When a harness contributes create actions, they REPLACE the built-in ones
 		// for all section types, including hooks.
 		const menuActions = this.menuService.getMenuActions(
