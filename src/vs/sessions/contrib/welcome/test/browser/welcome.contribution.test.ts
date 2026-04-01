@@ -250,7 +250,7 @@ suite('SessionsWelcomeContribution', () => {
 		}
 	});
 
-	test('walkthrough keeps provider buttons while using the default sign-in route', async () => {
+	test('walkthrough preserves provider-specific sign-in strategies', async () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
 		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
 
@@ -274,23 +274,32 @@ suite('SessionsWelcomeContribution', () => {
 		document.body.appendChild(container);
 
 		try {
-			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
-			const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
-			const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
-			const appleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-apple');
-			assert.ok(githubButton);
-			assert.ok(googleButton);
-			assert.ok(appleButton);
+			const assertButtonStrategy = async (selector: string, expectedStrategy: ChatSetupStrategy) => {
+				commandArgs = undefined;
+				const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+				const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
+				const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
+				const appleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-apple');
+				assert.ok(githubButton);
+				assert.ok(googleButton);
+				assert.ok(appleButton);
 
-			appleButton.click();
-			await new Promise(resolve => setTimeout(resolve, 250));
+				const button = container.querySelector<HTMLButtonElement>(selector);
+				assert.ok(button);
+				button.click();
+				await new Promise(resolve => setTimeout(resolve, 250));
 
-			assert.ok(commandArgs);
-			assert.deepStrictEqual(commandArgs?.[1], {
-				setupStrategy: ChatSetupStrategy.SetupWithoutEnterpriseProvider
-			});
+				assert.ok(commandArgs);
+				assert.deepStrictEqual(commandArgs?.[1], {
+					setupStrategy: expectedStrategy
+				});
 
-			overlay.dispose();
+				overlay.dispose();
+				container.textContent = '';
+			};
+
+			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-apple', ChatSetupStrategy.SetupWithAppleProvider);
+			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-google', ChatSetupStrategy.SetupWithGoogleProvider);
 		} finally {
 			container.remove();
 		}

@@ -110,10 +110,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			return;
 		}
 
-		// Sign-in button row inside the right column. We keep the dedicated
-		// Google/Apple affordances in the UI, but intentionally route all of them
-		// through the default GitHub provider flow because it already exposes
-		// Apple/Google social sign-in options on the hosted auth page.
+		// Sign-in button row inside the right column.
 		const providerRow = append(right, $('.sessions-walkthrough-providers-row'));
 
 		// Primary sign-in button
@@ -142,11 +139,17 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}, 0, stepDisposables);
 
 		const providerButtons = [githubBtn, googleBtn, appleBtn];
-		for (const button of providerButtons) {
-			stepDisposables.add(addDisposableListener(button, EventType.CLICK, () => this._runSignIn(
+		const providerStrategies = [
+			ChatSetupStrategy.SetupWithoutEnterpriseProvider,
+			ChatSetupStrategy.SetupWithGoogleProvider,
+			ChatSetupStrategy.SetupWithAppleProvider,
+		];
+		for (let i = 0; i < providerButtons.length; i++) {
+			const strategy = providerStrategies[i];
+			stepDisposables.add(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(
 				providerButtons,
 				errorContainer,
-				ChatSetupStrategy.SetupWithoutEnterpriseProvider,
+				strategy,
 				titleEl,
 				subtitleEl,
 				providerRow
