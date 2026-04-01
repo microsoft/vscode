@@ -16,6 +16,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
+const SCREENSHOT_LABEL = '.screenshot';
 
 interface CompareEntry {
 	readonly fixtureId: string;
@@ -40,14 +41,17 @@ interface CompareResult {
 	readonly unchanged: readonly CompareEntry[];
 }
 
-function hasExcludedLabel(labels: readonly string[] | undefined): boolean {
-	return labels?.some(l => EXCLUDED_LABELS.has(l)) ?? false;
+function shouldIncludeInReport(labels: readonly string[] | undefined): boolean {
+	if (!labels?.includes(SCREENSHOT_LABEL)) {
+		return false;
+	}
+	return !labels.some(l => EXCLUDED_LABELS.has(l));
 }
 
 function generateMarkdown(result: CompareResult, baseSha: string, currentSha: string): string {
-	const changed = result.changed.filter(e => !hasExcludedLabel(e.labels));
-	const added = result.added.filter(e => !hasExcludedLabel(e.labels));
-	const removed = result.removed.filter(e => !hasExcludedLabel(e.labels));
+	const changed = result.changed.filter(e => shouldIncludeInReport(e.labels));
+	const added = result.added.filter(e => shouldIncludeInReport(e.labels));
+	const removed = result.removed.filter(e => shouldIncludeInReport(e.labels));
 
 	if (changed.length === 0 && added.length === 0 && removed.length === 0) {
 		return '';
