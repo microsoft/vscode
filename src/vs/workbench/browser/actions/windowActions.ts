@@ -290,6 +290,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 			},
 			category: Categories.File,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
