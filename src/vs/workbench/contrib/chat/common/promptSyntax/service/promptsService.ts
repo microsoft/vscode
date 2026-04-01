@@ -239,18 +239,68 @@ export interface IAgentInstructions {
 }
 
 export interface IChatPromptSlashCommand {
+	readonly uri: URI;
 	readonly name: string;
-	readonly description: string | undefined;
-	readonly argumentHint: string | undefined;
-	readonly promptPath: IPromptPath;
-	readonly parsedPromptFile: ParsedPromptFile;
+	readonly type: PromptsType;
+	readonly storage: PromptsStorage;
+	readonly source?: PromptFileSource;
+	readonly description?: string;
+	readonly argumentHint?: string;
+	readonly userInvocable: boolean;
+	readonly extension?: IExtensionDescription;
+	readonly pluginUri?: URI;
 	readonly when: ContextKeyExpression | undefined;
+}
+
+export interface IResolvedChatPromptSlashCommand extends IChatPromptSlashCommand {
+	readonly parsedPromptFile: ParsedPromptFile;
+}
+
+
+/**
+ * A fully resolved instruction file with parsed header metadata and provenance information.
+ */
+export interface IInstructionFile {
+	/**
+	 * URI of the instruction file.
+	 */
+	readonly uri: URI;
+	/**
+	 * Name as listed in the instruction file header or derived from the file name
+	 */
+	readonly name: string;
+	/**
+	 * Description as listed in the instruction file header. Used to load the instruction on-demand and for display in the UI.
+	 */
+	readonly description: string | undefined;
+	/**
+	 * Storage of the prompt.
+	 */
+	readonly storage: PromptsStorage;
+	/**
+	 * The "applyTo" pattern (or `paths` when in a Claude rules file) from the instruction file header.
+	 * Describes when this instruction file should be applied.
+	 */
+	readonly pattern: string | undefined;
+	/**
+	 * Identifier of the contributing extension (only when storage === PromptsStorage.extension).
+	 */
+	readonly extension?: IExtensionDescription;
+
+	/**
+	 * Identifier of the contributing plugin (only when storage === PromptsStorage.plugin).
+	 */
+	readonly pluginUri?: URI;
+
+	/**
+	 * The source that produced this prompt path.
+	 */
+	readonly source?: PromptFileSource;
 }
 
 /**
  * Supply-chain metadata describing where a skill originated.
  */
-
 export interface IAgentSkill {
 	readonly uri: URI;
 	readonly storage: PromptsStorage;
@@ -294,7 +344,7 @@ export enum AgentFileType {
  * Represents a resolved agent instruction file with its real path for duplicate detection.
  * Used by listAgentInstructions to filter out symlinks pointing to the same file.
  */
-export interface IResolvedAgentFile {
+export interface IAgentInstructionFile {
 	readonly uri: URI;
 	/**
 	 * The real path of the file, if it is a symlink.
@@ -374,6 +424,20 @@ export interface ISlashCommandDiscoveryInfo extends IPromptDiscoveryInfo {
 }
 
 /**
+ * Discovery result for an instruction file, including the resolved applyTo metadata.
+ */
+export interface IInstructionDiscoveryResult extends IPromptFileDiscoveryResult {
+	readonly pattern?: string;
+}
+
+/**
+ * Summary of instruction discovery, including resolved metadata.
+ */
+export interface IInstructionDiscoveryInfo extends IPromptDiscoveryInfo {
+	readonly files: readonly IInstructionDiscoveryResult[];
+}
+
+/**
  * Discovery result for an agent file, including the fully resolved agent.
  */
 export interface IAgentDiscoveryResult extends IPromptFileDiscoveryResult {
@@ -441,7 +505,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IChatPromptSlashCommand | undefined>;
+	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
 
 	/**
 	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.
@@ -492,13 +556,13 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets list of AGENTS.md files, including optionally nested ones from subfolders.
 	 */
-	listNestedAgentMDs(token: CancellationToken): Promise<IResolvedAgentFile[]>;
+	listNestedAgentMDs(token: CancellationToken): Promise<IAgentInstructionFile[]>;
 
 	/**
 	 * Gets combined list of agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md).
 	 * Combines results from listAgentMDs (non-nested), listClaudeMDs, and listCopilotInstructionsMDs.
 	 */
-	listAgentInstructions(token: CancellationToken, logger?: Logger): Promise<IResolvedAgentFile[]>;
+	listAgentInstructions(token: CancellationToken, logger?: Logger): Promise<IAgentInstructionFile[]>;
 
 	/**
 	 * For a chat mode file URI, return the name of the agent file that it should use.
@@ -545,9 +609,9 @@ export interface IPromptsService extends IDisposable {
 	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
 
 	/**
-	 * Gets all instruction files, logging discovery info to the debug log.
+	 * Gets all instruction files
 	 */
-	getInstructionFiles(token: CancellationToken): Promise<readonly IPromptPath[]>;
+	getInstructionFiles(token: CancellationToken): Promise<readonly IInstructionFile[]>;
 
 	/**
 	 * Returns the cached discovery info for the given prompt type.

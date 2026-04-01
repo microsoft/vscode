@@ -19,7 +19,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { AgentFileType, IPromptPath, IResolvedAgentFile, Logger, PromptsStorage } from '../service/promptsService.js';
+import { AgentFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -572,12 +572,12 @@ export class PromptFilesLocator {
 	/**
 	 * Gets list of `AGENTS.md` files anywhere in the workspace.
 	 */
-	public async findAgentMDsInWorkspace(token: CancellationToken): Promise<IResolvedAgentFile[]> {
+	public async findAgentMDsInWorkspace(token: CancellationToken): Promise<IAgentInstructionFile[]> {
 		const result = await Promise.all(this.getWorkspaceFolders().map(folder => this.findAgentMDsInFolder(folder.uri, token)));
 		return result.flat(1);
 	}
 
-	private async findAgentMDsInFolder(folder: URI, token: CancellationToken): Promise<IResolvedAgentFile[]> {
+	private async findAgentMDsInFolder(folder: URI, token: CancellationToken): Promise<IAgentInstructionFile[]> {
 		// Check if a FileSearchProvider is available for this scheme
 		if (this.searchService.schemeHasFileSearchProvider(folder.scheme)) {
 			// Use the search service if a FileSearchProvider is available
@@ -598,7 +598,7 @@ export class PromptFilesLocator {
 					return [];
 				}
 				// Resolve real paths for duplicate detection
-				const results: IResolvedAgentFile[] = [];
+				const results: IAgentInstructionFile[] = [];
 				for (const r of searchResult.results) {
 					const realPath = undefined; // We can skip realpath resolution here for performance; duplicates can be handled later if needed
 					results.push({ uri: r.resource, realPath, type: AgentFileType.agentsMd });
@@ -620,8 +620,8 @@ export class PromptFilesLocator {
 	 * Recursively traverses a folder using the file service to find AGENTS.md files.
 	 * This is used as a fallback when no FileSearchProvider is available for the scheme.
 	 */
-	private async findAgentMDsUsingFileService(folder: URI, token: CancellationToken): Promise<IResolvedAgentFile[]> {
-		const result: IResolvedAgentFile[] = [];
+	private async findAgentMDsUsingFileService(folder: URI, token: CancellationToken): Promise<IAgentInstructionFile[]> {
+		const result: IAgentInstructionFile[] = [];
 		const agentsMdFileName = 'agents.md';
 
 		const traverse = async (uri: URI): Promise<void> => {
@@ -652,7 +652,7 @@ export class PromptFilesLocator {
 
 
 
-	public async findFilesInRoots(roots: URI[], folder: string | undefined, paths: IWorkspaceInstructionFile[], token: CancellationToken, result: IResolvedAgentFile[] = []): Promise<IResolvedAgentFile[]> {
+	public async findFilesInRoots(roots: URI[], folder: string | undefined, paths: IWorkspaceInstructionFile[], token: CancellationToken, result: IAgentInstructionFile[] = []): Promise<IAgentInstructionFile[]> {
 		const toResolve = roots.map(root => ({ resource: folder !== undefined ? joinPath(root, folder) : root }));
 		const resolvedRoots = await this.fileService.resolveAll(toResolve);
 		if (token.isCancellationRequested) {

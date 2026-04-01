@@ -128,7 +128,13 @@ function createMockPromptsServiceWithCounts(counts?: ICustomizationCounts): IPro
 	}));
 	const skills = Array.from({ length: counts?.skills ?? 0 }, (_, i) => fakeItem('skill', i));
 	const prompts = Array.from({ length: counts?.prompts ?? 0 }, (_, i) => ({
-		promptPath: { uri: fakeUri('prompt', i), storage: PromptsStorage.local, type: PromptsType.prompt },
+		uri: fakeUri('prompt', i),
+		name: `prompt-${i}`,
+		type: PromptsType.prompt,
+		storage: PromptsStorage.local,
+		userInvocable: true,
+		parsedPromptFile: undefined,
+		when: undefined,
 	}));
 	const instructions = Array.from({ length: counts?.instructions ?? 0 }, (_, i) => fakeItem('instructions', i));
 	const hooks = Array.from({ length: counts?.hooks ?? 0 }, (_, i) => fakeItem('hook', i));

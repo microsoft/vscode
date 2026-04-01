@@ -22,7 +22,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../p
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
 import { PromptFilePickers } from '../../../../contrib/chat/browser/promptSyntax/pickers/promptFilePickers.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { AgentFileType, IExtensionPromptPath, IResolvedAgentFile, IPromptPath, IPromptsService, PromptsStorage } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { AgentFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 
@@ -30,7 +30,7 @@ interface IFixturePromptsState {
 	localPromptFiles: IPromptPath[];
 	userPromptFiles: IPromptPath[];
 	extensionPromptFiles: IExtensionPromptPath[];
-	agentInstructionFiles: IResolvedAgentFile[];
+	agentInstructionFiles: IAgentInstructionFile[];
 	disabled: ResourceSet;
 }
 
@@ -124,7 +124,7 @@ async function renderPromptFilePickerFixture({ container, disposableStore, theme
 			}
 		}
 
-		override async listAgentInstructions(_token: CancellationToken): Promise<IResolvedAgentFile[]> {
+		override async listAgentInstructions(_token: CancellationToken): Promise<IAgentInstructionFile[]> {
 			return promptsState.agentInstructionFiles;
 		}
 

@@ -17,7 +17,7 @@ import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor,
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, AgentFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -46,7 +46,7 @@ interface IFixtureInstructionFile {
 	readonly applyTo?: string; /** If set, this instruction file has an applyTo pattern that controls automatic inclusion when the context matches (or `**` for always). */
 }
 
-function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): IPromptsService {
+function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IAgentInstructionFile[] = []): IPromptsService {
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
@@ -121,7 +121,7 @@ function createMockWorkspaceContextService(): IWorkspaceContextService {
 // Render helper
 // ============================================================================
 
-async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): Promise<void> {
+async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IAgentInstructionFile[] = []): Promise<void> {
 	const width = 500;
 	const height = 400;
 	ctx.container.style.width = `${width}px`;
