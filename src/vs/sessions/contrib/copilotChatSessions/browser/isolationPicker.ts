@@ -23,7 +23,7 @@ export type IsolationMode = 'worktree' | 'workspace';
  *
  * Options:
  * - **Worktree** (`worktree`) — run in a git worktree
- * - **Folder** (`workspace`) — run directly in the folder
+ * - **Workspace** (`workspace`) — run directly in the workspace folder
  *
  * Only visible when isolation option is enabled, project has a git repo,
  * and the target is CLI.
@@ -123,7 +123,7 @@ export class IsolationPicker extends Disposable {
 			},
 			{
 				kind: ActionListItemKind.Action,
-				label: localize('isolationMode.folder', "Folder"),
+				label: localize('isolationMode.workspace', "Workspace"),
 				group: { title: '', icon: Codicon.folder },
 				item: 'workspace',
 			},
@@ -176,7 +176,7 @@ export class IsolationPicker extends Disposable {
 		switch (isolationMode) {
 			case 'workspace':
 				modeIcon = Codicon.folder;
-				modeLabel = localize('isolationMode.folder', "Folder");
+				modeLabel = localize('isolationMode.workspace', "Workspace");
 				break;
 			case 'worktree':
 			default:
