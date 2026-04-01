@@ -853,12 +853,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._lastSessionPickerAction = action;
 		this._lastSessionPickerOptions = pickerOptions;
 
-		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(this.getCurrentSessionResource());
+		const sessionResource = this.getCurrentSessionResource();
+		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
 		if (!result) {
 			return [];
 		}
 
-		const { visibleOptionGroups, effectiveSessionType } = result;
+		const effectiveSessionType = this.getEffectiveSessionType(sessionResource);
+		if (!effectiveSessionType) {
+			return [];
+		}
+
+		const { visibleOptionGroups } = result;
 		this.chatSessionPickerWidgets.clearAndDisposeAll();
 
 		const widgets: (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] = [];
@@ -1600,7 +1606,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource: URI | undefined): {
 		visibleOptionGroups: IChatSessionProviderOptionGroup[];
 		allOptionGroups: IChatSessionProviderOptionGroup[];
-		effectiveSessionType: string;
 	} | undefined {
 		if (sessionResource) {
 			this.updateStateAndChatModeForSessionCustomAgentTarget(sessionResource);
@@ -1642,7 +1647,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getVisibleOptionGroups(sessionResource: URI | undefined): {
 		visibleOptionGroups: IChatSessionProviderOptionGroup[];
 		allOptionGroups: IChatSessionProviderOptionGroup[];
-		effectiveSessionType: string;
 	} | undefined {
 
 		// Step 1: Determine the session type
@@ -1694,7 +1698,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return {
 			allOptionGroups,
 			visibleOptionGroups: Array.from(visibleGroups.values()),
-			effectiveSessionType
 		};
 	}
 
@@ -1807,8 +1810,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const effectiveSessionType = this.getEffectiveSessionType(sessionResource, this.options.sessionTypePickerDelegate);
-		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
+		const effectiveSessionType = this.getEffectiveSessionType(sessionResource);
+		const optionGroups = effectiveSessionType ? this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType) : undefined;
 		const optionGroup = optionGroups?.find(g => g.id === optionGroupId);
 		if (!optionGroup || optionGroup.items.length === 0) {
 			return;
@@ -1842,8 +1845,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return false;
 	}
 
-	private getEffectiveSessionType(sessionResource: URI | undefined, delegate: ISessionTypePickerDelegate | undefined): string {
-		return this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() || (sessionResource && getChatSessionType(sessionResource)) || '';
+	private getEffectiveSessionType(sessionResource: URI | undefined): string | undefined {
+		return this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() ?? (sessionResource ? getChatSessionType(sessionResource) : undefined);
 	}
 
 	/**
