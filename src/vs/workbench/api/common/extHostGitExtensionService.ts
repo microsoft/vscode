@@ -95,6 +95,7 @@ interface Repository {
 	getBranchBase(name: string): Promise<Branch | undefined>;
 	getRefs(query: GitRefQuery, token?: vscode.CancellationToken): Promise<GitRef[]>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 	isBranchProtected(branch?: Branch): boolean;
 }
 
@@ -316,6 +317,24 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 
 		try {
 			const changes = await repository.diffBetweenWithStats(ref1, ref2, path);
+			return changes.map(c => ({
+				...toGitChangeDto(c),
+				insertions: c.insertions,
+				deletions: c.deletions,
+			}));
+		} catch {
+			return [];
+		}
+	}
+
+	async $diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]> {
+		const repository = this._repositories.get(handle);
+		if (!repository) {
+			return [];
+		}
+
+		try {
+			const changes = await repository.diffBetweenWithStats2(ref, path);
 			return changes.map(c => ({
 				...toGitChangeDto(c),
 				insertions: c.insertions,

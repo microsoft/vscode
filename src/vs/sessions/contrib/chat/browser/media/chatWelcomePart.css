@@ -12,46 +12,13 @@
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	padding: 0 12px 48px 12px;
+	padding: 16px 16px 20px 16px;
 	container-type: size;
+	position: relative;
 }
 
 .chat-full-welcome.revealed {
 	justify-content: center;
-}
-
-/* Header */
-.chat-full-welcome-header {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	width: 100%;
-	max-width: 800px;
-	overflow: visible;
-}
-
-/* Watermark letterpress */
-.chat-full-welcome-letterpress {
-	width: 100%;
-	max-width: 200px;
-	aspect-ratio: 1/1;
-	background-image: url('./letterpress-sessions-dark.svg');
-	background-size: contain;
-	background-position: center;
-	background-repeat: no-repeat;
-	margin-top: 8px;
-	margin-bottom: 20px;
-}
-
-.vs .chat-full-welcome-letterpress,
-.hc-light .chat-full-welcome-letterpress {
-	background-image: url('./letterpress-sessions-light.svg');
-}
-
-@container (max-height: 350px) {
-	.chat-full-welcome-letterpress {
-		display: none;
-	}
 }
 
 /* Input slot */
@@ -73,7 +40,7 @@
 	display: none;
 	width: 100%;
 	max-width: 800px;
-	margin: 0 0 24px 0;
+	margin: 0 0 12px 0;
 	padding: 0;
 	box-sizing: border-box;
 }
@@ -98,6 +65,14 @@
 .chat-full-welcome-pickers-container:empty {
 	display: none;
 	margin-bottom: 0;
+}
+
+.chat-full-welcome-content {
+	width: 100%;
+	max-width: 800px;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
 }
 
 /* Local mode picker (Workspace / Worktree) below input */
@@ -165,6 +140,8 @@
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
+	justify-content: flex-start;
+	gap: 6px;
 	width: 100%;
 	box-sizing: border-box;
 	padding: 0;
@@ -174,96 +151,46 @@
 	display: none;
 }
 
-/* Left half: target switcher, right-justified */
-.sessions-chat-pickers-left-half {
-	flex: 1;
-	display: flex;
-	justify-content: flex-end;
-	align-items: center;
-	min-width: 0;
-}
-
-/* Right half: pickers, left-justified */
-.sessions-chat-pickers-right-half {
-	flex: 1;
-	display: flex;
-	justify-content: flex-start;
-	align-items: center;
-	min-width: 0;
-}
-
-/* Separator between switcher and folder picker */
-.sessions-chat-pickers-left-separator {
-	width: 1px;
-	height: 22px;
-	background-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
-	margin: 0 12px;
-	flex-shrink: 0;
-	display: none;
-}
-
-/* Target switcher radio buttons - bigger and fancier */
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button {
-	font-size: 13px;
-	line-height: 1.4em;
-	padding: 4px 14px;
-}
-
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:first-child {
-	border-top-left-radius: 6px;
-	border-bottom-left-radius: 6px;
-}
-
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:last-child {
-	border-top-right-radius: 6px;
-	border-bottom-right-radius: 6px;
-}
-
-.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:focus {
-	outline: none;
-}
-
-/* Folder label next to the picker */
-.sessions-chat-folder-label {
-	font-size: 13px;
+.chat-full-welcome-pickers-label {
+	font-size: 18px;
+	line-height: 1.25;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
-	margin-right: 6px;
 }
 
-/* Target dropdown button */
-.sessions-chat-dropdown-button {
-	display: flex;
-	align-items: center;
-	height: 16px;
-	padding: 3px 3px 3px 6px;
-	cursor: pointer;
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	background-color: transparent;
+/* Project picker in inline title row */
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
+	height: auto;
+	padding: 4px;
+	font-size: 18px;
+	line-height: 1.25;
 	border: none;
-	white-space: nowrap;
+	background-color: transparent;
+	color: var(--vscode-foreground);
 	border-radius: 4px;
 }
 
-.sessions-chat-dropdown-button:hover {
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
-.sessions-chat-dropdown-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
+	font-size: 18px;
 }
 
-.sessions-chat-dropdown-button .codicon {
-	font-size: 14px;
-	flex-shrink: 0;
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: 16px;
 }
 
-.sessions-chat-dropdown-button .codicon.codicon-chevron-down {
-	font-size: 12px;
-	margin-left: 2px;
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	margin-left: 6px;
+	line-height: 1;
+	transform: translateY(1px);
 }
 
 .sessions-chat-dropdown-label {
@@ -285,7 +212,7 @@
 	padding: 3px 3px 3px 6px;
 	background-color: transparent;
 	border: none;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 	font-size: 13px;
 	cursor: pointer;
 	white-space: nowrap;
@@ -307,7 +234,13 @@
 
 .sessions-chat-picker-slot.disabled .action-label:hover {
 	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-input-picker-item .action-label.disabled {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none;
 }
 
 .sessions-chat-picker-slot.loading .action-label {
@@ -343,8 +276,13 @@
 }
 
 .sessions-chat-picker-slot .action-label .codicon-chevron-down {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	font-size: 12px;
-	margin-left: 2px;
+	margin-left: 6px;
+	line-height: 1;
+	transform: translateY(1px);
 }
 
 .sessions-chat-picker-slot .action-label .chat-session-option-label {
@@ -354,6 +292,34 @@
 
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
+}
+
+.sessions-chat-picker-slot .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 0.75;
+}
+
+.sessions-chat-picker-slot .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.sessions-chat-picker-slot .action-label.warning:hover {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 1;
+}
+
+.sessions-chat-picker-slot .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 0.75;
+}
+
+.sessions-chat-picker-slot .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}
+
+.sessions-chat-picker-slot .action-label.info:hover {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 1;
 }
 
 /* Sync indicator: a slim non-interactive-looking separator before the button */

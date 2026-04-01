@@ -13,22 +13,67 @@ import { IFileContent, IFileService } from '../../../../../platform/files/common
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IActiveSession, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, SessionsConfigurationService, ITaskEntry } from '../../browser/sessionsConfigurationService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
+import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
+import { IChat, ISession, SessionStatus } from '../../../sessions/common/sessionData.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
-function makeSession(opts: { repository?: URI; worktree?: URI } = {}): IActiveSessionItem {
-	return {
+function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession {
+	const workspace = opts.repository ? {
+		label: 'test',
+		icon: Codicon.folder,
+		repositories: [{
+			uri: opts.repository,
+			workingDirectory: opts.worktree,
+			detail: undefined,
+			baseBranchName: undefined,
+			baseBranchProtected: undefined,
+		}],
+		requiresWorkspaceTrust: false,
+	} : undefined;
+	const chat: IChat = {
 		resource: URI.parse('file:///session'),
-		isUntitled: false,
-		label: 'session',
-		repository: opts.repository,
-		worktree: opts.worktree,
-		worktreeBranchName: undefined,
-		providerType: 'background',
-	} as IActiveSessionItem;
+		createdAt: new Date(),
+		title: observableValue('title', 'session'),
+		updatedAt: observableValue('updatedAt', new Date()),
+		status: observableValue('status', SessionStatus.Untitled),
+		changes: observableValue('changes', []),
+		modelId: observableValue('modelId', undefined),
+		mode: observableValue('mode', undefined),
+		isArchived: observableValue('isArchived', false),
+		isRead: observableValue('isRead', true),
+		lastTurnEnd: observableValue('lastTurnEnd', undefined),
+		description: observableValue('description', undefined),
+	};
+	const session: ISession = {
+		sessionId: 'test:session',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: 'background',
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('workspace', workspace),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('gitHubInfo', undefined),
+		chats: observableValue('chats', [chat]),
+		mainChat: chat,
+	};
+	return session;
 }
 
 function makeTask(label: string, command?: string, inSessions?: boolean): ITaskEntry {
@@ -53,12 +98,12 @@ suite('SessionsConfigurationService', () => {
 	let service: ISessionsConfigurationService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
-	let createdTerminals: { name: string | undefined; cwd: URI | string | undefined }[];
-	let sentCommands: { command: string }[];
-	let committedFiles: { session: IActiveSessionItem; fileUris: URI[] }[];
+	let ranTasks: { label: string }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
+	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
+	let tasksByLabel: Map<string, Task>;
+	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
 
 	const userSettingsUri = URI.parse('file:///user/settings.json');
 	const repoUri = URI.parse('file:///repo');
@@ -67,10 +112,10 @@ suite('SessionsConfigurationService', () => {
 	setup(() => {
 		fileContents = new Map();
 		jsonEdits = [];
-		createdTerminals = [];
-		sentCommands = [];
-		committedFiles = [];
+		ranTasks = [];
 		readFileCalls = [];
+		tasksByLabel = new Map();
+		workspaceFoldersByUri = new Map();
 
 		const instantiationService = store.add(new TestInstantiationService());
 		activeSessionObs = observableValue('activeSession', undefined);
@@ -98,32 +143,27 @@ suite('SessionsConfigurationService', () => {
 			override userSettingsResource = userSettingsUri;
 		});
 
-		let nextInstanceId = 1;
-		const terminalInstances: (Partial<ITerminalInstance> & { instanceId: number })[] = [];
-
-		const terminalServiceMock = new class extends mock<ITerminalService>() {
-			override get instances(): readonly ITerminalInstance[] { return terminalInstances as ITerminalInstance[]; }
-			override async createTerminal(opts?: { config?: { name?: string }; cwd?: URI }) {
-				const instance: Partial<ITerminalInstance> & { instanceId: number } = {
-					instanceId: nextInstanceId++,
-					initialCwd: opts?.cwd?.fsPath,
-					cwd: opts?.cwd?.fsPath,
-					hasChildProcesses: false,
-					sendText: async (text: string) => { sentCommands.push({ command: text }); },
-				};
-				createdTerminals.push({ name: opts?.config?.name, cwd: opts?.cwd });
-				terminalInstances.push(instance);
-				return instance as ITerminalInstance;
+		instantiationService.stub(ITaskService, new class extends mock<ITaskService>() {
+			override async getTask(_workspaceFolder: any, alias: string | any) {
+				const label = typeof alias === 'string' ? alias : '';
+				return tasksByLabel.get(label);
 			}
-			override setActiveInstance() { }
-			override async revealActiveTerminal() { }
-		};
+			override async run(task: Task | undefined) {
+				if (task) {
+					ranTasks.push({ label: task._label });
+				}
+				return undefined;
+			}
+		});
 
-		instantiationService.stub(ITerminalService, terminalServiceMock);
+		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
+			override getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
+				return workspaceFoldersByUri.get(resource.toString()) ?? null;
+			}
+		});
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
-			override async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]) { committedFiles.push({ session, fileUris }); }
 		});
 
 		storageService = store.add(new InMemoryStorageService());
@@ -160,7 +200,7 @@ suite('SessionsConfigurationService', () => {
 		await new Promise(r => setTimeout(r, 10));
 		const tasks = obs.get();
 
-		assert.deepStrictEqual(tasks.map(t => t.label), ['build', 'test', 'watch']);
+		assert.deepStrictEqual(tasks.map(t => t.task.label), ['build', 'test', 'watch', 'gulp-task']);
 	});
 
 	test('getSessionTasks returns empty array when no worktree', async () => {
@@ -184,7 +224,7 @@ suite('SessionsConfigurationService', () => {
 		const obs = service.getSessionTasks(session);
 
 		await new Promise(r => setTimeout(r, 10));
-		assert.deepStrictEqual(obs.get().map(t => t.label), ['serve']);
+		assert.deepStrictEqual(obs.get().map(t => t.task.label), ['serve']);
 	});
 
 	test('getSessionTasks does not re-read files on repeated calls for the same folder', async () => {
@@ -211,7 +251,7 @@ suite('SessionsConfigurationService', () => {
 
 	// --- getNonSessionTasks ---
 
-	test('getNonSessionTasks returns only tasks without inSessions and with supported types', async () => {
+	test('getNonSessionTasks returns only tasks without inSessions', async () => {
 		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
 		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
 			makeTask('build', 'npm run build', true),
@@ -226,7 +266,7 @@ suite('SessionsConfigurationService', () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		const nonSessionTasks = await service.getNonSessionTasks(session);
 
-		assert.deepStrictEqual(nonSessionTasks.map(t => t.task.label), ['lint', 'test', 'watch']);
+		assert.deepStrictEqual(nonSessionTasks.map(t => t.task.label), ['lint', 'test', 'watch', 'gulp-task']);
 	});
 
 	test('getNonSessionTasks reads from repository when no worktree', async () => {
@@ -278,8 +318,6 @@ suite('SessionsConfigurationService', () => {
 
 		assert.strictEqual(jsonEdits.length, 1);
 		assert.deepStrictEqual(jsonEdits[0].values, [{ path: ['tasks', 1, 'inSessions'], value: true }]);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	test('addTaskToSessions does nothing when task label not found', async () => {
@@ -307,7 +345,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(jsonEdits.length, 1);
 		assert.strictEqual(jsonEdits[0].uri.toString(), repoTasksUri.toString());
 		assert.deepStrictEqual(jsonEdits[0].values, [{ path: ['tasks', 1, 'inSessions'], value: true }]);
-		assert.strictEqual(committedFiles.length, 0, 'should not commit when there is no worktree');
 	});
 
 	test('addTaskToSessions updates runOptions when provided', async () => {
@@ -360,8 +397,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(tasks.length, 2);
 		assert.strictEqual(tasks[1].label, 'npm run dev');
 		assert.strictEqual(tasks[1].inSessions, true);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	test('createAndAddTask writes to repository and does not commit when no worktree', async () => {
@@ -381,7 +416,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(tasks.length, 2);
 		assert.strictEqual(tasks[1].label, 'npm run dev');
 		assert.strictEqual(tasks[1].inSessions, true);
-		assert.strictEqual(committedFiles.length, 0, 'should not commit when there is no worktree');
 	});
 
 	test('createAndAddTask writes worktreeCreated run option when requested', async () => {
@@ -413,233 +447,202 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(tasks[0].command, 'npm run dev');
 	});
 
+	// --- removeTask ---
+
+	test('removeTask deletes the matching task entry', async () => {
+		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
+		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
+			makeTask('build', 'npm run build', true),
+			makeTask('test', 'npm test', true),
+			makeTask('lint', 'npm run lint'),
+		]));
+
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		await service.removeTask('test', session, 'workspace');
+
+		assert.strictEqual(jsonEdits.length, 1);
+		assert.deepStrictEqual(jsonEdits[0].values, [{
+			path: ['tasks'],
+			value: [
+				makeTask('build', 'npm run build', true),
+				{ label: 'lint', type: 'shell', command: 'npm run lint' },
+			],
+		}]);
+	});
+
+	// --- updateTask ---
+
+	test('updateTask replaces an existing task in place', async () => {
+		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
+		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
+			makeTask('build', 'npm run build', true),
+			makeTask('test', 'npm test', true),
+		]));
+
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		await service.updateTask('test', {
+			label: 'Test Changed',
+			type: 'shell',
+			command: 'pnpm test',
+			inSessions: true,
+			runOptions: { runOn: 'worktreeCreated' }
+		}, session, 'workspace', 'workspace');
+
+		assert.strictEqual(jsonEdits.length, 1);
+		assert.deepStrictEqual(jsonEdits[0].values, [{
+			path: ['tasks', 1],
+			value: {
+				label: 'Test Changed',
+				type: 'shell',
+				command: 'pnpm test',
+				inSessions: true,
+				runOptions: { runOn: 'worktreeCreated' }
+			}
+		}]);
+	});
+
+	test('updateTask moves a task between workspace and user storage', async () => {
+		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
+			makeTask('build', 'npm run build', true),
+		]));
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([
+			makeTask('userExisting', 'npm run user', true),
+		]));
+
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		await service.updateTask('build', {
+			label: 'Build Changed',
+			type: 'shell',
+			command: 'pnpm build',
+			inSessions: true,
+		}, session, 'workspace', 'user');
+
+		assert.strictEqual(jsonEdits.length, 2);
+		assert.deepStrictEqual(jsonEdits[0], {
+			uri: worktreeTasksUri,
+			values: [{
+				path: ['tasks'],
+				value: []
+			}]
+		});
+		assert.deepStrictEqual(jsonEdits[1], {
+			uri: userTasksUri,
+			values: [
+				{ path: ['version'], value: '2.0.0' },
+				{
+					path: ['tasks'],
+					value: [
+						makeTask('userExisting', 'npm run user', true),
+						{
+							label: 'Build Changed',
+							type: 'shell',
+							command: 'pnpm build',
+							inSessions: true,
+						}
+					]
+				}
+			]
+		});
+	});
+
+	// --- pinned task ---
+
+	test('getPinnedTaskLabel returns undefined when no task is pinned', () => {
+		const obs = service.getPinnedTaskLabel(repoUri);
+		assert.strictEqual(obs.get(), undefined);
+	});
+
+	test('setPinnedTaskLabel stores and clears the pinned task label', () => {
+		const obs = service.getPinnedTaskLabel(repoUri);
+
+		service.setPinnedTaskLabel(repoUri, 'build');
+		assert.strictEqual(obs.get(), 'build');
+
+		service.setPinnedTaskLabel(repoUri, undefined);
+		assert.strictEqual(obs.get(), undefined);
+	});
+
+	test('updateTask keeps the pinned task in sync when the label changes', async () => {
+		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
+		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
+			makeTask('build', 'npm run build', true),
+		]));
+		service.setPinnedTaskLabel(repoUri, 'build');
+
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		await service.updateTask('build', {
+			label: 'build:watch',
+			type: 'shell',
+			command: 'npm run watch',
+			inSessions: true,
+		}, session, 'workspace', 'workspace');
+
+		assert.strictEqual(service.getPinnedTaskLabel(repoUri).get(), 'build:watch');
+	});
+
+	test('removeTask clears the pinned task when deleting the pinned entry', async () => {
+		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
+		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
+			makeTask('build', 'npm run build', true),
+		]));
+		service.setPinnedTaskLabel(repoUri, 'build');
+
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		await service.removeTask('build', session, 'workspace');
+
+		assert.strictEqual(service.getPinnedTaskLabel(repoUri).get(), undefined);
+	});
+
 	// --- runTask ---
 
-	test('runTask creates terminal and sends command', async () => {
+	function registerMockTask(label: string, folder: URI): void {
+		tasksByLabel.set(label, { _label: label } as unknown as Task);
+		workspaceFoldersByUri.set(folder.toString(), { uri: folder, name: 'folder', index: 0, toResource: () => folder } as IWorkspaceFolder);
+	}
+
+	test('runTask looks up task by label and runs it via the task service', async () => {
+		registerMockTask('build', worktreeUri);
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task = makeTask('build', 'npm run build');
 
-		await service.runTask(task, session);
+		await service.runTask(makeTask('build', 'npm run build'), session);
 
-		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].name, 'build');
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'npm run build');
-	});
-
-	test('runTask resolves npm task to npm run <script>', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task = makeNpmTask('watch', 'watch');
-
-		await service.runTask(task, session);
-
-		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].name, 'watch');
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'npm run watch');
-	});
-
-	test('runTask does nothing for npm task without script', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task: ITaskEntry = { label: 'broken', type: 'npm', inSessions: true };
-
-		await service.runTask(task, session);
-
-		assert.strictEqual(createdTerminals.length, 0);
-		assert.strictEqual(sentCommands.length, 0);
+		assert.strictEqual(ranTasks.length, 1);
+		assert.strictEqual(ranTasks[0].label, 'build');
 	});
 
 	test('runTask does nothing when no cwd available', async () => {
 		const session = makeSession({ repository: undefined, worktree: undefined });
 		await service.runTask(makeTask('build', 'npm run build'), session);
 
-		assert.strictEqual(createdTerminals.length, 0);
-		assert.strictEqual(sentCommands.length, 0);
+		assert.strictEqual(ranTasks.length, 0);
 	});
 
-	test('runTask reuses the same terminal for the same command and worktree', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task = makeTask('build', 'npm run build');
-
-		await service.runTask(task, session);
-		await service.runTask(task, session);
-
-		assert.strictEqual(createdTerminals.length, 1, 'should create only one terminal');
-		assert.strictEqual(sentCommands.length, 2, 'should send command twice');
-		assert.strictEqual(sentCommands[0].command, 'npm run build');
-		assert.strictEqual(sentCommands[1].command, 'npm run build');
-	});
-
-	test('runTask creates different terminals for different commands', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-
-		await service.runTask(makeTask('build', 'npm run build'), session);
-		await service.runTask(makeTask('test', 'npm test'), session);
-
-		assert.strictEqual(createdTerminals.length, 2, 'should create two terminals');
-		assert.strictEqual(createdTerminals[0].name, 'build');
-		assert.strictEqual(createdTerminals[1].name, 'test');
-	});
-
-	test('runTask appends args to shell command', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task: ITaskEntry = { label: 'build', type: 'shell', command: 'dotnet', args: ['build', '--configuration', 'Release'], inSessions: true };
-
-		await service.runTask(task, session);
-
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'dotnet build --configuration Release');
-	});
-
-	test('runTask appends args to npm task', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task: ITaskEntry = { label: 'test', type: 'npm', script: 'test', args: ['--', '--coverage'], inSessions: true };
-
-		await service.runTask(task, session);
-
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'npm run test -- --coverage');
-	});
-
-	test('runTask resolves CommandString objects in args', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task: ITaskEntry = {
-			label: 'build', type: 'shell', command: 'gcc',
-			args: [
-				{ value: '-o', quoting: 'escape' as const },
-				'output.exe',
-				'main.c',
-			],
-			inSessions: true
-		};
-
-		await service.runTask(task, session);
-
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'gcc -o output.exe main.c');
-	});
-
-	test('runTask sends only command when args is empty', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const task: ITaskEntry = { label: 'build', type: 'shell', command: 'make', args: [], inSessions: true };
-
-		await service.runTask(task, session);
-
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'make');
-	});
-
-	test('runTask creates different terminals for same command in different worktrees', async () => {
-		const wt1 = URI.parse('file:///worktree1');
-		const wt2 = URI.parse('file:///worktree2');
-		const session1 = makeSession({ worktree: wt1, repository: repoUri });
-		const session2 = makeSession({ worktree: wt2, repository: repoUri });
-
-		await service.runTask(makeTask('build', 'npm run build'), session1);
-		await service.runTask(makeTask('build', 'npm run build'), session2);
-
-		assert.strictEqual(createdTerminals.length, 2, 'should create two terminals for different worktrees');
-	});
-
-	test('runs worktreeCreated session tasks when a session gains a worktree', async () => {
-		const sessionResource = URI.parse('file:///session-worktree-created');
-		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
-		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
-		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
-			{ label: 'build', type: 'shell', command: 'npm run build', inSessions: true, runOptions: { runOn: 'worktreeCreated' } },
-			makeTask('manual', 'npm test', true),
-		]));
-		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
-
-		activeSessionObs.set({ ...makeSession({ repository: repoUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
-
-		activeSessionObs.set({ ...makeSession({ repository: repoUri, worktree: worktreeUri }), resource: sessionResource }, undefined);
-		await new Promise(r => setTimeout(r, 10));
-
-		assert.strictEqual(sentCommands.length, 1);
-		assert.strictEqual(sentCommands[0].command, 'npm run build');
-	});
-
-	// --- getLastRunTaskLabel (MRU) ---
-
-	test('getLastRunTaskLabel returns undefined when no task has been run', () => {
-		const obs = service.getLastRunTaskLabel(repoUri);
-		assert.strictEqual(obs.get(), undefined);
-	});
-
-	test('getLastRunTaskLabel returns label after runTask', async () => {
-		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
-		const obs = service.getLastRunTaskLabel(repoUri);
-
-		await service.runTask(makeTask('build', 'npm run build'), session);
-		assert.strictEqual(obs.get(), 'build');
-
-		await service.runTask(makeTask('test', 'npm test'), session);
-		assert.strictEqual(obs.get(), 'test');
-	});
-
-	test('getLastRunTaskLabel returns undefined for undefined repository', () => {
-		const obs = service.getLastRunTaskLabel(undefined);
-		assert.strictEqual(obs.get(), undefined);
-	});
-
-	test('getLastRunTaskLabel tracks separate repositories independently', async () => {
-		const repo1 = URI.parse('file:///repo1');
-		const repo2 = URI.parse('file:///repo2');
-		const wt1 = URI.parse('file:///wt1');
-		const wt2 = URI.parse('file:///wt2');
-
-		const session1 = makeSession({ worktree: wt1, repository: repo1 });
-		const session2 = makeSession({ worktree: wt2, repository: repo2 });
-
-		const obs1 = service.getLastRunTaskLabel(repo1);
-		const obs2 = service.getLastRunTaskLabel(repo2);
-
-		await service.runTask(makeTask('build', 'npm run build'), session1);
-		await service.runTask(makeTask('test', 'npm test'), session2);
-
-		assert.strictEqual(obs1.get(), 'build');
-		assert.strictEqual(obs2.get(), 'test');
-	});
-
-	test('getLastRunTaskLabel returns same observable for same repository', () => {
-		const obs1 = service.getLastRunTaskLabel(repoUri);
-		const obs2 = service.getLastRunTaskLabel(repoUri);
-		assert.strictEqual(obs1, obs2);
-	});
-
-	test('getLastRunTaskLabel persists across service instances', async () => {
+	test('runTask does nothing when workspace folder not found', async () => {
+		// No workspace folder registered for worktreeUri
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		await service.runTask(makeTask('build', 'npm run build'), session);
 
-		// Create a second service instance using the same storage
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
-			override async readFile(): Promise<IFileContent> { throw new Error('not found'); }
-			override watch() { return { dispose() { } }; }
-			override onDidFilesChange: any = () => ({ dispose() { } });
-		});
-		instantiationService.stub(IJSONEditingService, new class extends mock<IJSONEditingService>() {
-			override async write() { }
-		});
-		instantiationService.stub(IPreferencesService, new class extends mock<IPreferencesService>() {
-			override userSettingsResource = userSettingsUri;
-		});
-		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override instances: readonly ITerminalInstance[] = [];
-			override async createTerminal() { return {} as ITerminalInstance; }
-			override setActiveInstance() { }
-			override async revealActiveTerminal() { }
-		});
-		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-			override activeSession = observableValue('activeSession', undefined);
-			override async commitWorktreeFiles() { }
-		});
-		instantiationService.stub(IStorageService, storageService);
+		assert.strictEqual(ranTasks.length, 0);
+	});
 
-		const service2 = store.add(instantiationService.createInstance(SessionsConfigurationService));
-		const obs = service2.getLastRunTaskLabel(repoUri);
-		assert.strictEqual(obs.get(), 'build');
+	test('runTask does nothing when task not found by label', async () => {
+		workspaceFoldersByUri.set(worktreeUri.toString(), { uri: worktreeUri, name: 'folder', index: 0, toResource: () => worktreeUri } as IWorkspaceFolder);
+		// No task registered for 'nonexistent'
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		await service.runTask(makeTask('nonexistent', 'echo hi'), session);
+
+		assert.strictEqual(ranTasks.length, 0);
+	});
+
+	test('runTask uses repository as cwd when worktree is not available', async () => {
+		registerMockTask('build', repoUri);
+		const session = makeSession({ repository: repoUri });
+
+		await service.runTask(makeTask('build', 'npm run build'), session);
+
+		assert.strictEqual(ranTasks.length, 1);
+		assert.strictEqual(ranTasks[0].label, 'build');
 	});
 });

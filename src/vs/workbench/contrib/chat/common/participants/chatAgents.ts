@@ -5,6 +5,7 @@
 
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
@@ -26,6 +27,7 @@ import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
+import { ChatPerfMark, markChat } from '../chatPerf.js';
 
 //#region agent service, commands etc
 
@@ -48,6 +50,7 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsTerminalAttachments?: boolean;
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
+	supportsCheckpoints?: boolean;
 }
 
 export interface IChatAgentData {
@@ -146,6 +149,7 @@ export interface IChatAgentRequest {
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
 	userSelectedModelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
@@ -215,12 +219,18 @@ export interface IChatAgentCompletionItem {
 	command?: Command;
 }
 
+export interface IChatAgentInvocationEvent {
+	readonly agentId: string;
+	readonly request: Readonly<IChatAgentRequest>;
+}
+
 export interface IChatAgentService {
 	_serviceBrand: undefined;
 	/**
 	 * undefined when an agent was removed
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
+	readonly onWillInvokeAgent: Event<IChatAgentInvocationEvent>;
 	readonly hasToolsAgent: boolean;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
@@ -265,6 +275,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
+	private readonly _onWillInvokeAgent = this._register(new Emitter<IChatAgentInvocationEvent>());
+	readonly onWillInvokeAgent: Event<IChatAgentInvocationEvent> = this._onWillInvokeAgent.event;
 
 	private readonly _agentsContextKeys = new Set<string>();
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
@@ -505,12 +517,16 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
+		markChat(request.sessionResource, ChatPerfMark.AgentWillInvoke);
 		const data = this._agents.get(id);
 		if (!data?.impl) {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
-		return await data.impl.invoke(request, progress, history, token);
+		this._onWillInvokeAgent.fire({ agentId: id, request });
+		const result = await data.impl.invoke(request, progress, history, token);
+		markChat(request.sessionResource, ChatPerfMark.AgentDidInvoke);
+		return result;
 	}
 
 	setRequestTools(id: string, requestId: string, tools: UserSelectedTools): void {

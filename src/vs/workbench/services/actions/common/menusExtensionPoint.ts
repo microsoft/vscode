@@ -491,6 +491,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
+		key: 'chat/input/editing/sessionTitleToolbar',
+		id: MenuId.ChatEditingSessionTitleToolbar,
+		description: localize('menus.chatEditingSessionTitleToolbar', "The Chat Editing widget toolbar menu for session title."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chat/input/editing/sessionChangeToolbar',
+		id: MenuId.ChatEditingSessionChangeToolbar,
+		description: localize('menus.chatEditingSessionChangeToolbar', "The Chat Editing widget toolbar menu for session changes."),
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
 		id: MenuId.AgentSessionsContext,
@@ -511,6 +523,13 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.chatMultiDiffContext', "The Chat Multi-Diff context menu."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider',
+	},
+	{
+		key: 'chat/customizations/create',
+		id: MenuId.for('AICustomizationManagementCreate'),
+		description: localize('menus.chatCustomizationsCreate', "The create button in the Chat Customizations management editor."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionCustomizationProvider',
 	},
 	{
 		key: 'chat/editor/inlineGutter',
