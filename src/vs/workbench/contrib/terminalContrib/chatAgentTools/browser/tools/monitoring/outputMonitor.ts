@@ -111,6 +111,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	/** The chat session resource for this tool invocation, used to check permission level. */
 	private readonly _sessionResource: URI | undefined;
 
+	private _asyncMode = false;
+	private _command = '';
+	private _invocationContext: IToolInvocationContext | undefined;
+
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
@@ -128,6 +132,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		super();
 
 		this._sessionResource = invocationContext?.sessionResource;
+		this._command = command;
+		this._invocationContext = invocationContext;
 
 		// Start async to ensure listeners are set up
 		timeout(0).then(() => {
@@ -163,6 +169,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							extended = true;
 							this._state = OutputMonitorState.PollingForIdle;
 							continue;
+						} else if (this._asyncMode) {
+							// In async mode, wait for new data instead of stopping on timeout
+							this._logService.trace('OutputMonitor: Async mode - timeout reached, waiting for new terminal data');
+							extended = false;
+							await this._waitForNewData(token);
+							if (token.isCancellationRequested) {
+								break;
+							}
+							this._state = OutputMonitorState.PollingForIdle;
+							continue;
 						} else {
 							this._promptPart?.hide();
 							this._promptPart = undefined;
@@ -176,6 +192,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						const idleResult = await this._handleIdleState(token);
 						if (idleResult.shouldContinuePollling) {
 							this._logService.trace('OutputMonitor: Idle handler -> continue polling');
+							this._state = OutputMonitorState.PollingForIdle;
+							continue;
+						} else if (this._asyncMode) {
+							// In async mode, wait for new terminal data before monitoring again.
+							// This avoids expensive LLM calls while the terminal sits idle.
+							this._logService.trace('OutputMonitor: Async mode - waiting for new terminal data before next monitoring cycle');
+							await this._waitForNewData(token);
+							if (token.isCancellationRequested) {
+								break;
+							}
 							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
@@ -217,6 +243,43 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			this._onDidFinishCommand.fire();
 		}
+	}
+
+	/**
+	 * Continues monitoring in background mode with a new cancellation token.
+	 * In background mode, the monitor re-polls for idle and handles prompts
+	 * whenever new terminal data arrives, rather than stopping after the first
+	 * idle detection. Resource cost is bounded because the monitor only wakes
+	 * on new terminal data (via {@link _waitForNewData}) and each idle cycle
+	 * is capped by the standard polling timeouts.
+	 */
+	continueMonitoringAsync(token: CancellationToken): void {
+		this._asyncMode = true;
+		this._state = OutputMonitorState.PollingForIdle;
+		this._startMonitoring(this._command, this._invocationContext, token);
+	}
+
+	/**
+	 * Waits for new terminal data or cancellation. Used in background mode
+	 * to avoid polling and LLM calls while the terminal is quiet.
+	 */
+	private _waitForNewData(token: CancellationToken): Promise<void> {
+		return new Promise<void>(resolve => {
+			if (token.isCancellationRequested) {
+				resolve();
+				return;
+			}
+			const dataListener = this._execution.instance.onData(() => {
+				dataListener.dispose();
+				tokenListener.dispose();
+				resolve();
+			});
+			const tokenListener = token.onCancellationRequested(() => {
+				dataListener.dispose();
+				tokenListener.dispose();
+				resolve();
+			});
+		});
 	}
 
 
@@ -355,6 +418,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		// Clean up input listener before custom poll/error assessment
 		this._cleanupIdleInputListener();
+
+		// In async mode, skip the custom poll function and error assessment
+		// since we're not returning results to the tool invocation. The caller
+		// will handle this idle state by waiting for new terminal data.
+		if (this._asyncMode) {
+			return { shouldContinuePollling: false, output };
+		}
 
 		// Let custom poller override if provided
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);

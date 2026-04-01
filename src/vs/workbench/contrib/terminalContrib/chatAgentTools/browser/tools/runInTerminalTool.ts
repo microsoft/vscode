@@ -1078,7 +1078,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let exitCode: number | undefined;
 		let altBufferResult: IToolResult | undefined;
 		let didTimeout = false;
-		let didMoveToBackground = executionOptions.persistentSession;
+		// Covers both terminals that start as background (persistentSession) and
+		// foreground terminals that later move to background (timeout/continue-in-bg).
+		let isBackgroundExecution = executionOptions.persistentSession;
 		let timeoutPromise: CancelablePromise<void> | undefined;
 		let timeoutRacePromise: Promise<{ type: 'timeout' }> | undefined;
 		let outputMonitor: OutputMonitor | undefined;
@@ -1108,7 +1110,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (sessionId === terminalToolSessionId) {
 					const execution = RunInTerminalTool._activeExecutions.get(termId);
 					execution?.setBackground?.();
-					didMoveToBackground = true;
+					isBackgroundExecution = true;
 					// Resolve the race promise instead of cancelling - this allows the execution
 					// to continue running so it can be awaited later
 					continueInBackgroundResolve?.();
@@ -1144,7 +1146,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				: undefined;
 			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
 				if (!outputMonitor) {
-					outputMonitor = store.add(this._instantiationService.createInstance(
+					outputMonitor = this._instantiationService.createInstance(
 						OutputMonitor,
 						{
 							instance: toolTerminal.instance,
@@ -1155,7 +1157,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						invocation.context,
 						token,
 						command
-					));
+					);
 				}
 			}));
 
@@ -1238,7 +1240,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
 					error = 'timeout';
 					didTimeout = true;
-					didMoveToBackground = true;
+					isBackgroundExecution = true;
 					toolTerminal.isBackground = true;
 					this._sessionTerminalAssociations.delete(chatSessionResource);
 					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
@@ -1308,7 +1310,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (didTimeout && e instanceof CancellationError) {
 				this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
 				error = 'timeout';
-				didMoveToBackground = true;
+				isBackgroundExecution = true;
 				toolTerminal.isBackground = true;
 				this._sessionTerminalAssociations.delete(chatSessionResource);
 				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
@@ -1338,19 +1340,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		} finally {
 			timeoutPromise?.cancel();
-			if (didMoveToBackground && executionPromise) {
-				// Execution moved to background - attach error handler since we won't await it
+			if (isBackgroundExecution && executionPromise) {
+				// Background terminal (started as bg or moved to bg) - attach error handler since we won't await it
 				executionPromise.catch((e: unknown) => {
 					if (!(e instanceof CancellationError)) {
 						this._logService.error(`RunInTerminalTool: Background execution error`, e);
 					}
 				});
-				// Register a listener to notify the agent when commands complete in this background terminal
-				this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource);
+				// Register a listener to notify the agent when commands complete in this
+				// background terminal, and continue the output monitor for prompt-for-input detection
+				this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, outputMonitor);
 			} else {
-				// Foreground completed or error - clean up execution
+				// Foreground completed or error - clean up execution and output monitor
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
 				RunInTerminalTool._activeExecutions.delete(termId);
+				outputMonitor?.dispose();
 			}
 			store.dispose();
 			const timingExecuteMs = Date.now() - timingStart;
@@ -1394,7 +1398,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} else if (didToolEditCommand) {
 				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
 			}
-			if (didMoveToBackground && !executionOptions.persistentSession) {
+			if (isBackgroundExecution && !executionOptions.persistentSession) {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 		}
@@ -1761,23 +1765,48 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * Registers a listener for command completion on a background terminal.
 	 * When a command finishes, sends a steering message to the chat session
 	 * so the agent is notified on its next turn.
+	 *
+	 * If an output monitor is provided, it is continued in background mode
+	 * to detect prompts-for-input while the terminal runs in the background.
+	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
-	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI): void {
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, outputMonitor?: OutputMonitor): void {
 		const commandDetection = terminalInstance.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
+			outputMonitor?.dispose();
 			return;
+		}
+
+		// Continue the output monitor in background mode for prompt-for-input detection.
+		// The monitor wakes only on new terminal data (not on a fixed interval), so
+		// resource cost is proportional to actual terminal activity.
+		let bgCts: CancellationTokenSource | undefined;
+		if (outputMonitor) {
+			bgCts = new CancellationTokenSource();
+			this._register(bgCts);
+			outputMonitor.continueMonitoringAsync(bgCts.token);
 		}
 
 		const listener = commandDetection.onCommandFinished(command => {
 			const execution = RunInTerminalTool._activeExecutions.get(termId);
 			if (!execution) {
 				listener.dispose();
+				bgCts?.cancel();
+				outputMonitor?.dispose();
 				return;
 			}
 
+			// Clean up background monitoring on command finish
+			if (bgCts) {
+				bgCts.cancel();
+				bgCts = undefined;
+			}
+			outputMonitor?.dispose();
+
 			const exitCode = command.exitCode;
 			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
-			const message = `[Terminal ${termId} notification: command completed${exitCodeText}. Use get_terminal_output to see the full output, send_to_terminal to send another command, or kill_terminal to stop it.]`;
+			const currentOutput = execution.getOutput();
+			const message = `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
 
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
