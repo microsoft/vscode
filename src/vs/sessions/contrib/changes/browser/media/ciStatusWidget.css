@@ -18,10 +18,9 @@
 	position: relative;
 	display: flex;
 	align-items: center;
-	/* gap: 6px; */
-	padding: 6px 4px;
+	padding: 4px;
 	margin-top: 4px;
-	border-radius: 8px;
+	border-radius: 4px;
 	min-height: 22px;
 	font-weight: 500;
 	cursor: pointer;
@@ -182,6 +181,12 @@
 	flex: 1;
 	min-width: 0;
 	width: 100%;
+}
+
+.ci-status-widget-check-label .monaco-icon-label::before {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
 }
 
 .ci-status-widget-check-label .monaco-icon-label-container,

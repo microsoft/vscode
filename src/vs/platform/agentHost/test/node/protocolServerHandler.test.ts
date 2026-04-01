@@ -18,6 +18,7 @@ import { SessionStatus, type ISessionSummary } from '../../common/state/sessionS
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -196,6 +197,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager,
 			server,
 			{ defaultDirectory: URI.file('/home/testuser').toString() },
+			disposables.add(new AgentHostFileSystemProvider()),
 			new NullLogService(),
 		));
 	});

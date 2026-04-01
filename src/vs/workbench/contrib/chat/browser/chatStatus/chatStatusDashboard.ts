@@ -118,6 +118,19 @@ registerColor('gauge.errorBackground', {
 	hcLight: Color.white
 }, localize('gaugeErrorBackground', "Gauge error background color."));
 
+export interface IChatStatusDashboardOptions {
+	/** When true, disables the Inline Suggestions settings section (toggles for all files, language, next edit). */
+	disableInlineSuggestionsSettings?: boolean;
+	/** When true, disables the inline completions model selection section. */
+	disableModelSelection?: boolean;
+	/** When true, disables the inline completions provider options section. */
+	disableProviderOptions?: boolean;
+	/** When true, disables the completions snooze button. */
+	disableCompletionsSnooze?: boolean;
+	/** When true, disables contributed status items (e.g. Workspace Index). */
+	disableContributions?: boolean;
+}
+
 export class ChatStatusDashboard extends DomWidget {
 
 	readonly element = $('div.chat-status-bar-entry-tooltip');
@@ -128,6 +141,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private readonly quotaOverageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
 	constructor(
+		private readonly options: IChatStatusDashboardOptions | undefined,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -251,7 +265,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// Contributions
-		{
+		if (!this.options?.disableContributions) {
 			for (const item of this.chatStatusItemService.getEntries()) {
 				addSeparator();
 
@@ -274,8 +288,8 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		}
 
-		// Settings
-		{
+		// Settings (editor-specific)
+		if (!this.options?.disableInlineSuggestionsSettings) {
 			const chatSentiment = this.chatEntitlementService.sentiment;
 			addSeparator(localize('inlineSuggestions', "Inline Suggestions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
@@ -288,8 +302,8 @@ export class ChatStatusDashboard extends DomWidget {
 			this.createSettings(this.element, this._store);
 		}
 
-		// Model Selection
-		{
+		// Model Selection (editor-specific)
+		if (!this.options?.disableModelSelection) {
 			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
 			const provider = providers.find(p => p.modelInfo && p.modelInfo.models.length > 0);
 
@@ -317,8 +331,8 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		}
 
-		// Provider Options
-		{
+		// Provider Options (editor-specific)
+		if (!this.options?.disableProviderOptions) {
 			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
 			for (const provider of providers) {
 				if (provider.providerOptions && provider.providerOptions.length > 0) {
@@ -345,8 +359,8 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		}
 
-		// Completions Snooze
-		if (this.canUseChat()) {
+		// Completions Snooze (editor-specific)
+		if (!this.options?.disableCompletionsSnooze && this.canUseChat()) {
 			const snooze = append(this.element, $('div.snooze-completions'));
 			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), this._store);
 		}

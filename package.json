@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.115.0",
-  "distro": "f7bd750d5f598365ecd892bd9fd2c2b61315db0c",
+  "distro": "084798d47e4cc4c713def402d4a1110fb619116d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,6 +55,7 @@
     "valid-layers-check": "node build/checker/layersChecker.ts && tsgo --project build/checker/tsconfig.browser.json && tsgo --project build/checker/tsconfig.worker.json && tsgo --project build/checker/tsconfig.node.json && tsgo --project build/checker/tsconfig.electron-browser.json && tsgo --project build/checker/tsconfig.electron-main.json && tsgo --project build/checker/tsconfig.electron-utility.json",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.ts && tsgo --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
+    "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
     "compile-cli": "npm run gulp compile-cli",
     "compile-web": "npm run gulp compile-web",

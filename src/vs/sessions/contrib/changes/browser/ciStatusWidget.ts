@@ -148,7 +148,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
  */
 export class CIStatusWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 38; // total header height in px
+	static readonly HEADER_HEIGHT = 34; // total header height in px
 	static readonly MIN_BODY_HEIGHT = 84; // at least 3 checks (3 * 28)
 	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
@@ -218,7 +218,7 @@ export class CIStatusWidget extends Disposable {
 		this._headerNode = dom.append(this._domNode, $('.ci-status-widget-header'));
 		this._titleNode = dom.append(this._headerNode, $('.ci-status-widget-title'));
 		this._titleLabelNode = dom.append(this._titleNode, $('.ci-status-widget-title-label'));
-		this._titleLabelNode.textContent = localize('ci.checksLabel', "PR Checks");
+		this._titleLabelNode.textContent = localize('ci.checksLabel', "Checks");
 		this._countsNode = dom.append(this._titleNode, $('.ci-status-widget-counts'));
 		this._headerActionBarContainer = dom.append(this._headerNode, $('.ci-status-widget-header-actions'));
 		this._headerActionBar = this._register(new ActionBar(this._headerActionBarContainer));
@@ -487,7 +487,7 @@ function getCheckCounts(checks: readonly IGitHubCICheck[]): ICICheckCounts {
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return Codicon.clock;
+			return Codicon.sync;
 		case GitHubCheckStatus.Queued:
 			return Codicon.circleFilled;
 		case GitHubCheckStatus.Completed:

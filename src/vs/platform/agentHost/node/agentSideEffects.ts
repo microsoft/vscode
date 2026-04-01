@@ -13,7 +13,9 @@ import { IAgent, IAgentAttachment } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
 import {
+	CustomizationStatus,
 	PendingMessageKind,
+	type ISessionCustomization,
 	type ISessionModelInfo,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
@@ -250,6 +252,53 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.SessionPendingMessageRemoved:
 			case ActionType.SessionQueuedMessagesReordered: {
 				this._syncPendingMessages(action.session);
+				break;
+			}
+			case ActionType.SessionActiveClientChanged: {
+				const agent = this._options.getAgent(action.session);
+				const refs = action.activeClient?.customizations;
+				if (!agent?.setClientCustomizations || !refs?.length) {
+					break;
+				}
+				// Publish initial "loading" status for all customizations
+				const loading: ISessionCustomization[] = refs.map(r => ({
+					customization: r,
+					enabled: true,
+					status: CustomizationStatus.Loading,
+				}));
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionCustomizationsChanged,
+					session: action.session,
+					customizations: loading,
+				});
+				agent.setClientCustomizations(
+					action.activeClient!.clientId,
+					refs,
+					(synced) => {
+						// Incremental progress: publish updated statuses
+						const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+						this._stateManager.dispatchServerAction({
+							type: ActionType.SessionCustomizationsChanged,
+							session: action.session,
+							customizations: statuses,
+						});
+					},
+				).then(synced => {
+					// Final status
+					const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+					this._stateManager.dispatchServerAction({
+						type: ActionType.SessionCustomizationsChanged,
+						session: action.session,
+						customizations: statuses,
+					});
+				}).catch(err => {
+					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
+				});
+				break;
+			}
+			case ActionType.SessionCustomizationToggled: {
+				const agent = this._options.getAgent(action.session);
+				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
 				break;
 			}
 		}

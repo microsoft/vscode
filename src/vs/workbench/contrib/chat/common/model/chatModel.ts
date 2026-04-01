@@ -670,7 +670,7 @@ class AbstractResponse implements IResponse {
 			if (toolInvocation.toolSpecificData.kind === 'terminal') {
 				message = 'Ran terminal command';
 				const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
-				input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+				input = terminalData.presentationOverrides?.commandLine ?? terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			}
 		}
 
@@ -2300,7 +2300,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				const needsInput = this.requestNeedsInput.read(r);
 				const shouldStayAlive = inProgress || !!needsInput;
 				if (shouldStayAlive && !selfRef.value) {
-					selfRef.value = chatService.acquireExistingSession(this._sessionResource);
+					selfRef.value = chatService.acquireExistingSession(this._sessionResource, 'ChatModel#requestInProgressKeepAlive');
 				} else if (!shouldStayAlive && selfRef.value) {
 					selfRef.clear();
 				}
@@ -2324,7 +2324,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._register(autorun(r => {
 				const hasModified = session.entries.read(r).some(e => e.state.read(r) === ModifiedFileEntryState.Modified);
 				if (hasModified && !selfRef.value) {
-					selfRef.value = this.chatService.acquireExistingSession(this._sessionResource);
+					selfRef.value = this.chatService.acquireExistingSession(this._sessionResource, 'ChatModel#modifiedEditsKeepAlive');
 				} else if (!hasModified && selfRef.value) {
 					selfRef.clear();
 				}
