@@ -417,7 +417,7 @@ class ChangesViewModel extends Disposable {
 			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
 
 			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
-				return constObservable(undefined);
+				return constObservable([]);
 			}
 
 			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
@@ -430,7 +430,7 @@ class ChangesViewModel extends Disposable {
 			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
 
 			if (!repository || !lastCheckpointRef) {
-				return constObservable(undefined);
+				return constObservable([]);
 			}
 
 			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
@@ -777,18 +777,21 @@ export class ChangesViewPane extends ViewPane {
 
 		const isLoadingChangesObs = derived(reader => {
 			const versionMode = this.viewModel.versionModeObs.read(reader);
-			if (versionMode !== ChangesVersionMode.AllChanges && versionMode !== ChangesVersionMode.LastTurn) {
+			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return false;
 			}
 
-			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			if (!repository) {
-				return false;
+			if (versionMode === ChangesVersionMode.AllChanges) {
+				const allChangesResult = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader);
+				return allChangesResult === undefined;
 			}
 
-			const allChangesResult = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader);
-			const lastTurnChangesResult = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader);
-			return allChangesResult === undefined || lastTurnChangesResult === undefined;
+			if (versionMode === ChangesVersionMode.LastTurn) {
+				const lastTurnChangesResult = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader);
+				return lastTurnChangesResult === undefined;
+			}
+
+			return false;
 		});
 
 		this.renderDisposables.add(autorun(reader => {
