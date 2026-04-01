@@ -28,6 +28,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 	let disposables: vscode.Disposable[] = [];
 	let originalShellIntegrationEnabled: boolean | undefined;
+	let windowsUseConptyDll: boolean | undefined;
 
 	setup(async () => {
 		disposables = [];
@@ -37,6 +38,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
 		originalShellIntegrationEnabled = terminalConfig.get<boolean>('shellIntegration.enabled');
 		await terminalConfig.update('shellIntegration.enabled', true, vscode.ConfigurationTarget.Global);
+
+		if (isWindows) {
+			windowsUseConptyDll = terminalConfig.get<boolean>('windowsUseConptyDll');
+			await terminalConfig.update('windowsUseConptyDll', true, vscode.ConfigurationTarget.Global);
+		}
 
 		// Register a dummy default model required for participant requests
 		disposables.push(vscode.lm.registerLanguageModelChatProvider('copilot', {
@@ -80,9 +86,13 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		await chatToolsConfig.update('autoApprove', undefined, vscode.ConfigurationTarget.Global);
 		await vscode.commands.executeCommand('setContext', 'vscode.chat.tools.global.autoApprove.testMode', undefined);
 
-		// Restore shell integration setting
+		// Restore terminal settings
 		const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
 		await terminalConfig.update('shellIntegration.enabled', originalShellIntegrationEnabled, vscode.ConfigurationTarget.Global);
+
+		if (isWindows) {
+			await terminalConfig.update('windowsUseConptyDll', windowsUseConptyDll, vscode.ConfigurationTarget.Global);
+		}
 	});
 
 	/**
