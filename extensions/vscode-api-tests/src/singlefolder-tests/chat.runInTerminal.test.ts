@@ -178,7 +178,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		assert.ok(schema.properties?.['command'], 'Schema should have a command property');
 		assert.ok(schema.properties?.['explanation'], 'Schema should have an explanation property');
 		assert.ok(schema.properties?.['goal'], 'Schema should have a goal property');
-		assert.ok(schema.properties?.['isBackground'], 'Schema should have an isBackground property');
+		assert.ok(schema.properties?.['mode'], 'Schema should have a mode property');
 	});
 
 	// --- Sandbox OFF tests ---
