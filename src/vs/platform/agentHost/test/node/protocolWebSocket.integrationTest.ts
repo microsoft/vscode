@@ -241,10 +241,10 @@ function getActionEnvelope(n: IAhpNotification): IActionEnvelope {
 }
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
-async function createAndSubscribeSession(c: TestProtocolClient, clientId: string): Promise<string> {
+async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
 	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
 
-	await c.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+	await c.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
@@ -926,7 +926,7 @@ suite('Protocol WebSocket E2E', function () {
 	test('auto-approves write to regular file (no pending confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove', 'file:///workspace');
 		client.clearReceived();
 
 		// Start a turn that triggers a write permission request for a regular .ts file
@@ -952,7 +952,7 @@ suite('Protocol WebSocket E2E', function () {
 	test('blocks write to .env file (requires manual confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny', 'file:///workspace');
 		client.clearReceived();
 
 		// Start a turn that tries to write .env (blocked by default patterns)
@@ -970,6 +970,63 @@ suite('Protocol WebSocket E2E', function () {
 				session: sessionUri,
 				turnId: 'turn-deny',
 				toolCallId: 'tc-write-env-1',
+				approved: true,
+				confirmed: 'user-action',
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
+
+	// ---- Shell auto-approve -------------------------------------------------
+
+	test('auto-approves allowed shell command (no pending confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-shell-approve');
+		client.clearReceived();
+
+		// Start a turn that triggers a shell permission request for "ls -la" (allowed command)
+		dispatchTurnStarted(client, sessionUri, 'turn-shell-approve', 'run-safe-command', 1);
+
+		// The shell command should be auto-approved — we should see tool_start, tool_complete, and turn_complete
+		// but NOT a pending-confirmation toolCallReady.
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify no pending-confirmation toolCallReady was received
+		const pendingConfirmNotifs = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'session/toolCallReady')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { confirmed?: string };
+			return !action.confirmed;
+		});
+		assert.strictEqual(pendingConfirmNotifs.length, 0, 'should not have received pending-confirmation toolCallReady for allowed shell command');
+	});
+
+	test('blocks denied shell command (requires manual confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-shell-deny');
+		client.clearReceived();
+
+		// Start a turn that triggers a shell permission request for "rm -rf /" (denied command)
+		dispatchTurnStarted(client, sessionUri, 'turn-shell-deny', 'run-dangerous-command', 1);
+
+		// The denied command should NOT be auto-approved — we should see toolCallReady (pending confirmation)
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+
+		// Confirm it manually to let the turn complete
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/toolCallConfirmed',
+				session: sessionUri,
+				turnId: 'turn-shell-deny',
+				toolCallId: 'tc-shell-deny-1',
 				approved: true,
 				confirmed: 'user-action',
 			},
