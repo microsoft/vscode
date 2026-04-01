@@ -205,7 +205,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 	private _needsChatSetup(includeUnknown: boolean = true): boolean {
 		const { sentiment, entitlement } = this.chatEntitlementService;
 		if (
-			!sentiment?.installed ||						// Extension not installed: run setup to install
+			!sentiment?.completed ||						// Setup not yet completed
 			sentiment?.disabled ||							// Extension disabled: run setup to enable
 			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
 			(
