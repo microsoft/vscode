@@ -179,10 +179,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
 			let sourceTurns: ITurn[] = [];
 			if (sourceState) {
-				const forkIdx = sourceState.turns.findIndex(t => t.id === config.fork!.turnId);
-				if (forkIdx >= 0) {
-					sourceTurns = sourceState.turns.slice(0, forkIdx + 1);
-				}
+				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1);
 			}
 
 			const summary: ISessionSummary = {

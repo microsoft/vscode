@@ -310,24 +310,41 @@ export async function forkSessionInDb(
 			[newSessionId, sourceSessionId, forkTurnIndex],
 		);
 
-		// Copy search index entries for kept turns
-		await dbRun(db,
-			`INSERT INTO search_index (content, session_id, source_type, source_id)
-			SELECT content, ?, source_type,
-			REPLACE(source_id, ?, ?)
+		// Copy search index entries for kept turns only.
+		// source_id format is "<session_id>:turn:<turn_index>"; filter by
+		// parsing the turn index so we don't leak content from later turns.
+		await dbAll(db,
+			`SELECT content, source_type, source_id
 			FROM search_index
-			WHERE session_id = ?
-			AND source_type = 'turn'`,
-			[newSessionId, sourceSessionId, newSessionId, sourceSessionId],
-		);
+			WHERE session_id = ? AND source_type = 'turn'`,
+			[sourceSessionId],
+		).then(async rows => {
+			const prefix = `${sourceSessionId}:turn:`;
+			for (const row of rows) {
+				const sourceId = row.source_id as string;
+				if (sourceId.startsWith(prefix)) {
+					const turnIdx = parseInt(sourceId.substring(prefix.length), 10);
+					if (!isNaN(turnIdx) && turnIdx <= forkTurnIndex) {
+						const newSourceId = sourceId.replace(sourceSessionId, newSessionId);
+						await dbRun(db,
+							`INSERT INTO search_index (content, session_id, source_type, source_id)
+							VALUES (?, ?, ?, ?)`,
+							[row.content, newSessionId, row.source_type, newSourceId],
+						);
+					}
+				}
+			}
+		});
 
-		// Copy checkpoints at or before the fork point
+		// Copy checkpoints at or before the fork point.
+		// checkpoint_number is 1-based and correlates to turns, so we keep
+		// only those where checkpoint_number <= forkTurnIndex + 1.
 		await dbRun(db,
 			`INSERT INTO checkpoints (session_id, checkpoint_number, title, overview, history, work_done, technical_details, important_files, next_steps, created_at)
 			SELECT ?, checkpoint_number, title, overview, history, work_done, technical_details, important_files, next_steps, created_at
 			FROM checkpoints
-			WHERE session_id = ?`,
-			[newSessionId, sourceSessionId],
+			WHERE session_id = ? AND checkpoint_number <= ?`,
+			[newSessionId, sourceSessionId, forkTurnIndex + 1],
 		);
 
 		await dbExec(db, 'COMMIT');

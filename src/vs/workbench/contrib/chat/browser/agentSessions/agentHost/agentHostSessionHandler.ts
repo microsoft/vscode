@@ -1270,14 +1270,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		// Determine the turn index to fork at. If a specific request is
-		// provided, find its position in the protocol state's turn list.
-		// Otherwise fork the entire session.
+		// provided, fork BEFORE it (keeping turns up to the previous one).
+		// This matches the non-contributed path in ForkConversationAction
+		// which uses `requestIndex - 1`. If no request is provided, fork
+		// the entire session.
 		const protocolState = this._clientState.getSessionState(backendSession.toString());
 		let turnIndex: number | undefined;
 		if (request) {
-			turnIndex = protocolState?.turns.findIndex(t => t.id === request.id);
-			if (turnIndex === undefined || turnIndex < 0) {
+			const requestIdx = protocolState?.turns.findIndex(t => t.id === request.id);
+			if (requestIdx === undefined || requestIdx < 0) {
 				throw new Error(`Cannot fork: turn for request ${request.id} not found in protocol state`);
+			}
+			// Fork before this request — keep turns [0..requestIdx-1]
+			turnIndex = requestIdx - 1;
+			if (turnIndex < 0) {
+				throw new Error('Cannot fork: cannot fork before the first request');
 			}
 		} else if (protocolState && protocolState.turns.length > 0) {
 			turnIndex = protocolState.turns.length - 1;
