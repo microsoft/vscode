@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ACCOUNTS_ACTIVITY_ID, CHAT_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
@@ -47,24 +47,20 @@ import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 export class GlobalCompositeBar extends Disposable {
 
+	private static readonly ACCOUNTS_ACTION_INDEX = 0;
 	static readonly ACCOUNTS_ICON = registerIcon('accounts-view-bar-icon', Codicon.account, localize('accountsViewBarIcon', "Accounts icon in the view bar."));
-	static readonly CHAT_ICON = registerIcon('chat-activity-bar-icon', Codicon.chatSparkle, localize('chatActivityBarIcon', "Chat icon in the activity bar."));
 
 	readonly element: HTMLElement;
 
 	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
-	private readonly chatAction = this._register(new Action(CHAT_ACTIVITY_ID));
 	private readonly globalActivityActionBar: ActionBar;
-
-	private _chatShown = false;
-	private _accountsShown = false;
 
 	constructor(
 		private readonly contextMenuActionsProvider: () => IAction[],
 		private readonly colors: (theme: IColorTheme) => ICompositeBarColors,
 		private readonly activityHoverOptions: IActivityHoverOptions,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -73,7 +69,7 @@ export class GlobalCompositeBar extends Disposable {
 
 		this.element = $('div');
 		const contextMenuAlignmentOptions = () => ({
-			anchorAlignment: this.configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
+			anchorAlignment: configurationService.getValue('workbench.sideBar.location') === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT,
 			anchorAxisAlignment: AnchorAxisAlignment.HORIZONTAL
 		});
 		this.globalActivityActionBar = this._register(new ActionBar(this.element, {
@@ -99,11 +95,6 @@ export class GlobalCompositeBar extends Disposable {
 						});
 				}
 
-				if (action.id === CHAT_ACTIVITY_ID) {
-					return this.instantiationService.createInstance(ChatActivityActionViewItem,
-						{ ...options, colors: this.colors, hoverOptions: this.activityHoverOptions });
-				}
-
 				throw new Error(`No view item for action '${action.id}'`);
 			},
 			orientation: ActionsOrientation.VERTICAL,
@@ -111,15 +102,8 @@ export class GlobalCompositeBar extends Disposable {
 			preventLoopNavigation: true
 		}));
 
-		if (this.configurationService.getValue<boolean>('chat.showInActivityBar')) {
-			this.globalActivityActionBar.push(this.chatAction, { index: 0 });
-			this._chatShown = true;
-		}
-
 		if (this.accountsVisibilityPreference) {
-			const accountsIndex = this._chatShown ? 1 : 0;
-			this.globalActivityActionBar.push(this.accountAction, { index: accountsIndex });
-			this._accountsShown = true;
+			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
@@ -133,12 +117,6 @@ export class GlobalCompositeBar extends Disposable {
 				this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, this._store)(() => this.toggleAccountsActivity()));
 			}
 		});
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.showInActivityBar')) {
-				this.toggleChatActivity();
-			}
-		}));
 	}
 
 	create(parent: HTMLElement): void {
@@ -157,35 +135,14 @@ export class GlobalCompositeBar extends Disposable {
 		return [toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference })];
 	}
 
-	private toggleAccountsActivity(): void {
-		const shouldShow = this.accountsVisibilityPreference;
-		if (this._accountsShown === shouldShow) {
+	private toggleAccountsActivity() {
+		if (this.globalActivityActionBar.length() === 2 && this.accountsVisibilityPreference) {
 			return;
 		}
-
-		if (this._accountsShown) {
-			const accountsIndex = this._chatShown ? 1 : 0;
-			this.globalActivityActionBar.pull(accountsIndex);
-			this._accountsShown = false;
+		if (this.globalActivityActionBar.length() === 2) {
+			this.globalActivityActionBar.pull(GlobalCompositeBar.ACCOUNTS_ACTION_INDEX);
 		} else {
-			const accountsIndex = this._chatShown ? 1 : 0;
-			this.globalActivityActionBar.push(this.accountAction, { index: accountsIndex });
-			this._accountsShown = true;
-		}
-	}
-
-	private toggleChatActivity(): void {
-		const shouldShow = this.configurationService.getValue<boolean>('chat.showInActivityBar');
-		if (this._chatShown === !!shouldShow) {
-			return;
-		}
-
-		if (this._chatShown) {
-			this.globalActivityActionBar.pull(0);
-			this._chatShown = false;
-		} else {
-			this.globalActivityActionBar.push(this.chatAction, { index: 0 });
-			this._chatShown = true;
+			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
 	}
 
@@ -195,59 +152,6 @@ export class GlobalCompositeBar extends Disposable {
 
 	private set accountsVisibilityPreference(value: boolean) {
 		setAccountsActionVisible(this.storageService, value);
-	}
-}
-
-class ChatActivityActionViewItem extends CompositeBarActionViewItem {
-
-	constructor(
-		options: ICompositeBarActionViewItemOptions,
-		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService private readonly commandService: ICommandService,
-	) {
-		const action = new CompositeBarAction({
-			id: CHAT_ACTIVITY_ID,
-			name: localize('chat', "Chat"),
-			classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.CHAT_ICON),
-			keybindingId: 'workbench.action.chat.toggle',
-		});
-		super(action, { draggable: false, icon: true, hasPopup: false, ...options }, () => true, themeService, hoverService, configurationService, keybindingService);
-		this._register(action);
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			EventHelper.stop(e, true);
-			if (e?.button !== 2) {
-				this.toggleChat();
-			}
-		}));
-
-		this._register(addDisposableListener(this.container, EventType.CONTEXT_MENU, (e: MouseEvent) => {
-			e.stopPropagation();
-		}));
-
-		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				EventHelper.stop(e, true);
-				this.toggleChat();
-			}
-		}));
-
-		this._register(addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
-			EventHelper.stop(e, true);
-			this.toggleChat();
-		}));
-	}
-
-	private async toggleChat(): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.chat.toggle');
 	}
 }
 

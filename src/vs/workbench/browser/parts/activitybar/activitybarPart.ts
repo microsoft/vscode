@@ -38,6 +38,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export class ActivitybarPart extends Part {
 
@@ -251,6 +252,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
+	private static readonly CHAT_SHORTCUT_VIEW_CONTAINER_ID = 'workbench.panel.chatShortcut';
+
 	constructor(
 		location: ViewContainerLocation,
 		options: IPaneCompositeBarOptions,
@@ -267,7 +270,23 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ICommandService commandService: ICommandService,
 	) {
+		// Wrap the pane composite part to intercept opens of the Chat shortcut container.
+		// When the user clicks the Chat icon in the Activity Bar, toggle Chat in its
+		// configured location instead of opening the sidebar composite.
+		const wrappedPart = Object.create(paneCompositePart, {
+			openPaneComposite: {
+				value: async (id?: string, focus?: boolean) => {
+					if (id === ActivityBarCompositeBar.CHAT_SHORTCUT_VIEW_CONTAINER_ID) {
+						await commandService.executeCommand('workbench.action.chat.toggle');
+						return undefined;
+					}
+					return paneCompositePart.openPaneComposite(id, focus);
+				}
+			}
+		}) as IPaneCompositePart;
+
 		super(location,
 			{
 				...options,
@@ -275,7 +294,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 					options.fillExtraContextMenuActions(actions, e);
 					this.fillContextMenuActions(actions, e);
 				}
-			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
+			}, part, wrappedPart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
 
 		if (showGlobalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));
