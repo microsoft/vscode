@@ -668,11 +668,6 @@ export const enum GitHubSocialSignInProvider {
 	Apple = 'apple',
 }
 
-const GitHubSocialSignInProviderLabels = {
-	[GitHubSocialSignInProvider.Google]: l10n.t('Google'),
-	[GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
-};
-
 export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
 	return provider === GitHubSocialSignInProvider.Google || provider === GitHubSocialSignInProvider.Apple;
 }
