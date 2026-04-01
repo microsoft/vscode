@@ -194,6 +194,51 @@ suite('CustomizationHarnessService', () => {
 			assert.deepStrictEqual(descriptor.workspaceSubpaths, ['.test-ext']);
 		});
 
+		test('external harness with hideGenerateButton', () => {
+			const service = createService();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
+			store.add(emitter);
+			const externalDescriptor: IHarnessDescriptor = {
+				id: 'test-ext',
+				label: 'Test Extension',
+				icon: ThemeIcon.fromId('extensions'),
+				hideGenerateButton: true,
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => ({ items: [] }),
+				},
+			};
+
+			store.add(service.registerExternalHarness(externalDescriptor));
+			service.setActiveHarness('test-ext');
+
+			const descriptor = service.getActiveDescriptor();
+			assert.strictEqual(descriptor.hideGenerateButton, true);
+		});
+
+		test('external harness without hideGenerateButton defaults to undefined', () => {
+			const service = createService();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
+			store.add(emitter);
+			const externalDescriptor: IHarnessDescriptor = {
+				id: 'test-ext',
+				label: 'Test Extension',
+				icon: ThemeIcon.fromId('extensions'),
+				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
+				itemProvider: {
+					onDidChange: emitter.event,
+					provideChatSessionCustomizations: async () => ({ items: [] }),
+				},
+			};
+
+			store.add(service.registerExternalHarness(externalDescriptor));
+			service.setActiveHarness('test-ext');
+
+			const descriptor = service.getActiveDescriptor();
+			assert.strictEqual(descriptor.hideGenerateButton, undefined);
+		});
+
 		test('external harness with same id as static harness replaces it', () => {
 			const staticDescriptor: IHarnessDescriptor = {
 				id: 'cli',
