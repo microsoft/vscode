@@ -1607,32 +1607,63 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		sessionResource: URI | undefined;
 		effectiveSessionType: string;
 	} | undefined {
-		const setNoOptions = () => {
-			this.chatSessionHasOptions.set(false);
-			this.chatSessionOptionsValid.set(true);
-		};
-
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 
 		if (sessionResource) {
-			this.updateStateForCustomAgentTargetIfNeeded(sessionResource);
+			this.updateStateAndChatModeForSessionCustomAgentTarget(sessionResource);
 		}
+
+		const result = this.getVisibleOptionGroups(sessionResource);
+		if (!result) {
+			this.chatSessionHasOptions.set(false);
+			this.chatSessionOptionsValid.set(true);
+			return undefined;
+		}
+
+		const allOptionsValid = this.areAllOptionsValid(sessionResource, result);
+
+		this.chatSessionHasOptions.set(true);
+		this.chatSessionOptionsValid.set(allOptionsValid);
+
+		return result;
+	}
+
+	private areAllOptionsValid(sessionResource: URI | undefined, result: { visibleGroupIds: Set<string>; optionGroups: IChatSessionProviderOptionGroup[]; sessionResource: URI | undefined; effectiveSessionType: string }) {
+		if (sessionResource) {
+			for (const groupId of result.visibleGroupIds) {
+				const optionGroup = result.optionGroups.find(g => g.id === groupId);
+				const currentOption = this.chatSessionsService.getSessionOption(sessionResource, groupId);
+				if (optionGroup && currentOption) {
+					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+					// TODO: @osortega @joshspicer should we add a `placeHolder` item to option groups to straighten this check?
+					if (!optionGroup.items.some(item => item.id === currentOptionId) && typeof currentOption === 'string') {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}
+
+	private getVisibleOptionGroups(sessionResource: URI | undefined): {
+		visibleGroupIds: Set<string>;
+		optionGroups: IChatSessionProviderOptionGroup[];
+		sessionResource: URI | undefined;
+		effectiveSessionType: string;
+	} | undefined {
 
 		// Step 1: Determine the session type
 		// - Panel/Editor: Use actual session's type (ctx available)
 		// - Welcome view: Use delegate's type (ctx may not exist yet)
 		const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
 		const effectiveSessionType = delegateSessionType ?? (sessionResource ? getChatSessionType(sessionResource) : undefined);
-
 		if (!effectiveSessionType) {
-			setNoOptions();
 			return undefined;
 		}
 
 		// Step 2: Get option groups for this session type
 		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
 		if (!optionGroups || optionGroups.length === 0) {
-			setNoOptions();
 			return undefined;
 		}
 
@@ -1664,34 +1695,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (visibleGroupIds.size === 0) {
-			setNoOptions();
 			return undefined;
 		}
-
-		// Validate selected options exist in their respective groups
-		let allOptionsValid = true;
-		if (sessionResource) {
-			for (const groupId of visibleGroupIds) {
-				const optionGroup = optionGroups.find(g => g.id === groupId);
-				const currentOption = this.chatSessionsService.getSessionOption(sessionResource, groupId);
-				if (optionGroup && currentOption) {
-					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-					// TODO: @osortega @joshspicer should we add a `placeHolder` item to option groups to straighten this check?
-					if (!optionGroup.items.some(item => item.id === currentOptionId) && typeof currentOption === 'string') {
-						allOptionsValid = false;
-						break;
-					}
-				}
-			}
-		}
-
-		this.chatSessionHasOptions.set(true);
-		this.chatSessionOptionsValid.set(allOptionsValid);
 
 		return { visibleGroupIds, optionGroups, sessionResource, effectiveSessionType };
 	}
 
-	private updateStateForCustomAgentTargetIfNeeded(sessionResource: URI) {
+	private updateStateAndChatModeForSessionCustomAgentTarget(sessionResource: URI) {
 		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource));
 		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
 
