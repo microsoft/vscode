@@ -149,6 +149,7 @@ jobs:
           sourceScanPath: $(Build.SourcesDirectory)
           alertWarningLevel: Medium
         continueOnError: true
+        condition: succeededOrFailed()
 
       # -- Shadow Mode: Dynamic NOTICE Generation --
       - task: notice@0
@@ -157,6 +158,7 @@ jobs:
           outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
           outputformat: text
         continueOnError: true
+        condition: succeededOrFailed()
 
       - script: |
           npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/generate-notices.ts build/azure-pipelines/oss/validate-notices.ts
@@ -170,6 +172,7 @@ jobs:
         env:
           VSCODE_QUALITY: $(VSCODE_QUALITY)
         continueOnError: true
+        condition: succeededOrFailed()
 
       - script: |
           node .oss-build-out/validate-notices.js \
@@ -178,6 +181,7 @@ jobs:
             --package-json "package.json"
         displayName: "[Shadow] Validate NOTICE coverage"
         continueOnError: true
+        condition: succeededOrFailed()
       # -- End Shadow Mode --
 
       - task: AzureCLI@2
