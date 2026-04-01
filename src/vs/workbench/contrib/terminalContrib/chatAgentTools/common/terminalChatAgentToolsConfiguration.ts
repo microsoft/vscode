@@ -696,3 +696,9 @@ terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAg
 	markdownDeprecationMessage: localize('agentSandbox.fileSystemMac.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem}#\``),
 };
 
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled] = {
+	type: 'boolean',
+	deprecated: true,
+	included: false,
+	markdownDeprecationMessage: localize('agentSandbox.enabled.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
+};
