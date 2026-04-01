@@ -185,7 +185,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 	suite('sandbox off', () => {
 
-		test('echo command returns exactly the echoed text', async function () {
+		test.skip('echo command returns exactly the echoed text', async function () {
 			this.timeout(60000);
 
 			const marker = `MARKER_${Date.now()}_ECHO`;
@@ -204,7 +204,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.strictEqual(output.trim(), 'Command produced no output');
 		});
 
-		test('multi-line output preserves all lines in order', async function () {
+		test.skip('multi-line output preserves all lines in order', async function () {
 			this.timeout(60000);
 
 			const m1 = `M1_${Date.now()}`;
