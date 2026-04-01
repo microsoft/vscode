@@ -88,6 +88,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Fixed footer
 		this.footerContainer = append(this.card, $('.sessions-walkthrough-footer'));
+		this._createDisclaimerStyles();
 		this.disclaimerElement = this._createDisclaimer();
 
 		this._renderSignIn();
@@ -412,14 +413,39 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		return disclaimer;
 	}
 
+	private _createDisclaimerStyles(): void {
+		const styleElement = $('style', undefined, `
+			.sessions-walkthrough-disclaimer-link,
+			.sessions-walkthrough-disclaimer-link:link,
+			.sessions-walkthrough-disclaimer-link:visited {
+				color: var(--vscode-textLink-foreground) !important;
+				-webkit-text-fill-color: var(--vscode-textLink-foreground) !important;
+				text-decoration: none !important;
+				outline: none !important;
+			}
+
+			.sessions-walkthrough-disclaimer-link:hover,
+			.sessions-walkthrough-disclaimer-link:active {
+				color: var(--vscode-textLink-activeForeground) !important;
+				-webkit-text-fill-color: var(--vscode-textLink-activeForeground) !important;
+				text-decoration: underline !important;
+			}
+
+			.sessions-walkthrough-disclaimer-link:focus-visible {
+				outline: none !important;
+				box-shadow: 0 0 0 1px var(--vscode-focusBorder) !important;
+				border-radius: 2px !important;
+			}
+		`) as HTMLStyleElement;
+		append(this.overlay, styleElement);
+		this._register(toDisposable(() => styleElement.remove()));
+	}
+
 	private _appendDisclaimerLink(href: string, label: string): HTMLAnchorElement {
 		const link = $('a', {
 			className: 'sessions-walkthrough-disclaimer-link',
 			href,
 		}, label) as HTMLAnchorElement;
-		link.style.setProperty('color', 'var(--vscode-textLink-foreground)', 'important');
-		link.style.setProperty('-webkit-text-fill-color', 'var(--vscode-textLink-foreground)');
-		link.style.textDecoration = 'none';
 		this._register(addDisposableListener(link, EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();

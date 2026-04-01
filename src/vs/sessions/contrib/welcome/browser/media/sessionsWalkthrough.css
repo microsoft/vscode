@@ -298,25 +298,3 @@
 	line-height: 1.4;
 	text-align: center;
 }
-
-.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link,
-.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:link,
-.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:visited {
-	color: var(--vscode-textLink-foreground) !important;
-	-webkit-text-fill-color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-	outline: none;
-}
-
-.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:hover,
-.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:active {
-	color: var(--vscode-textLink-activeForeground) !important;
-	-webkit-text-fill-color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
-}
-
-.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:focus-visible {
-	outline: none;
-	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
-	border-radius: 2px;
-}
