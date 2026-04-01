@@ -8,7 +8,7 @@ import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
@@ -21,6 +21,7 @@ import { IOutputService } from '../../../../workbench/services/output/common/out
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace } from '../../sessions/common/sessionData.js';
@@ -80,6 +81,7 @@ export class WorkspacePicker extends Disposable {
 
 	private _triggerElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _connectionStatusListener = this._register(new MutableDisposable());
 
 	get selectedProject(): IWorkspaceSelection | undefined {
 		return this._selectedWorkspace;
@@ -125,7 +127,10 @@ export class WorkspacePicker extends Disposable {
 					this._onDidSelectWorkspace.fire(restored);
 				}
 			}
+			this._watchConnectionStatus();
 		}));
+
+		this._watchConnectionStatus();
 	}
 
 	/**
@@ -177,6 +182,10 @@ export class WorkspacePicker extends Disposable {
 		const delegate: IActionListDelegate<IWorkspacePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
+				if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
+					// Workspace belongs to an unavailable remote — ignore selection
+					return;
+				}
 				if (item.remoteProvider && item.browseActionIndex === undefined) {
 					// Disconnected remote host — show options menu after widget hides
 					this._showRemoteHostOptionsDelayed(item.remoteProvider);
@@ -307,15 +316,19 @@ export class WorkspacePicker extends Disposable {
 			const providersWithWorkspaces = allProviders.filter(p => recentWorkspaces.some(w => w.providerId === p.id));
 			for (let pi = 0; pi < providersWithWorkspaces.length; pi++) {
 				const provider = providersWithWorkspaces[pi];
+				const isOffline = this._isProviderUnavailable(provider.id);
 				const providerWorkspaces = recentWorkspaces.filter(w => w.providerId === provider.id);
 				for (let i = 0; i < providerWorkspaces.length; i++) {
 					const { workspace, providerId } = providerWorkspaces[i];
 					const selection: IWorkspaceSelection = { providerId, workspace };
 					const selected = this._isSelectedWorkspace(selection);
+					const description = i === 0
+						? (isOffline ? localize('workspacePicker.providerOffline', "{0} (Offline)", provider.label) : provider.label)
+						: (isOffline ? localize('workspacePicker.offline', "Offline") : undefined);
 					items.push({
 						kind: ActionListItemKind.Action,
 						label: workspace.label,
-						description: i === 0 ? provider.label : undefined,
+						description,
 						group: { title: '', icon: workspace.icon },
 						item: { selection, checked: selected || undefined },
 						onRemove: () => this._removeRecentWorkspace(selection),
@@ -329,9 +342,11 @@ export class WorkspacePicker extends Disposable {
 			for (const { workspace, providerId } of recentWorkspaces) {
 				const selection: IWorkspaceSelection = { providerId, workspace };
 				const selected = this._isSelectedWorkspace(selection);
+				const isOffline = this._isProviderUnavailable(providerId);
 				items.push({
 					kind: ActionListItemKind.Action,
 					label: workspace.label,
+					description: isOffline ? localize('workspacePicker.offlineSingle', "Offline") : undefined,
 					group: { title: '', icon: workspace.icon },
 					item: { selection, checked: selected || undefined },
 					onRemove: () => this._removeRecentWorkspace(selection),
@@ -552,6 +567,57 @@ export class WorkspacePicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown)).classList.add('sessions-chat-dropdown-chevron');
 	}
 
+	/**
+	 * Returns whether the given provider is a remote that is currently unavailable
+	 * (disconnected or still connecting).
+	 * Returns false for providers without connection status (e.g. local providers).
+	 */
+	private _isProviderUnavailable(providerId: string): boolean {
+		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
+		if (!provider?.connectionStatus) {
+			return false;
+		}
+		return provider.connectionStatus.get() !== RemoteAgentHostConnectionStatus.Connected;
+	}
+
+	/**
+	 * Watch connection status observables from all remote providers.
+	 * When a remote disconnects, clear the selection if it belongs to that
+	 * provider. When a remote reconnects, try to restore a stored workspace.
+	 */
+	private _watchConnectionStatus(): void {
+		const remoteProviders = this.sessionsProvidersService.getProviders().filter(p => p.connectionStatus !== undefined);
+		if (remoteProviders.length === 0) {
+			this._connectionStatusListener.clear();
+			return;
+		}
+
+		this._connectionStatusListener.value = autorun(reader => {
+			for (const provider of remoteProviders) {
+				provider.connectionStatus!.read(reader);
+			}
+
+			// If the current selection belongs to an unavailable provider, clear it
+			if (this._selectedWorkspace && this._isProviderUnavailable(this._selectedWorkspace.providerId)) {
+				this._selectedWorkspace = undefined;
+				this._updateTriggerLabel();
+				this._onDidChangeSelection.fire();
+			}
+
+			// If no selection, try to restore the previously checked workspace
+			// (only the checked entry, not any fallback, to avoid unexpected switches)
+			if (!this._selectedWorkspace) {
+				const restored = this._restoreCheckedWorkspace();
+				if (restored) {
+					this._selectedWorkspace = restored;
+					this._updateTriggerLabel();
+					this._onDidChangeSelection.fire();
+					this._onDidSelectWorkspace.fire(restored);
+				}
+			}
+		});
+	}
+
 	private _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
 		if (!this._selectedWorkspace) {
 			return false;
@@ -573,14 +639,23 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _restoreSelectedWorkspace(): IWorkspaceSelection | undefined {
+		// Try the checked entry first
+		const checked = this._restoreCheckedWorkspace();
+		if (checked) {
+			return checked;
+		}
+
+		// Fall back to the first resolvable recent workspace from a connected provider
 		try {
 			const providers = this._getActiveProviders();
 			const providerIds = new Set(providers.map(p => p.id));
 			const storedRecents = this._getStoredRecentWorkspaces();
 
-			// Find the checked entry for an active provider
 			for (const stored of storedRecents) {
-				if (!stored.checked || !providerIds.has(stored.providerId)) {
+				if (!providerIds.has(stored.providerId)) {
+					continue;
+				}
+				if (this._isProviderUnavailable(stored.providerId)) {
 					continue;
 				}
 				const uri = URI.revive(stored.uri);
@@ -589,10 +664,28 @@ export class WorkspacePicker extends Disposable {
 					return { providerId: stored.providerId, workspace };
 				}
 			}
+			return undefined;
+		} catch {
+			return undefined;
+		}
+	}
 
-			// No checked entry found — fall back to the first resolvable recent workspace
+	/**
+	 * Restore only the checked (previously selected) workspace if its provider
+	 * is currently available. Does not fall back to other workspaces.
+	 * Used by the connection status watcher to avoid unexpected workspace switches.
+	 */
+	private _restoreCheckedWorkspace(): IWorkspaceSelection | undefined {
+		try {
+			const providers = this._getActiveProviders();
+			const providerIds = new Set(providers.map(p => p.id));
+			const storedRecents = this._getStoredRecentWorkspaces();
+
 			for (const stored of storedRecents) {
-				if (!providerIds.has(stored.providerId)) {
+				if (!stored.checked || !providerIds.has(stored.providerId)) {
+					continue;
+				}
+				if (this._isProviderUnavailable(stored.providerId)) {
 					continue;
 				}
 				const uri = URI.revive(stored.uri);
@@ -650,8 +743,8 @@ export class WorkspacePicker extends Disposable {
 			if (p.providerId === providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri)) {
 				return undefined;
 			}
-			// Clear checked from other entries for the same provider when marking checked
-			if (checked && p.providerId === providerId) {
+			// Clear checked from all other entries when marking checked
+			if (checked && p.checked) {
 				return { ...p, checked: false };
 			}
 			return p;
