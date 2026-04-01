@@ -66,6 +66,7 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['https://a.com/b', 'C:\\foo\\d']), ['https://a.com/b', 'C:\\…\\d']);
 		assert.deepStrictEqual(labels.shorten(['https://a.com/x', 'C:\\foo\\x']), ['https://a.com/…', 'C:\\foo\\…']);
 		assert.deepStrictEqual(labels.shorten(['https://a.com/y/z', 'C:\\foo\\bar\\z']), ['https://a.com/y/…', 'C:\\…\\bar\\…']);
+		assert.deepStrictEqual(labels.shorten(['file://C:/foo/bar/z', 'C:\\foo\\bar\\z']), ['file://C:/…/bar/z', 'C:\\…\\bar\\z']);
 	});
 
 	(isWindows ? test.skip : test)('shorten - not windows', () => {
@@ -123,6 +124,7 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['https://a.com/b', '/c/d']), ['https://a.com/b', '/c/d']);
 		assert.deepStrictEqual(labels.shorten(['https://a.com/x', '/c/x']), ['https://a.com/…', '/c/x']);
 		assert.deepStrictEqual(labels.shorten(['https://a.com/x/y', '/c/x/y']), ['https://a.com/…', '/c/x/…']);
+		assert.deepStrictEqual(labels.shorten(['file:///foo/bar/z', '/foo/bar/z']), ['file:///foo/bar/z', '/foo/bar/z']);
 	});
 
 	test('template', () => {
