@@ -280,7 +280,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		const keepTheme = await new Promise(resolve => {
 			this.notificationService.prompt(
 				Severity.Info,
-				nls.localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code now ships with a new default theme '{0}'. Do you want to give it a try?", this.getColorTheme().label),
+				nls.localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code has a new default theme '{0}'.", this.getColorTheme().label),
 				[
 					toAction({
 						id: 'themeUpdated.tryItOut',
