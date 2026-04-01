@@ -110,7 +110,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 
 	private getDiscoveryLogEntry(discoveryInfo: IPromptDiscoveryInfo): { readonly name: string; readonly details?: string } {
 
-		const durationInMillis = discoveryInfo.durationInMillis;
+		const durationInMillis = discoveryInfo.durationInMillis.toFixed(1);
 		const loadedCount = discoveryInfo.files.filter(file => file.status === 'loaded').length;
 		const skippedCount = discoveryInfo.files.length - loadedCount;
 
