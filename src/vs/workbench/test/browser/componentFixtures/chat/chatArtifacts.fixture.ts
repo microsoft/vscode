@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { Event } from '../../../../base/common/event.js';
-import { observableValue } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
-import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { ChatArtifactsWidget } from '../../../contrib/chat/browser/widget/chatArtifactsWidget.js';
-import { IChatImageCarouselService } from '../../../contrib/chat/browser/chatImageCarouselService.js';
-import { IChatArtifact, IChatArtifacts, IChatArtifactsService } from '../../../contrib/chat/common/tools/chatArtifactsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ChatArtifactsWidget } from '../../../../contrib/chat/browser/widget/chatArtifactsWidget.js';
+import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
+import { IChatArtifact, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
-import '../../../contrib/chat/browser/widget/media/chat.css';
+import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 function createMockArtifacts(artifacts: IChatArtifact[]): IChatArtifacts {
 	const obs = observableValue<readonly IChatArtifact[]>('artifacts', artifacts);

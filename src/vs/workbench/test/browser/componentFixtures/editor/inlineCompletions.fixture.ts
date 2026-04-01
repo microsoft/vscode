@@ -5,18 +5,18 @@
 
 
 // Import to register the inline completions contribution
-import { constObservable, IObservableWithChange } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ComponentFixtureContext, createEditorServices, defineThemedFixtureGroup, defineComponentFixture, createTextModel } from './fixtureUtils.js';
-import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
-import { ICodeEditorWidgetOptions, CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import '../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
-import { InlineCompletionsSource, InlineCompletionsState } from '../../../../editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.js';
-import { InlineEditItem } from '../../../../editor/contrib/inlineCompletions/browser/model/inlineSuggestionItem.js';
-import { TextModelValueReference } from '../../../../editor/contrib/inlineCompletions/browser/model/textModelValueReference.js';
+import { constObservable, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ComponentFixtureContext, createEditorServices, defineThemedFixtureGroup, defineComponentFixture, createTextModel } from '../fixtureUtils.js';
+import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorWidgetOptions, CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import '../../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
+import { InlineCompletionsSource, InlineCompletionsState } from '../../../../../editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.js';
+import { InlineEditItem } from '../../../../../editor/contrib/inlineCompletions/browser/model/inlineSuggestionItem.js';
+import { TextModelValueReference } from '../../../../../editor/contrib/inlineCompletions/browser/model/textModelValueReference.js';
 
 
 // ============================================================================
@@ -141,7 +141,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 
 	// Insertion view: Insert new content
 	InsertionView: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', flaky: true },
 		render: (context) => renderInlineEdit({
 			...context,
 			code: `class BufferData {

@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { constObservable, IObservableWithChange } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
-import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
-import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { Position } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import '../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
-import { InlineCompletionsSource, InlineCompletionsState } from '../../../../editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.js';
-import { InlineEditItem } from '../../../../editor/contrib/inlineCompletions/browser/model/inlineSuggestionItem.js';
-import { TextModelValueReference } from '../../../../editor/contrib/inlineCompletions/browser/model/textModelValueReference.js';
-import { JumpToView } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/jumpToView.js';
-import { GutterIndicatorMenuContent } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorMenu.js';
-import { InlineSuggestionGutterMenuData } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
-import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { constObservable, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
+import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import '../../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
+import { InlineCompletionsSource, InlineCompletionsState } from '../../../../../editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.js';
+import { InlineEditItem } from '../../../../../editor/contrib/inlineCompletions/browser/model/inlineSuggestionItem.js';
+import { TextModelValueReference } from '../../../../../editor/contrib/inlineCompletions/browser/model/textModelValueReference.js';
+import { JumpToView } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/jumpToView.js';
+import { GutterIndicatorMenuContent } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorMenu.js';
+import { InlineSuggestionGutterMenuData } from '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
 
-import '../../../../editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget.css';
-import '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/view.css';
-import '../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget.css';
+import '../../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/view.css';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 
 const SAMPLE_CODE = `function fibonacci(n: number): number {
 	if (n <= 1) return n;
@@ -201,8 +201,8 @@ function renderJumpToHint({ container, disposableStore, theme }: ComponentFixtur
 
 function createLongDistanceEditor(options: {
 	container: HTMLElement;
-	disposableStore: import('../../../../base/common/lifecycle.js').DisposableStore;
-	theme: import('./fixtureUtils.js').ComponentFixtureContext['theme'];
+	disposableStore: import('../../../../../base/common/lifecycle.js').DisposableStore;
+	theme: import('../fixtureUtils.js').ComponentFixtureContext['theme'];
 	code: string;
 	cursorLine: number;
 	editRange: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
@@ -344,7 +344,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		render: renderJumpToHint,
 	}),
 	LongDistanceHint: defineComponentFixture({
-		labels: { kind: 'animated' },
+		labels: { kind: 'screenshot', flaky: true },
 		render: (context) => createLongDistanceEditor({
 			...context,
 			code: LONG_DISTANCE_CODE,

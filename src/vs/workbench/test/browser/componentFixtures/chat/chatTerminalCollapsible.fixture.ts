@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { Event } from '../../../../base/common/event.js';
-import { observableValue } from '../../../../base/common/observable.js';
-import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
-import type { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import type { IChatResponseViewModel } from '../../../contrib/chat/common/model/chatViewModel.js';
-import { ChatTerminalThinkingCollapsibleWrapper } from '../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import type { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
+import type { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
+import { ChatTerminalThinkingCollapsibleWrapper } from '../../../../contrib/chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
-import '../../../contrib/chat/browser/widget/media/chat.css';
+import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 function createMockContext(): IChatContentPartRenderContext {
 	return {

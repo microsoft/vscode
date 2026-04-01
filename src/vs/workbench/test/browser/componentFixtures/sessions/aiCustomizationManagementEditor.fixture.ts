@@ -3,63 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from '../../../../base/browser/dom.js';
-import { Dimension } from '../../../../base/browser/dom.js';
-import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
-import { mainWindow } from '../../../../base/browser/window.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
-import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { constObservable, observableValue } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IRequestService } from '../../../../platform/request/common/request.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IPathService } from '../../../services/path/common/pathService.js';
-import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
-import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../contrib/chat/common/customizationHarnessService.js';
-import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
-import { IAgentPluginService, IAgentPlugin } from '../../../contrib/chat/common/plugins/agentPluginService.js';
-import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
-import { MarketplaceReferenceKind } from '../../../contrib/chat/common/plugins/marketplaceReference.js';
-import { IPluginInstallService } from '../../../contrib/chat/common/plugins/pluginInstallService.js';
-import { AICustomizationManagementEditor } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { ContributionEnablementState } from '../../../contrib/chat/common/enablement.js';
-import { AICustomizationManagementEditorInput } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../contrib/mcp/common/mcpTypes.js';
-import { IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
-import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { McpListWidget } from '../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
-import { PluginListWidget } from '../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
-import { IIterativePager } from '../../../../base/common/paging.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { Dimension } from '../../../../../base/browser/dom.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
+import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
+import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
+import { MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
+import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
+import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
+import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
+import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
+import { PluginListWidget } from '../../../../contrib/chat/browser/aiCustomization/pluginListWidget.js';
+import { IIterativePager } from '../../../../../base/common/paging.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
-import { createMockCodeReviewService } from './sessions/mockCodeReviewService.js';
-import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
+import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from './mockCodeReviewService.js';
+import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // Ensure theme colors & widget CSS are loaded
-import '../../../../platform/theme/common/colors/inputColors.js';
-import '../../../../platform/theme/common/colors/listColors.js';
-import '../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
+import '../../../../../platform/theme/common/colors/inputColors.js';
+import '../../../../../platform/theme/common/colors/listColors.js';
+import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 
 // ============================================================================
 // Mock helpers
