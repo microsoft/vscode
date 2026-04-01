@@ -133,7 +133,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. If you need to wait for a background process, use ${TerminalToolId.GetTerminalOutput} instead`,
+		`- NEVER run Start-Sleep or similar wait commands. If you need to wait for an async terminal session, use ${TerminalToolId.GetTerminalOutput} instead`,
 	);
 
 	return parts.join('\n');
@@ -206,7 +206,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. If you need to wait for a background process, use ${TerminalToolId.GetTerminalOutput} instead`);
+- NEVER run sleep or similar wait commands in a terminal. If you need to wait for an async terminal session, use ${TerminalToolId.GetTerminalOutput} instead`);
 
 	return parts.join('');
 }
@@ -322,25 +322,39 @@ export async function createRunInTerminalToolData(
 					],
 					description: 'Execution mode for this command.'
 				},
+				isBackground: {
+					type: 'boolean',
+					description: 'Deprecated. Use "mode" instead. If true, equivalent to mode=async; if false, equivalent to mode=sync.'
+				},
 				timeout: {
 					type: 'number',
 					description: 'Timeout in milliseconds that determines how long to wait before returning. Required for mode=sync. Ignored for mode=async. Use 0 for no timeout.',
 				},
 			},
-			required: ['command', 'explanation', 'goal', 'mode'],
-			allOf: [
+			required: ['command', 'explanation', 'goal'],
+			anyOf: [
+				// New schema: explicit mode with conditional timeout requirement for sync
 				{
-					if: {
-						properties: {
-							mode: {
-								const: 'sync'
+					required: ['mode'],
+					allOf: [
+						{
+							if: {
+								properties: {
+									mode: {
+										const: 'sync'
+									}
+								},
+								required: ['mode']
+							},
+							then: {
+								required: ['timeout']
 							}
-						},
-						required: ['mode']
-					},
-					then: {
-						required: ['timeout']
-					}
+						}
+					]
+				},
+				// Legacy schema: accepts isBackground without requiring mode or timeout
+				{
+					required: ['isBackground']
 				}
 			]
 		}

@@ -228,8 +228,6 @@ suite('RunInTerminalTool', () => {
 				command: 'echo hello',
 				explanation: 'Print hello to the console',
 				goal: 'Print hello',
-				mode: 'sync',
-				timeout: 30000,
 				...params
 			} as IRunInTerminalInputParams
 		} as IToolInvocationPreparationContext;
