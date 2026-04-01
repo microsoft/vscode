@@ -24,7 +24,7 @@ import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../t
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { AgentFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService } from './service/promptsService.js';
+import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
@@ -252,12 +252,12 @@ export class ComputeAutomaticInstructions {
 		for (const { uri, type } of allCandidates) {
 			const varEntry = toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, undefined, true);
 			entries.add(varEntry);
-			if (type === AgentFileType.copilotInstructionsMd) {
+			if (type === AgentInstructionFileType.copilotInstructionsMd) {
 				copilotEntries.add(varEntry);
 			}
 
 			telemetryEvent.agentInstructionsCount++;
-			if (type === AgentFileType.claudeMd) {
+			if (type === AgentInstructionFileType.claudeMd) {
 				telemetryEvent.claudeMdCount++;
 			}
 			logger.logInfo(`Agent instruction file added: ${uri.toString()}`);

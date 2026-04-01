@@ -334,7 +334,7 @@ export interface IAgentSkill {
 /**
  * Type of agent instruction file.
  */
-export enum AgentFileType {
+export enum AgentInstructionFileType {
 	agentsMd = 'agentsMd',
 	claudeMd = 'claudeMd',
 	copilotInstructionsMd = 'copilotInstructionsMd',
@@ -350,7 +350,7 @@ export interface IAgentInstructionFile {
 	 * The real path of the file, if it is a symlink.
 	 */
 	readonly realPath: URI | undefined;
-	readonly type: AgentFileType;
+	readonly type: AgentInstructionFileType;
 }
 
 export interface Logger {

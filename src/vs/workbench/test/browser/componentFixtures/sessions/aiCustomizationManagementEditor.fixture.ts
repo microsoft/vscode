@@ -32,7 +32,7 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection } fr
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, IResolvedAgentFile, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
@@ -302,9 +302,9 @@ const allFiles: IFixtureFile[] = [
 ];
 
 const agentInstructions: IResolvedAgentFile[] = [
-	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentFileType.claudeMd },
-	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentInstructionFileType.claudeMd },
+	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 ];
 
 const mcpWorkspaceServers = [

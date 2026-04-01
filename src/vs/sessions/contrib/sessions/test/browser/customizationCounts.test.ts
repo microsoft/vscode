@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage, IPromptPath, ILocalPromptPath, IUserPromptPath, IExtensionPromptPath, IAgentInstructionFile, AgentFileType } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage, IPromptPath, ILocalPromptPath, IUserPromptPath, IExtensionPromptPath, IAgentInstructionFile, AgentInstructionFileType } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { getSourceCounts, getSourceCountsTotal, getCustomizationTotalCount } from '../../browser/customizationCounts.js';
@@ -34,7 +34,7 @@ function extensionFile(path: string): IExtensionPromptPath {
 }
 
 function agentInstructionFile(path: string): IAgentInstructionFile {
-	return { uri: URI.file(path), realPath: undefined, type: AgentFileType.agentsMd };
+	return { uri: URI.file(path), realPath: undefined, type: AgentInstructionFileType.agentsMd };
 }
 
 function makeWorkspaceFolder(path: string, name?: string): IWorkspaceFolder {

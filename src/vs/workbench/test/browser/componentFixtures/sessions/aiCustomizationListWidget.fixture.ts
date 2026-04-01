@@ -17,7 +17,7 @@ import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor,
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, AgentFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, AgentInstructionFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -201,8 +201,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, extension: undefined!, source: undefined! }, name: 'TypeScript Rules', description: 'TypeScript conventions', applyTo: '**/*.ts' },
 		], [
 			// Agent instruction files (AGENTS.md, copilot-instructions.md)
-			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-			{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+			{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 		]),
 	}),
 

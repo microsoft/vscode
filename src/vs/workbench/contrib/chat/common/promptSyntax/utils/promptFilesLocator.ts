@@ -19,7 +19,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { AgentFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
+import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -35,7 +35,7 @@ const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
 
 export interface IWorkspaceInstructionFile {
 	readonly fileName: string;
-	readonly type: AgentFileType;
+	readonly type: AgentInstructionFileType;
 }
 
 /**
@@ -601,7 +601,7 @@ export class PromptFilesLocator {
 				const results: IAgentInstructionFile[] = [];
 				for (const r of searchResult.results) {
 					const realPath = undefined; // We can skip realpath resolution here for performance; duplicates can be handled later if needed
-					results.push({ uri: r.resource, realPath, type: AgentFileType.agentsMd });
+					results.push({ uri: r.resource, realPath, type: AgentInstructionFileType.agentsMd });
 				}
 				return results;
 			} catch (e) {
@@ -633,7 +633,7 @@ export class PromptFilesLocator {
 				const stat = await this.fileService.resolve(uri);
 				if (stat.isFile && stat.name.toLowerCase() === agentsMdFileName) {
 					const realPath = stat.isSymbolicLink ? await this.fileService.realpath(stat.resource) : undefined;
-					result.push({ uri: stat.resource, realPath, type: AgentFileType.agentsMd });
+					result.push({ uri: stat.resource, realPath, type: AgentInstructionFileType.agentsMd });
 				} else if (stat.isDirectory && stat.children) {
 					// Recursively traverse subdirectories
 					for (const child of stat.children) {

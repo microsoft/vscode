@@ -22,7 +22,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../p
 import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
 import { PromptFilePickers } from '../../../../contrib/chat/browser/promptSyntax/pickers/promptFilePickers.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { AgentFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { AgentInstructionFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 
@@ -80,8 +80,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 					{ uri: URI.file('/workspace/.github/instructions/repo.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Repo Rules', description: 'Repository-wide coding rules' },
 				];
 				promptsService.agentInstructionFiles = [
-					{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-					{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+					{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+					{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 				];
 			},
 		}),
