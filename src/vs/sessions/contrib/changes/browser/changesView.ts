@@ -196,7 +196,7 @@ function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTre
 				result.push({
 					element: child,
 					children: convertChildren(child),
-					incompressible: child.parent?.parent === undefined,
+					incompressible: parent === resourceTree.root,
 					collapsible: true,
 					collapsed: false,
 				});
@@ -1544,6 +1544,10 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.sessionType ?? '';
+		}));
+
+		templateDisposables.add(bindContextKey(hasGitRepositoryContextKey, contextKeyService, reader => {
+			return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
 		}));
 
 		templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
