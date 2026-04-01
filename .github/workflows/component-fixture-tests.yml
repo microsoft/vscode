@@ -35,6 +35,14 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install build dependencies
+        run: npm ci
+        working-directory: build
+
+      - name: Install rspack dependencies
+        run: npm ci
+        working-directory: build/rspack
+
       - name: Transpile source
         run: npm run transpile-client
 
