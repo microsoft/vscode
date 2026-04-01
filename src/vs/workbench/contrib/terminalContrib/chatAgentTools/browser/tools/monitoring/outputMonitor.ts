@@ -9,7 +9,7 @@ import { timeout, type MaybePromise } from '../../../../../../../base/common/asy
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
@@ -135,6 +135,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._sessionResource = invocationContext?.sessionResource;
 		this._command = command;
 		this._invocationContext = invocationContext;
+		this._register(toDisposable(() => this._currentMonitoringCts?.dispose()));
 
 		// Start async to ensure listeners are set up
 		timeout(0).then(() => {
@@ -254,8 +255,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	continueMonitoringAsync(token: CancellationToken): void {
 		this._asyncMode = true;
-		// Cancel any in-progress monitoring run to avoid two concurrent loops
-		this._currentMonitoringCts?.cancel();
+		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops
+		this._currentMonitoringCts?.dispose();
 		this._currentMonitoringCts = new CancellationTokenSource(token);
 		this._state = OutputMonitorState.PollingForIdle;
 		this._startMonitoring(this._command, this._invocationContext, this._currentMonitoringCts.token);
