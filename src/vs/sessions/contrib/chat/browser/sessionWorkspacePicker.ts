@@ -182,6 +182,10 @@ export class WorkspacePicker extends Disposable {
 		const delegate: IActionListDelegate<IWorkspacePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
+				if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
+					// Workspace belongs to an unavailable remote — ignore selection
+					return;
+				}
 				if (item.remoteProvider && item.browseActionIndex === undefined) {
 					// Disconnected remote host — show options menu after widget hides
 					this._showRemoteHostOptionsDelayed(item.remoteProvider);
@@ -326,7 +330,6 @@ export class WorkspacePicker extends Disposable {
 						label: workspace.label,
 						description,
 						group: { title: '', icon: workspace.icon },
-						disabled: isOffline,
 						item: { selection, checked: selected || undefined },
 						onRemove: () => this._removeRecentWorkspace(selection),
 					});
@@ -345,7 +348,6 @@ export class WorkspacePicker extends Disposable {
 					label: workspace.label,
 					description: isOffline ? localize('workspacePicker.offlineSingle', "Offline") : undefined,
 					group: { title: '', icon: workspace.icon },
-					disabled: isOffline,
 					item: { selection, checked: selected || undefined },
 					onRemove: () => this._removeRecentWorkspace(selection),
 				});
@@ -602,9 +604,10 @@ export class WorkspacePicker extends Disposable {
 				this._onDidChangeSelection.fire();
 			}
 
-			// If no selection, try to restore a stored workspace from a now-connected provider
+			// If no selection, try to restore the previously checked workspace
+			// (only the checked entry, not any fallback, to avoid unexpected switches)
 			if (!this._selectedWorkspace) {
-				const restored = this._restoreSelectedWorkspace();
+				const restored = this._restoreCheckedWorkspace();
 				if (restored) {
 					this._selectedWorkspace = restored;
 					this._updateTriggerLabel();
@@ -636,14 +639,20 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _restoreSelectedWorkspace(): IWorkspaceSelection | undefined {
+		// Try the checked entry first
+		const checked = this._restoreCheckedWorkspace();
+		if (checked) {
+			return checked;
+		}
+
+		// Fall back to the first resolvable recent workspace from a connected provider
 		try {
 			const providers = this._getActiveProviders();
 			const providerIds = new Set(providers.map(p => p.id));
 			const storedRecents = this._getStoredRecentWorkspaces();
 
-			// Find the checked entry for an active, connected provider
 			for (const stored of storedRecents) {
-				if (!stored.checked || !providerIds.has(stored.providerId)) {
+				if (!providerIds.has(stored.providerId)) {
 					continue;
 				}
 				if (this._isProviderUnavailable(stored.providerId)) {
@@ -655,11 +664,25 @@ export class WorkspacePicker extends Disposable {
 					return { providerId: stored.providerId, workspace };
 				}
 			}
+			return undefined;
+		} catch {
+			return undefined;
+		}
+	}
 
-			// No checked entry found — fall back to the first resolvable recent workspace
-			// from a connected provider
+	/**
+	 * Restore only the checked (previously selected) workspace if its provider
+	 * is currently available. Does not fall back to other workspaces.
+	 * Used by the connection status watcher to avoid unexpected workspace switches.
+	 */
+	private _restoreCheckedWorkspace(): IWorkspaceSelection | undefined {
+		try {
+			const providers = this._getActiveProviders();
+			const providerIds = new Set(providers.map(p => p.id));
+			const storedRecents = this._getStoredRecentWorkspaces();
+
 			for (const stored of storedRecents) {
-				if (!providerIds.has(stored.providerId)) {
+				if (!stored.checked || !providerIds.has(stored.providerId)) {
 					continue;
 				}
 				if (this._isProviderUnavailable(stored.providerId)) {
@@ -720,8 +743,8 @@ export class WorkspacePicker extends Disposable {
 			if (p.providerId === providerId && this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), uri)) {
 				return undefined;
 			}
-			// Clear checked from other entries for the same provider when marking checked
-			if (checked && p.providerId === providerId) {
+			// Clear checked from all other entries when marking checked
+			if (checked && p.checked) {
 				return { ...p, checked: false };
 			}
 			return p;
