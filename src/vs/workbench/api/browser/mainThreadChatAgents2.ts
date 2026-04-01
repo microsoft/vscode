@@ -146,7 +146,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				this._proxy.$releaseSession(resource);
 			}
 		}));
@@ -263,18 +263,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				const chatSession = this._chatService.getSession(request.sessionResource);
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
-					const contributedSession = chatSession?.contributedChatSession;
-					let chatSessionContext: IChatSessionContextDto | undefined;
-					if (contributedSession) {
-						const chatSessionResource = contributedSession.chatSessionResource;
-						const isUntitled = isUntitledChatSession(chatSessionResource);
+					const chatSessionResource = request.sessionResource;
+					const chatSessionContext: IChatSessionContextDto = {
+						chatSessionResource,
+						isUntitled: isUntitledChatSession(chatSessionResource),
+						initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(this._chatSessionService.getSessionOptions(chatSessionResource)),
+					};
 
-						chatSessionContext = {
-							chatSessionResource,
-							isUntitled,
-							initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(contributedSession.initialSessionOptions),
-						};
-					}
 					return await this._proxy.$invokeAgent(handle, request, {
 						history,
 						chatSessionContext,
@@ -632,6 +627,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					type: item.type,
 					name: item.name,
 					description: item.description,
+					groupKey: item.groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
 				}));
 			},
 		};
@@ -653,7 +651,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			label: metadata.label,
 			icon: metadata.iconId ? ThemeIcon.fromId(metadata.iconId) : ThemeIcon.fromId(Codicon.extensions.id),
 			hiddenSections,
-			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.

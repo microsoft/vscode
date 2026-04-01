@@ -59,6 +59,8 @@ export type {
 	IReconnectSnapshotResult,
 	ISubscribeParams,
 	IUnsubscribeParams,
+	IWriteFileParams,
+	IWriteFileResult,
 } from './protocol/commands.js';
 
 export { ContentEncoding, ReconnectResultType } from './protocol/commands.js';

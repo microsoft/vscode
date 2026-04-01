@@ -5,32 +5,37 @@
 
 import { Throttler } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, type IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableResourceMap, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { ISessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { AttachmentType, PendingMessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IMessageAttachment, type ISessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, getToolFileEdits, PendingMessageKind, ResponsePartKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IMessageAttachment, type ISessionState, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind, ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
+import { ChatRequestQueueKind, IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { getAgentHostIcon } from '../agentSessions.js';
-import { activeTurnToProgress, finalizeToolInvocation, toolCallStateToInvocation, turnsToHistory, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+import { AgentHostEditingSession } from './agentHostEditingSession.js';
+import { activeTurnToProgress, finalizeToolInvocation, toolCallStateToInvocation, turnsToHistory } from './stateToProgressAdapter.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -56,11 +61,13 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 	readonly requestHandler: IChatSession['requestHandler'];
 	interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
+	readonly forkSession: IChatSession['forkSession'];
 
 	constructor(
 		readonly sessionResource: URI,
 		readonly history: readonly IChatSessionHistoryItem[],
 		private readonly _sendRequest: (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => Promise<void>,
+		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		initialProgress: IChatProgress[] | undefined,
 		onDispose: () => void,
 		@ILogService private readonly _logService: ILogService,
@@ -88,6 +95,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		this.interruptActiveResponseCallback = (hasActiveTurn || history.length === 0) ? async () => {
 			return true;
 		} : undefined;
+
+		this.forkSession = this._forkSession;
 	}
 
 	/**
@@ -148,24 +157,34 @@ export interface IAgentHostSessionHandlerConfig {
 	 * Optional callback to resolve a working directory for a new session.
 	 * If not provided, falls back to the first workspace folder.
 	 */
-	readonly resolveWorkingDirectory?: (resourceKey: string) => string | undefined;
+	readonly resolveWorkingDirectory?: (resourceKey: string) => URI | undefined;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
 	 * and return true if the user authenticated successfully.
 	 */
 	readonly resolveAuthentication?: () => Promise<boolean>;
+
+	/**
+	 * Observable set of agent-level customizations to include in the active
+	 * client set. When the value changes, active sessions are updated.
+	 */
+	readonly customizations?: IObservable<ICustomizationRef[]>;
 }
 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
 
-	private readonly _activeSessions = new Map<string, AgentHostChatSession>();
+	private readonly _activeSessions = new ResourceMap<AgentHostChatSession>();
 	/** Maps UI resource keys to resolved backend session URIs. */
-	private readonly _sessionToBackend = new Map<string, URI>();
+	private readonly _sessionToBackend = new ResourceMap<URI>();
 	/** Per-session subscription to chat model pending request changes. */
-	private readonly _pendingMessageSubscriptions = this._register(new DisposableMap<string>());
+	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
-	private readonly _serverTurnWatchers = this._register(new DisposableMap<string>());
+	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
+	/** Per-session writeFile listeners for agent host editing sessions. */
+	private readonly _editingSessionListeners = this._register(new DisposableResourceMap());
+	/** Historical turns with file edits, pending hydration into the editing session. */
+	private readonly _pendingHistoryTurns = new ResourceMap<readonly ITurn[]>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
 	private readonly _clientDispatchedTurnIds = new Set<string>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
@@ -177,6 +196,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		config: IAgentHostSessionHandlerConfig,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -186,7 +206,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config = config;
 
 		// Create shared client state manager for this handler instance
-		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService));
+		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService, () => config.connection.nextClientSeq()));
+
+		// Register an editing session provider for this handler's session type
+		this._register(this._chatEditingService.registerEditingSessionProvider(
+			config.sessionType,
+			{
+				createEditingSession: (chatSessionResource: URI) => {
+					return this._instantiationService.createInstance(
+						AgentHostEditingSession,
+						chatSessionResource,
+						config.connectionAuthority,
+					);
+				},
+			},
+		));
 
 		// Forward action envelopes from IPC to client state
 		this._register(config.connection.onDidAction(envelope => {
@@ -195,23 +229,38 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 
+		// When the customizations observable changes, re-dispatch
+		// activeClientChanged for sessions where this client is already
+		// the active client. This avoids overwriting another client's
+		// active status on sessions we're only observing.
+		if (config.customizations) {
+			this._register(autorun(reader => {
+				const refs = config.customizations!.read(reader);
+				for (const [, backendSession] of this._sessionToBackend) {
+					const state = this._clientState.getSessionState(backendSession.toString());
+					if (state?.activeClient?.clientId === this._clientState.clientId) {
+						this._dispatchActiveClient(backendSession, refs);
+					}
+				}
+			}));
+		}
+
 		this._registerAgent();
 	}
 
 	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
-		const resourceKey = sessionResource.path.substring(1);
 
 		// For untitled (new) sessions, defer backend session creation until the
 		// first request arrives so the user-selected model is available.
 		// For existing sessions we resolve immediately to load history.
 		let resolvedSession: URI | undefined;
-		const isUntitled = resourceKey.startsWith('untitled-');
+		const isUntitled = sessionResource.path.substring(1).startsWith('untitled-');
 		const history: IChatSessionHistoryItem[] = [];
 		let initialProgress: IChatProgress[] | undefined;
 		let activeTurnId: string | undefined;
 		if (!isUntitled) {
 			resolvedSession = this._resolveSessionUri(sessionResource);
-			this._sessionToBackend.set(resourceKey, resolvedSession);
+			this._sessionToBackend.set(sessionResource, resolvedSession);
 			try {
 				const snapshot = await this._config.connection.subscribe(resolvedSession);
 				if (snapshot?.state) {
@@ -219,6 +268,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const sessionState = this._clientState.getSessionState(resolvedSession.toString());
 					if (sessionState) {
 						history.push(...turnsToHistory(sessionState.turns, this._config.agentId));
+
+						// Store turns with file edits so the editing session
+						// can be hydrated when it's created lazily.
+						const hasTurnsWithEdits = sessionState.turns.some(t =>
+							t.responseParts.some(rp => rp.kind === ResponsePartKind.ToolCall
+								&& rp.toolCall.status === ToolCallStatus.Completed
+								&& getToolFileEdits(rp.toolCall).length > 0));
+						if (hasTurnsWithEdits) {
+							this._pendingHistoryTurns.set(sessionResource, sessionState.turns);
+						}
 
 						// If there's an active turn, include its request in history
 						// with an empty response so the chat service creates a
@@ -244,38 +303,64 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} catch (err) {
 				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 			}
+
+			// Claim the active client role with current customizations
+			const customizations = this._config.customizations?.get() ?? [];
+			this._dispatchActiveClient(resolvedSession, customizations);
 		}
 		const session = this._instantiationService.createInstance(
 			AgentHostChatSession,
 			sessionResource,
 			history,
 			async (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => {
+				// todo@connor4312, I think IChatSession.requestHandler is actually
+				// dead code and I don't believe this is ever called.
 				const backendSession = resolvedSession ?? await this._createAndSubscribe(sessionResource, request.userSelectedModelId);
 				if (!resolvedSession) {
 					resolvedSession = backendSession;
-					this._sessionToBackend.set(resourceKey, backendSession);
+					this._sessionToBackend.set(sessionResource, backendSession);
 				}
 				// For existing sessions, set up pending message sync on the first turn
 				// (after the ChatModel becomes available in the ChatService).
-				this._ensurePendingMessageSubscription(resourceKey, sessionResource, backendSession);
+				this._ensurePendingMessageSubscription(sessionResource, backendSession);
 				return this._handleTurn(backendSession, request, progress, token);
+			},
+			(request, token) => {
+				resolvedSession ??= this._sessionToBackend.get(sessionResource);
+				if (!resolvedSession) {
+					throw new BugIndicatingError('Cannot fork session before the initial request');
+				}
+
+				return this._forkSession(sessionResource, resolvedSession!, request, token);
 			},
 			initialProgress,
 			() => {
-				this._activeSessions.delete(resourceKey);
-				this._sessionToBackend.delete(resourceKey);
-				this._pendingMessageSubscriptions.deleteAndDispose(resourceKey);
-				this._serverTurnWatchers.deleteAndDispose(resourceKey);
+				this._activeSessions.delete(sessionResource);
+				this._sessionToBackend.delete(sessionResource);
+				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
+				this._serverTurnWatchers.deleteAndDispose(sessionResource);
+				this._editingSessionListeners.deleteAndDispose(sessionResource);
+				this._pendingHistoryTurns.delete(sessionResource);
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession.toString());
 					this._config.connection.unsubscribe(resolvedSession);
-					this._config.connection.disposeSession(resolvedSession);
 				}
 			},
 		);
-		this._activeSessions.set(resourceKey, session);
+		this._activeSessions.set(sessionResource, session);
 
 		if (resolvedSession) {
+			// If there are historical turns with file edits, eagerly create
+			// the editing session once the ChatModel is available so that
+			// edit pills render with diff info on session restore.
+			if (this._pendingHistoryTurns.has(sessionResource)) {
+				session.registerDisposable(Event.once(this._chatService.onDidCreateModel)(model => {
+					if (isEqual(model.sessionResource, sessionResource)) {
+						this._ensureEditingSession(sessionResource);
+					}
+				}));
+			}
+
 			// If reconnecting to an active turn, wire up an ongoing state listener
 			// to stream new progress into the session's progressObs.
 			if (activeTurnId && initialProgress !== undefined) {
@@ -329,16 +414,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._logService.info(`[AgentHost] _invokeAgent called for resource: ${request.sessionResource.toString()}`);
 
 		// Resolve or create backend session
-		const resourceKey = request.sessionResource.path.substring(1);
-		let resolvedSession = this._sessionToBackend.get(resourceKey);
+		let resolvedSession = this._sessionToBackend.get(request.sessionResource);
 		if (!resolvedSession) {
 			resolvedSession = await this._createAndSubscribe(request.sessionResource, request.userSelectedModelId);
-			this._sessionToBackend.set(resourceKey, resolvedSession);
+			this._sessionToBackend.set(request.sessionResource, resolvedSession);
 		}
 
 		await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 
-		const activeSession = this._activeSessions.get(resourceKey);
+		const activeSession = this._activeSessions.get(request.sessionResource);
 		if (activeSession) {
 			activeSession.isCompleteObs.set(true, undefined);
 		}
@@ -443,6 +527,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		this._config.connection.dispatchAction(action, this._clientState.clientId, seq);
 	}
 
+	/**
+	 * Dispatches `session/activeClientChanged` to claim the active client
+	 * role for this session and publish the current customizations.
+	 */
+	private _dispatchActiveClient(backendSession: URI, customizations: ICustomizationRef[]): void {
+		this._dispatchAction({
+			type: ActionType.SessionActiveClientChanged,
+			session: backendSession.toString(),
+			activeClient: {
+				clientId: this._clientState.clientId,
+				tools: [],
+				customizations,
+			},
+		});
+	}
+
 	// ---- Server-initiated turn detection ------------------------------------
 
 	/**
@@ -454,7 +554,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * if applicable, and pipes turn progress through `progressObs`.
 	 */
 	private _watchForServerInitiatedTurns(backendSession: URI, sessionResource: URI): void {
-		const resourceKey = sessionResource.path.substring(1);
 		const sessionStr = backendSession.toString();
 
 		// Seed from the current state so we don't treat any pre-existing active
@@ -462,6 +561,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentState = this._clientState.getSessionState(sessionStr);
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
+		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
 
 		const disposables = new DisposableStore();
 
@@ -476,6 +576,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Track queued message IDs so we can detect which one was consumed
 			const currentQueuedIds = new Set((e.state.queuedMessages ?? []).map(m => m.id));
+			const currentSteeringId = e.state.steeringMessage?.id;
+
+			// Detect steering message removal or replacement regardless of turn changes
+			if (previousSteeringId && previousSteeringId !== currentSteeringId) {
+				this._chatService.removePendingRequest(sessionResource, previousSteeringId);
+			}
+			previousSteeringId = currentSteeringId;
 
 			const activeTurn = e.state.activeTurn;
 			if (!activeTurn || activeTurn.id === lastSeenTurnId) {
@@ -490,7 +597,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 
-			const chatSession = this._activeSessions.get(resourceKey);
+			const chatSession = this._activeSessions.get(sessionResource);
 			if (!chatSession) {
 				previousQueuedIds = currentQueuedIds;
 				return;
@@ -515,10 +622,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// translation as _handleTurn, but pipe output to progressObs/isCompleteObs
 			const turnStore = new DisposableStore();
 			turnProgressDisposable.value = turnStore;
-			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, sessionResource, turnStore);
+			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, turnStore);
 		}));
 
-		this._serverTurnWatchers.set(resourceKey, disposables);
+		this._serverTurnWatchers.set(sessionResource, disposables);
 	}
 
 	/**
@@ -530,7 +637,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		backendSession: URI,
 		turnId: string,
 		chatSession: AgentHostChatSession,
-		sessionResource: URI,
 		turnDisposables: DisposableStore,
 	): void {
 		const sessionStr = backendSession.toString();
@@ -551,101 +657,117 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			finished = true;
 			for (const [, invocation] of activeToolInvocations) {
-				invocation.didExecuteTool(undefined);
+				if (!IChatToolInvocation.isComplete(invocation)) {
+					invocation.didExecuteTool(undefined);
+				}
 			}
 			activeToolInvocations.clear();
 			chatSession.isCompleteObs.set(true, undefined);
 		});
 
-		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
-			throttler.queue(async () => {
-				if (e.session !== sessionStr) {
-					return;
-				}
+		const processState = (sessionState: ISessionState) => {
+			if (finished) {
+				return;
+			}
+			const activeTurn = sessionState.activeTurn;
+			const isActive = activeTurn?.id === turnId;
+			const responseParts = isActive
+				? activeTurn.responseParts
+				: sessionState.turns.find(t => t.id === turnId)?.responseParts;
 
-				const activeTurn = e.state.activeTurn;
-				const isActive = activeTurn?.id === turnId;
-				const responseParts = isActive
-					? activeTurn.responseParts
-					: e.state.turns.find(t => t.id === turnId)?.responseParts;
-
-				if (responseParts) {
-					for (const rp of responseParts) {
-						switch (rp.kind) {
-							case ResponsePartKind.Markdown: {
-								const lastLen = lastEmittedLengths.get(rp.id) ?? 0;
-								if (rp.content.length > lastLen) {
-									const delta = rp.content.substring(lastLen);
-									lastEmittedLengths.set(rp.id, rp.content.length);
-									progress([{ kind: 'markdownContent', content: new MarkdownString(delta, { supportHtml: true }) }]);
-								}
-								break;
+			if (responseParts) {
+				for (const rp of responseParts) {
+					switch (rp.kind) {
+						case ResponsePartKind.Markdown: {
+							const lastLen = lastEmittedLengths.get(rp.id) ?? 0;
+							if (rp.content.length > lastLen) {
+								const delta = rp.content.substring(lastLen);
+								lastEmittedLengths.set(rp.id, rp.content.length);
+								progress([{ kind: 'markdownContent', content: new MarkdownString(delta, { supportHtml: true }) }]);
 							}
-							case ResponsePartKind.Reasoning: {
-								const lastLen = lastEmittedLengths.get(rp.id) ?? 0;
-								if (rp.content.length > lastLen) {
-									const delta = rp.content.substring(lastLen);
-									lastEmittedLengths.set(rp.id, rp.content.length);
-									progress([{ kind: 'thinking', value: delta }]);
-								}
-								break;
+							break;
+						}
+						case ResponsePartKind.Reasoning: {
+							const lastLen = lastEmittedLengths.get(rp.id) ?? 0;
+							if (rp.content.length > lastLen) {
+								const delta = rp.content.substring(lastLen);
+								lastEmittedLengths.set(rp.id, rp.content.length);
+								progress([{ kind: 'thinking', value: delta }]);
 							}
-							case ResponsePartKind.ToolCall: {
-								const tc = rp.toolCall;
-								const toolCallId = tc.toolCallId;
-								let existing = activeToolInvocations.get(toolCallId);
+							break;
+						}
+						case ResponsePartKind.ToolCall: {
+							const tc = rp.toolCall;
+							const toolCallId = tc.toolCallId;
+							let existing = activeToolInvocations.get(toolCallId);
 
-								if (!existing) {
-									existing = toolCallStateToInvocation(tc);
-									activeToolInvocations.set(toolCallId, existing);
-									progress([existing]);
+							if (!existing) {
+								existing = toolCallStateToInvocation(tc);
+								activeToolInvocations.set(toolCallId, existing);
+								progress([existing]);
 
-									if (tc.status === ToolCallStatus.PendingConfirmation) {
-										this._awaitToolConfirmation(existing, toolCallId, backendSession, turnId, CancellationToken.None);
-									}
-								} else if (tc.status === ToolCallStatus.PendingConfirmation) {
+								if (tc.status === ToolCallStatus.PendingConfirmation) {
+									this._awaitToolConfirmation(existing, toolCallId, backendSession, turnId, CancellationToken.None);
+								}
+							} else if (tc.status === ToolCallStatus.PendingConfirmation) {
+								// Running → PendingConfirmation (re-confirmation).
+								// Only replace if the existing invocation is not already
+								// waiting for confirmation (avoids flickering on duplicate
+								// state change events).
+								const existingState = existing.state.get();
+								if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
 									existing.didExecuteTool(undefined);
 									const confirmInvocation = toolCallStateToInvocation(tc);
 									activeToolInvocations.set(toolCallId, confirmInvocation);
 									progress([confirmInvocation]);
 									this._awaitToolConfirmation(confirmInvocation, toolCallId, backendSession, turnId, CancellationToken.None);
-								} else if (tc.status === ToolCallStatus.Running) {
-									existing.invocationMessage = typeof tc.invocationMessage === 'string'
-										? tc.invocationMessage
-										: new MarkdownString(tc.invocationMessage.markdown);
-									if (getToolKind(tc) === 'terminal' && tc.toolInput) {
-										existing.toolSpecificData = {
-											kind: 'terminal',
-											commandLine: { original: tc.toolInput },
-											language: getToolLanguage(tc) ?? 'shellscript',
-										};
-									}
 								}
-
-								if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
-									activeToolInvocations.delete(toolCallId);
-									const fileEdits = finalizeToolInvocation(existing, tc);
-									if (fileEdits.length > 0) {
-										// File edits from server-initiated turns are not routed through
-										// the editing session here; the request is not yet available
-										// in the ChatModel at this point.
-									}
+							} else if (tc.status === ToolCallStatus.Running) {
+								existing.invocationMessage = typeof tc.invocationMessage === 'string'
+									? tc.invocationMessage
+									: new MarkdownString(tc.invocationMessage.markdown);
+								if (getToolKind(tc) === 'terminal' && tc.toolInput) {
+									existing.toolSpecificData = {
+										kind: 'terminal',
+										commandLine: { original: tc.toolInput },
+										language: getToolLanguage(tc) ?? 'shellscript',
+									};
 								}
-								break;
 							}
+
+							if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
+								finalizeToolInvocation(existing, tc);
+							}
+							break;
 						}
 					}
 				}
+			}
 
-				if (!isActive && !finished) {
-					const lastTurn = e.state.turns.find(t => t.id === turnId);
-					if (lastTurn?.state === TurnState.Error && lastTurn.error) {
-						progress([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
-					}
-					finish();
+			if (!isActive && !finished) {
+				const lastTurn = sessionState.turns.find(t => t.id === turnId);
+				if (lastTurn?.state === TurnState.Error && lastTurn.error) {
+					progress([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
 				}
-			});
+				finish();
+			}
+		};
+
+		turnDisposables.add(this._clientState.onDidChangeSessionState(e => {
+			if (e.session !== sessionStr) {
+				return;
+			}
+			throttler.queue(async () => processState(e.state));
 		}));
+
+		// Immediately reconcile against the current state to close any gap
+		// between turn detection and listener registration. The state change
+		// that triggered server-initiated turn detection may already contain
+		// response parts (e.g. markdown content) that arrived in the same batch.
+		const currentState = this._clientState.getSessionState(sessionStr);
+		if (currentState) {
+			throttler.queue(async () => processState(currentState));
+		}
 	}
 
 	// ---- Turn handling (state-driven) ---------------------------------------
@@ -660,7 +782,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		const turnId = generateUuid();
+		const turnId = request.requestId;
 		this._clientDispatchedTurnIds.add(turnId);
 		const cleanUpTurnId = () => this._clientDispatchedTurnIds.delete(turnId);
 		const attachments = this._convertVariablesToAttachments(request);
@@ -687,6 +809,36 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
+		// If the chat model has fewer previous requests than the protocol has
+		// turns, a checkpoint was restored or a message was edited. Dispatch
+		// session/truncated so the server drops the stale tail.
+		const chatModel = this._chatService.getSession(request.sessionResource);
+		const protocolState = this._clientState.getSessionState(session.toString());
+		if (chatModel && protocolState && protocolState.turns.length > 0) {
+			// -2 since -1 will already be the current request
+			const previousRequestIndex = chatModel.getRequests().findIndex(i => i.id === request.requestId) - 1;
+			const previousRequest = previousRequestIndex >= 0 ? chatModel.getRequests()[previousRequestIndex] : undefined;
+			if (!previousRequest && protocolState.turns.length > 0) {
+				const truncateAction: ISessionTruncatedAction = {
+					type: ActionType.SessionTruncated,
+					session: session.toString(),
+				};
+				const truncateSeq = this._clientState.applyOptimistic(truncateAction);
+				this._config.connection.dispatchAction(truncateAction, this._clientState.clientId, truncateSeq);
+			} else {
+				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
+				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
+					const truncateAction: ISessionTruncatedAction = {
+						type: ActionType.SessionTruncated,
+						session: session.toString(),
+						turnId: previousRequest!.id,
+					};
+					const truncateSeq = this._clientState.applyOptimistic(truncateAction);
+					this._config.connection.dispatchAction(truncateAction, this._clientState.clientId, truncateSeq);
+				}
+			}
+		}
+
 		// Dispatch session/turnStarted — the server will call sendMessage on
 		// the provider as a side effect.
 		const turnAction = {
@@ -700,6 +852,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		const clientSeq = this._clientState.applyOptimistic(turnAction);
 		this._config.connection.dispatchAction(turnAction, this._clientState.clientId, clientSeq);
+
+		// Ensure the editing session records a sentinel checkpoint for this
+		// request so it appears in requestDisablement even if the turn
+		// produces no file edits.
+		this._ensureEditingSession(request.sessionResource)
+			?.ensureRequestCheckpoint(request.requestId);
 
 		// Track live ChatToolInvocation objects for this turn
 		const activeToolInvocations = new Map<string, ChatToolInvocation>();
@@ -788,11 +946,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 									}
 								} else if (tc.status === ToolCallStatus.PendingConfirmation) {
 									// Running → PendingConfirmation (re-confirmation).
-									existing.didExecuteTool(undefined);
-									const confirmInvocation = toolCallStateToInvocation(tc);
-									activeToolInvocations.set(toolCallId, confirmInvocation);
-									progress([confirmInvocation]);
-									this._awaitToolConfirmation(confirmInvocation, toolCallId, session, turnId, cancellationToken);
+									const existingState = existing.state.get();
+									if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+										existing.didExecuteTool(undefined);
+										const confirmInvocation = toolCallStateToInvocation(tc);
+										activeToolInvocations.set(toolCallId, confirmInvocation);
+										progress([confirmInvocation]);
+										this._awaitToolConfirmation(confirmInvocation, toolCallId, session, turnId, cancellationToken);
+									}
 								} else if (tc.status === ToolCallStatus.Running) {
 									// Streaming → Running: update with now-available parameters.
 									existing.invocationMessage = typeof tc.invocationMessage === 'string'
@@ -811,7 +972,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
 									const fileEdits = finalizeToolInvocation(existing, tc);
 									if (fileEdits.length > 0) {
-										await this._applyFileEdits(request.sessionResource, request, fileEdits, progress);
+										const editParts = this._hydrateFileEdits(request.sessionResource, request.requestId, tc);
+										if (editParts.length > 0) {
+											progress(editParts);
+										}
 									}
 								}
 								break;
@@ -1002,11 +1166,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								}
 							} else if (tc.status === ToolCallStatus.PendingConfirmation) {
 								// Running -> PendingConfirmation (re-confirmation).
-								existing.didExecuteTool(undefined);
-								const confirmInvocation = toolCallStateToInvocation(tc);
-								activeToolInvocations.set(toolCallId, confirmInvocation);
-								chatSession.appendProgress([confirmInvocation]);
-								this._awaitToolConfirmation(confirmInvocation, toolCallId, backendSession, turnId, cts.token);
+								const existingState = existing.state.get();
+								if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+									existing.didExecuteTool(undefined);
+									const confirmInvocation = toolCallStateToInvocation(tc);
+									activeToolInvocations.set(toolCallId, confirmInvocation);
+									chatSession.appendProgress([confirmInvocation]);
+									this._awaitToolConfirmation(confirmInvocation, toolCallId, backendSession, turnId, cts.token);
+								}
 							} else if (tc.status === ToolCallStatus.Running) {
 								existing.invocationMessage = typeof tc.invocationMessage === 'string'
 									? tc.invocationMessage
@@ -1022,7 +1189,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 							// Finalize terminal-state tools
 							if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
-								activeToolInvocations.delete(toolCallId);
 								finalizeToolInvocation(existing, tc);
 								// Note: file edits from reconnection are not routed through
 								// the editing session pipeline as there is no active request
@@ -1068,47 +1234,68 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	// ---- File edit routing ---------------------------------------------------
 
 	/**
-	 * Routes file edits from completed tool calls through the editing session's
-	 * external edits pipeline. Calls start/stop in sequence since the edit has
-	 * already happened on the remote by the time we receive the tool completion.
+	 * Ensures the chat model has an editing session and returns it if it's an
+	 * {@link AgentHostEditingSession}. The editing session is created via the
+	 * provider registered in the constructor if one doesn't exist yet.
 	 */
-	private async _applyFileEdits(
-		sessionResource: URI,
-		request: IChatAgentRequest,
-		fileEdits: IToolCallFileEdit[],
-		progress: (parts: IChatProgress[]) => void,
-	): Promise<void> {
-		const chatSession = this._chatService.getSession(sessionResource);
-		const editingSession = chatSession?.editingSession;
-		const response = chatSession?.getRequests().find(req => req.id === request.requestId)?.response;
-		if (!editingSession || !response) {
-			return;
+	private _ensureEditingSession(sessionResource: URI): AgentHostEditingSession | undefined {
+		const chatModel = this._chatService.getSession(sessionResource);
+		if (!chatModel) {
+			return undefined;
 		}
 
-		const authority = this._config.connectionAuthority;
-		const wrapUri = (uri: URI) => toAgentHostUri(uri, authority);
-
-		for (const edit of fileEdits) {
-			const operationId = this._nextOperationId++;
-			const resource = wrapUri(edit.resource);
-			const beforeUri = wrapUri(edit.beforeContentUri);
-			const afterUri = wrapUri(edit.afterContentUri);
-
-			const startProgress = await editingSession.startExternalEdits(
-				response, operationId, [resource], edit.undoStopId,
-				[beforeUri],
-			);
-			progress(startProgress);
-
-			const stopProgress = await editingSession.stopExternalEdits(
-				response, operationId,
-				[afterUri],
-			);
-			progress(stopProgress);
+		// Start the editing session if not already started — this will use
+		// our registered provider to create an AgentHostEditingSession.
+		if (!chatModel.editingSession) {
+			chatModel.startEditingSession();
 		}
+
+		const editingSession = chatModel.editingSession;
+		if (!(editingSession instanceof AgentHostEditingSession)) {
+			return undefined;
+		}
+
+		// Wire up the writeFile listener if not already done
+		if (!this._editingSessionListeners.has(sessionResource)) {
+			this._editingSessionListeners.set(sessionResource, editingSession.onDidRequestFileWrite(params => {
+				this._config.connection.writeFile(params).catch(err => {
+					this._logService.warn('[AgentHost] writeFile failed for undo/redo', err);
+				});
+			}));
+
+			// Hydrate from historical turns if this is the first time
+			// the editing session is accessed for this chat session.
+			const pendingTurns = this._pendingHistoryTurns.get(sessionResource);
+			if (pendingTurns) {
+				this._pendingHistoryTurns.delete(sessionResource);
+				for (const turn of pendingTurns) {
+					for (const rp of turn.responseParts) {
+						if (rp.kind === ResponsePartKind.ToolCall) {
+							editingSession.addToolCallEdits(turn.id, rp.toolCall);
+						}
+					}
+				}
+			}
+		}
+
+		return editingSession;
 	}
 
-	private _nextOperationId = 0;
+	/**
+	 * Hydrates the editing session with file edits from a completed tool call
+	 * and returns progress parts for the file edit pills.
+	 */
+	private _hydrateFileEdits(
+		sessionResource: URI,
+		requestId: string,
+		tc: IToolCallState,
+	): IChatProgress[] {
+		const editingSession = this._ensureEditingSession(sessionResource);
+		if (editingSession) {
+			return editingSession.addToolCallEdits(requestId, tc);
+		}
+		return [];
+	}
 
 	// ---- Session resolution -------------------------------------------------
 
@@ -1118,14 +1305,75 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return AgentSession.uri(this._config.provider, rawId);
 	}
 
+	/**
+	 * Forks a session at the given request point by creating a new backend
+	 * session with the `fork` parameter. Returns an {@link IChatSessionItem}
+	 * pointing to the newly created session.
+	 */
+	private async _forkSession(
+		sessionResource: URI,
+		backendSession: URI,
+		request: IChatSessionRequestHistoryItem | undefined,
+		token: CancellationToken,
+	): Promise<IChatSessionItem> {
+		if (token.isCancellationRequested) {
+			throw new Error('Cancelled');
+		}
+
+		// Determine the turn index to fork at. If a specific request is
+		// provided, fork BEFORE it (keeping turns up to the previous one).
+		// This matches the non-contributed path in ForkConversationAction
+		// which uses `requestIndex - 1`. If no request is provided, fork
+		// the entire session.
+		const protocolState = this._clientState.getSessionState(backendSession.toString());
+		let turnIndex: number | undefined;
+		if (request) {
+			const requestIdx = protocolState?.turns.findIndex(t => t.id === request.id);
+			if (requestIdx === undefined || requestIdx < 0) {
+				throw new Error(`Cannot fork: turn for request ${request.id} not found in protocol state`);
+			}
+			// Fork before this request — keep turns [0..requestIdx-1]
+			turnIndex = requestIdx - 1;
+			if (turnIndex < 0) {
+				throw new Error('Cannot fork: cannot fork before the first request');
+			}
+		} else if (protocolState && protocolState.turns.length > 0) {
+			turnIndex = protocolState.turns.length - 1;
+		}
+
+		if (turnIndex === undefined) {
+			throw new Error('Cannot fork: no turns to fork from');
+		}
+
+		const chatModel = this._chatService.getSession(sessionResource);
+
+		const forkedSession = await this._createAndSubscribe(sessionResource, undefined, {
+			session: backendSession,
+			turnIndex,
+		});
+
+		const forkedRawId = AgentSession.id(forkedSession);
+		const forkedResource = URI.from({ scheme: this._config.sessionType, path: `/${forkedRawId}` });
+		const now = Date.now();
+
+		return {
+			resource: forkedResource,
+			label: chatModel?.title
+				? localize('chat.forked.title', "Forked: {0}", chatModel.title)
+				: localize('chat.forked.fallbackTitle', "Forked Session"),
+			iconPath: getAgentHostIcon(this._productService),
+			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+		};
+	}
+
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, modelId?: string): Promise<URI> {
+	private async _createAndSubscribe(sessionResource: URI, modelId?: string, fork?: { session: URI; turnIndex: number }): Promise<URI> {
 		const rawModelId = this._extractRawModelId(modelId);
 		const resourceKey = sessionResource.path.substring(1);
 		const workingDirectory = this._config.resolveWorkingDirectory?.(resourceKey)
-			?? this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath;
+			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 
-		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}`);
+		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
 		let session: URI;
 		try {
@@ -1133,6 +1381,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				model: rawModelId,
 				provider: this._config.provider,
 				workingDirectory,
+				fork,
 			});
 		} catch (err) {
 			// If authentication is required, try to resolve it and retry once
@@ -1144,6 +1393,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						model: rawModelId,
 						provider: this._config.provider,
 						workingDirectory,
+						fork,
 					});
 				} else {
 					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
@@ -1163,8 +1413,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._logService.error(`[AgentHost] Failed to subscribe to new session: ${session.toString()}`, err);
 		}
 
+		// Claim the active client role with current customizations
+		const customizations = this._config.customizations?.get() ?? [];
+		this._dispatchActiveClient(session, customizations);
+
 		// Start syncing the chat model's pending requests to the protocol
-		this._ensurePendingMessageSubscription(resourceKey, sessionResource, session);
+		this._ensurePendingMessageSubscription(sessionResource, session);
 
 		// Start watching for server-initiated turns on this session
 		this._watchForServerInitiatedTurns(session, sessionResource);
@@ -1176,13 +1430,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * Ensures that the chat model's pending request changes are synced to the
 	 * protocol for a given session. No-ops if already subscribed.
 	 */
-	private _ensurePendingMessageSubscription(resourceKey: string, sessionResource: URI, backendSession: URI): void {
-		if (this._pendingMessageSubscriptions.has(resourceKey)) {
+	private _ensurePendingMessageSubscription(sessionResource: URI, backendSession: URI): void {
+		if (this._pendingMessageSubscriptions.has(sessionResource)) {
 			return;
 		}
 		const chatModel = this._chatService?.getSession(sessionResource);
 		if (chatModel) {
-			this._pendingMessageSubscriptions.set(resourceKey, chatModel.onDidChangePendingRequests(() => {
+			this._pendingMessageSubscriptions.set(sessionResource, chatModel.onDidChangePendingRequests(() => {
 				this._syncPendingMessages(sessionResource, backendSession);
 			}));
 		}

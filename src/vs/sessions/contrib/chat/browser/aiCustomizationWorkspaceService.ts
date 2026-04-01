@@ -19,6 +19,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -61,7 +62,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			}
 			const session = this.sessionsService.activeSession.read(reader);
 			const repo = session?.workspace.read(reader)?.repositories[0];
-			return repo?.workingDirectory ?? repo?.uri;
+			const root = repo?.workingDirectory ?? repo?.uri;
+			if (root?.scheme === AGENT_HOST_SCHEME) {
+				return undefined;
+			}
+			return root;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -76,7 +81,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		}
 		const session = this.sessionsService.activeSession.get();
 		const repo = session?.workspace.get()?.repositories[0];
-		return repo?.workingDirectory ?? repo?.uri;
+		const root = repo?.workingDirectory ?? repo?.uri;
+		if (root?.scheme === AGENT_HOST_SCHEME) {
+			return undefined;
+		}
+		return root;
 	}
 
 	setOverrideProjectRoot(root: URI): void {
@@ -257,8 +266,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		const allCommands = await this.promptsService.getPromptSlashCommands(token);
 		return allCommands.filter(cmd => {
-			const filter = this.getStorageSourceFilter(cmd.promptPath.type);
-			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
+			const filter = this.getStorageSourceFilter(cmd.type);
+			return applyStorageSourceFilter([cmd], filter).length > 0;
 		});
 	}
 
