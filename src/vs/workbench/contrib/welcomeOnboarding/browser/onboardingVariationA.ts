@@ -522,7 +522,7 @@ export class OnboardingVariationA extends Disposable {
 		const wrapper = append(container, $('.onboarding-a-personalize'));
 
 		// Theme section
-		const themeSection = append(wrapper, $('div'));
+		const themeSection = append(wrapper, $('div.onboarding-a-personalize-section.onboarding-a-personalize-section-theme'));
 		const themeLabel = append(themeSection, $('div.onboarding-a-section-label'));
 		themeLabel.textContent = localize('onboarding.personalize.theme', "Color Theme");
 
@@ -539,7 +539,7 @@ export class OnboardingVariationA extends Disposable {
 		themeHint.textContent = localize('onboarding.personalize.themeHint', "You can browse and install more themes later from the Extensions view.");
 
 		// Keyboard Mapping section
-		const keymapSection = append(wrapper, $('div'));
+		const keymapSection = append(wrapper, $('div.onboarding-a-personalize-section.onboarding-a-personalize-section-keymap'));
 		const keymapLabel = append(keymapSection, $('div.onboarding-a-section-label'));
 		keymapLabel.textContent = localize('onboarding.personalize.keymap', "Keyboard Mapping");
 
