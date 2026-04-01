@@ -2171,6 +2171,14 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 	}
 }
 
+// GUIDELINE:
+// AsyncIterableObject should only be used when multiple iterations
+// over the same iterable are required.
+//
+// For single-consumption or streaming scenarios, AsyncIterableProducer
+// is preferred to avoid retaining emitted values and potential memory leaks.
+//
+// See issue #256854 for background and migration rationale.
 
 export function createCancelableAsyncIterableProducer<T>(callback: (token: CancellationToken) => AsyncIterable<T>): CancelableAsyncIterableProducer<T> {
 	const source = new CancellationTokenSource();
