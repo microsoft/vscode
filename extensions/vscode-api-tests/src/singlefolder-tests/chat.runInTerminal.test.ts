@@ -11,8 +11,8 @@ import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../ut
 const isWindows = process.platform === 'win32';
 const isMacOS = process.platform === 'darwin';
 const sandboxFileSystemSetting = isMacOS
-	? 'chat.agent.sandboxFileSystem.mac'
-	: 'chat.agent.sandboxFileSystem.linux';
+	? 'chat.agent.sandbox.fileSystem.mac'
+	: 'chat.agent.sandbox.fileSystem.linux';
 
 /**
  * Extracts all text content from a LanguageModelToolResult.
@@ -274,12 +274,12 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 
 		setup(async () => {
 			const configuration = vscode.workspace.getConfiguration();
-			await configuration.update('chat.agent.sandbox', true, vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.sandbox.enabled', 'on', vscode.ConfigurationTarget.Global);
 		});
 
 		teardown(async () => {
 			const configuration = vscode.workspace.getConfiguration();
-			await configuration.update('chat.agent.sandbox', undefined, vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.sandbox.enabled', undefined, vscode.ConfigurationTarget.Global);
 		});
 
 		// Flaky: #305722
@@ -296,7 +296,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			this.timeout(60000);
 
 			const configuration = vscode.workspace.getConfiguration();
-			await configuration.update('chat.agent.sandboxNetwork.allowedDomains', ['example.com'], vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.sandbox.allowedNetworkDomains', ['example.com'], vscode.ConfigurationTarget.Global);
 			try {
 				const output = await invokeRunInTerminal('curl -s --max-time 5 https://example.com');
 				const trimmed = output.trim();
@@ -306,7 +306,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				];
 				assert.ok(acceptable.some(value => trimmed.includes(value) || trimmed === value), `Unexpected output: ${JSON.stringify(trimmed)}`);
 			} finally {
-				await configuration.update('chat.agent.sandboxNetwork.allowedDomains', undefined, vscode.ConfigurationTarget.Global);
+				await configuration.update('chat.agent.sandbox.allowedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
 			}
 		});
 
@@ -347,7 +347,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				? `/bin/bash: /tmp/${marker}.txt: Operation not permitted`
 				: `/usr/bin/bash: line 1: /tmp/${marker}.txt: Read-only file system`;
 			const sandboxBody = [
-				`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandboxNetwork.allowedDomains.`,
+				`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.sandbox.allowedNetworkDomains.`,
 				'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
 				'',
 				'Here is the output of the command:',
