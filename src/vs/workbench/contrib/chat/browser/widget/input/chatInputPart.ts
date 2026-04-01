@@ -1620,25 +1620,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return undefined;
 		}
 
-		const allOptionsValid = this.areAllOptionsValid(sessionResource, result);
+		const allOptionsValid = sessionResource ? this.areAllOptionsValid(sessionResource, result) : true;
 
 		this.chatSessionHasOptions.set(true);
 		this.chatSessionOptionsValid.set(allOptionsValid);
 
-		return result;
+		return { ...result, sessionResource };
 	}
 
-	private areAllOptionsValid(sessionResource: URI | undefined, result: { visibleGroupIds: Set<string>; optionGroups: IChatSessionProviderOptionGroup[]; sessionResource: URI | undefined; effectiveSessionType: string }) {
-		if (sessionResource) {
-			for (const groupId of result.visibleGroupIds) {
-				const optionGroup = result.optionGroups.find(g => g.id === groupId);
-				const currentOption = this.chatSessionsService.getSessionOption(sessionResource, groupId);
-				if (optionGroup && currentOption) {
-					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-					// TODO: @osortega @joshspicer should we add a `placeHolder` item to option groups to straighten this check?
-					if (!optionGroup.items.some(item => item.id === currentOptionId) && typeof currentOption === 'string') {
-						return false;
-					}
+	private areAllOptionsValid(sessionResource: URI, result: { visibleGroupIds: Set<string>; optionGroups: IChatSessionProviderOptionGroup[] }): boolean {
+		for (const groupId of result.visibleGroupIds) {
+			const optionGroup = result.optionGroups.find(g => g.id === groupId);
+			const currentOption = this.chatSessionsService.getSessionOption(sessionResource, groupId);
+			if (optionGroup && currentOption) {
+				const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+				// TODO: @osortega @joshspicer should we add a `placeHolder` item to option groups to straighten this check?
+				if (!optionGroup.items.some(item => item.id === currentOptionId) && typeof currentOption === 'string') {
+					return false;
 				}
 			}
 		}
@@ -1648,7 +1646,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private getVisibleOptionGroups(sessionResource: URI | undefined): {
 		visibleGroupIds: Set<string>;
 		optionGroups: IChatSessionProviderOptionGroup[];
-		sessionResource: URI | undefined;
 		effectiveSessionType: string;
 	} | undefined {
 
@@ -1698,7 +1695,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return undefined;
 		}
 
-		return { visibleGroupIds, optionGroups, sessionResource, effectiveSessionType };
+		return { visibleGroupIds, optionGroups, effectiveSessionType };
 	}
 
 	private updateStateAndChatModeForSessionCustomAgentTarget(sessionResource: URI) {
