@@ -147,7 +147,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 		// Agents window
 		else if (args['agents'] && this.productService.quality !== 'stable') {
-			usedWindows = await this.windowsMainService.openAgentsWindow({ context, contextWindowId: undefined });
+			usedWindows = await this.windowsMainService.openAgentsWindow(baseConfig);
 		}
 
 		// Start without file/folder arguments
