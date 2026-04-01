@@ -27,7 +27,7 @@ import { ICommandDetectionCapability, TerminalCapability } from '../../../../../
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, ChatRequestQueueKind, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -1345,6 +1345,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						this._logService.error(`RunInTerminalTool: Background execution error`, e);
 					}
 				});
+				// Register a listener to notify the agent when commands complete in this background terminal
+				this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource);
 			} else {
 				// Foreground completed or error - clean up execution
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
@@ -1753,6 +1755,40 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		for (const termId of executionIdsToRemove) {
 			RunInTerminalTool._activeExecutions.delete(termId);
 		}
+	}
+
+	/**
+	 * Registers a listener for command completion on a background terminal.
+	 * When a command finishes, sends a steering message to the chat session
+	 * so the agent is notified on its next turn.
+	 */
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI): void {
+		const commandDetection = terminalInstance.capabilities.get(TerminalCapability.CommandDetection);
+		if (!commandDetection) {
+			return;
+		}
+
+		const listener = commandDetection.onCommandFinished(command => {
+			const execution = RunInTerminalTool._activeExecutions.get(termId);
+			if (!execution) {
+				listener.dispose();
+				return;
+			}
+
+			const exitCode = command.exitCode;
+			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
+			const message = `[Terminal ${termId} notification: command completed${exitCodeText}. Use get_terminal_output to see the full output, send_to_terminal to send another command, or kill_terminal to stop it.]`;
+
+			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
+
+			this._chatService.sendRequest(chatSessionResource, message, {
+				queue: ChatRequestQueueKind.Steering,
+			}).catch(e => {
+				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
+			});
+		});
+
+		this._register(listener);
 	}
 	// #endregion
 }
