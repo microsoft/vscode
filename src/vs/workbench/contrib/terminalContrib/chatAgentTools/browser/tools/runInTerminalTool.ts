@@ -1552,7 +1552,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolTerminal.receivedUserInput = data.length > 0;
 			}
 		});
-		this._register(toolTerminal.instance.onDisposed(() => disposable.dispose()));
+		Event.once(toolTerminal.instance.onDisposed)(() => disposable.dispose());
 	}
 
 
@@ -1585,10 +1585,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}
 
 						// Listen for terminal disposal to clean up storage
-						this._register(instance.onDisposed(() => {
+						Event.once(instance.onDisposed)(() => {
 							this._removeProcessIdAssociation(instance.processId!);
 							this._removeExecutionAssociations(instance);
-						}));
+						});
 					}
 				}
 			}
@@ -1599,11 +1599,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _setupProcessIdAssociation(toolTerminal: IToolTerminal, chatSessionResource: URI, termId: string, isBackground: boolean) {
 		await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, isBackground);
-		this._register(toolTerminal.instance.onDisposed(() => {
+		Event.once(toolTerminal.instance.onDisposed)(() => {
 			if (toolTerminal!.instance.processId) {
 				this._removeProcessIdAssociation(toolTerminal!.instance.processId);
 			}
-		}));
+		});
 	}
 
 	private async _associateProcessIdWithSession(terminal: ITerminalInstance, chatSessionResource: URI, id: string, shellIntegrationQuality: ShellIntegrationQuality, isBackground?: boolean): Promise<void> {
