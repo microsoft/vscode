@@ -104,9 +104,8 @@
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 }
-
 .agent-sessions-workbench .interactive-session .interactive-input-part {
 	width: 100%;
 	max-width: 950px;

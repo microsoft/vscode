@@ -9,12 +9,13 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableResourceMap, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -162,6 +163,12 @@ export interface IAgentHostSessionHandlerConfig {
 	 * and return true if the user authenticated successfully.
 	 */
 	readonly resolveAuthentication?: () => Promise<boolean>;
+
+	/**
+	 * Observable set of agent-level customizations to include in the active
+	 * client set. When the value changes, active sessions are updated.
+	 */
+	readonly customizations?: IObservable<ICustomizationRef[]>;
 }
 
 export class AgentHostSessionHandler extends Disposable implements IChatSessionContentProvider {
@@ -221,6 +228,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 
+		// When the customizations observable changes, re-dispatch
+		// activeClientChanged for sessions where this client is already
+		// the active client. This avoids overwriting another client's
+		// active status on sessions we're only observing.
+		if (config.customizations) {
+			this._register(autorun(reader => {
+				const refs = config.customizations!.read(reader);
+				for (const [, backendSession] of this._sessionToBackend) {
+					const state = this._clientState.getSessionState(backendSession.toString());
+					if (state?.activeClient?.clientId === this._clientState.clientId) {
+						this._dispatchActiveClient(backendSession, refs);
+					}
+				}
+			}));
+		}
+
 		this._registerAgent();
 	}
 
@@ -279,6 +302,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} catch (err) {
 				this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
 			}
+
+			// Claim the active client role with current customizations
+			const customizations = this._config.customizations?.get() ?? [];
+			this._dispatchActiveClient(resolvedSession, customizations);
 		}
 		const session = this._instantiationService.createInstance(
 			AgentHostChatSession,
@@ -490,6 +517,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _dispatchAction(action: ISessionAction): void {
 		const seq = this._clientState.applyOptimistic(action);
 		this._config.connection.dispatchAction(action, this._clientState.clientId, seq);
+	}
+
+	/**
+	 * Dispatches `session/activeClientChanged` to claim the active client
+	 * role for this session and publish the current customizations.
+	 */
+	private _dispatchActiveClient(backendSession: URI, customizations: ICustomizationRef[]): void {
+		this._dispatchAction({
+			type: ActionType.SessionActiveClientChanged,
+			session: backendSession.toString(),
+			activeClient: {
+				clientId: this._clientState.clientId,
+				tools: [],
+				customizations,
+			},
+		});
 	}
 
 	// ---- Server-initiated turn detection ------------------------------------
@@ -1361,6 +1404,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		} catch (err) {
 			this._logService.error(`[AgentHost] Failed to subscribe to new session: ${session.toString()}`, err);
 		}
+
+		// Claim the active client role with current customizations
+		const customizations = this._config.customizations?.get() ?? [];
+		this._dispatchActiveClient(session, customizations);
 
 		// Start syncing the chat model's pending requests to the protocol
 		this._ensurePendingMessageSubscription(sessionResource, session);

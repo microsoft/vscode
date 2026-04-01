@@ -235,9 +235,9 @@ export class CopilotCLISession extends Disposable implements ISessionData {
 				.filter((name): name is string => !!name)
 				.filter(name => !name.includes(CopilotCLISession.COPILOT_WORKTREE_PATTERN));
 
-			const defaultBranch = branches.find(b => b === repo.state.get().HEAD?.name)
-				?? branches.find(b => b === 'main')
+			const defaultBranch = branches.find(b => b === 'main')
 				?? branches.find(b => b === 'master')
+				?? branches.find(b => b === repo.state.get().HEAD?.name)
 				?? branches[0];
 
 			this._defaultBranch = defaultBranch;
@@ -1184,10 +1184,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				model.inputModel.setState({ mode: { id: session.chatMode.id, kind: session.chatMode.kind } });
 			}
 			if (session.selectedOptions.size > 0) {
-				const contributedSession = model.contributedChatSession;
-				if (contributedSession) {
-					model.setContributedChatSession({ ...contributedSession, initialSessionOptions: session.selectedOptions });
-				}
+				this.chatSessionsService.updateSessionOptions(session.resource, session.selectedOptions);
 			}
 			modelRef.dispose();
 		}

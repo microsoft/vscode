@@ -18,10 +18,49 @@
 	position: relative;
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	padding: 2px 0;
+	padding: 4px;
+	margin-top: 4px;
+	border-radius: 4px;
 	min-height: 22px;
 	font-weight: 500;
+	cursor: pointer;
+	user-select: none;
+}
+
+.ci-status-widget-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	padding-right: 22px;
+}
+
+.ci-status-widget-header:focus {
+	padding-right: 22px;
+}
+
+.ci-status-widget-header:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Chevron — right-aligned, visible on hover only */
+.ci-status-widget-header .group-chevron {
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	visibility: hidden;
+	opacity: 0;
+}
+
+.ci-status-widget-header:hover .group-chevron,
+.ci-status-widget-header:focus-within .group-chevron {
+	visibility: visible;
+	opacity: 0.7;
 }
 
 /* Title - single line, overflow ellipsis */
@@ -50,8 +89,7 @@
 	padding-right: 8px;
 }
 
-.ci-status-widget.has-fix-actions:hover .ci-status-widget-counts,
-.ci-status-widget.has-fix-actions:focus-within .ci-status-widget-counts {
+.ci-status-widget-header:hover .ci-status-widget-counts, .ci-status-widget-header:focus .ci-status-widget-counts {
 	visibility: hidden;
 }
 
@@ -84,15 +122,9 @@
 }
 
 .ci-status-widget-header-actions {
-	position: absolute;
-	right: 0;
-	display: none;
-	align-items: center;
-}
-
-.ci-status-widget:hover .ci-status-widget-header-actions.has-actions,
-.ci-status-widget:focus-within .ci-status-widget-header-actions.has-actions {
+	flex-shrink: 0;
 	display: flex;
+	align-items: center;
 }
 
 .ci-status-widget-header-actions .monaco-action-bar {
@@ -149,6 +181,12 @@
 	flex: 1;
 	min-width: 0;
 	width: 100%;
+}
+
+.ci-status-widget-check-label .monaco-icon-label::before {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
 }
 
 .ci-status-widget-check-label .monaco-icon-label-container,

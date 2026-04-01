@@ -42,6 +42,7 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "^9.3.2",
     "ws": "^8.19.0",
+    "ssh2": "^1.16.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
@@ -49,6 +50,9 @@
     "node-gyp-build": "4.8.1",
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
+    },
+    "ssh2": {
+      "cpu-features": "0.0.0"
     }
   }
 }

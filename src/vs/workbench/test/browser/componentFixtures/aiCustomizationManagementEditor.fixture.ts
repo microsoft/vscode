@@ -50,7 +50,8 @@ import { IIterativePager } from '../../../../base/common/paging.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { CodeReviewStateKind, ICodeReviewService, ICodeReviewState, IPRReviewState, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from './sessions/mockCodeReviewService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
@@ -208,30 +209,6 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		override clearFeedback(): void { }
 		override removeFeedback(): void { }
 		override async addFeedbackAndSubmit(): Promise<void> { }
-	}();
-}
-
-function createMockCodeReviewService(): ICodeReviewService {
-	return new class extends mock<ICodeReviewService>() {
-		private readonly reviewState = observableValue<ICodeReviewState>('fixture.reviewState', { kind: CodeReviewStateKind.Idle });
-		private readonly prReviewState = observableValue<IPRReviewState>('fixture.prReviewState', { kind: PRReviewStateKind.None });
-
-		override getReviewState() {
-			return this.reviewState;
-		}
-
-		override getPRReviewState() {
-			return this.prReviewState;
-		}
-
-		override hasReview(): boolean {
-			return false;
-		}
-
-		override requestReview(): void { }
-		override removeComment(): void { }
-		override dismissReview(): void { }
-		override async resolvePRReviewThread(): Promise<void> { }
 	}();
 }
 

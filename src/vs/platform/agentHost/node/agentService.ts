@@ -168,8 +168,19 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
+
+		// Ensure the command auto-approver is ready before any session events
+		// can arrive. This makes shell command auto-approval fully synchronous.
+		// Safe to run in parallel with createSession since no events flow until
+		// sendMessage() is called.
+		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
+		const [, session] = await Promise.all([
+			this._sideEffects.initialize(),
+			provider.createSession(config),
+		]);
+		this._logService.trace(`[AgentService] createSession: initialization complete`);
+
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model ?? '(default)'}`);
-		const session = await provider.createSession(config);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
