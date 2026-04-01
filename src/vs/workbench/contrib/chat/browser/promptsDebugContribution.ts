@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
-import { IChatService } from '../common/chatService/chatService.js';
+import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IHookDiscoveryInfo, IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 
@@ -31,15 +31,15 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IChatService chatService: IChatService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 		@IChatDebugService chatDebugService: IChatDebugService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 
 		// Forward discovery log events to the debug service.
-		this._register(chatService.onDidSubmitRequest(async chatRequest => {
-			const sessionResource = chatRequest.chatSessionResource;
+		this._register(chatAgentService.onWillInvokeAgent(async e => {
+			const sessionResource = e.request.sessionResource;
 			const cts = new CancellationTokenSource();
 
 			try {
