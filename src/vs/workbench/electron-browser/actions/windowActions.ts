@@ -389,6 +389,30 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	}
 }
 
+export class SwitchToMainWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.switchToMainWindow',
+			title: localize2('switchToMainWindow', "Switch to Main Window"),
+			f1: true,
+			precondition: IsAuxiliaryWindowContext
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		const currentWindowId = getActiveWindow().vscodeWindowId;
+
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: true });
+		for (const window of windows) {
+			if (window.id === currentWindowId && isOpenedAuxiliaryWindow(window)) {
+				return nativeHostService.focusWindow({ targetWindowId: window.parentId });
+			}
+		}
+	}
+}
+
 function canRunNativeTabsHandler(accessor: ServicesAccessor): boolean {
 	if (!isMacintosh) {
 		return false;
