@@ -595,7 +595,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: nls.localize('chat.remoteAgentHosts', "A list of remote agent host addresses to connect to (e.g. \"localhost:3000\")."),
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced', 'usesOnlineServices'],
+			tags: ['experimental', 'advanced'],
 		},
 	},
 });
