@@ -36,7 +36,7 @@ class MockChatEntitlementService implements Partial<IChatEntitlementService> {
 	readonly onDidChangeQuotaRemaining = Event.None;
 
 	readonly entitlementObs: ISettableObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
-	readonly sentimentObs: ISettableObservable<IChatSentiment> = observableValue('sentiment', { completed: true } as IChatSentiment);
+	readonly sentimentObs: ISettableObservable<IChatSentiment> = observableValue('sentiment', { completed: true, installed: true } as IChatSentiment);
 	readonly anonymousObs: ISettableObservable<boolean> = observableValue('anonymous', false);
 
 	readonly organisations = undefined;
@@ -108,7 +108,7 @@ suite('SessionsWelcomeContribution', () => {
 	test('first launch shows overlay', () => {
 		// First launch with no entitlement — should show overlay
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: false } as IChatSentiment, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: false, installed: false } as IChatSentiment, undefined);
 
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
@@ -125,7 +125,7 @@ suite('SessionsWelcomeContribution', () => {
 	test('returning user: transient Unknown entitlement does NOT show overlay', () => {
 		markReturningUser();
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: true } as IChatSentiment, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
 
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
@@ -149,7 +149,7 @@ suite('SessionsWelcomeContribution', () => {
 	test('returning user: transient Unresolved entitlement does NOT show overlay', () => {
 		markReturningUser();
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Pro, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: true } as IChatSentiment, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
 
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
@@ -165,7 +165,7 @@ suite('SessionsWelcomeContribution', () => {
 	test('returning user: extension uninstalled DOES show overlay', () => {
 		markReturningUser();
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: true } as IChatSentiment, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
 
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
@@ -173,7 +173,7 @@ suite('SessionsWelcomeContribution', () => {
 
 		// Simulate extension being uninstalled
 		transaction(tx => {
-			mockEntitlementService.sentimentObs.set({ completed: false } as IChatSentiment, tx);
+			mockEntitlementService.sentimentObs.set({ completed: true, installed: false } as IChatSentiment, tx);
 		});
 
 		assert.strictEqual(isOverlayVisible(), true, 'should show overlay when extension is uninstalled');
@@ -182,34 +182,36 @@ suite('SessionsWelcomeContribution', () => {
 	test('returning user: extension disabled DOES show overlay', () => {
 		markReturningUser();
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: true } as IChatSentiment, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
 
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
 
 		// Simulate extension being disabled
 		transaction(tx => {
-			mockEntitlementService.sentimentObs.set({ completed: true, disabled: true } as IChatSentiment, tx);
+			mockEntitlementService.sentimentObs.set({ completed: true, installed: true, disabled: true } as IChatSentiment, tx);
 		});
 
 		assert.strictEqual(isOverlayVisible(), true, 'should show overlay when extension is disabled');
 	});
 
-	test('overlay dismisses when setup completes', () => {
+	test('setup completion persists welcome completion without dismissing overlay', () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: false } as IChatSentiment, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: false, installed: false } as IChatSentiment, undefined);
 
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
 		assert.strictEqual(isOverlayVisible(), true, 'should show on first launch');
 
-		// Simulate completing setup
+		// Simulate setup completion; the walkthrough remains visible until it resolves
 		transaction(tx => {
 			mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, tx);
-			mockEntitlementService.sentimentObs.set({ completed: true } as IChatSentiment, tx);
+			mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, tx);
 		});
 
-		assert.strictEqual(isOverlayVisible(), false, 'should dismiss after setup completes');
+		const storageService = instantiationService.get(IStorageService);
+		assert.strictEqual(storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false), true);
+		assert.strictEqual(isOverlayVisible(), true, 'should remain visible until walkthrough completes');
 	});
 
 	test('walkthrough cannot be dismissed by Escape or backdrop click', () => {
@@ -380,7 +382,7 @@ suite('SessionsWelcomeContribution', () => {
 	test('returning user: entitlement going to Available DOES show overlay', () => {
 		markReturningUser();
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: true } as IChatSentiment, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
 
 		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
 		assert.ok(contribution);
