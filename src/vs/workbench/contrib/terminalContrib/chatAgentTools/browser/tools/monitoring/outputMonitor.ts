@@ -192,7 +192,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					case OutputMonitorState.Idle: {
 						this._logService.trace('OutputMonitor: Entering Idle handler');
 						const idleResult = await this._handleIdleState(token);
-						if (idleResult.shouldContinuePollling) {
+						if (idleResult.shouldContinuePolling) {
 							this._logService.trace('OutputMonitor: Idle handler -> continue polling');
 							this._state = OutputMonitorState.PollingForIdle;
 							continue;
@@ -296,13 +296,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 
-	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean; output?: string }> {
+	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePolling: boolean; output?: string }> {
 		const output = this._execution.getOutput(this._lastPromptMarker);
 		this._logService.trace(`OutputMonitor: Idle output summary: len=${output.length}, lastLine=${this._formatLastLineForLog(output)}`);
 
 		if (detectsNonInteractiveHelpPattern(output)) {
 			this._logService.trace('OutputMonitor: Idle -> non-interactive help pattern detected, stopping');
-			return { shouldContinuePollling: false, output };
+			return { shouldContinuePolling: false, output };
 		}
 
 		// Check for VS Code's task finish messages (like "press any key to close the terminal").
@@ -312,7 +312,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (isTask && detectsVSCodeTaskFinishMessage(output)) {
 			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected, stopping');
 			// Task is finished, ignore the "press any key to close" message
-			return { shouldContinuePollling: false, output };
+			return { shouldContinuePolling: false, output };
 		}
 
 		// Check for generic "press any key" prompts from scripts.
@@ -323,7 +323,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (autoReply) {
 				this._logService.trace('OutputMonitor: Auto-reply enabled -> not showing free-form prompt for "press any key", stopping');
 				this._cleanupIdleInputListener();
-				return { shouldContinuePollling: false, output };
+				return { shouldContinuePolling: false, output };
 			}
 			this._logService.trace('OutputMonitor: Requesting free-form input for "press any key"');
 			// Register a marker to track this prompt position so we don't re-detect it
@@ -342,10 +342,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (receivedTerminalInput) {
 				this._logService.trace('OutputMonitor: Free-form input received for "press any key", continue polling');
 				await timeout(200);
-				return { shouldContinuePollling: true };
+				return { shouldContinuePolling: true };
 			} else {
 				this._logService.trace('OutputMonitor: Free-form input declined for "press any key", stopping');
-				return { shouldContinuePollling: false };
+				return { shouldContinuePolling: false };
 			}
 		}
 
@@ -353,7 +353,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (this._userInputtedSinceIdleDetected) {
 			this._logService.trace('OutputMonitor: User input detected since idle; skipping prompt and continuing polling');
 			this._cleanupIdleInputListener();
-			return { shouldContinuePollling: true };
+			return { shouldContinuePolling: true };
 		}
 
 		this._logService.trace('OutputMonitor: Determining user input options via language model');
@@ -364,7 +364,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (this._userInputtedSinceIdleDetected) {
 			this._logService.trace('OutputMonitor: User input arrived during input-option analysis; continuing polling');
 			this._cleanupIdleInputListener();
-			return { shouldContinuePollling: true };
+			return { shouldContinuePolling: true };
 		}
 
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
@@ -372,13 +372,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (this._userInputtedSinceIdleDetected) {
 				this._logService.trace('OutputMonitor: User input arrived before showing free-form prompt; continuing polling');
 				this._cleanupIdleInputListener();
-				return { shouldContinuePollling: true };
+				return { shouldContinuePolling: true };
 			}
 			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
 			if (autoReply) {
 				this._logService.trace('OutputMonitor: Auto-reply enabled -> not propagating free-form prompt, stopping');
 				this._cleanupIdleInputListener();
-				return { shouldContinuePollling: false, output };
+				return { shouldContinuePolling: false, output };
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
@@ -390,11 +390,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._logService.trace('OutputMonitor: Free-form input received; continuing polling');
 				await timeout(200);
 				// Continue polling as we sent the input
-				return { shouldContinuePollling: true };
+				return { shouldContinuePolling: true };
 			} else {
 				// User declined
 				this._logService.trace('OutputMonitor: Free-form input declined; stopping');
-				return { shouldContinuePollling: false };
+				return { shouldContinuePolling: false };
 			}
 		}
 
@@ -405,13 +405,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (suggestedOptionResult?.sentToTerminal) {
 				// Continue polling as we sent the input
 				this._cleanupIdleInputListener();
-				return { shouldContinuePollling: true };
+				return { shouldContinuePolling: true };
 			}
 			// Check again after LLM call - user may have inputted while we were selecting option
 			if (this._userInputtedSinceIdleDetected) {
 				this._logService.trace('OutputMonitor: User input arrived during option selection; continuing polling');
 				this._cleanupIdleInputListener();
-				return { shouldContinuePollling: true };
+				return { shouldContinuePolling: true };
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
@@ -420,12 +420,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (confirmed) {
 				// Continue polling as we sent the input
 				this._logService.trace('OutputMonitor: Option confirmed/sent; continuing polling');
-				return { shouldContinuePollling: true };
+				return { shouldContinuePolling: true };
 			} else {
 				// User declined
 				this._logService.trace('OutputMonitor: Option declined; stopping');
 				this._execution.instance.focus(true);
-				return { shouldContinuePollling: false };
+				return { shouldContinuePolling: false };
 			}
 		}
 
@@ -436,7 +436,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// since we're not returning results to the tool invocation. The caller
 		// will handle this idle state by waiting for new terminal data.
 		if (this._asyncMode) {
-			return { shouldContinuePollling: false, output };
+			return { shouldContinuePolling: false, output };
 		}
 
 		// Let custom poller override if provided
@@ -444,7 +444,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._logService.trace(`OutputMonitor: Custom poller result: ${custom ? 'provided' : 'none'}`);
 		const resources = custom?.resources;
 		const modelOutputEvalResponse = this._pollFn ? undefined : await this._assessOutputForErrors(this._execution.getOutput(), token);
-		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output ?? output };
+		return { resources, modelOutputEvalResponse, shouldContinuePolling: false, output: custom?.output ?? output };
 	}
 
 	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
