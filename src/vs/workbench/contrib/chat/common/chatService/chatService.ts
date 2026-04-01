@@ -1407,6 +1407,14 @@ export interface IChatSendRequestOptions {
 	 */
 	pauseQueue?: boolean;
 
+	/**
+	 * When true, the request is rendered as a compact tool-progress-style line
+	 * instead of a full user message bubble. Used for system-initiated notifications
+	 * such as terminal command completion.
+	 */
+	isImplicit?: boolean;
+
+
 }
 
 export type IChatModelReference = IReference<IChatModel>;

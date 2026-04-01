@@ -832,7 +832,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
-		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
+		const shouldShowHeader = (isResponseVM(element) && !this.rendererOptions.noHeader) || false;
 		templateData.header?.classList.toggle('header-disabled', !shouldShowHeader);
 
 		if (isRequestVM(element) && element.confirmation) {

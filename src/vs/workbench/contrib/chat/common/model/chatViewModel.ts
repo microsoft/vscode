@@ -98,6 +98,7 @@ export interface IChatRequestViewModel {
 	readonly timestamp: number;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
+	readonly isImplicit?: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -334,7 +335,16 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
+			if (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop) {
+				return false;
+			}
+			// Hide implicit requests (system-initiated notifications like terminal completions)
+			if (isRequestVM(item) && item.isImplicit) {
+				return false;
+			}
+			return true;
+		});
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
@@ -345,10 +355,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
 			const queuedRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Queued);
 
-			// Add steering requests with their divider first
-			if (steeringRequests.length > 0) {
+			// Add steering requests with their divider first (skip implicit ones)
+			const visibleSteeringRequests = steeringRequests.filter(p => !p.request.isImplicit);
+			if (visibleSteeringRequests.length > 0) {
 				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, currentRenderedHeight: undefined });
-				for (const pending of steeringRequests) {
+				for (const pending of visibleSteeringRequests) {
 					const requestVM = this.instantiationService.createInstance(ChatRequestViewModel, pending.request, pending.kind);
 					items.push(requestVM);
 				}
@@ -475,6 +486,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get pendingKind() {
 		return this._pendingKind;
+	}
+
+	get isImplicit() {
+		return this._model.isImplicit;
 	}
 
 	constructor(

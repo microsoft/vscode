@@ -126,6 +126,7 @@ export interface IChatRequestModel {
 	setShouldBeBlocked(value: boolean): void;
 	readonly modelId?: string;
 	readonly userSelectedTools?: UserSelectedTools;
+	readonly isImplicit?: boolean;
 }
 
 export interface ICodeBlockInfo {
@@ -342,6 +343,7 @@ export interface IChatRequestModelParameters {
 	restoredId?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
+	isImplicit?: boolean;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -354,6 +356,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly modelId?: string;
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
+	public readonly isImplicit?: boolean;
 
 	private readonly _shouldBeBlocked = observableValue<boolean>(this, false);
 	public get shouldBeBlocked(): IObservable<boolean> {
@@ -425,6 +428,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
+		this.isImplicit = params.isImplicit;
 	}
 
 	adoptTo(session: ChatModel) {
@@ -1510,6 +1514,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
 	modeInfo?: IChatRequestModeInfo;
+	isImplicit?: boolean;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -2375,6 +2380,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
 			modeInfo: raw.modeInfo,
+			isImplicit: raw.isImplicit,
 		});
 		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
@@ -2543,7 +2549,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string, isImplicit?: boolean): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
@@ -2561,6 +2567,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modelId,
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
+			isImplicit,
 		});
 		request.response = new ChatResponseModel({
 			responseContent: [],
@@ -2718,6 +2725,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
 					modeInfo: r.modeInfo,
+					isImplicit: r.isImplicit || undefined,
 					...r.response?.toJSON(),
 				};
 			}),
