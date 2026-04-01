@@ -10,16 +10,16 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import type { IAhpServerNotification, IJsonRpcResponse, IProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IProtocolTransport } from '../common/state/sessionTransport.js';
+import type { IClientTransport } from '../common/state/sessionTransport.js';
 
 // ---- Client transport -------------------------------------------------------
 
 /**
  * A WebSocket client transport that connects to a remote agent host server.
  * Uses the native browser WebSocket API (available in Electron renderer).
- * Implements {@link IProtocolTransport} with JSON serialization and URI revival.
+ * Implements {@link IClientTransport} with JSON serialization and URI revival.
  */
-export class WebSocketClientTransport extends Disposable implements IProtocolTransport {
+export class WebSocketClientTransport extends Disposable implements IClientTransport {
 
 	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
 	readonly onMessage = this._onMessage.event;

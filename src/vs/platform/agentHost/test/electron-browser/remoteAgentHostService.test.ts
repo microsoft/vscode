@@ -217,11 +217,10 @@ suite('RemoteAgentHostService', () => {
 		configService.setEntries([{ address: 'ws://bad:9999', name: 'Bad' }]);
 		assert.strictEqual(createdClients.length, 1);
 
-		// Fail the connection
+		// Fail the connection and wait for the service to react
+		const connectionChanged = Event.toPromise(service.onDidChangeConnections);
 		createdClients[0].connectDeferred.error(new Error('Connection refused'));
-
-		// Wait for async error handling
-		await new Promise(r => setTimeout(r, 10));
+		await connectionChanged;
 
 		assert.strictEqual(service.connections.length, 0);
 		assert.strictEqual(service.getConnection('ws://bad:9999'), undefined);

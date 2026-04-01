@@ -1,13 +1,13 @@
 ---
 name: agent-sessions-layout
-description: Agent Sessions workbench layout — covers the fixed layout structure, grid configuration, part visibility, editor modal, titlebar, sidebar footer, and implementation requirements. Use when implementing features or fixing issues in the Agent Sessions workbench layout.
+description: Agents workbench layout — covers the fixed layout structure, grid configuration, part visibility, editor modal, titlebar, sidebar footer, and implementation requirements. Use when implementing features or fixing issues in the Agents workbench layout.
 ---
 
-When working on the Agent Sessions workbench layout, always follow these guidelines:
+When working on the Agents workbench layout, always follow these guidelines:
 
 ## 1. Read the Specification First
 
-The authoritative specification for the Agent Sessions layout lives at:
+The authoritative specification for the Agents layout lives at:
 
 **`src/vs/sessions/LAYOUT.md`**
 
@@ -55,7 +55,7 @@ When proposing or implementing changes, follow these rules from the spec:
 |------|---------|
 | `sessions/LAYOUT.md` | Authoritative layout specification |
 | `sessions/browser/workbench.ts` | Main layout implementation (`Workbench` class) |
-| `sessions/browser/menus.ts` | Agent sessions menu IDs (`Menus` export) |
+| `sessions/browser/menus.ts` | Agents menu IDs (`Menus` export) |
 | `sessions/browser/layoutActions.ts` | Layout actions (toggle sidebar, panel, secondary sidebar) |
 | `sessions/browser/paneCompositePartService.ts` | `AgenticPaneCompositePartService` |
 | `sessions/browser/media/style.css` | Layout-specific styles |
@@ -67,7 +67,7 @@ When proposing or implementing changes, follow these rules from the spec:
 | `sessions/browser/parts/panelPart.ts` | Panel part |
 | `sessions/browser/parts/projectBarPart.ts` | Project Bar part (folder entries, icon customization) |
 | `sessions/contrib/configuration/browser/configuration.contribution.ts` | Sets `workbench.editor.useModal` to `'all'` for modal editor overlay |
-| `sessions/contrib/sessions/browser/sessionsTitleBarWidget.ts` | Title bar widget and session picker |
+| `sessions/contrib/sessions/browser/sessionsTitleBarWidget.ts` | Title bar widget and agent picker |
 | `sessions/contrib/chat/browser/runScriptAction.ts` | Run script split button for titlebar |
 | `sessions/contrib/accountMenu/browser/account.contribution.ts` | Account widget for sidebar footer |
 | `sessions/electron-browser/parts/titlebarPart.ts` | Desktop (Electron) titlebar part |

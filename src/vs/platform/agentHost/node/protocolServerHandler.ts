@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../base/common/event.js';
+import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService, type IAuthenticateParams } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
@@ -15,6 +18,7 @@ import {
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
+	IJsonRpcRequest,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	JSON_RPC_INTERNAL_ERROR,
@@ -105,6 +109,7 @@ export class ProtocolServerHandler extends Disposable {
 		private readonly _stateManager: SessionStateManager,
 		private readonly _server: IProtocolServer,
 		private readonly _config: IProtocolServerConfig,
+		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -179,14 +184,24 @@ export class ProtocolServerHandler extends Disposable {
 						}
 						break;
 				}
+			} else if (isJsonRpcResponse(msg)) {
+				const pending = this._pendingReverseRequests.get(msg.id);
+				if (pending) {
+					this._pendingReverseRequests.delete(msg.id);
+					if (hasKey(msg, { error: true })) {
+						pending.reject(new Error(msg.error?.message ?? 'Reverse RPC error'));
+					} else {
+						pending.resolve(msg.result);
+					}
+				}
 			}
-			// Responses from the client (if any) are ignored on the server side.
 		}));
 
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}`);
 				this._clients.delete(client.clientId);
+				this._rejectPendingReverseRequests(client.clientId);
 				this._onDidChangeConnectionCount.fire(this._clients.size);
 			}
 			disposables.dispose();
@@ -220,6 +235,12 @@ export class ProtocolServerHandler extends Disposable {
 		};
 		this._clients.set(params.clientId, client);
 		this._onDidChangeConnectionCount.fire(this._clients.size);
+
+		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
+			browseDirectory: (uri) => this._sendReverseRequest(params.clientId, 'browseDirectory', { uri: uri.toString() }),
+			fetchContent: (uri) => this._sendReverseRequest(params.clientId, 'fetchContent', { uri: uri.toString() }),
+		}));
+
 
 		const snapshots: IStateSnapshot[] = [];
 		if (params.initialSubscriptions) {
@@ -379,6 +400,42 @@ export class ProtocolServerHandler extends Disposable {
 		},
 	};
 
+
+	// ---- Reverse RPC (server → client requests) ----------------------------
+
+	private _reverseRequestId = 0;
+	private readonly _pendingReverseRequests = new Map<number, { clientId: string; resolve: (value: unknown) => void; reject: (reason: unknown) => void }>();
+
+	/**
+	 * Sends a JSON-RPC request to a connected client and waits for the response.
+	 * Used for reverse-RPC operations like reading client-side files.
+	 * Rejects if the client disconnects or the server is disposed.
+	 */
+	private _sendReverseRequest<T>(clientId: string, method: string, params: unknown): Promise<T> {
+		const client = this._clients.get(clientId);
+		if (!client) {
+			return Promise.reject(new Error(`Client ${clientId} is not connected`));
+		}
+		const id = ++this._reverseRequestId;
+		return new Promise<T>((resolve, reject) => {
+			this._pendingReverseRequests.set(id, { clientId, resolve: resolve as (value: unknown) => void, reject });
+			const request: IJsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+			client.transport.send(request);
+		});
+	}
+
+	/**
+	 * Rejects and clears all pending reverse-RPC requests for a given client.
+	 */
+	private _rejectPendingReverseRequests(clientId: string): void {
+		for (const [id, pending] of this._pendingReverseRequests) {
+			if (pending.clientId === clientId) {
+				this._pendingReverseRequests.delete(id);
+				pending.reject(new Error(`Client ${clientId} disconnected`));
+			}
+		}
+	}
+
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
 		if (handler) {
@@ -469,6 +526,10 @@ export class ProtocolServerHandler extends Disposable {
 			client.disposables.dispose();
 		}
 		this._clients.clear();
+		for (const [, pending] of this._pendingReverseRequests) {
+			pending.reject(new Error('ProtocolServerHandler disposed'));
+		}
+		this._pendingReverseRequests.clear();
 		this._replayBuffer.length = 0;
 		super.dispose();
 	}

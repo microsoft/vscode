@@ -95,7 +95,7 @@ export function registerChatForkActions() {
 					}
 				}
 
-				const modelRef = chatService.loadSessionFromData(cleanData);
+				const modelRef = chatService.loadSessionFromData(cleanData, 'ChatForkActions#forkCleanSession');
 
 				// Defer navigation until after the slash command flow completes.
 				const newSessionResource = modelRef.object.sessionResource;
@@ -216,16 +216,19 @@ export function registerChatForkActions() {
 				}
 			}
 
-			const modelRef = chatService.loadSessionFromData(forkedData);
+			const modelRef = chatService.loadSessionFromData(forkedData, 'ChatForkActions#forkSession');
 
 			if (!modelRef) {
 				return;
 			}
 
 			// Navigate to the new session in the chat view pane
-			const newSessionResource = modelRef.object.sessionResource;
-			await chatWidgetService.openSession(newSessionResource, ChatViewPaneTarget);
-			modelRef.dispose();
+			try {
+				const newSessionResource = modelRef.object.sessionResource;
+				await chatWidgetService.openSession(newSessionResource, ChatViewPaneTarget);
+			} finally {
+				modelRef.dispose();
+			}
 		}
 
 		private pendingFork = new Map<string, Promise<void>>();

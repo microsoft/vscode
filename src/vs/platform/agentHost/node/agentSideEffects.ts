@@ -6,18 +6,22 @@
 import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment } from '../common/agentService.js';
+import { IAgent, IAgentAttachment, IAgentProgressEvent } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
 import {
+	CustomizationStatus,
 	PendingMessageKind,
+	type ISessionCustomization,
 	type ISessionModelInfo,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
+import { CommandAutoApprover } from './commandAutoApprover.js';
 import { SessionStateManager } from './sessionStateManager.js';
 
 /**
@@ -48,6 +52,8 @@ export class AgentSideEffects extends Disposable {
 	private readonly _toolCallAgents = new Map<string, string>();
 	/** Per-agent event mapper instances (stateful for partId tracking). */
 	private readonly _eventMappers = new Map<string, AgentEventMapper>();
+	/** Auto-approver for shell commands parsed via tree-sitter. */
+	private readonly _commandAutoApprover: CommandAutoApprover;
 
 	constructor(
 		private readonly _stateManager: SessionStateManager,
@@ -55,6 +61,7 @@ export class AgentSideEffects extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
+		this._commandAutoApprover = this._register(new CommandAutoApprover(this._logService));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -116,6 +123,61 @@ export class AgentSideEffects extends Disposable {
 		return approved;
 	}
 
+	/**
+	 * Initializes async resources (tree-sitter WASM) used for command
+	 * auto-approval. Await this before any session events can arrive to
+	 * guarantee that {@link _tryAutoApproveToolReady} is fully synchronous.
+	 */
+	initialize(): Promise<void> {
+		return this._commandAutoApprover.initialize();
+	}
+
+	/**
+	 * Synchronously attempts to auto-approve a `tool_ready` event based on
+	 * permission kind. Returns `true` if auto-approved (event should not be
+	 * dispatched to the state manager), or `false` to proceed normally.
+	 */
+	private _tryAutoApproveToolReady(
+		e: { readonly toolCallId: string; readonly session: URI; readonly permissionKind?: string; readonly permissionPath?: string; readonly toolInput?: string },
+		sessionKey: ProtocolURI,
+		agent: IAgent,
+	): boolean {
+		// Write auto-approval: only within the session's working directory,
+		// then apply the default glob patterns for protected files.
+		if (e.permissionKind === 'write' && e.permissionPath) {
+			const sessionState = this._stateManager.getSessionState(sessionKey);
+			const workDir = sessionState?.workingDirectory ?? sessionState?.summary.workingDirectory;
+			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
+			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
+				if (this._shouldAutoApproveEdit(e.permissionPath)) {
+					this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
+					this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+					agent.respondToPermissionRequest(e.toolCallId, true);
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// Shell auto-approval: parse the command via tree-sitter (synchronous
+		// after initialize() has been awaited) and match against default rules.
+		if (e.permissionKind === 'shell' && e.toolInput) {
+			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput);
+			if (result === 'approved') {
+				this._logService.trace(`[AgentSideEffects] Auto-approving shell command`);
+				this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+				agent.respondToPermissionRequest(e.toolCallId, true);
+				return true;
+			}
+			if (result === 'denied') {
+				this._logService.trace(`[AgentSideEffects] Shell command denied by rule`);
+			}
+			return false;
+		}
+
+		return false;
+	}
+
 	// ---- Agent registration -------------------------------------------------
 
 	/**
@@ -141,26 +203,15 @@ export class AgentSideEffects extends Disposable {
 			const sessionKey = e.session.toString();
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
-				// Check if this is a write permission request that can be auto-approved
-				// based on the built-in default patterns.
-				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
-					if (this._shouldAutoApproveEdit(e.permissionPath)) {
-						this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
-						agent.respondToPermissionRequest(e.toolCallId, true);
+				// Auto-approve tool_ready events synchronously before dispatching.
+				// Tree-sitter is pre-warmed via initialize(), so this is fully sync.
+				if (e.type === 'tool_ready') {
+					if (this._tryAutoApproveToolReady(e, sessionKey, agent)) {
 						return;
 					}
 				}
 
-				const actions = agentMapper.mapProgressEventToActions(e, sessionKey, turnId);
-				if (actions) {
-					if (Array.isArray(actions)) {
-						for (const action of actions) {
-							this._stateManager.dispatchServerAction(action);
-						}
-					} else {
-						this._stateManager.dispatchServerAction(actions);
-					}
-				}
+				this._dispatchProgressActions(agentMapper, e, sessionKey, turnId);
 			}
 
 			// After a turn completes (idle event), try to consume the next queued message
@@ -182,6 +233,19 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	// ---- Side-effect handlers --------------------------------------------------
+
+	private _dispatchProgressActions(mapper: AgentEventMapper, e: IAgentProgressEvent, sessionKey: ProtocolURI, turnId: string): void {
+		const actions = mapper.mapProgressEventToActions(e, sessionKey, turnId);
+		if (actions) {
+			if (Array.isArray(actions)) {
+				for (const action of actions) {
+					this._stateManager.dispatchServerAction(action);
+				}
+			} else {
+				this._stateManager.dispatchServerAction(actions);
+			}
+		}
+	}
 
 	handleAction(action: ISessionAction): void {
 		switch (action.type) {
@@ -250,6 +314,53 @@ export class AgentSideEffects extends Disposable {
 			case ActionType.SessionPendingMessageRemoved:
 			case ActionType.SessionQueuedMessagesReordered: {
 				this._syncPendingMessages(action.session);
+				break;
+			}
+			case ActionType.SessionActiveClientChanged: {
+				const agent = this._options.getAgent(action.session);
+				const refs = action.activeClient?.customizations;
+				if (!agent?.setClientCustomizations || !refs?.length) {
+					break;
+				}
+				// Publish initial "loading" status for all customizations
+				const loading: ISessionCustomization[] = refs.map(r => ({
+					customization: r,
+					enabled: true,
+					status: CustomizationStatus.Loading,
+				}));
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionCustomizationsChanged,
+					session: action.session,
+					customizations: loading,
+				});
+				agent.setClientCustomizations(
+					action.activeClient!.clientId,
+					refs,
+					(synced) => {
+						// Incremental progress: publish updated statuses
+						const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+						this._stateManager.dispatchServerAction({
+							type: ActionType.SessionCustomizationsChanged,
+							session: action.session,
+							customizations: statuses,
+						});
+					},
+				).then(synced => {
+					// Final status
+					const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+					this._stateManager.dispatchServerAction({
+						type: ActionType.SessionCustomizationsChanged,
+						session: action.session,
+						customizations: statuses,
+					});
+				}).catch(err => {
+					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
+				});
+				break;
+			}
+			case ActionType.SessionCustomizationToggled: {
+				const agent = this._options.getAgent(action.session);
+				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
 				break;
 			}
 		}

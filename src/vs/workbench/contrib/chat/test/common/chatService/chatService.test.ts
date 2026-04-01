@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -45,7 +45,7 @@ import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -138,6 +138,7 @@ suite('ChatService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
+	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
 
 	let chatAgentService: IChatAgentService;
 	const testServices: ChatService[] = [];
@@ -188,12 +189,13 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
+		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
-					state: constObservable('idle'),
+					state: constObservable(ChatEditingSessionState.Idle),
 					requestDisablement: observableValue('requestDisablement', []),
-					entries: constObservable([]),
+					entries: editingSessionEntries,
 					dispose: () => { }
 				} as unknown as IChatEditingSession;
 			}
@@ -265,6 +267,46 @@ suite('ChatService', () => {
 		assert.ok(retrieved2, 'Should retrieve session 2');
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
+	});
+
+	test('reports modified edit keep-alive holders', () => {
+		const testService = createChatService();
+		instantiationService.stub(IChatService, testService);
+		const rootRef = testService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatServiceTest#root' });
+
+		const modifiedEntry = new class extends mock<IModifiedFileEntry>() {
+			override state = constObservable(ModifiedFileEntryState.Modified);
+		}();
+
+		editingSessionEntries.set([modifiedEntry], undefined);
+
+		assert.deepStrictEqual(testService.getChatModelReferenceDebugInfo().models.map(model => ({
+			createdBy: model.createdBy,
+			holders: model.holders,
+			hasPendingEdits: model.hasPendingEdits,
+			referenceCount: model.referenceCount,
+		})), [{
+			createdBy: 'ChatServiceTest#root',
+			holders: [
+				{ holder: 'ChatModel#modifiedEditsKeepAlive', count: 1 },
+				{ holder: 'ChatServiceTest#root', count: 1 }
+			],
+			hasPendingEdits: true,
+			referenceCount: 2,
+		}]);
+
+		editingSessionEntries.set([], undefined);
+		assert.deepStrictEqual(testService.getChatModelReferenceDebugInfo().models.map(model => ({
+			holders: model.holders,
+			hasPendingEdits: model.hasPendingEdits,
+			referenceCount: model.referenceCount,
+		})), [{
+			holders: [{ holder: 'ChatServiceTest#root', count: 1 }],
+			hasPendingEdits: false,
+			referenceCount: 1,
+		}]);
+
+		rootRef.dispose();
 	});
 
 	test('addCompleteRequest', async () => {

@@ -414,6 +414,13 @@ export interface IConfiguredHooksInfo {
 }
 
 /**
+ * Summary of hook discovery, including the resolved hooks info.
+ */
+export interface IHookDiscoveryInfo extends IPromptDiscoveryInfo {
+	readonly hooksInfo: IConfiguredHooksInfo | undefined;
+}
+
+/**
  * Provides prompt services.
  */
 export interface IPromptsService extends IDisposable {

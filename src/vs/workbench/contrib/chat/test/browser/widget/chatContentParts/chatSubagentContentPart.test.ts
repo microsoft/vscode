@@ -411,6 +411,55 @@ suite('ChatSubagentContentPart', () => {
 			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should be collapsed after markAsInactive');
 		});
 
+		test('markAsInactive should change default description to past tense', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					// no description — should use the default "Running subagent"
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Before marking inactive, title should show "Running subagent"
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const labelBefore = getCollapseButtonLabel(button);
+			const textBefore = labelBefore?.textContent ?? button.textContent ?? '';
+			assert.ok(textBefore.includes('Running subagent'), 'Title should show "Running subagent" before completion');
+
+			part.markAsInactive();
+
+			// After marking inactive, title should show "Ran subagent"
+			const labelAfter = getCollapseButtonLabel(button);
+			const textAfter = labelAfter?.textContent ?? button.textContent ?? '';
+			assert.ok(textAfter.includes('Ran subagent'), 'Title should show "Ran subagent" after completion');
+			assert.ok(!textAfter.includes('Running subagent'), 'Title should no longer show "Running subagent"');
+		});
+
+		test('markAsInactive should keep custom description unchanged', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Searching the codebase',
+					agentName: 'Explorer',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			part.markAsInactive();
+
+			// After marking inactive, title should still show the custom description
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const label = getCollapseButtonLabel(button);
+			const text = label?.textContent ?? button.textContent ?? '';
+			assert.ok(text.includes('Searching the codebase'), 'Title should keep custom description after completion');
+		});
+
 		test('finalizeTitle should update button icon to check', () => {
 			// Enable the showCheckmarks setting so the check icon is visible
 			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;

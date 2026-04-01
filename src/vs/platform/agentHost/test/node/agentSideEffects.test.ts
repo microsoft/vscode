@@ -19,7 +19,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { PendingMessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentService } from '../../node/agentService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -40,7 +40,7 @@ suite('AgentSideEffects', () => {
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 
-	function setupSession(): void {
+	function setupSession(workingDirectory?: string): void {
 		stateManager.createSession({
 			resource: sessionUri.toString(),
 			provider: 'mock',
@@ -48,6 +48,7 @@ suite('AgentSideEffects', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			workingDirectory,
 		});
 		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 	}
@@ -441,66 +442,322 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- Edit auto-approve patterns -----------------------------------------
+	// ---- handleAction: session/activeClientChanged ----------------------
 
-	suite('edit auto-approve patterns', () => {
+	suite('handleAction — session/activeClientChanged', () => {
 
-		test('auto-approves regular files with default patterns', () => {
+		test('calls setClientCustomizations and dispatches customizationsChanged', async () => {
 			setupSession();
-			disposables.add(sideEffects.registerProgressListener(agent));
-			startTurn('turn-1');
 
-			// Fire tool_start so the tool call exists in the state
-			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-1', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			// Fire tool_ready with write permission for a regular .ts file
-			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
+			const action: ISessionAction = {
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: {
+					clientId: 'test-client',
+					tools: [],
+					customizations: [
+						{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
+						{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
+					],
+				},
+			};
+			sideEffects.handleAction(action);
 
-			// The agent should have been auto-responded to with approved=true
-			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-1');
-			assert.ok(permCall, 'should auto-approve regular files with default patterns');
-			assert.strictEqual(permCall!.approved, true);
+			// Wait for async setClientCustomizations
+			await new Promise(r => setTimeout(r, 50));
 
-			// The tool call should NOT be in PendingConfirmation state (it was auto-approved)
-			const state = stateManager.getSessionState(sessionUri.toString());
-			const tcPart = state?.activeTurn?.responseParts.find(
-				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-1'
-			) as IToolCallResponsePart | undefined;
-			assert.ok(tcPart);
-			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.Running);
+			assert.deepStrictEqual(agent.setClientCustomizationsCalls, [{
+				clientId: 'test-client',
+				customizations: [
+					{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
+					{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
+				],
+			}]);
+
+			const customizationActions = envelopes
+				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
+			assert.ok(customizationActions.length >= 1, 'should dispatch at least one customizationsChanged');
 		});
 
-		test('default patterns block .env files', () => {
+		test('skips when activeClient has no customizations', () => {
 			setupSession();
-			disposables.add(sideEffects.registerProgressListener(agent));
-			startTurn('turn-1');
 
-			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-2', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
-			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-2', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env' });
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			// Should NOT have auto-responded
-			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-2');
-			assert.ok(!permCall, 'should not auto-approve .env files with default patterns');
+			const action: ISessionAction = {
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: {
+					clientId: 'test-client',
+					tools: [],
+				},
+			};
+			sideEffects.handleAction(action);
 
-			// The tool call should be in PendingConfirmation state
-			const state = stateManager.getSessionState(sessionUri.toString());
-			const tcPart = state?.activeTurn?.responseParts.find(
-				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-2'
-			) as IToolCallResponsePart | undefined;
-			assert.ok(tcPart);
-			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.PendingConfirmation);
+			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
+			const customizationActions = envelopes
+				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
+			assert.strictEqual(customizationActions.length, 0);
 		});
 
-		test('default patterns block .git files', () => {
+		test('skips when activeClient is null', () => {
 			setupSession();
-			disposables.add(sideEffects.registerProgressListener(agent));
+
+			const action: ISessionAction = {
+				type: ActionType.SessionActiveClientChanged,
+				session: sessionUri.toString(),
+				activeClient: null,
+			};
+			sideEffects.handleAction(action);
+
+			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
+		});
+	});
+
+	// ---- handleAction: session/customizationToggled ---------------------
+
+	suite('handleAction — session/customizationToggled', () => {
+
+		test('calls setCustomizationEnabled on the agent', () => {
+			setupSession();
+
+			const action: ISessionAction = {
+				type: ActionType.SessionCustomizationToggled,
+				session: sessionUri.toString(),
+				uri: 'file:///plugin-a',
+				enabled: false,
+			};
+			sideEffects.handleAction(action);
+
+			assert.deepStrictEqual(agent.setCustomizationEnabledCalls, [
+				{ uri: 'file:///plugin-a', enabled: false },
+			]);
+		});
+	});
+
+	// ---- handleAction: session/toolCallConfirmed ------------------------
+
+	suite('handleAction — session/toolCallConfirmed', () => {
+
+		test('routes confirmation to correct agent via _toolCallAgents', () => {
+			setupSession();
 			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-3', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
-			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-3', invocationMessage: 'Write .git/config', permissionKind: 'write', permissionPath: '/workspace/.git/config' });
+			// Fire tool_start to register the tool call
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-conf-1',
+				toolName: 'read',
+				displayName: 'Read File',
+				invocationMessage: 'Reading file',
+			});
 
-			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-3');
-			assert.ok(!permCall, 'should not auto-approve .git files with default patterns');
+			// Fire tool_ready asking for permission (non-write, so not auto-approved)
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-conf-1',
+				invocationMessage: 'Read file.txt',
+				confirmationTitle: 'Read file.txt',
+			});
+
+			// Now confirm the tool call
+			sideEffects.handleAction({
+				type: ActionType.SessionToolCallConfirmed,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				toolCallId: 'tc-conf-1',
+				approved: true,
+				confirmed: 'user-action' as const,
+			} as ISessionAction);
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-conf-1', approved: true },
+			]);
+		});
+
+		test('handles denial of tool call', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-deny-1',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Running command',
+			});
+
+			sideEffects.handleAction({
+				type: ActionType.SessionToolCallConfirmed,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				toolCallId: 'tc-deny-1',
+				approved: false,
+				reason: 'denied' as const,
+			} as ISessionAction);
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-deny-1', approved: false },
+			]);
+		});
+	});
+
+	// ---- Edit auto-approve ----------------------------------------------
+
+	suite('edit auto-approve', () => {
+
+		test('auto-approves writes to regular source files', async () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-auto-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write file',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-auto-1',
+				invocationMessage: 'Write src/app.ts',
+				permissionKind: 'write',
+				permissionPath: '/workspace/src/app.ts',
+			});
+
+			// Auto-approved writes call respondToPermissionRequest directly
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-auto-1', approved: true },
+			]);
+		});
+
+		test('blocks writes to .env files', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-env-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write .env',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-env-1',
+				invocationMessage: 'Write .env',
+				permissionKind: 'write',
+				permissionPath: '/workspace/.env',
+				confirmationTitle: 'Write .env',
+			});
+
+			// Should NOT auto-approve — .env is excluded
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+
+			// Should dispatch a tool_ready action for the client to confirm
+			const readyAction = envelopes.find(e => e.action.type === ActionType.SessionToolCallReady);
+			assert.ok(readyAction, 'should dispatch tool_ready for blocked write');
+		});
+
+		test('blocks writes to package.json', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-pkg-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write package.json',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-pkg-1',
+				invocationMessage: 'Write package.json',
+				permissionKind: 'write',
+				permissionPath: '/workspace/package.json',
+				confirmationTitle: 'Write package.json',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+		});
+
+		test('blocks writes to .lock files', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-lock-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write yarn.lock',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-lock-1',
+				invocationMessage: 'Write yarn.lock',
+				permissionKind: 'write',
+				permissionPath: '/workspace/yarn.lock',
+				confirmationTitle: 'Write yarn.lock',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+		});
+
+		test('blocks writes to .git directory', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-git-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write .git/config',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-git-1',
+				invocationMessage: 'Write .git/config',
+				permissionKind: 'write',
+				permissionPath: '/workspace/.git/config',
+				confirmationTitle: 'Write .git/config',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
 		});
 	});
 

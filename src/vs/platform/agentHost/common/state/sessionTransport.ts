@@ -12,7 +12,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse } from './sessionProtocol.js';
+import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse, IJsonRpcRequest } from './sessionProtocol.js';
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle
@@ -33,7 +33,21 @@ export interface IProtocolTransport extends IDisposable {
 	 * - `IAhpServerNotification` — server→client notifications.
 	 * - `IJsonRpcResponse` — dynamically-constructed success/error responses.
 	 */
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void;
+	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse | IJsonRpcRequest): void;
+}
+
+/**
+ * A client-side transport that requires an explicit connection step
+ * before messages can be exchanged.
+ */
+export interface IClientTransport extends IProtocolTransport {
+	/** Establish the underlying connection (e.g. open a WebSocket). */
+	connect(): Promise<void>;
+}
+
+/** Type guard for transports that require an explicit connection step. */
+export function isClientTransport(transport: IProtocolTransport): transport is IClientTransport {
+	return typeof (transport as IClientTransport).connect === 'function';
 }
 
 /**

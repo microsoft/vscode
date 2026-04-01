@@ -539,7 +539,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
 		isolation: 'none',
 		displayMode: { type: 'component' },
-		properties: [],
 		background: theme === darkTheme ? 'dark' : 'light',
 		render: (container: HTMLElement) => {
 			const disposableStore = new DisposableStore();

@@ -34,9 +34,9 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 		fileService: IFileService,
 		pathService: IPathService,
 		logService: ILogService,
-		instantiationService: IInstantiationService,
+		workspaceContextService: IWorkspaceContextService,
 	) {
-		super(fileService, pathService, logService, instantiationService);
+		super(fileService, pathService, logService, workspaceContextService);
 	}
 
 	start(enablementModel: IEnablementModel): void {
@@ -93,7 +93,7 @@ suite('AgentPlugin format detection', () => {
 			fileService,
 			instantiationService.get(IPathService),
 			logService,
-			instantiationService,
+			instantiationService.get(IWorkspaceContextService),
 		));
 	}
 

@@ -199,7 +199,7 @@ When the setting is `'all'`:
 The setting `workbench.editor.useModal` is an enum with three values:
 - `'off'`: Editors never open in a modal overlay
 - `'some'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
-- `'all'`: All editors open in a modal overlay (used by sessions window)
+- `'all'`: All editors open in a modal overlay (used by agent sessions window)
 
 
 ---

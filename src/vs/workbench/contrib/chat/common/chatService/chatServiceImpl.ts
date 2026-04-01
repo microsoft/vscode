@@ -370,7 +370,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 			sessionResource ??= LocalChatSessionUri.forSession(session.sessionId);
 
-			const sessionRef = await this.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			const sessionRef = await this.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatService#reviveSessionsWithEdits');
 			if (sessionRef?.object.editingSession) {
 				await chatEditingSessionIsReady(sessionRef.object.editingSession);
 				// the session will hold a self-reference as long as there are modified files
@@ -456,7 +456,7 @@ export class ChatService extends Disposable implements IChatService {
 			sessionResource,
 			canUseTools: options?.canUseTools ?? true,
 			disableBackgroundKeepAlive: options?.disableBackgroundKeepAlive
-		});
+		}, options?.debugOwner ?? 'ChatService#startNewLocalSession');
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
@@ -508,13 +508,17 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionResource);
 	}
 
-	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined {
-		return this._sessionModels.acquireExisting(sessionResource);
+	acquireExistingSession(sessionResource: URI, debugOwner?: string): IChatModelReference | undefined {
+		return this._sessionModels.acquireExisting(sessionResource, debugOwner ?? 'ChatService#acquireExistingSession');
 	}
 
-	private async acquireOrRestoreLocalSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
+	getChatModelReferenceDebugInfo() {
+		return this._sessionModels.getReferenceDebugSnapshot();
+	}
+
+	private async acquireOrRestoreLocalSession(sessionResource: URI, debugOwner?: string): Promise<IChatModelReference | undefined> {
 		this.trace('acquireOrRestoreSession', `${sessionResource}`);
-		const existingRef = this.acquireExistingSession(sessionResource);
+		const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 		if (existingRef) {
 			return existingRef;
 		}
@@ -539,7 +543,7 @@ export class ChatService extends Disposable implements IChatService {
 			location: sessionData.value.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			canUseTools: true,
-		});
+		}, debugOwner ?? 'ChatService#acquireOrRestoreLocalSession');
 
 		return sessionRef;
 	}
@@ -556,7 +560,7 @@ export class ChatService extends Disposable implements IChatService {
 			this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.title;
 	}
 
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference {
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, debugOwner?: string): IChatModelReference {
 		const sessionId = (data as ISerializableChatData).sessionId ?? generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
@@ -564,22 +568,22 @@ export class ChatService extends Disposable implements IChatService {
 			location: data.initialLocation ?? ChatAgentLocation.Chat,
 			sessionResource,
 			canUseTools: true,
-		});
+		}, debugOwner ?? 'ChatService#loadSessionFromData');
 	}
 
-	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
+	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
 		if (sessionResource.scheme === Schemas.vscodeLocalChatSession) {
-			return this.acquireOrRestoreLocalSession(sessionResource);
+			return this.acquireOrRestoreLocalSession(sessionResource, debugOwner);
 		} else {
-			return this.loadRemoteSession(sessionResource, location, token);
+			return this.loadRemoteSession(sessionResource, location, token, debugOwner);
 		}
 	}
 
-	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
+	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string): Promise<IChatModelReference | undefined> {
 		// Check if session already exists before resolving the provider,
 		// so we can return a cached model even if the provider was unregistered.
 		{
-			const existingRef = this.acquireExistingSession(sessionResource);
+			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
 				return existingRef;
 			}
@@ -593,7 +597,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		// Make sure we haven't created this in the meantime
 		{
-			const existingRef = this.acquireExistingSession(sessionResource);
+			const existingRef = this.acquireExistingSession(sessionResource, debugOwner);
 			if (existingRef) {
 				providedSession.dispose();
 				return existingRef;
@@ -644,7 +648,7 @@ export class ChatService extends Disposable implements IChatService {
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
 			inputState: providedSession.transferredState?.inputState,
-		});
+		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
 		// Restore permission level from metadata even when initialData was not constructed
 		if (storedPermissionLevel && !initialData) {

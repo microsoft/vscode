@@ -145,9 +145,9 @@ export class LaunchMainService implements ILaunchMainService {
 			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
-		// Sessions window
-		else if (args['sessions'] && this.productService.quality !== 'stable') {
-			usedWindows = await this.windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
+		// Agents window
+		else if (args['agents'] && this.productService.quality !== 'stable') {
+			usedWindows = await this.windowsMainService.openAgentsWindow({ context, contextWindowId: undefined });
 		}
 
 		// Start without file/folder arguments

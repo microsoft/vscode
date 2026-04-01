@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatDetail, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
+import type { IChatModelReferenceDebugSnapshot } from '../../../common/model/chatModelStore.js';
 
 export class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
@@ -96,15 +97,19 @@ export class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference {
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData, _debugOwner?: string): IChatModelReference {
 		throw new Error('Method not implemented.');
 	}
 
-	acquireOrLoadSession(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<IChatModelReference | undefined> {
+	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot {
+		return { totalModels: 0, totalReferences: 0, models: [] };
+	}
+
+	acquireOrLoadSession(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken, _debugOwner?: string): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
 
-	acquireExistingSession(_sessionResource: URI): IChatModelReference | undefined {
+	acquireExistingSession(_sessionResource: URI, _debugOwner?: string): IChatModelReference | undefined {
 		return undefined;
 	}
 

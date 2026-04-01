@@ -388,19 +388,21 @@ export class UpdateTooltip extends Disposable {
 		this.renderMessage(localize('updateTooltip.restartingPleaseWait', "Restarting to update, please wait..."));
 	}
 
-	public async renderPostInstall(): Promise<boolean> {
+	public async renderPostInstall(markdown?: string): Promise<boolean> {
 		this.hideAll();
 		this.renderTitleAndInfo(localize('updateTooltip.installedDefaultTitle', "New Update Installed"));
 		this.renderMessage(
 			localize('updateTooltip.installedDefaultMessage', "See release notes for details on what's new in this release."),
 			Codicon.info);
 
-		let text = null;
-		try {
-			const url = getUpdateInfoUrl(this.productService.version);
-			const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
-			text = await asTextOrError(context);
-		} catch { }
+		let text: string | null = markdown ?? null;
+		if (!text) {
+			try {
+				const url = getUpdateInfoUrl(this.productService.version);
+				const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
+				text = await asTextOrError(context);
+			} catch { }
+		}
 
 		if (!text) {
 			return false;

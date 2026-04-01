@@ -48,7 +48,8 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { ChatRequestHooks, IHookCommand, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { ChatRequestHooks, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { type IParsedHookCommand } from '../../../platform/agentPlugins/common/pluginParsers.js';
 import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -4154,7 +4155,7 @@ export namespace ChatRequestHooksConverter {
 }
 
 export namespace ChatHookCommand {
-	export function to(hook: IHookCommand): vscode.ChatHookCommand | undefined {
+	export function to(hook: IParsedHookCommand): vscode.ChatHookCommand | undefined {
 		const command = resolveEffectiveCommand(hook, OS);
 		if (!command) {
 			return undefined;

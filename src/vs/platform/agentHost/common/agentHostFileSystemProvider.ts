@@ -10,6 +10,7 @@ import { basename, dirname } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat } from '../../files/common/files.js';
 import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
+import { type IAgentConnection } from './agentService.js';
 import { IBrowseDirectoryResult, IDirectoryEntry, IFetchContentResult } from './state/protocol/commands.js';
 
 /**
@@ -38,22 +39,32 @@ export function agentHostRemotePath(uri: URI): string {
 	return fromAgentHostUri(uri).path;
 }
 
+// ---- Remote filesystem connection -------------------------------------------
+
+/**
+ * Minimal interface for browsing and fetching files from a remote endpoint.
+ *
+ * Both {@link IAgentConnection} (client→server) and client-exposed
+ * filesystems (server→client) satisfy this contract.
+ */
+export interface IRemoteFilesystemConnection {
+	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	fetchContent(uri: URI): Promise<IFetchContentResult>;
+}
+
+// ---- Abstract base ----------------------------------------------------------
+
 /**
  * Read-only {@link IFileSystemProvider} that proxies filesystem operations
- * through the agent host protocol.
+ * through a {@link IRemoteFilesystemConnection}.
  *
- * Registered under the {@link AGENT_HOST_SCHEME} scheme. URIs encode the
- * original scheme and authority in the path so any remote resource can be
- * represented (not just `file://`):
+ * URIs encode the original scheme and authority in the path so any remote
+ * resource can be represented. Subclasses provide the URI decode function
+ * and scheme-specific helpers.
  *
- * ```
- * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority]/[originalPath]
- * ```
- *
- * Individual connections are identified by the URI's authority component,
- * which is the sanitized remote address.
+ * Individual connections are identified by the URI's authority component.
  */
-export class AgentHostFileSystemProvider extends Disposable implements IFileSystemProvider {
+export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider {
 
 	readonly capabilities =
 		FileSystemProviderCapabilities.Readonly |
@@ -69,13 +80,16 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	private readonly _authorityToConnection = new Map<string, IRemoteFilesystemConnection>();
 
 	/**
-	 * Register a mapping from a URI authority to an agent connection.
+	 * Register a mapping from a URI authority to a connection.
 	 * Returns a disposable that unregisters the mapping.
 	 */
 	registerAuthority(authority: string, connection: IRemoteFilesystemConnection): IDisposable {
 		this._authorityToConnection.set(authority, connection);
 		return toDisposable(() => this._authorityToConnection.delete(authority));
 	}
+
+	/** Decode a provider URI back to the original URI for the remote endpoint. */
+	protected abstract _decodeUri(resource: URI): URI;
 
 	watch(): IDisposable {
 		return Disposable.None;
@@ -84,12 +98,10 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	async stat(resource: URI): Promise<IStat> {
 		const path = resource.path;
 
-		// Root directory - either the bare scheme root or the root of the
-		// decoded remote filesystem (e.g. `/file/-/` decodes to `file:///`).
 		if (path === '/' || path === '') {
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
-		const decoded = fromAgentHostUri(resource);
+		const decoded = this._decodeUri(resource);
 		if (decoded.scheme === 'session-db') {
 			return { type: FileType.File, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
@@ -98,7 +110,6 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 			return { type: FileType.Directory, mtime: 0, ctime: 0, size: 0, permissions: FilePermission.Readonly };
 		}
 
-		// Use URI dirname/basename to find the parent and entry name
 		const parentUri = dirname(resource);
 		const name = basename(resource);
 
@@ -122,12 +133,10 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 		return entries.map(e => [e.name, e.type === 'directory' ? FileType.Directory : FileType.File]);
 	}
 
-	// ---- Read-only stubs (required by interface) ----------------------------
-
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const connection = this._getConnection(resource.authority);
 		try {
-			const originalUri = fromAgentHostUri(resource);
+			const originalUri = this._decodeUri(resource);
 			const result = await connection.fetchContent(originalUri);
 			return VSBuffer.fromString(result.data).buffer;
 		} catch (err) {
@@ -139,24 +148,24 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	}
 
 	async writeFile(_resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
-		throw createFileSystemProviderError('writeFile not supported on remote agent host filesystem', FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError('writeFile not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	async mkdir(): Promise<void> {
-		throw createFileSystemProviderError('mkdir not supported on remote agent host filesystem', FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError('mkdir not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	async delete(_resource: URI, _opts: IFileDeleteOptions): Promise<void> {
-		throw createFileSystemProviderError('delete not supported on remote agent host filesystem', FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError('delete not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	async rename(_from: URI, _to: URI, _opts: IFileOverwriteOptions): Promise<void> {
-		throw createFileSystemProviderError('rename not supported on remote agent host filesystem', FileSystemProviderErrorCode.NoPermissions);
+		throw createFileSystemProviderError('rename not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	// ---- Internals ----------------------------------------------------------
 
-	private _getConnection(authority: string) {
+	private _getConnection(authority: string): IRemoteFilesystemConnection {
 		const connection = this._authorityToConnection.get(authority);
 		if (!connection) {
 			throw createFileSystemProviderError(`No connection for authority: ${authority}`, FileSystemProviderErrorCode.Unavailable);
@@ -167,7 +176,7 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 	private async _listDirectory(authority: string, resource: URI): Promise<readonly IDirectoryEntry[]> {
 		const connection = this._getConnection(authority);
 		try {
-			const originalUri = fromAgentHostUri(resource);
+			const originalUri = this._decodeUri(resource);
 			const result = await connection.browseDirectory(originalUri);
 			return result.entries;
 		} catch (err) {
@@ -176,5 +185,21 @@ export class AgentHostFileSystemProvider extends Disposable implements IFileSyst
 				FileSystemProviderErrorCode.Unavailable,
 			);
 		}
+	}
+}
+
+// ---- Agent Host filesystem (client reads agent host files) ------------------
+
+/**
+ * Read-only filesystem provider for accessing agent host files from the
+ * client side. Registered under the `vscode-agent-host` scheme.
+ *
+ * ```
+ * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority]/[originalPath]
+ * ```
+ */
+export class AgentHostFileSystemProvider extends AHPFileSystemProvider {
+	protected _decodeUri(resource: URI): URI {
+		return fromAgentHostUri(resource);
 	}
 }

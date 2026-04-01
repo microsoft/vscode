@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Sessions Provider architecture introduces an **extensible provider model** for managing agent sessions in the Sessions window. Instead of hardcoding session types and backends, multiple providers register with a central registry (`ISessionsProvidersService`), which aggregates sessions from all providers and routes actions to the correct one.
+The Sessions Provider architecture introduces an **extensible provider model** for managing agent sessions in the Agent Sessions window. Instead of hardcoding session types and backends, multiple providers register with a central registry (`ISessionsProvidersService`), which aggregates sessions from all providers and routes actions to the correct one.
 
 This design allows new compute environments (remote agent hosts, cloud backends, third-party agents) to plug in without modifying core session management code.
 

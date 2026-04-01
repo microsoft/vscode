@@ -6,11 +6,16 @@
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -78,5 +83,388 @@ registerAction2(class extends Action2 {
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
 		}
+	}
+});
+
+// ---- Connect via SSH -------------------------------------------------------
+
+interface ISSHAuthMethodPickItem extends IQuickPickItem {
+	readonly method: SSHAuthMethod;
+}
+
+interface ISSHHostPickItem extends IQuickPickItem {
+	readonly hostAlias?: string;
+}
+
+async function promptToConnectViaSSH(
+	accessor: ServicesAccessor,
+): Promise<void> {
+	const sshService = accessor.get(ISSHRemoteAgentHostService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const notificationService = accessor.get(INotificationService);
+	const instantiationService = accessor.get(IInstantiationService);
+
+	let host: string;
+	let username: string | undefined;
+	let port: number | undefined;
+	let resolvedConfig: ISSHResolvedConfig | undefined;
+	let suggestedName: string | undefined;
+	let defaultAuthMethod: SSHAuthMethod | undefined;
+	let defaultKeyPath: string | undefined;
+
+	const configHosts = await sshService.listSSHConfigHosts().catch(() => [] as string[]);
+	if (configHosts.length > 0) {
+		const hostPicks: ISSHHostPickItem[] = configHosts.map(h => ({
+			label: h,
+			hostAlias: h,
+		}));
+		hostPicks.push({
+			label: localize('sshEnterManually', "Enter Manually..."),
+			description: localize('sshEnterManuallyDesc', "Type in host, username, and port"),
+		});
+
+		const picked = await quickInputService.pick(hostPicks, {
+			title: localize('sshHostTitle', "Connect via SSH"),
+			placeHolder: localize('sshPickHostPlaceholder', "Select an SSH host or enter manually"),
+		});
+		if (!picked) {
+			return;
+		}
+
+		if (picked.hostAlias) {
+			try {
+				resolvedConfig = await sshService.resolveSSHConfig(picked.hostAlias);
+			} catch (err) {
+				notificationService.error(localize('sshResolveConfigFailed', "Failed to resolve SSH config for {0}: {1}", picked.hostAlias, String(err)));
+				return;
+			}
+
+			host = resolvedConfig.hostname;
+			username = resolvedConfig.user;
+			port = resolvedConfig.port !== 22 ? resolvedConfig.port : undefined;
+			suggestedName = picked.hostAlias;
+
+			// Determine auth method from resolved config
+			if (resolvedConfig.identityFile.length > 0) {
+				const firstKey = resolvedConfig.identityFile[0];
+				const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
+				if (!defaultKeys.includes(firstKey)) {
+					defaultAuthMethod = SSHAuthMethod.KeyFile;
+					defaultKeyPath = firstKey;
+				}
+			}
+			// If no explicit key, default to SSH agent
+			if (!defaultAuthMethod) {
+				defaultAuthMethod = SSHAuthMethod.Agent;
+			}
+
+			// Config host has enough info — connect directly, skip all prompts
+			if (username) {
+				const config: ISSHAgentHostConfig = {
+					host,
+					port,
+					username,
+					authMethod: defaultAuthMethod,
+					privateKeyPath: defaultKeyPath,
+					name: suggestedName,
+					sshConfigHost: picked.hostAlias,
+				};
+				const connection = await instantiationService.invokeFunction(accessor =>
+					connectWithProgress(accessor, config, suggestedName!)
+				);
+				if (connection) {
+					await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+				}
+				return;
+			}
+		} else {
+			const manualResult = await promptForManualHost(quickInputService);
+			if (!manualResult) {
+				return;
+			}
+			host = manualResult.host;
+			username = manualResult.username;
+			port = manualResult.port;
+		}
+	} else {
+		const manualResult = await promptForManualHost(quickInputService);
+		if (!manualResult) {
+			return;
+		}
+		host = manualResult.host;
+		username = manualResult.username;
+		port = manualResult.port;
+	}
+
+	if (!username) {
+		const usernameInput = await quickInputService.input({
+			title: localize('sshUsernameTitle', "SSH Username"),
+			prompt: localize('sshUsernamePrompt', "Enter the username for {0}.", host),
+			placeHolder: 'root',
+			ignoreFocusLost: true,
+			validateInput: async value => value.trim() ? undefined : localize('sshUsernameEmpty', "Enter a username."),
+		});
+		if (!usernameInput) {
+			return;
+		}
+		username = usernameInput.trim();
+	}
+
+	const authPicks: ISSHAuthMethodPickItem[] = [
+		{
+			method: SSHAuthMethod.Agent,
+			label: localize('sshAuthAgent', "SSH Agent"),
+			description: localize('sshAuthAgentDesc', "Use the running SSH agent for authentication"),
+		},
+		{
+			method: SSHAuthMethod.KeyFile,
+			label: localize('sshAuthKey', "Private Key File"),
+			description: localize('sshAuthKeyDesc', "Authenticate with a private key file"),
+		},
+		{
+			method: SSHAuthMethod.Password,
+			label: localize('sshAuthPassword', "Password"),
+			description: localize('sshAuthPasswordDesc', "Authenticate with a password"),
+		},
+	];
+
+	let authMethod: SSHAuthMethod;
+	if (defaultAuthMethod) {
+		authMethod = defaultAuthMethod;
+	} else {
+		const authPicked = await quickInputService.pick(authPicks, {
+			title: localize('sshAuthTitle', "Authentication Method"),
+			placeHolder: localize('sshAuthPlaceholder', "Choose how to authenticate with {0}", host),
+		});
+		if (!authPicked) {
+			return;
+		}
+		authMethod = authPicked.method;
+	}
+
+	let privateKeyPath: string | undefined;
+	let password: string | undefined;
+
+	if (authMethod === SSHAuthMethod.KeyFile) {
+		const keyPath = await quickInputService.input({
+			title: localize('sshKeyTitle', "Private Key Path"),
+			prompt: localize('sshKeyPrompt', "Enter the path to your SSH private key."),
+			placeHolder: '~/.ssh/id_rsa',
+			value: defaultKeyPath ?? '~/.ssh/id_rsa',
+			ignoreFocusLost: true,
+			validateInput: async value => value.trim() ? undefined : localize('sshKeyEmpty', "Enter a key file path."),
+		});
+		if (!keyPath) {
+			return;
+		}
+		privateKeyPath = keyPath.trim();
+	} else if (authMethod === SSHAuthMethod.Password) {
+		const pw = await quickInputService.input({
+			title: localize('sshPasswordTitle', "SSH Password"),
+			prompt: localize('sshPasswordPrompt', "Enter the password for {0}@{1}.", username, host),
+			password: true,
+			ignoreFocusLost: true,
+			validateInput: async value => value ? undefined : localize('sshPasswordEmpty', "Enter a password."),
+		});
+		if (!pw) {
+			return;
+		}
+		password = pw;
+	}
+
+	const defaultName = suggestedName ?? `${username}@${host}`;
+	const name = await quickInputService.input({
+		title: localize('sshNameTitle', "Name Remote"),
+		prompt: localize('sshNamePrompt', "Enter a display name for this SSH remote."),
+		placeHolder: localize('sshNamePlaceholder', "My Remote"),
+		value: defaultName,
+		valueSelection: [0, defaultName.length],
+		ignoreFocusLost: true,
+		validateInput: async value => value.trim() ? undefined : localize('sshNameEmpty', "Enter a name."),
+	});
+	if (!name) {
+		return;
+	}
+
+	const config: ISSHAgentHostConfig = {
+		host,
+		port,
+		username,
+		authMethod,
+		privateKeyPath,
+		password,
+		name: name.trim(),
+	};
+
+	const connection = await instantiationService.invokeFunction(accessor =>
+		connectWithProgress(accessor, config, host)
+	);
+	if (connection) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+	}
+}
+
+async function connectWithProgress(
+	accessor: ServicesAccessor,
+	config: ISSHAgentHostConfig,
+	displayHost: string,
+): Promise<ISSHAgentHostConnection | undefined> {
+	const sshService = accessor.get(ISSHRemoteAgentHostService);
+	const notificationService = accessor.get(INotificationService);
+
+	const handle = notificationService.notify({
+		severity: Severity.Info,
+		message: localize('sshConnecting', "Connecting to {0} via SSH...", displayHost),
+		progress: { infinite: true },
+	});
+
+	// Build the expected connection key to filter progress events.
+	// Must match the key logic in the shared process service.
+	const expectedKey = config.sshConfigHost
+		? `ssh:${config.sshConfigHost}`
+		: `${config.username}@${config.host}:${config.port ?? 22}`;
+
+	const progressListener = sshService.onDidReportConnectProgress?.(progress => {
+		if (progress.connectionKey === expectedKey) {
+			handle.updateMessage(progress.message);
+		}
+	});
+
+	try {
+		const connection = await sshService.connect(config);
+		handle.close();
+		return connection;
+	} catch (err) {
+		handle.close();
+		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", displayHost, String(err)));
+		return undefined;
+	} finally {
+		progressListener?.dispose();
+	}
+}
+
+/**
+ * After a successful SSH connection, show the remote folder picker and
+ * pre-select the chosen folder in the workspace picker.
+ */
+async function promptForRemoteFolder(
+	accessor: ServicesAccessor,
+	connection: ISSHAgentHostConnection,
+): Promise<void> {
+	const viewsService = accessor.get(IViewsService);
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+	// The provider is created synchronously during addSSHConnection's
+	// onDidChangeConnections event, so it should exist by now.
+	const provider = sessionsProvidersService.getProviders().find(p => p.remoteAddress === connection.localAddress);
+	if (!provider) {
+		return;
+	}
+
+	// Use the provider's existing browse action to show the folder picker
+	const browseAction = provider.browseActions[0];
+	if (!browseAction) {
+		return;
+	}
+
+	const workspace = await browseAction.execute();
+	if (!workspace) {
+		return;
+	}
+
+	sessionsManagementService.openNewSessionView();
+	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
+	view?.selectWorkspace({ providerId: provider.id, workspace });
+}
+
+async function promptForManualHost(
+	quickInputService: IQuickInputService,
+): Promise<{ host: string; username: string | undefined; port: number | undefined } | undefined> {
+	const validateSshHostInput = (value: string): string | undefined => {
+		const v = value.trim();
+		if (!v) {
+			return localize('sshHostEmpty', "Enter an SSH host.");
+		}
+		const atIdx = v.indexOf('@');
+		if (atIdx === 0) {
+			return localize('sshUsernameMissingInHost', "Enter a username before '@'.");
+		}
+		if (atIdx === v.length - 1) {
+			return localize('sshHostMissingAfterAt', "Enter a host name after '@'.");
+		}
+		const hostPart = atIdx !== -1 ? v.substring(atIdx + 1) : v;
+		if (!hostPart) {
+			return localize('sshHostMissingAfterAt', "Enter a host name after '@'.");
+		}
+		const colonIdx = hostPart.lastIndexOf(':');
+		if (colonIdx !== -1) {
+			const hostName = hostPart.substring(0, colonIdx);
+			const portStr = hostPart.substring(colonIdx + 1);
+			if (!hostName) {
+				return localize('sshHostMissingAfterAt', "Enter a host name after '@'.");
+			}
+			if (portStr) {
+				const portNum = Number(portStr);
+				if (!Number.isInteger(portNum) || portNum <= 0 || portNum > 65535) {
+					return localize('sshHostInvalidPort', "Enter a valid port number.");
+				}
+			}
+		}
+		return undefined;
+	};
+
+	const hostInput = await quickInputService.input({
+		title: localize('sshManualHostTitle', "Connect via SSH"),
+		prompt: localize('sshHostPrompt', "Enter the SSH host (e.g. user@hostname or user@hostname:port)."),
+		placeHolder: 'user@myserver.example.com',
+		ignoreFocusLost: true,
+		validateInput: async value => validateSshHostInput(value),
+	});
+	if (!hostInput) {
+		return undefined;
+	}
+
+	const trimmed = hostInput.trim();
+	let username: string | undefined;
+	let host: string;
+	let port: number | undefined;
+	const atIndex = trimmed.indexOf('@');
+
+	let hostPart: string;
+	if (atIndex !== -1) {
+		username = trimmed.substring(0, atIndex);
+		hostPart = trimmed.substring(atIndex + 1);
+	} else {
+		hostPart = trimmed;
+	}
+
+	const colonIndex = hostPart.lastIndexOf(':');
+	if (colonIndex !== -1) {
+		host = hostPart.substring(0, colonIndex);
+		const portStr = hostPart.substring(colonIndex + 1);
+		if (portStr) {
+			port = Number(portStr);
+		}
+	} else {
+		host = hostPart;
+	}
+
+	return { host, username, port };
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.connectViaSSH',
+			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await promptToConnectViaSSH(accessor);
 	}
 });

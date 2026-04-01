@@ -12,6 +12,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { alreadyOpenResult, createBrowserPageLink, findExistingPageByHost } from './browserToolHelpers.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
 	...OpenBrowserToolData,
@@ -49,6 +51,13 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
+		if (!params.forceNew) {
+			const existing = await findExistingPageByHost(this.editorService, undefined, params.url);
+			if (existing) {
+				return alreadyOpenResult(existing);
+			}
+		}
+
 		logBrowserOpen(this.telemetryService, 'chatTool');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
@@ -58,7 +67,8 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 			content: [{
 				kind: 'text',
 				value: `Page opened successfully. Note that you do not have access to the page contents unless the user enables agentic tools via the \`workbench.browser.enableChatTools\` setting.`,
-			}]
+			}],
+			toolResultMessage: new MarkdownString(localize('browser.open.nonAgentic.result', "Opened {0}", createBrowserPageLink(browserUri)))
 		};
 	}
 }

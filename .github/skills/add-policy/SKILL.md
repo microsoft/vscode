@@ -124,15 +124,62 @@ npm run compile-check-ts-native
 Regenerate the auto-generated policy catalog:
 
 ```bash
-npm run transpile-client && ./scripts/code.sh --export-policy-data
+npm run export-policy-data
 ```
+
+This script handles transpilation, sets up `GITHUB_TOKEN` (via `gh` CLI or GitHub OAuth device flow), and runs `--export-policy-data`. The export command reads extension configuration policies from the distro's `product.json` via the GitHub API and merges them into the output.
 
 This updates `build/lib/policies/policyData.jsonc`. **Never edit this file manually.** Verify your new policy appears in the output.  You will need code review from a codeowner to merge the change to main.
 
 
 ## Policy for extension-provided settings
 
-For an extension author to provide policies for their extension's settings, a change must be made in `vscode-distro` to the `product.json`.
+Extension authors cannot add `policy:` fields directly—their settings are defined in the extension's `package.json`, not in VS Code core. Instead, policies for extension settings are defined in `vscode-distro`'s `product.json` under the `extensionConfigurationPolicy` key.
+
+### How it works
+
+1. **Source of truth**: The `extensionConfigurationPolicy` map lives in `vscode-distro` under `mixin/{quality}/product.json` (stable, insider, exploration).
+2. **Runtime**: When VS Code starts with a distro-mixed `product.json`, `configurationExtensionPoint.ts` reads `extensionConfigurationPolicy` and attaches matching `policy` objects to extension-contributed configuration properties.
+3. **Export/build**: The `--export-policy-data` command fetches the distro's `product.json` at the commit pinned in `package.json` and merges extension policies into the output. Use `npm run export-policy-data` which sets up authentication automatically.
+
+### Distro format
+
+Each entry in `extensionConfigurationPolicy` must include:
+
+```json
+"extensionConfigurationPolicy": {
+    "publisher.extension.settingName": {
+        "name": "PolicyName",
+        "category": "InteractiveSession",
+        "minimumVersion": "1.99",
+        "description": "Human-readable description."
+    }
+}
+```
+
+- `name`: PascalCase policy name, unique across all policies
+- `category`: Must be a valid `PolicyCategory` enum value (e.g., `InteractiveSession`, `Extensions`)
+- `minimumVersion`: The VS Code version that first shipped this policy
+- `description`: Human-readable description string used to generate localization key/value pairs for ADMX/ADML/macOS/Linux policy artifacts
+
+### Adding a new extension policy
+
+1. Add the entry to `extensionConfigurationPolicy` in **all three** quality `product.json` files in `vscode-distro` (`mixin/stable/`, `mixin/insider/`, `mixin/exploration/`)
+2. Update the `distro` commit hash in `package.json` to point to the distro commit that includes your new entry — the export command fetches extension policies from the pinned distro commit
+3. Regenerate `policyData.jsonc` by running `npm run export-policy-data` (see Step 4 above)
+4. Update the test fixture at `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` with the new entry
+
+### Test fixtures
+
+The file `src/vs/workbench/contrib/policyExport/test/node/extensionPolicyFixture.json` is a test fixture that must stay in sync with the extension policies in the checked-in `policyData.jsonc`. When extension policies are added or changed in the distro, this fixture must be updated to match — otherwise the integration test will fail because the test output (generated from the fixture) won't match the checked-in file (generated from the real distro).
+
+### Downstream consumers
+
+| Consumer | What it reads | Output |
+|----------|--------------|--------|
+| `policyGenerator.ts` | `policyData.jsonc` | ADMX/ADML (Windows GP), `.mobileconfig` (macOS), `policy.json` (Linux) |
+| `vscode-website` (`gulpfile.policies.js`) | `policyData.jsonc` | Enterprise policy reference table at code.visualstudio.com/docs/enterprise/policies |
+| `vscode-docs` | Generated from website build | `docs/enterprise/policies.md` |
 
 ## Examples
 

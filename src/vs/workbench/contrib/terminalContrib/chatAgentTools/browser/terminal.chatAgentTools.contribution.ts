@@ -24,6 +24,7 @@ import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalT
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
+import { SendToTerminalTool, SendToTerminalToolData } from './tools/sendToTerminalTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
 import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTerminalTool.js';
@@ -104,6 +105,10 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		const killTerminalTool = _instantiationService.createInstance(KillTerminalTool);
 		this._register(_toolsService.registerTool(KillTerminalToolData, killTerminalTool));
 		this._register(_toolsService.executeToolSet.addTool(KillTerminalToolData));
+
+		const sendToTerminalTool = _instantiationService.createInstance(SendToTerminalTool);
+		this._register(_toolsService.registerTool(SendToTerminalToolData, sendToTerminalTool));
+		this._register(_toolsService.executeToolSet.addTool(SendToTerminalToolData));
 
 		this._registerRunInTerminalTool();
 

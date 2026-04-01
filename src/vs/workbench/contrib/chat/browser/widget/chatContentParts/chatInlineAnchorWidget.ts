@@ -50,6 +50,10 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 
 /**
  * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
@@ -153,6 +157,7 @@ export class InlineAnchorWidget extends Disposable {
 		@IThemeService themeService: IThemeService,
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -183,6 +188,7 @@ export class InlineAnchorWidget extends Disposable {
 			location = this.data;
 
 			const filePathLabel = this.metadata?.linkText ?? labelService.getUriBasenameLabel(location.uri);
+			let defaultIcon: ThemeIcon | undefined;
 
 			if (location.range && this.data.kind !== 'symbol') {
 				const suffix = location.range.startLineNumber === location.range.endLineNumber
@@ -192,12 +198,16 @@ export class InlineAnchorWidget extends Disposable {
 				iconText = [filePathLabel, dom.$('span.label-suffix', undefined, suffix)];
 			} else if (location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol') {
 				iconText = [`${filePathLabel} • cell${this.getCellIndex(location.uri)}`];
+			} else if (location.uri.scheme === Schemas.vscodeBrowser) {
+				defaultIcon = Codicon.globe;
+				const editorName = this.editorService.findEditors(location.uri)[0]?.editor?.getName() ?? BrowserEditorInput.DEFAULT_LABEL;
+				iconText = [editorName];
 			} else {
 				iconText = [filePathLabel];
 			}
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
+			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : defaultIcon);
 
 			iconClasses = recomputeIconClasses();
 
