@@ -775,4 +775,3 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			return configurationKeyValuePairs;
 		}
 	}]);
-
