@@ -483,7 +483,8 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	}
 
 	private _getAllHarnesses(): readonly IHarnessDescriptor[] {
-		// External harnesses override static ones with the same id
+		// External harnesses shadow static ones with the same id so that
+		// extension-contributed harnesses can upgrade a built-in entry.
 		const externalIds = new Set(this._externalHarnesses.map(h => h.id));
 		return [
 			...this._staticHarnesses.filter(h => !externalIds.has(h.id)),
@@ -505,7 +506,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					this._externalHarnesses.splice(idx, 1);
 					this._refreshAvailableHarnesses();
 					// If the removed harness was active, only fall back when no
-					// remaining harness (e.g. a restored static one) shares the id.
+					// remaining harness (e.g. the restored static one) shares the id.
 					if (this._activeHarness.get() === descriptor.id) {
 						const all = this._getAllHarnesses();
 						if (!all.some(h => h.id === descriptor.id) && all.length > 0) {
