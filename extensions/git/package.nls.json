@@ -133,6 +133,7 @@
 	"command.timelineCopyCommitMessage": "Copy Commit Message",
 	"command.timelineSelectForCompare": "Select for Compare",
 	"command.timelineCompareWithSelected": "Compare with Selected",
+	"command.timelineOpenDiffWithWorking": "Open Changes with Working File",
 	"command.manageUnsafeRepositories": "Manage Unsafe Repositories",
 	"command.openRepositoriesInParentFolders": "Open Repositories In Parent Folders",
 	"command.viewChanges": "Open Changes",

@@ -900,6 +900,11 @@
         "category": "Git"
       },
       {
+        "command": "git.timeline.openDiffWithWorking",
+        "title": "%command.timelineOpenDiffWithWorking%",
+        "category": "Git"
+      },
+      {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git",
@@ -1698,6 +1703,10 @@
         },
         {
           "command": "git.timeline.viewCommit",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.openDiffWithWorking",
           "when": "false"
         },
         {
@@ -2914,8 +2923,13 @@
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
         },
         {
-          "command": "git.timeline.viewCommit",
+          "command": "git.timeline.openDiffWithWorking",
           "group": "1_actions@2",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.viewCommit",
+          "group": "1_actions@3",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         },
         {
