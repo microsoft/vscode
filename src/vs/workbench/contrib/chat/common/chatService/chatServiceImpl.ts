@@ -1114,7 +1114,7 @@ export class ChatService extends Disposable implements IChatService {
 			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
-				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
+				const hooksInfo = await this.promptsService.getHooks(token);
 				if (hooksInfo) {
 					collectedHooks = hooksInfo.hooks;
 					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
@@ -1127,7 +1127,7 @@ export class ChatService extends Disposable implements IChatService {
 			const agentName = options?.modeInfo?.modeInstructions?.name;
 			if (agentName) {
 				try {
-					const agents = await this.promptsService.getCustomAgents(token, model.sessionResource);
+					const agents = await this.promptsService.getCustomAgents(token);
 					const customAgent = agents.find(a => a.name === agentName);
 					if (customAgent?.hooks) {
 						collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);

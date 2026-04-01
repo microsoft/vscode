@@ -2817,8 +2817,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are enabled`);
 			const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
 			const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
-			const sessionResource = this._viewModel?.model.sessionResource;
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents, sessionResource);
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents);
 			await computer.collect(attachedContext, CancellationToken.None);
 		} catch (err) {
 			this.logService.error(`ChatWidget#_autoAttachInstructions: failed to compute automatic instructions`, err);
