@@ -228,7 +228,8 @@ suite('RunInTerminalTool', () => {
 				command: 'echo hello',
 				explanation: 'Print hello to the console',
 				goal: 'Print hello',
-				isBackground: false,
+				mode: 'sync',
+				timeout: 30000,
 				...params
 			} as IRunInTerminalInputParams
 		} as IToolInvocationPreparationContext;
@@ -734,6 +735,20 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
+				mode: 'async'
+			});
+			assertConfirmationRequired(result, 'Run `bash` command in background?');
+		});
+
+		test('should support legacy isBackground input as async mode', async () => {
+			setAutoApprove({
+				ls: true
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run watch',
+				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
 			assertConfirmationRequired(result, 'Run `bash` command in background?');
@@ -748,7 +763,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
-				isBackground: true
+				mode: 'async'
 			});
 			assertAutoApproved(result);
 		});
@@ -762,7 +777,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
-				isBackground: true
+				mode: 'async'
 			});
 			assertAutoApproved(result);
 
@@ -872,7 +887,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching',
 				goal: 'Start watching',
-				isBackground: true
+				mode: 'async'
 			});
 			assertConfirmationRequired(result, 'Run command in `bash` in background?');
 		});
@@ -891,7 +906,7 @@ suite('RunInTerminalTool', () => {
 				command: 'node -e "console.log(1)"',
 				explanation: 'Run node command',
 				goal: 'Run node command',
-				isBackground: true
+				mode: 'async'
 			});
 			assertConfirmationRequired(result, 'Run `Node.js` command in `bash` in background?');
 		});
@@ -912,7 +927,8 @@ suite('RunInTerminalTool', () => {
 					command: 'cd /tmp && rm file.txt',
 					explanation: 'Remove a file in /tmp',
 					goal: 'Remove a file in /tmp',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
@@ -934,7 +950,8 @@ suite('RunInTerminalTool', () => {
 					command: 'cd /tmp && node -e "console.log(1)"',
 					explanation: 'Run node command in /tmp',
 					goal: 'Run node command in /tmp',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
@@ -1778,7 +1795,8 @@ suite('RunInTerminalTool', () => {
 					command: 'rm dangerous-file.txt',
 					explanation: 'Remove a file',
 					goal: 'Remove a file',
-					isBackground: false
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource
 			} as IToolInvocationPreparationContext;
@@ -1813,7 +1831,8 @@ suite('RunInTerminalTool', () => {
 					command: 'curl https://example.com',
 					explanation: 'Fetch a URL',
 					goal: 'Download content',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
 			} as IToolInvocationPreparationContext, CancellationToken.None);
@@ -1840,7 +1859,8 @@ suite('RunInTerminalTool', () => {
 					command: 'curl https://example.com',
 					explanation: 'Fetch a URL',
 					goal: 'Download content',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
 			} as IToolInvocationPreparationContext, CancellationToken.None);
@@ -1983,7 +2003,8 @@ suite('RunInTerminalTool', () => {
 					command: 'ping google.com',
 					explanation: 'Ping google.com',
 					goal: 'Ping google.com',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 
@@ -2003,7 +2024,8 @@ suite('RunInTerminalTool', () => {
 					command: 'echo hello',
 					explanation: 'Print hello',
 					goal: 'Print hello',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 

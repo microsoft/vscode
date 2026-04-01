@@ -15,7 +15,7 @@ export const KillTerminalToolData: IToolData = {
 	id: TerminalToolId.KillTerminal,
 	toolReferenceName: 'killTerminal',
 	displayName: localize('killTerminalTool.displayName', 'Kill Terminal'),
-	modelDescription: `Kill a terminal by its ID. Use this to clean up terminals that are no longer needed (e.g., after stopping a server or when a long-running task completes). The terminal ID is returned by ${TerminalToolId.RunInTerminal} when isBackground=true.`,
+	modelDescription: `Kill a terminal by its ID. Use this to clean up terminals that are no longer needed (e.g., after stopping a server or when a long-running task completes). The terminal ID is returned by ${TerminalToolId.RunInTerminal} in async mode (legacy: isBackground=true).`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -23,7 +23,8 @@ export const KillTerminalToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: `The ID of the background terminal to kill (returned by ${TerminalToolId.RunInTerminal} when isBackground=true).`
+				description: `The ID of the persistent terminal to kill (returned by ${TerminalToolId.RunInTerminal} in async mode).`,
+				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
 			},
 		},
 		required: [
