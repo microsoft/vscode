@@ -11,6 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
+import { IChatService } from '../common/chatService/chatService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IHookDiscoveryInfo, IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 
@@ -28,17 +29,32 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 	 * {@link IChatDebugService.resolveEvent} can return rich details.
 	 */
 	private readonly _discoveryEventDetails = new Map<string, IPromptDiscoveryInfo>();
+	private readonly _loggedSessions = new Set<string>();
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatService chatService: IChatService,
 		@IChatDebugService chatDebugService: IChatDebugService,
 		@ILogService logService: ILogService,
 	) {
 		super();
 
+		// Clean up logged-session entries when sessions are disposed.
+		this._register(chatService.onDidDisposeSession(e => {
+			for (const sessionResource of e.sessionResources) {
+				this._loggedSessions.delete(sessionResource.toString());
+			}
+		}));
+
 		// Forward discovery log events to the debug service.
 		this._register(chatAgentService.onWillInvokeAgent(async e => {
+			const sessionKey = e.request.sessionResource.toString();
+			if (this._loggedSessions.has(sessionKey)) {
+				return;
+			}
+			this._loggedSessions.add(sessionKey);
+
 			const sessionResource = e.request.sessionResource;
 			const cts = new CancellationTokenSource();
 
