@@ -27,6 +27,10 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../browser/media/sidebarActionButton.css';
 import '../../browser/media/accountWidget.css';
 
+import { ChatEntitlementService, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+
 const mockUpdate = { version: '1.0.0' };
 
 function createMockUpdateService(state: State): IUpdateService {
@@ -89,7 +93,7 @@ function renderAccountWidget(ctx: ComponentFixtureContext, state: State, account
 	const openerService = instantiationService.get(IOpenerService);
 	const dialogService = instantiationService.get(IDialogService);
 	const hostService = instantiationService.get(IHostService);
-	const widget = new AccountWidget(action, {}, mockAccountService, mockUpdateService, contextMenuService, menuService, contextKeyService, hoverService, productService, openerService, dialogService, hostService);
+	const widget = new AccountWidget(action, {}, mockAccountService, mockUpdateService, contextMenuService, menuService, contextKeyService, hoverService, productService, openerService, dialogService, hostService, instantiationService.get(IChatEntitlementService) as ChatEntitlementService, instantiationService.get(IChatSessionsService), instantiationService.get(IInstantiationService));
 	ctx.disposableStore.add(widget);
 	widget.render(ctx.container);
 }

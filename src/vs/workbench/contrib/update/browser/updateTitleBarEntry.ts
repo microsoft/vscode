@@ -15,12 +15,12 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
@@ -77,6 +77,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -116,7 +117,18 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			}
 		));
 
+		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
+
 		void this.onStateChange(true);
+	}
+
+	private async showUpdateInfo(markdown?: string) {
+		const rendered = await this.tooltip.renderPostInstall(markdown);
+		if (rendered) {
+			this.tooltipVisible = true;
+			this.context.set(true);
+			this.entry?.showTooltip(true);
+		}
 	}
 
 	private async onStateChange(startup = false) {
@@ -133,7 +145,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 
 		let showTooltip = startup && this.detectVersionChange();
-		if (showTooltip) {
+		if (showTooltip && this.configurationService.getValue<boolean>('update.showPostInstallInfo') !== false) {
 			showTooltip = await this.tooltip.renderPostInstall();
 		} else {
 			this.tooltip.renderState(this.state);
