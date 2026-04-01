@@ -8,6 +8,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
@@ -36,7 +37,7 @@ import {
 	PromptFilesLocator
 } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -47,7 +48,6 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptFileAttributes.js';
-import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../enablement.js';
@@ -125,13 +125,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
 	 */
 	private readonly cachedParsedPromptFromModels = new ResourceMap<[number, ParsedPromptFile]>();
-
-	/**
-	 * Emitter for discovery log events. Listeners (e.g. a debug bridge
-	 * contribution) can forward these to IChatDebugService.
-	 */
-	private readonly _onDidLogDiscovery = this._register(new Emitter<IPromptDiscoveryLogEntry>());
-	public readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry> = this._onDidLogDiscovery.event;
 
 	/**
 	 * Cached file locations commands. Caching only happens if the corresponding `fileLocatorEvents` event is used.
@@ -597,23 +590,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedSlashCommands.onDidChangePromise;
 	}
 
-	public async getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]> {
-		const sw = StopWatch.create();
+	public async getPromptSlashCommands(token: CancellationToken, _sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]> {
 		const discoveryInfo = await this.cachedSlashCommands.get(token);
 		const result = this.slashCommandsFromDiscoveryInfo(discoveryInfo);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			const details = result.length === 1
-				? localize("promptsService.resolvedSlashCommand", "Resolved {0} slash command in {1}ms", result.length, elapsed.toFixed(1))
-				: localize("promptsService.resolvedSlashCommands", "Resolved {0} slash commands in {1}ms", result.length, elapsed.toFixed(1));
-			this._onDidLogDiscovery.fire({
-				sessionResource,
-				name: localize("promptsService.loadSlashCommands", "Load Slash Commands"),
-				details,
-				discoveryInfo,
-				category: 'discovery',
-			});
-		}
 		return result;
 	}
 
@@ -621,6 +600,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Computes discovery info for slash commands, combining prompts and skills.
 	 */
 	private async computeSlashCommandDiscoveryInfo(token: CancellationToken): Promise<ISlashCommandDiscoveryInfo> {
+		const stopWatch = StopWatch.create(true);
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
@@ -651,7 +631,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const skillSourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
 			sourceFolders.push(...skillSourceFolders);
 		}
-		return { type: PromptsType.prompt, files, sourceFolders };
+		return { type: PromptsType.prompt, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
 	}
 
 	/**
@@ -723,23 +703,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedInstructions.onDidChangePromise;
 	}
 
-	public async getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]> {
-		const sw = StopWatch.create();
+	public async getCustomAgents(token: CancellationToken, _sessionResource?: URI): Promise<readonly ICustomAgent[]> {
 		const discoveryInfo = await this.cachedCustomAgents.get(token);
 		const result = this.agentsFromDiscoveryInfo(discoveryInfo);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			const details = result.length === 1
-				? localize("promptsService.resolvedAgent", "Resolved {0} agent in {1}ms", result.length, elapsed.toFixed(1))
-				: localize("promptsService.resolvedAgents", "Resolved {0} agents in {1}ms", result.length, elapsed.toFixed(1));
-			this._onDidLogDiscovery.fire({
-				sessionResource,
-				name: localize("promptsService.loadAgents", "Load Agents"),
-				details,
-				discoveryInfo,
-				category: 'discovery',
-			});
-		}
 		return result;
 	}
 
@@ -757,6 +723,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeAgentDiscoveryInfo(token: CancellationToken): Promise<IAgentDiscoveryInfo> {
+		const stopWatch = StopWatch.create(true);
 		const allAgentFiles = await this.listPromptFiles(PromptsType.agent, token);
 		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
 
@@ -857,7 +824,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}));
 
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.agent);
-		return { type: PromptsType.agent, files, sourceFolders };
+		return { type: PromptsType.agent, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
 	}
 
 
@@ -1145,28 +1112,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedSkills.onDidChangePromise;
 	}
 
-	public async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
+	public async findAgentSkills(token: CancellationToken, _sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		if (!useAgentSkills) {
 			return undefined;
 		}
 
-		const sw = StopWatch.create();
 		const discoveryInfo = await this.cachedSkills.get(token);
 		const result = this.skillsFromDiscoveryInfo(discoveryInfo);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			const details = result.length === 1
-				? localize("promptsService.resolvedSkill", "Resolved {0} skill in {1}ms", result.length, elapsed.toFixed(1))
-				: localize("promptsService.resolvedSkills", "Resolved {0} skills in {1}ms", result.length, elapsed.toFixed(1));
-			this._onDidLogDiscovery.fire({
-				sessionResource,
-				name: localize("promptsService.loadSkills", "Load Skills"),
-				details,
-				discoveryInfo,
-				category: 'discovery',
-			});
-		}
 		return result;
 	}
 
@@ -1198,6 +1151,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Computes the full skill discovery info, including source folders and telemetry.
 	 */
 	private async computeSkillDiscovery(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const stopWatch = StopWatch.create(true);
 		const files = await this.computeSkillDiscoveryInfo(token);
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.skill);
 
@@ -1294,47 +1248,33 @@ export class PromptsService extends Disposable implements IPromptsService {
 			skippedParseFailed
 		});
 
-		return { type: PromptsType.skill, files, sourceFolders };
+		return { type: PromptsType.skill, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
 	}
 
-	public async getHooks(token: CancellationToken, sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined> {
-		const sw = StopWatch.create();
+	public async getHooks(token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined> {
 		const discoveryInfo = await this.cachedHooks.get(token);
 		const result = discoveryInfo.hooksInfo;
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			const hookCount = result ? Object.values(result.hooks).reduce((sum, arr) => sum + arr.length, 0) : 0;
-			const details = hookCount === 1
-				? localize("promptsService.resolvedHook", "Resolved {0} hook in {1}ms", hookCount, elapsed.toFixed(1))
-				: localize("promptsService.resolvedHooks", "Resolved {0} hooks in {1}ms", hookCount, elapsed.toFixed(1));
-			this._onDidLogDiscovery.fire({
-				sessionResource,
-				name: localize("promptsService.loadHooks", "Load Hooks"),
-				details,
-				discoveryInfo,
-				category: 'discovery',
-			});
-		}
 		return result;
 	}
 
-	public async getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]> {
-		const sw = StopWatch.create();
+	public async getDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		switch (type) {
+			case PromptsType.instructions:
+				return this.cachedInstructions.get(token);
+			case PromptsType.prompt:
+				return this.cachedSlashCommands.get(token);
+			case PromptsType.agent:
+				return this.cachedCustomAgents.get(token);
+			case PromptsType.skill:
+				return this.cachedSkills.get(token);
+			case PromptsType.hook:
+				return this.cachedHooks.get(token);
+		}
+	}
+
+	public async getInstructionFiles(token: CancellationToken, _sessionResource?: URI): Promise<readonly IPromptPath[]> {
 		const discoveryInfo = await this.cachedInstructions.get(token);
 		const result = discoveryInfo.files.filter(file => file.status === 'loaded').map(file => file.promptPath);
-		if (sessionResource) {
-			const elapsed = sw.elapsed();
-			const details = result.length === 1
-				? localize("promptsService.resolvedInstruction", "Resolved {0} instruction in {1}ms", result.length, elapsed.toFixed(1))
-				: localize("promptsService.resolvedInstructions", "Resolved {0} instructions in {1}ms", result.length, elapsed.toFixed(1));
-			this._onDidLogDiscovery.fire({
-				sessionResource,
-				name: localize("promptsService.loadInstructions", "Load Instructions"),
-				details,
-				discoveryInfo,
-				category: 'discovery',
-			});
-		}
 		return result;
 	}
 
@@ -1347,6 +1287,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeHooks(token: CancellationToken): Promise<IHookDiscoveryInfo> {
+		const stopWatch = StopWatch.create(true);
 		const useChatHooks = this.configurationService.getValue(PromptsConfig.USE_CHAT_HOOKS);
 
 		if (!useChatHooks || !this.workspaceTrustService.isWorkspaceTrusted()) {
@@ -1358,7 +1299,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				promptPath: this.withPromptPathMetadata(promptPath, basename(promptPath.uri), promptPath.description),
 			}));
 			const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.hook);
-			return { type: PromptsType.hook, files, sourceFolders, hooksInfo: undefined };
+			return { type: PromptsType.hook, files, sourceFolders, hooksInfo: undefined, durationInMillis: stopWatch.elapsed() };
 		}
 
 		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
@@ -1516,14 +1457,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		// Check if any hooks were collected
 		if (collectedHooks.size === 0) {
 			this.logger.trace('[PromptsService] No valid hooks collected.');
-			return { type: PromptsType.hook, files, sourceFolders, hooksInfo: undefined };
+			return { type: PromptsType.hook, files, sourceFolders, hooksInfo: undefined, durationInMillis: stopWatch.elapsed() };
 		}
 
 		// Build the result
 		const result: ChatRequestHooks = Object.fromEntries(collectedHooks) as ChatRequestHooks;
 
 		this.logger.trace(`[PromptsService] Collected hooks: ${JSON.stringify(Object.keys(result))}`);
-		return { type: PromptsType.hook, files, sourceFolders, hooksInfo: { hooks: result, hasDisabledClaudeHooks } };
+		return { type: PromptsType.hook, files, sourceFolders, hooksInfo: { hooks: result, hasDisabledClaudeHooks }, durationInMillis: stopWatch.elapsed() };
 	}
 
 	/**
@@ -1611,6 +1552,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async getInstructionsDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const stopWatch = StopWatch.create(true);
 		const files: IPromptFileDiscoveryResult[] = [];
 
 		const instructionsFiles = await this.listPromptFiles(PromptsType.instructions, token);
@@ -1636,7 +1578,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const sourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.instructions);
-		return { type: PromptsType.instructions, files, sourceFolders };
+		return { type: PromptsType.instructions, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
 	}
 }
 

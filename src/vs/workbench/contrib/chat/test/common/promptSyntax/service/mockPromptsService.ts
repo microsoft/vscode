@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../../../common/promptSyntax/promptFileParser.js';
-import { IAgentSkill, ICustomAgent, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage, IPromptDiscoveryLogEntry } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, ICustomAgent, IPromptDiscoveryInfo, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -20,9 +20,6 @@ export class MockPromptsService implements IPromptsService {
 
 	private readonly _onDidChangeCustomAgents = new Emitter<void>();
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
-
-	private readonly _onDidLogDiscovery = new Emitter<IPromptDiscoveryLogEntry>();
-	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry> = this._onDidLogDiscovery.event;
 
 	private _customModes: ICustomAgent[] = [];
 
@@ -69,6 +66,7 @@ export class MockPromptsService implements IPromptsService {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<any> { throw new Error('Method not implemented.'); }
 	getInstructionFiles(_token: CancellationToken, _sessionResource?: URI): Promise<readonly IPromptPath[]> { throw new Error('Method not implemented.'); }
+	getDiscoveryInfo(_type: PromptsType, _token: CancellationToken): Promise<IPromptDiscoveryInfo> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 	onDidChangeInstructions: Event<void> = Event.None;
 	onDidChangePromptFiles: Event<void> = Event.None;

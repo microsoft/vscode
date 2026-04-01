@@ -19,19 +19,6 @@ import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
 
 /**
- * Entry emitted by the prompts service when discovery logging occurs.
- * A debug bridge (e.g. contribution) can listen and forward these to IChatDebugService.
- */
-export interface IPromptDiscoveryLogEntry {
-	readonly sessionResource: URI;
-	readonly name: string;
-	readonly details?: string;
-	readonly category?: string;
-	/** When present, the bridge should store this for later event resolution. */
-	readonly discoveryInfo?: IPromptDiscoveryInfo;
-}
-
-/**
  * Activation events for prompt file providers.
  */
 export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
@@ -366,6 +353,8 @@ export interface IPromptSourceFolderResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
+	/** Time in milliseconds required to compute this discovery result. */
+	readonly durationInMillis: number;
 	/** Source folders that were searched */
 	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
@@ -396,16 +385,6 @@ export interface IAgentDiscoveryResult extends IPromptFileDiscoveryResult {
  */
 export interface IAgentDiscoveryInfo extends IPromptDiscoveryInfo {
 	readonly files: readonly IAgentDiscoveryResult[];
-}
-
-export function sanitizePromptDiscoveryInfo(info: IPromptDiscoveryInfo): IPromptDiscoveryInfo {
-	return {
-		...info,
-		files: info.files.map(file => ({
-			...file,
-			errorMessage: file.errorMessage ? 'REDACTED' : undefined,
-		})),
-	};
 }
 
 export interface IConfiguredHooksInfo {
@@ -576,8 +555,8 @@ export interface IPromptsService extends IDisposable {
 	getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * Fired when a discovery-related log entry is produced.
-	 * Listeners (such as a debug bridge) can forward these to IChatDebugService.
+	 * Returns the cached discovery info for the given prompt type.
 	 */
-	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
+	getDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
+
 }

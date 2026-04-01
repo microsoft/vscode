@@ -1407,7 +1407,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest; readonly options?: Readonly<IChatSendRequestOptions> }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 

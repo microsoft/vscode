@@ -41,7 +41,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { ICustomAgent, IPromptDiscoveryInfo, IPromptDiscoveryLogEntry, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -3936,17 +3936,8 @@ suite('PromptsService', () => {
 
 			testPluginsObservable.set([plugin], undefined);
 
-			// Use a sessionResource to trigger discovery logging
-			const sessionResource = URI.file('/session');
-			let capturedDiscoveryInfo: IPromptDiscoveryInfo | undefined;
-			const logDisposable = service.onDidLogDiscovery((entry: IPromptDiscoveryLogEntry) => {
-				if (entry.discoveryInfo?.type === PromptsType.hook) {
-					capturedDiscoveryInfo = entry.discoveryInfo;
-				}
-			});
-
-			const result = await service.getHooks(CancellationToken.None, sessionResource);
-			logDisposable.dispose();
+			const result = await service.getHooks(CancellationToken.None, URI.file('/session'));
+			const capturedDiscoveryInfo = await service.getDiscoveryInfo(PromptsType.hook, CancellationToken.None);
 
 			assert.ok(result, 'Expected hooks result with plugin hooks');
 			assert.ok(capturedDiscoveryInfo, 'Expected discovery info to be logged');
