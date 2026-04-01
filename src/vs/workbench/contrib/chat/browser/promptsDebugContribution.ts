@@ -43,9 +43,9 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			const cts = new CancellationTokenSource();
 
 			try {
-				for (const promptType of [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook]) {
-					const discoveryInfo = await this.promptsService.getDiscoveryInfo(promptType, cts.token);
-					const { name, details } = this.getDiscoveryLogEntry(promptType, discoveryInfo);
+				const discoveryInfos = await Promise.all([PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook].map(type => this.promptsService.getDiscoveryInfo(type, cts.token)));
+				for (const discoveryInfo of discoveryInfos) {
+					const { name, details } = this.getDiscoveryLogEntry(discoveryInfo);
 					const eventId = generateUuid();
 
 					this._discoveryEventDetails.set(eventId, discoveryInfo);
@@ -108,13 +108,13 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private getDiscoveryLogEntry(promptType: PromptsType, discoveryInfo: IPromptDiscoveryInfo): { readonly name: string; readonly details?: string } {
+	private getDiscoveryLogEntry(discoveryInfo: IPromptDiscoveryInfo): { readonly name: string; readonly details?: string } {
 
 		const durationInMillis = discoveryInfo.durationInMillis;
 		const loadedCount = discoveryInfo.files.filter(file => file.status === 'loaded').length;
 		const skippedCount = discoveryInfo.files.length - loadedCount;
 
-		switch (promptType) {
+		switch (discoveryInfo.type) {
 			case PromptsType.prompt:
 				return {
 					name: localize('promptsService.loadSlashCommands', 'Load Slash Commands'),
