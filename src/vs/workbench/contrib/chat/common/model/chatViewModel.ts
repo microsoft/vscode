@@ -98,7 +98,7 @@ export interface IChatRequestViewModel {
 	readonly timestamp: number;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
-	readonly isImplicit?: boolean;
+	readonly isSystemInitiated?: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -340,7 +340,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				return false;
 			}
 			// Hide implicit requests (system-initiated notifications like terminal completions)
-			if (isRequestVM(item) && item.isImplicit) {
+			if (isRequestVM(item) && item.isSystemInitiated) {
 				return false;
 			}
 			return true;
@@ -356,7 +356,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			const queuedRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Queued);
 
 			// Add steering requests with their divider first (skip implicit ones)
-			const visibleSteeringRequests = steeringRequests.filter(p => !p.request.isImplicit);
+			const visibleSteeringRequests = steeringRequests.filter(p => !p.request.isSystemInitiated);
 			if (visibleSteeringRequests.length > 0) {
 				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, currentRenderedHeight: undefined });
 				for (const pending of visibleSteeringRequests) {
@@ -488,8 +488,8 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._pendingKind;
 	}
 
-	get isImplicit() {
-		return this._model.isImplicit;
+	get isSystemInitiated() {
+		return this._model.isSystemInitiated;
 	}
 
 	constructor(

@@ -1412,7 +1412,7 @@ export interface IChatSendRequestOptions {
 	 * instead of a full user message bubble. Used for system-initiated notifications
 	 * such as terminal command completion.
 	 */
-	isImplicit?: boolean;
+	isSystemInitiated?: boolean;
 
 
 }

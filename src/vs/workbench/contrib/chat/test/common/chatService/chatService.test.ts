@@ -469,16 +469,16 @@ suite('ChatService', () => {
 			const chatModel1Ref = testDisposables.add(startSessionModel(testService));
 			const chatModel1 = chatModel1Ref.object;
 
-			const response = await testService.sendRequest(chatModel1.sessionResource, 'test implicit request', { isImplicit: true });
+			const response = await testService.sendRequest(chatModel1.sessionResource, 'test implicit request', { isSystemInitiated: true });
 			ChatSendResult.assertSent(response);
 			await response.data.responseCompletePromise;
 
 			assert.strictEqual(chatModel1.getRequests().length, 1);
-			assert.strictEqual(chatModel1.getRequests()[0].isImplicit, true);
+			assert.strictEqual(chatModel1.getRequests()[0].isSystemInitiated, true);
 
 			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
 			assert.strictEqual(serializedChatData.requests.length, 1);
-			assert.strictEqual(serializedChatData.requests[0].isImplicit, true);
+			assert.strictEqual(serializedChatData.requests[0].isSystemInitiated, true);
 		}
 
 		const testService2 = createChatService();
@@ -488,7 +488,7 @@ suite('ChatService', () => {
 		const chatModel2 = chatModel2Ref.object;
 
 		assert.strictEqual(chatModel2.getRequests().length, 1);
-		assert.strictEqual(chatModel2.getRequests()[0].isImplicit, true);
+		assert.strictEqual(chatModel2.getRequests()[0].isSystemInitiated, true);
 	});
 
 	test('onDidDisposeSession', async () => {
@@ -1024,7 +1024,7 @@ function toSnapshotExportData(model: IChatModel) {
 		...exp,
 		requests: exp.requests.map(r => {
 			// Destructure properties after `vote` so we can insert `voteDownReason` in the correct position for snapshot compat
-			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isImplicit: _isImplicit, ...rest } = r;
+			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isSystemInitiated: _isSystemInitiated, ...rest } = r;
 			return {
 				...rest,
 				modelState: {

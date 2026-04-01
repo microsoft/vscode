@@ -1807,7 +1807,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			this._chatService.sendRequest(chatSessionResource, message, {
 				queue: ChatRequestQueueKind.Steering,
-				isImplicit: true,
+				isSystemInitiated: true,
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});
