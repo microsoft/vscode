@@ -91,6 +91,13 @@ export interface IRemoteAgentHostService {
 	 * with reset backoff.
 	 */
 	reconnect(address: string): void;
+
+	/**
+	 * Register a pre-connected SSH agent connection.
+	 * Used by the SSH service to inject relay-backed connections
+	 * without going through the WebSocket connect flow.
+	 */
+	addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo>;
 }
 
 /** Metadata about a single remote connection. */
@@ -113,6 +120,9 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string): void { }
+	async addSSHConnection(): Promise<IRemoteAgentHostConnectionInfo> {
+		throw new Error('Remote agent host connections are not supported in this environment.');
+	}
 }
 
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {

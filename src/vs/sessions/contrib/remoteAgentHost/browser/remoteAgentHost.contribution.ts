@@ -30,6 +30,7 @@ import { ISessionsManagementService } from '../../../contrib/sessions/browser/se
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { IAgentHostFileSystemService } from '../../../../platform/agentHost/common/agentHostFileSystemService.js';
+import { ISSHRemoteAgentHostService } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 
 /** Per-connection state bundle, disposed when a connection is removed. */
 class ConnectionState extends Disposable {
@@ -70,6 +71,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/** Per-address sessions providers, registered for all configured entries. */
 	private readonly _providerStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
+	private readonly _pendingSSHReconnects = new Set<string>();
 
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
@@ -82,7 +84,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService
+		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
+		@ISSHRemoteAgentHostService private readonly _sshService: ISSHRemoteAgentHostService,
 	) {
 		super();
 
@@ -109,6 +112,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	private _reconcile(): void {
 		this._reconcileProviders();
 		this._reconcileConnections();
+		this._reconnectSSHEntries();
 
 		// Ensure every live connection is wired to its provider.
 		// This covers the case where a provider was recreated (e.g. name
@@ -167,6 +171,35 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		this._providerInstances.set(entry.address, provider);
 		store.add(toDisposable(() => this._providerInstances.delete(entry.address)));
 		this._providerStores.set(entry.address, store);
+	}
+
+	/**
+	 * Re-establish SSH connections for configured entries that have an
+	 * sshConfigHost but no active connection.
+	 */
+	private _reconnectSSHEntries(): void {
+		const entries = this._remoteAgentHostService.configuredEntries;
+		for (const entry of entries) {
+			if (!entry.sshConfigHost) {
+				continue;
+			}
+			// Skip if already connected or reconnecting
+			const hasConnection = this._remoteAgentHostService.connections.some(
+				c => c.address === entry.address && c.status === RemoteAgentHostConnectionStatus.Connected
+			);
+			if (hasConnection || this._pendingSSHReconnects.has(entry.sshConfigHost)) {
+				continue;
+			}
+			this._pendingSSHReconnects.add(entry.sshConfigHost);
+			this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${entry.sshConfigHost}`);
+			this._sshService.reconnect(entry.sshConfigHost, entry.name).then(() => {
+				this._pendingSSHReconnects.delete(entry.sshConfigHost!);
+				this._logService.info(`[RemoteAgentHost] SSH tunnel re-established for ${entry.sshConfigHost}`);
+			}).catch(err => {
+				this._pendingSSHReconnects.delete(entry.sshConfigHost!);
+				this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${entry.sshConfigHost}`, err);
+			});
+		}
 	}
 
 	private _reconcileConnections(): void {
@@ -462,6 +495,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
 			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+		},
+		'chat.sshRemoteAgentHostCommand': {
+			type: 'string',
+			description: nls.localize('chat.sshRemoteAgentHostCommand', "For development: Override the command used to start the remote agent host over SSH. When set, skips automatic CLI installation and runs this command instead. The command must print a WebSocket URL matching ws://127.0.0.1:PORT (optionally with ?tkn=TOKEN) to stdout or stderr./"),
+			default: '',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},

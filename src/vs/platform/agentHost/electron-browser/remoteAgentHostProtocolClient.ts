@@ -20,8 +20,8 @@ import type { IClientNotificationMap, ICommandMap } from '../common/state/protoc
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
-import { WebSocketClientTransport } from './webSocketClientTransport.js';
 
 /**
  * A protocol-level client for a single remote agent host connection.
@@ -36,7 +36,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _clientId = generateUuid();
-	private readonly _transport: WebSocketClientTransport;
+	private readonly _address: string;
+	private readonly _transport: IProtocolTransport;
 	private readonly _connectionAuthority: string;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
@@ -60,7 +61,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	get address(): string {
-		return this._transport['_address'];
+		return this._address;
 	}
 
 	get defaultDirectory(): string | undefined {
@@ -69,12 +70,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	constructor(
 		address: string,
-		connectionToken: string | undefined,
+		transport: IProtocolTransport,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._address = address;
 		this._connectionAuthority = agentHostAuthority(address);
-		this._transport = this._register(new WebSocketClientTransport(address, connectionToken));
+		this._transport = transport;
+		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._onDidClose.fire()));
 	}
@@ -83,7 +86,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Connect to the remote agent host and perform the protocol handshake.
 	 */
 	async connect(): Promise<void> {
-		await this._transport.connect();
+		if (isClientTransport(this._transport)) {
+			await this._transport.connect();
+		}
 
 		const result = await this._sendRequest('initialize', {
 			protocolVersion: PROTOCOL_VERSION,

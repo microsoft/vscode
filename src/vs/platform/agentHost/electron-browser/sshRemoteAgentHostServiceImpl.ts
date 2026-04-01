@@ -6,9 +6,13 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { SSHRelayTransport } from './sshRelayTransport.js';
+import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
 import {
 	ISSHRemoteAgentHostService,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,
@@ -40,6 +44,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -68,41 +74,43 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection> {
-		this._logService.info('[SSHRemoteAgentHost] Renderer: connect called for ' + config.host);
-		const result = await this._mainService.connect(config);
-		this._logService.info('[SSHRemoteAgentHost] Renderer: main process returned localAddress=' + result.localAddress);
+		this._logService.info('[SSHRemoteAgentHost] Connecting to ' + config.host);
+		const augmentedConfig = this._augmentConfig(config);
+		const result = await this._mainService.connect(augmentedConfig);
+		this._logService.trace('[SSHRemoteAgentHost] SSH tunnel established, connectionId=' + result.connectionId);
 
-		// Check if we already have a handle for this address (reconnect case)
-		const existing = this._connections.get(result.localAddress);
+		const existing = this._connections.get(result.connectionId);
 		if (existing) {
+			this._logService.trace('[SSHRemoteAgentHost] Returning existing connection handle');
 			return existing;
 		}
 
-		// Register the SSH-tunneled address with the local remote agent host service.
-		// If registration fails, disconnect the main-process tunnel to avoid orphaned sessions.
+		// Create relay transport + protocol client, then register with RemoteAgentHostService
 		try {
-			this._logService.info('[SSHRemoteAgentHost] Registering remote agent host at ' + result.localAddress);
-			await this._remoteAgentHostService.addRemoteAgentHost({
-				address: result.localAddress,
+			const protocolClient = this._createRelayClient(result);
+			await protocolClient.connect();
+			this._logService.trace('[SSHRemoteAgentHost] Protocol handshake completed');
+
+			await this._remoteAgentHostService.addSSHConnection({
+				address: result.address,
 				name: result.name,
 				connectionToken: result.connectionToken,
 				sshConfigHost: result.sshConfigHost,
-			});
+			}, protocolClient);
 		} catch (err) {
-			this._mainService.disconnect(result.localAddress).catch(() => { /* best effort */ });
+			this._logService.error('[SSHRemoteAgentHost] Connection setup failed', err);
+			this._mainService.disconnect(result.connectionId).catch(() => { /* best effort */ });
 			throw err;
 		}
 
-		// Create a renderer-side handle that tears down the main-process
-		// tunnel when disposed
 		const handle = new SSHAgentHostConnectionHandle(
 			result.config,
-			result.localAddress,
+			result.address,
 			result.name,
-			() => this._mainService.disconnect(result.localAddress),
+			() => this._mainService.disconnect(result.connectionId),
 		);
 
-		this._connections.set(result.localAddress, handle);
+		this._connections.set(result.connectionId, handle);
 		this._onDidChangeConnections.fire();
 
 		return handle;
@@ -121,33 +129,54 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection> {
-		const result = await this._mainService.reconnect(sshConfigHost, name);
+		const commandOverride = this._getRemoteAgentHostCommand();
+		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride);
 
-		const existing = this._connections.get(result.localAddress);
+		const existing = this._connections.get(result.connectionId);
 		if (existing) {
 			return existing;
 		}
 
-		// Register the new tunnel address
-		this._logService.info('[SSHRemoteAgentHost] Reconnect: registering at ' + result.localAddress);
-		await this._remoteAgentHostService.addRemoteAgentHost({
-			address: result.localAddress,
+		const protocolClient = this._createRelayClient(result);
+		await protocolClient.connect();
+
+		await this._remoteAgentHostService.addSSHConnection({
+			address: result.address,
 			name: result.name,
 			connectionToken: result.connectionToken,
 			sshConfigHost: result.sshConfigHost,
-		});
+		}, protocolClient);
 
 		const handle = new SSHAgentHostConnectionHandle(
 			result.config,
-			result.localAddress,
+			result.address,
 			result.name,
-			() => this._mainService.disconnect(result.localAddress),
+			() => this._mainService.disconnect(result.connectionId),
 		);
 
-		this._connections.set(result.localAddress, handle);
+		this._connections.set(result.connectionId, handle);
 		this._onDidChangeConnections.fire();
 
 		return handle;
+	}
+
+	private _createRelayClient(result: { connectionId: string; address: string }): RemoteAgentHostProtocolClient {
+		const transport = new SSHRelayTransport(result.connectionId, this._mainService);
+		return this._instantiationService.createInstance(
+			RemoteAgentHostProtocolClient, result.address, transport,
+		);
+	}
+
+	private _augmentConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfig {
+		const commandOverride = this._getRemoteAgentHostCommand();
+		if (commandOverride) {
+			return { ...config, remoteAgentHostCommand: commandOverride };
+		}
+		return config;
+	}
+
+	private _getRemoteAgentHostCommand(): string | undefined {
+		return this._configurationService.getValue<string>('chat.sshRemoteAgentHostCommand') || undefined;
 	}
 }
 

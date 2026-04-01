@@ -40,6 +40,8 @@ export interface ISSHAgentHostConfig {
 	readonly name: string;
 	/** SSH config host alias (e.g. "robfast2") for reconnection on restart. */
 	readonly sshConfigHost?: string;
+	/** Dev override: custom command to start the remote agent host instead of the default CLI. */
+	readonly remoteAgentHostCommand?: string;
 }
 
 /**
@@ -117,7 +119,10 @@ export interface ISSHRemoteAgentHostService {
  * Returned over IPC from the main process.
  */
 export interface ISSHConnectResult {
-	readonly localAddress: string;
+	/** Unique identifier for this connection's relay channel. */
+	readonly connectionId: string;
+	/** Display-friendly address (e.g. "ssh:robfast2"). */
+	readonly address: string;
 	readonly name: string;
 	readonly connectionToken: string | undefined;
 	readonly config: ISSHAgentHostConfigSanitized;
@@ -142,6 +147,16 @@ export interface ISSHConnectProgress {
 }
 
 /**
+ * A message relayed from a remote agent host through the SSH tunnel.
+ * The shared process acts as a WebSocket proxy, forwarding JSON messages
+ * bidirectionally between the SSH channel and the renderer via IPC.
+ */
+export interface ISSHRelayMessage {
+	readonly connectionId: string;
+	readonly data: string;
+}
+
+/**
  * Main-process service that performs the actual SSH work.
  * The renderer calls this over IPC and handles registration
  * with {@link IRemoteAgentHostService} locally.
@@ -160,11 +175,22 @@ export interface ISSHRemoteAgentHostMainService {
 	/** Progress messages during connect (e.g. "Installing CLI..."). */
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress>;
 
+	/** Fires when a message is received from a remote agent host via the SSH relay. */
+	readonly onDidRelayMessage: Event<ISSHRelayMessage>;
+
+	/** Fires when a relay connection to a remote agent host closes. */
+	readonly onDidRelayClose: Event<string /* connectionId */>;
+
 	/**
 	 * Bootstrap a remote agent host over SSH. Returns serializable
 	 * connection info for the renderer to register.
 	 */
 	connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult>;
+
+	/**
+	 * Send a message to a remote agent host through the SSH relay.
+	 */
+	relaySend(connectionId: string, message: string): Promise<void>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -182,5 +208,5 @@ export interface ISSHRemoteAgentHostMainService {
 	 * Resolves the SSH config alias, connects, and returns fresh
 	 * connection info with a new local forwarded port.
 	 */
-	reconnect(sshConfigHost: string, name: string): Promise<ISSHConnectResult>;
+	reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string): Promise<ISSHConnectResult>;
 }

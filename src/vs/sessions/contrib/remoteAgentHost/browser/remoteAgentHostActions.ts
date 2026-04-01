@@ -6,12 +6,16 @@
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -98,6 +102,7 @@ async function promptToConnectViaSSH(
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const notificationService = accessor.get(INotificationService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	let host: string;
 	let username: string | undefined;
@@ -164,7 +169,12 @@ async function promptToConnectViaSSH(
 					name: suggestedName,
 					sshConfigHost: picked.hostAlias,
 				};
-				await connectWithProgress(sshService, notificationService, config, suggestedName);
+				const connection = await instantiationService.invokeFunction(accessor =>
+					connectWithProgress(accessor, config, suggestedName!)
+				);
+				if (connection) {
+					await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+				}
 				return;
 			}
 		} else {
@@ -286,15 +296,22 @@ async function promptToConnectViaSSH(
 		name: name.trim(),
 	};
 
-	await connectWithProgress(sshService, notificationService, config, host);
+	const connection = await instantiationService.invokeFunction(accessor =>
+		connectWithProgress(accessor, config, host)
+	);
+	if (connection) {
+		await instantiationService.invokeFunction(accessor => promptForRemoteFolder(accessor, connection));
+	}
 }
 
 async function connectWithProgress(
-	sshService: ISSHRemoteAgentHostService,
-	notificationService: INotificationService,
+	accessor: ServicesAccessor,
 	config: ISSHAgentHostConfig,
 	displayHost: string,
-): Promise<void> {
+): Promise<ISSHAgentHostConnection | undefined> {
+	const sshService = accessor.get(ISSHRemoteAgentHostService);
+	const notificationService = accessor.get(INotificationService);
+
 	const handle = notificationService.notify({
 		severity: Severity.Info,
 		message: localize('sshConnecting', "Connecting to {0} via SSH...", displayHost),
@@ -314,14 +331,51 @@ async function connectWithProgress(
 	});
 
 	try {
-		await sshService.connect(config);
+		const connection = await sshService.connect(config);
 		handle.close();
+		return connection;
 	} catch (err) {
 		handle.close();
 		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", displayHost, String(err)));
+		return undefined;
 	} finally {
 		progressListener?.dispose();
 	}
+}
+
+/**
+ * After a successful SSH connection, show the remote folder picker and
+ * pre-select the chosen folder in the workspace picker.
+ */
+async function promptForRemoteFolder(
+	accessor: ServicesAccessor,
+	connection: ISSHAgentHostConnection,
+): Promise<void> {
+	const viewsService = accessor.get(IViewsService);
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+	// The provider is created synchronously during addSSHConnection's
+	// onDidChangeConnections event, so it should exist by now.
+	const provider = sessionsProvidersService.getProviders().find(p => p.remoteAddress === connection.localAddress);
+	if (!provider) {
+		return;
+	}
+
+	// Use the provider's existing browse action to show the folder picker
+	const browseAction = provider.browseActions[0];
+	if (!browseAction) {
+		return;
+	}
+
+	const workspace = await browseAction.execute();
+	if (!workspace) {
+		return;
+	}
+
+	sessionsManagementService.openNewSessionView();
+	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
+	view?.selectWorkspace({ providerId: provider.id, workspace });
 }
 
 async function promptForManualHost(
