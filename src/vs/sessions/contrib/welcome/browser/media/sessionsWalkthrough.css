@@ -88,9 +88,17 @@
 }
 
 @keyframes sessions-walkthrough-progress {
-	0% { transform: translateX(0%); }
-	50% { transform: translateX(233%); }
-	100% { transform: translateX(0%); }
+	0% {
+		transform: translateX(0%);
+	}
+
+	50% {
+		transform: translateX(233%);
+	}
+
+	100% {
+		transform: translateX(0%);
+	}
 }
 
 /* ---- Fixed footer (always at bottom) ---- */
@@ -248,17 +256,13 @@
 .sessions-walkthrough-logo {
 	width: 112px;
 	height: 112px;
-	background-image: url('./sessions-logo-light.svg');
+	background-image: url('./sessions-logo.svg');
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
+	fill: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
 	align-self: center;
-}
-
-.vs .sessions-walkthrough-logo,
-.hc-light .sessions-walkthrough-logo {
-	background-image: url('./sessions-logo-dark.svg');
 }
 
 /* ---- Action area (used inside content for sign-in step spinner) ---- */
@@ -277,7 +281,9 @@
 }
 
 @keyframes sessions-walkthrough-spin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .sessions-walkthrough-error {
