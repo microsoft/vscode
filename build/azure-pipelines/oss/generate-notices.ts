@@ -646,6 +646,91 @@ function main(): void {
 		}
 	}
 
+	// 5b2: Scan ALL packages in extension node_modules (catches transitive deps)
+	console.log('');
+	console.log('  --- Extension transitive dependencies ---');
+	console.log('  CG skips built-in extensions entirely. Scanning all packages in');
+	console.log('  extension node_modules/ directories to catch transitive deps');
+	console.log('  like chevrotain (transitive of mermaid) that have LICENSE files.');
+	if (fs.existsSync(extensionsDir)) {
+		for (const ext of fs.readdirSync(extensionsDir)) {
+			const extNmDirs = [
+				path.join(extensionsDir, ext, 'node_modules'),
+				path.join(extensionsDir, ext, 'server', 'node_modules'),
+				path.join(extensionsDir, ext, 'server', 'lib', 'node_modules'),
+			];
+
+			for (const nmDir of extNmDirs) {
+				if (!fs.existsSync(nmDir)) {
+					continue;
+				}
+
+				try {
+					for (const entry of fs.readdirSync(nmDir)) {
+						if (entry.startsWith('.')) {
+							continue;
+						}
+
+						const full = path.join(nmDir, entry);
+						if (!fs.statSync(full).isDirectory()) {
+							continue;
+						}
+
+						// Handle scoped packages (@scope/name)
+						if (entry.startsWith('@')) {
+							try {
+								for (const sub of fs.readdirSync(full)) {
+									const scopedName = `${entry}/${sub}`;
+									const key = scopedName.toLowerCase();
+									if (mergedMap.has(key)) {
+										continue;
+									}
+
+									const licenseResult = findLicenseInNodeModules(scopedName, repoRoot);
+									if (licenseResult) {
+										const pkgInfo = readPackageJson(scopedName, repoRoot);
+										mergedMap.set(key, {
+											name: scopedName,
+											version: pkgInfo?.version || '',
+											license: pkgInfo?.license || '',
+											url: pkgInfo?.repository || '',
+											licenseText: licenseResult.licenseText,
+										});
+										dynamicCoverageList.push(`${scopedName} — LICENSE from extension ${ext} (transitive)`);
+										console.log(`  DYNAMIC (transitive): ${scopedName} — extension ${ext}`);
+									}
+								}
+							} catch {
+								// Can't read scoped dir
+							}
+						} else {
+							const key = entry.toLowerCase();
+							if (mergedMap.has(key)) {
+								continue;
+							}
+
+							const licenseResult = findLicenseInNodeModules(entry, repoRoot);
+							if (licenseResult) {
+								const pkgInfo = readPackageJson(entry, repoRoot);
+								mergedMap.set(key, {
+									name: entry,
+									version: pkgInfo?.version || '',
+									license: pkgInfo?.license || '',
+									url: pkgInfo?.repository || '',
+									licenseText: licenseResult.licenseText,
+								});
+								dynamicCoverageList.push(`${entry} — LICENSE from extension ${ext} (transitive)`);
+								console.log(`  DYNAMIC (transitive): ${entry} — extension ${ext}`);
+							}
+						}
+					}
+				} catch {
+					// Can't read extension node_modules
+				}
+			}
+		}
+	}
+
 	// 5c: Check cgmanifest.json entries
 	console.log('');
 	console.log('  --- Vendored code (cgmanifest.json) ---');
