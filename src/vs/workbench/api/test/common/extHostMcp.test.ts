@@ -356,10 +356,12 @@ suite('ExtHostMcp', () => {
 			);
 
 			// Should use default metadata based on the URL
-			assert.ok(authMetadata.authorizationServer.toString().startsWith('https://example.com'));
-			assert.ok(authMetadata.serverMetadata.issuer.startsWith('https://example.com'));
-			assert.ok(authMetadata.serverMetadata.authorization_endpoint?.startsWith('https://example.com/authorize'));
-			assert.ok(authMetadata.serverMetadata.token_endpoint?.startsWith('https://example.com/token'));
+			const expectedOrigin = new URL(TEST_MCP_URL).origin;
+			const authServerUrl = new URL(authMetadata.authorizationServer.toString());
+			assert.strictEqual(authServerUrl.origin, expectedOrigin);
+			assert.strictEqual(authMetadata.serverMetadata.issuer, expectedOrigin);
+			assert.strictEqual(authMetadata.serverMetadata.authorization_endpoint, `${expectedOrigin}/authorize`);
+			assert.strictEqual(authMetadata.serverMetadata.token_endpoint, `${expectedOrigin}/token`);
 
 			// Should log the fallback
 			assert.ok(logMessages.some(m =>
