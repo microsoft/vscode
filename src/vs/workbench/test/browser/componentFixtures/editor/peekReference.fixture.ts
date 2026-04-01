@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { LayoutData, ReferenceWidget } from '../../../../editor/contrib/gotoSymbol/browser/peek/referencesWidget.js';
-import { ReferencesModel } from '../../../../editor/contrib/gotoSymbol/browser/referencesModel.js';
-import * as peekView from '../../../../editor/contrib/peekView/browser/peekView.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
-import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { IReference } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { LayoutData, ReferenceWidget } from '../../../../../editor/contrib/gotoSymbol/browser/peek/referencesWidget.js';
+import { ReferencesModel } from '../../../../../editor/contrib/gotoSymbol/browser/referencesModel.js';
+import * as peekView from '../../../../../editor/contrib/peekView/browser/peekView.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 
-import '../../../../editor/contrib/peekView/browser/media/peekViewWidget.css';
-import '../../../../editor/contrib/gotoSymbol/browser/peek/referencesWidget.css';
-import '../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../editor/contrib/peekView/browser/media/peekViewWidget.css';
+import '../../../../../editor/contrib/gotoSymbol/browser/peek/referencesWidget.css';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 
 const SAMPLE_CODE = `import { readFile, writeFile } from 'fs';
 
@@ -46,6 +49,11 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 	container.style.height = '400px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
 
+	const uri = URI.parse('inmemory://peek-fixture.ts');
+
+	// Store text model reference for the mock service
+	const fixtureTextModel: { value: ITextModel | undefined } = { value: undefined };
+
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: theme,
 		additionalServices: (reg) => {
@@ -57,8 +65,28 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 			});
 			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() {
 				declare readonly _serviceBrand: undefined;
-				override async createModelReference(): Promise<never> {
-					throw new Error('Not implemented in fixture');
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					// Return a mock reference if we have a text model for this URI
+					const model = fixtureTextModel.value;
+					if (model && resource.toString() === uri.toString()) {
+						const onWillDispose = new Emitter<void>();
+						const textEditorModel: IResolvedTextEditorModel = {
+							textEditorModel: model,
+							onWillDispose: onWillDispose.event,
+							isReadonly: () => false,
+							isResolved: () => true,
+							isDisposed: () => false,
+							getLanguageId: () => model.getLanguageId(),
+							createSnapshot: () => model.createSnapshot(),
+							resolve: async () => { },
+							dispose: () => onWillDispose.dispose(),
+						};
+						return {
+							object: textEditorModel,
+							dispose: () => { },
+						};
+					}
+					throw new Error(`No model for ${resource.toString()}`);
 				}
 				override canHandleResource() { return false; }
 				override registerTextModelContentProvider() { return { dispose: () => { } }; }
@@ -66,13 +94,13 @@ function renderPeekReference({ container, disposableStore, theme }: ComponentFix
 		},
 	});
 
-	const uri = URI.parse('inmemory://peek-fixture.ts');
 	const textModel = disposableStore.add(createTextModel(
 		instantiationService,
 		SAMPLE_CODE,
 		uri,
 		'typescript'
 	));
+	fixtureTextModel.value = textModel;
 
 	const editorWidgetOptions: ICodeEditorWidgetOptions = {
 		contributions: []
