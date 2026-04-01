@@ -39,7 +39,7 @@ export function getAccountTitleBarBadgeKey(state: IAccountTitleBarState): string
 		return undefined;
 	}
 
-	return `${state.source}:${state.dotBadge}:${state.label}:${state.badge ?? ''}`;
+	return `${state.source}:${state.dotBadge}:${state.badge ?? ''}`;
 }
 
 export function getAccountTitleBarState(context: IAccountTitleBarStateContext): IAccountTitleBarState {

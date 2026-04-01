@@ -44,7 +44,7 @@ suite('Sessions - Account Title Bar State', () => {
 			kind: 'warning',
 		});
 
-		assert.strictEqual(getAccountTitleBarBadgeKey(state), 'copilot:error:Tokens Remaining:10%');
+		assert.strictEqual(getAccountTitleBarBadgeKey(state), 'copilot:error:10%');
 	});
 
 	test('shows warning dot badge for low but non-critical tokens', () => {
@@ -86,7 +86,7 @@ suite('Sessions - Account Title Bar State', () => {
 			kind: 'warning',
 		});
 
-		assert.strictEqual(getAccountTitleBarBadgeKey(state), 'copilot:error:Quota Reached:');
+		assert.strictEqual(getAccountTitleBarBadgeKey(state), 'copilot:error:');
 	});
 
 	test('falls back to signed-in account label when no higher-priority state exists', () => {

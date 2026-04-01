@@ -130,6 +130,11 @@ async function runSessionsUpdateAction(
 		return;
 	}
 
+	if (state.type === StateType.AvailableForDownload) {
+		await updateService.downloadUpdate(true);
+		return;
+	}
+
 	if (state.type === StateType.Ready) {
 		await updateService.quitAndInstall();
 		return;
