@@ -737,7 +737,7 @@ suite('RunInTerminalTool', () => {
 				goal: 'Start watching for file changes',
 				mode: 'async'
 			});
-			assertConfirmationRequired(result, 'Run `bash` command in persistent terminal session?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
 		test('should support legacy isBackground input as async mode', async () => {
@@ -751,7 +751,7 @@ suite('RunInTerminalTool', () => {
 				goal: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run `bash` command in persistent terminal session?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
@@ -889,7 +889,7 @@ suite('RunInTerminalTool', () => {
 				goal: 'Start watching',
 				mode: 'async'
 			});
-			assertConfirmationRequired(result, 'Run command in `bash` in persistent terminal session?');
+			assertConfirmationRequired(result, 'Run command in `bash`?');
 		});
 
 		test('should use withLanguage title when presenter returns languageDisplayName', async () => {
@@ -908,7 +908,7 @@ suite('RunInTerminalTool', () => {
 				goal: 'Run node command',
 				mode: 'async'
 			});
-			assertConfirmationRequired(result, 'Run `Node.js` command in `bash` in persistent terminal session?');
+			assertConfirmationRequired(result, 'Run `Node.js` command in `bash`?');
 		});
 
 		test('should use withoutLanguage inDirectory title when presenter returns no languageDisplayName with cd prefix', async () => {
