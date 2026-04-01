@@ -383,7 +383,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	}
 
 	private _getFocusableElements(): HTMLElement[] {
-		return Array.from(this.card.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+		return Array.from(this.overlay.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
 			.filter(element => element.getClientRects().length > 0);
 	}
 
