@@ -7,9 +7,10 @@ import assert from 'assert';
 import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
+import { timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISubscribeResult } from '../../common/state/protocol/commands.js';
-import type { IActionEnvelope, IResponsePartAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
+import type { IActionEnvelope, IResponsePartAction, ISessionAddedNotification, ISessionRemovedNotification, ITitleChangedAction, IUsageAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcNotification,
@@ -25,8 +26,8 @@ import {
 	type IProtocolMessage,
 	type IReconnectResult
 } from '../../common/state/sessionProtocol.js';
-import { ResponsePartKind, type IMarkdownResponsePart, type ISessionState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
-import { PRE_EXISTING_SESSION_URI } from './mockAgent.js';
+import { PendingMessageKind, ResponsePartKind, type IMarkdownResponsePart, type ISessionState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { MOCK_AUTO_TITLE, PRE_EXISTING_SESSION_URI } from './mockAgent.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -976,6 +977,241 @@ suite('Protocol WebSocket E2E', function () {
 		});
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
+
+	// ---- Session rename / title --------------------------------------------------
+
+	test('client titleChanged updates session state snapshot', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-titleChanged');
+
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/titleChanged',
+				session: sessionUri,
+				title: 'My Custom Title',
+			},
+		});
+
+		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
+		assert.strictEqual(titleAction.title, 'My Custom Title');
+
+		// Verify the snapshot reflects the new title
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.summary.title, 'My Custom Title');
+	});
+
+	test('agent-generated titleChanged is broadcast', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-agent-title');
+		dispatchTurnStarted(client, sessionUri, 'turn-title', 'with-title', 1);
+
+		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
+		assert.strictEqual(titleAction.title, MOCK_AUTO_TITLE);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify the snapshot reflects the auto-generated title
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.summary.title, MOCK_AUTO_TITLE);
+	});
+
+	test('renamed session title persists across listSessions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-title-list');
+
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/titleChanged',
+				session: sessionUri,
+				title: 'Persisted Title',
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+
+		// Poll listSessions until the persisted title appears (async DB write)
+		let session: { title: string } | undefined;
+		for (let i = 0; i < 20; i++) {
+			const result = await client.call<IListSessionsResult>('listSessions');
+			session = result.items.find(s => s.resource === sessionUri);
+			if (session?.title === 'Persisted Title') {
+				break;
+			}
+			await timeout(100);
+		}
+		assert.ok(session, 'session should appear in listSessions');
+		assert.strictEqual(session.title, 'Persisted Title');
+	});
+
+	// ---- Reasoning events -------------------------------------------------------
+
+	test('reasoning events produce reasoning response parts and append actions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-reasoning');
+		dispatchTurnStarted(client, sessionUri, 'turn-reasoning', 'with-reasoning', 1);
+
+		// The first reasoning event produces a responsePart with kind Reasoning
+		const reasoningPart = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/responsePart')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as IResponsePartAction;
+			return action.part.kind === ResponsePartKind.Reasoning;
+		});
+		const reasoningAction = getActionEnvelope(reasoningPart).action as IResponsePartAction;
+		assert.strictEqual(reasoningAction.part.kind, ResponsePartKind.Reasoning);
+
+		// The second reasoning chunk produces a session/reasoning append action
+		const appendNotif = await client.waitForNotification(n => isActionNotification(n, 'session/reasoning'));
+		const appendAction = getActionEnvelope(appendNotif).action;
+		assert.strictEqual(appendAction.type, 'session/reasoning');
+		if (appendAction.type === 'session/reasoning') {
+			assert.strictEqual(appendAction.content, ' about this...');
+		}
+
+		// Then the markdown response part
+		const mdPart = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/responsePart')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as IResponsePartAction;
+			return action.part.kind === ResponsePartKind.Markdown;
+		});
+		assert.ok(mdPart);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
+
+	// ---- Queued messages --------------------------------------------------------
+
+	test('queued message is auto-consumed when session is idle', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-queue-idle');
+		client.clearReceived();
+
+		// Queue a message when the session is idle — server should immediately consume it
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/pendingMessageSet',
+				session: sessionUri,
+				kind: PendingMessageKind.Queued,
+				id: 'q-1',
+				userMessage: { text: 'hello' },
+			},
+		});
+
+		// The server should auto-consume the queued message and start a turn
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnStarted'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify the turn was created from the queued message
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 1);
+		assert.strictEqual(state.turns[state.turns.length - 1].userMessage.text, 'hello');
+		// Queue should be empty after consumption
+		assert.ok(!state.queuedMessages?.length, 'queued messages should be empty after consumption');
+	});
+
+	test('queued message waits for in-progress turn to complete', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-queue-wait');
+
+		// Start a turn first
+		dispatchTurnStarted(client, sessionUri, 'turn-first', 'hello', 1);
+
+		// Wait for the first turn's response to confirm it is in progress
+		await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+
+		// Queue a message while the turn is in progress
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/pendingMessageSet',
+				session: sessionUri,
+				kind: PendingMessageKind.Queued,
+				id: 'q-wait-1',
+				userMessage: { text: 'hello' },
+			},
+		});
+
+		// First turn should complete
+		const firstComplete = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/turnComplete')) {
+				return false;
+			}
+			return (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-first';
+		});
+		const firstSeq = getActionEnvelope(firstComplete).serverSeq;
+
+		// The queued message's turn should complete AFTER the first turn
+		const secondComplete = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/turnComplete')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return (envelope.action as { turnId: string }).turnId !== 'turn-first'
+				&& envelope.serverSeq > firstSeq;
+		});
+		assert.ok(secondComplete, 'should receive a second turnComplete from the queued message');
+
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
+	});
+
+	// ---- Steering messages ------------------------------------------------------
+
+	test('steering message is set and consumed by agent', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-steering');
+
+		// Start a turn first
+		dispatchTurnStarted(client, sessionUri, 'turn-steer', 'hello', 1);
+
+		// Set a steering message while the turn is in progress
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/pendingMessageSet',
+				session: sessionUri,
+				kind: PendingMessageKind.Steering,
+				id: 'steer-1',
+				userMessage: { text: 'Please be concise' },
+			},
+		});
+
+		// The steering message should be set in state initially
+		const setNotif = await client.waitForNotification(n => isActionNotification(n, 'session/pendingMessageSet'));
+		assert.ok(setNotif, 'should see pendingMessageSet action');
+
+		// The mock agent consumes steering and fires steering_consumed,
+		// which causes the server to dispatch pendingMessageRemoved
+		const removedNotif = await client.waitForNotification(n => isActionNotification(n, 'session/pendingMessageRemoved'));
+		assert.ok(removedNotif, 'should see pendingMessageRemoved after agent consumes steering');
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Steering should be cleared from state
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.ok(!state.steeringMessage, 'steering message should be cleared after consumption');
 	});
 
 	// ---- Shell auto-approve -------------------------------------------------

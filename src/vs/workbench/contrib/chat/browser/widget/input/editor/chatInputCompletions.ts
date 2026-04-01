@@ -107,8 +107,7 @@ class SlashCommandCompletions extends Disposable {
 				let customAgentTarget: Target | undefined = undefined;
 				if (widget.lockedAgentId) {
 					const sessionResource = widget.viewModel.model.sessionResource;
-					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
-					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
+					customAgentTarget = (sessionResource ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
 				}
 
 				const range = computeCompletionRanges(model, position, SlashCommandWord);

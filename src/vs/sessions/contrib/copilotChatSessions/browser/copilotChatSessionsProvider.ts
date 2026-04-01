@@ -1184,10 +1184,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				model.inputModel.setState({ mode: { id: session.chatMode.id, kind: session.chatMode.kind } });
 			}
 			if (session.selectedOptions.size > 0) {
-				const contributedSession = model.contributedChatSession;
-				if (contributedSession) {
-					model.setContributedChatSession({ ...contributedSession, initialSessionOptions: session.selectedOptions });
-				}
+				this.chatSessionsService.updateSessionOptions(session.resource, session.selectedOptions);
 			}
 			modelRef.dispose();
 		}
