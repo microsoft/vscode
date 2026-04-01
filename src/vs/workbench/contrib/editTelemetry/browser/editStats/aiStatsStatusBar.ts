@@ -48,6 +48,7 @@ export class AiStatsStatusBar extends Disposable {
 						const elem = createAiStatsHover({
 							data: this._aiStatsFeature,
 							onOpenSettings: () => openSettingsCommand({ ids: [AI_STATS_SETTING_ID] }).run(this._commandService),
+							chartViewMode: 'days',
 						});
 						return elem.keepUpdated(store).element;
 					},
@@ -134,10 +135,11 @@ export interface IAiStatsHoverData {
 export interface IAiStatsHoverOptions {
 	readonly data: IAiStatsHoverData;
 	readonly onOpenSettings?: () => void;
+	readonly chartViewMode?: ChartViewMode;
 }
 
 export function createAiStatsHover(options: IAiStatsHoverOptions) {
-	const chartViewMode = observableValue<ChartViewMode>('chartViewMode', 'days');
+	const chartViewMode = observableValue<ChartViewMode>('chartViewMode', options.chartViewMode ?? 'sessions');
 	const aiRatePercent = options.data.aiRate.map(r => `${Math.round(r * 100)}%`);
 
 	const createToggleButton = (mode: ChartViewMode, tooltip: string, icon: ThemeIcon) => {
