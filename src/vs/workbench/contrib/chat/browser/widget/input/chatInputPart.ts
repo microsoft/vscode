@@ -587,7 +587,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
 			this._register(this.options.sessionTypePickerDelegate.onDidChangeActiveSessionProvider(async (newSessionType) => {
-				this.computeVisibleOptionGroups();
+				this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
 				this.agentSessionTypeKey.set(newSessionType);
 				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(newSessionType));
 				this.updateWidgetLockStateFromSessionType(newSessionType);
@@ -853,7 +853,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._lastSessionPickerAction = action;
 		this._lastSessionPickerOptions = pickerOptions;
 
-		const result = this.computeVisibleOptionGroups();
+		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
 		if (!result) {
 			return [];
 		}
@@ -1601,7 +1601,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * @returns The result containing visible group IDs and related context, or undefined
 	 *          if there are no visible option groups
 	 */
-	private computeVisibleOptionGroups(): {
+	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(): {
 		visibleGroupIds: Set<string>;
 		optionGroups: IChatSessionProviderOptionGroup[];
 		sessionResource: URI | undefined;
@@ -1719,7 +1719,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private refreshChatSessionPickers(): void {
 		// Use the shared helper to compute visibility and update context keys
-		const result = this.computeVisibleOptionGroups();
+		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
 
 		if (!result) {
 			// No visible options - helper already updated context keys
@@ -1929,7 +1929,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
-		this.computeVisibleOptionGroups();
+		this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
 
 		// Initialize lock state when rendering with a pre-selected session provider (e.g., welcome view restore)
 		const delegate = this.options.sessionTypePickerDelegate;
