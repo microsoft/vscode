@@ -29,7 +29,7 @@ export const SendToTerminalToolData: IToolData = {
 	id: TerminalToolId.SendToTerminal,
 	toolReferenceName: 'sendToTerminal',
 	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
-	modelDescription: `Send a command to an existing background terminal that was started with ${TerminalToolId.RunInTerminal}. Use this to send commands to long-running terminal sessions. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal}. After sending, use ${TerminalToolId.GetTerminalOutput} to check for updated output.`,
+	modelDescription: `Send a command to an existing persistent terminal session started with ${TerminalToolId.RunInTerminal} in async mode (legacy: isBackground=true). Use this for long-running terminal workflows. The ID must be the exact opaque value returned by ${TerminalToolId.RunInTerminal}. After sending, use ${TerminalToolId.GetTerminalOutput} to check updated output.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -37,7 +37,7 @@ export const SendToTerminalToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: `The ID of the background terminal to send a command to (returned by ${TerminalToolId.RunInTerminal}).`,
+				description: `The ID of the persistent terminal session to send a command to (returned by ${TerminalToolId.RunInTerminal} in async mode).`,
 				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
 			},
 			command: {

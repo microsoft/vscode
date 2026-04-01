@@ -24,6 +24,7 @@ import {
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
+import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 
 /** Tracks a single remote connection through its lifecycle. */
@@ -100,6 +101,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	reconnect(address: string): void {
 		const normalized = normalizeRemoteAgentHostAddress(address);
+
+		// SSH entries are reconnected by the SSH service, not via WebSocket
+		const configuredEntry = this._getConfiguredEntries().find(
+			e => normalizeRemoteAgentHostAddress(e.address) === normalized
+		);
+		if (configuredEntry?.sshConfigHost) {
+			return;
+		}
+
 		const token = this._tokens.get(normalized);
 
 		// Cancel any pending reconnect
@@ -147,6 +157,52 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		return connection;
+	}
+
+	async addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo> {
+		const address = entry.address;
+
+		// Dispose any existing entry for this address to avoid leaking
+		// old protocol clients and relay transports on reconnect.
+		const existingEntry = this._entries.get(address);
+		if (existingEntry) {
+			this._entries.delete(address);
+			existingEntry.store.dispose();
+		}
+
+		const store = new DisposableStore();
+
+		// Create a connection entry wrapping the pre-connected client
+		const protocolClient = connection as RemoteAgentHostProtocolClient;
+		store.add(protocolClient);
+		const connEntry: IConnectionEntry = { store, client: protocolClient, connected: true, status: RemoteAgentHostConnectionStatus.Connected };
+		this._entries.set(address, connEntry);
+		this._names.set(address, entry.name);
+		if (entry.connectionToken) {
+			this._tokens.set(address, entry.connectionToken);
+		}
+
+		store.add(protocolClient.onDidClose(() => {
+			if (this._entries.get(address) === connEntry) {
+				connEntry.connected = false;
+				connEntry.status = RemoteAgentHostConnectionStatus.Disconnected;
+				this._onDidChangeConnections.fire();
+			}
+		}));
+
+		// Persist SSH entries — await so that the config is written before
+		// onDidChangeConnections fires, ensuring _reconcile creates the provider.
+		await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
+
+		this._onDidChangeConnections.fire();
+
+		return {
+			address,
+			name: entry.name,
+			clientId: protocolClient.clientId,
+			defaultDirectory: protocolClient.defaultDirectory,
+			status: RemoteAgentHostConnectionStatus.Connected,
+		};
 	}
 
 	async removeRemoteAgentHost(address: string): Promise<void> {
@@ -219,9 +275,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 		}
 
-		// Add new connections
+		// Add new connections (skip SSH entries — those are handled by ISSHRemoteAgentHostService)
 		for (const entry of entries) {
-			if (!this._entries.has(entry.address)) {
+			if (!this._entries.has(entry.address) && !entry.sshConfigHost) {
 				this._connectTo(entry.address, entry.connectionToken);
 			}
 		}
@@ -242,7 +298,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		}
 
 		const store = new DisposableStore();
-		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, connectionToken));
+		const transport = store.add(new WebSocketClientTransport(address, connectionToken));
+		const client = store.add(this._instantiationService.createInstance(RemoteAgentHostProtocolClient, address, transport));
 		const entry: IConnectionEntry = { store, client, connected: false, status: RemoteAgentHostConnectionStatus.Connecting };
 		this._entries.set(address, entry);
 

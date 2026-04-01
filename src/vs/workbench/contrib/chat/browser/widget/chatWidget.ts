@@ -199,6 +199,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsTerminalAttachments: true,
 	supportsPromptAttachments: true,
 	supportsHandOffs: true,
+	supportsCheckpoints: true,
 };
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
@@ -975,8 +976,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
-		// Only show welcome getting started until extension is installed
-		this.container.classList.toggle('chat-view-getting-started-disabled', this.chatEntitlementService.sentiment.installed);
+		// Only show welcome getting started until setup is completed
+		this.container.classList.toggle('chat-view-getting-started-disabled', this.chatEntitlementService.sentiment.completed);
 
 		this._onDidChangeEmptyState.fire();
 	}
@@ -1003,7 +1004,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!numItems) {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 				let additionalMessage: string | IMarkdownString | undefined;
-				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
+				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.completed) {
 					const providers = product.defaultChatAgent.provider;
 					additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", providers.default.name, providers.default.name, product.defaultChatAgent.termsStatementUrl, product.defaultChatAgent.privacyStatementUrl), { isTrusted: true });
 				} else {
@@ -2159,7 +2160,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
-		this.listWidget?.updateRendererOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
+		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
+		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints, noFooter: true, progressMessageAtBottomOfResponse: true });
 		if (this.visible) {
 			this.listWidget?.rerender();
 		}
@@ -2270,12 +2272,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const toolReferences = this.toolsService.toToolReferences(refs);
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
-		const promptPath = slashCommand.promptPath;
 		const promptRunEvent: ChatPromptRunEvent = {
-			storage: promptPath.storage,
+			storage: slashCommand.storage,
 		};
-		if (promptPath.storage === PromptsStorage.extension) {
-			promptRunEvent.extensionId = promptPath.extension.identifier.value;
+		if (slashCommand.extension) {
+			promptRunEvent.extensionId = slashCommand.extension.identifier.value;
 			promptRunEvent.promptName = slashCommand.name;
 		} else {
 			promptRunEvent.promptNameHash = hash(slashCommand.name).toString(16);
@@ -2337,8 +2338,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				options.queue = undefined;
 			}
 
+			// For agents that support checkpoints, preserve the checkpoint
+			// through finishedEditing so blocked requests are removed below
+			// and the agent host can dispatch a protocol truncation action.
+			const preserveCheckpoint = this._lockedAgent && !!this._attachmentCapabilities.supportsCheckpoints;
+			if (preserveCheckpoint) {
+				this.recentlyRestoredCheckpoint = true;
+			}
 			this.finishedEditing(true);
-			this.viewModel.model?.setCheckpoint(undefined);
+			if (!preserveCheckpoint) {
+				this.viewModel.model?.setCheckpoint(undefined);
+			}
 		}
 
 		const model = this.viewModel.model;
@@ -2408,6 +2418,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.chatService.removeRequest(this.viewModel.sessionResource, request.id);
 				}
 			}
+			this.viewModel.model.setCheckpoint(undefined);
 		}
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
@@ -2817,8 +2828,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are enabled`);
 			const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
 			const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
-			const sessionResource = this._viewModel?.model.sessionResource;
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents, sessionResource);
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents);
 			await computer.collect(attachedContext, CancellationToken.None);
 		} catch (err) {
 			this.logService.error(`ChatWidget#_autoAttachInstructions: failed to compute automatic instructions`, err);

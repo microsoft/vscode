@@ -20,7 +20,6 @@ import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenu
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
-import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalTool.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
@@ -97,10 +96,6 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		const getTerminalOutputTool = _instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(_toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 		this._register(_toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
-
-		const awaitTerminalTool = _instantiationService.createInstance(AwaitTerminalTool);
-		this._register(_toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
-		this._register(_toolsService.executeToolSet.addTool(AwaitTerminalToolData));
 
 		const killTerminalTool = _instantiationService.createInstance(KillTerminalTool);
 		this._register(_toolsService.registerTool(KillTerminalToolData, killTerminalTool));

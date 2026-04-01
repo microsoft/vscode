@@ -644,7 +644,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
-		markdownDescription: localize('detachBackgroundProcesses.description', "Whether to detach background terminal processes so they survive when VS Code exits. When enabled, commands started with `isBackground: true` are wrapped with `nohup` (POSIX) or `Start-Process` (Windows) so the process continues running after the terminal is disposed."),
+		markdownDescription: localize('detachBackgroundProcesses.description', "Whether to detach persistent terminal processes so they survive when VS Code exits. When enabled, commands started with `mode: \"async\"` (legacy: `isBackground: true`) are wrapped with `nohup` (POSIX) or `Start-Process` (Windows) so the process continues running after the terminal is disposed."),
 	}
 };
 

@@ -818,6 +818,16 @@ export namespace IChatToolInvocation {
 		return state.type === StateKind.Completed || state.type === StateKind.Cancelled;
 	}
 
+	export function isEffectivelyHidden(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
+		if (invocation.presentation === 'hidden') {
+			return true;
+		}
+		if (invocation.presentation === 'hiddenAfterComplete' && isComplete(invocation, reader)) {
+			return true;
+		}
+		return false;
+	}
+
 	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			return false;
@@ -1458,8 +1468,6 @@ export interface IChatService {
 
 	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot;
 
-	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
-
 	/**
 	 * Sends a chat request for the given session.
 	 * @returns A result indicating whether the request was sent, queued, or rejected.
@@ -1537,7 +1545,6 @@ export interface IChatService {
 }
 
 export interface IChatSessionContext {
-	readonly chatSessionResource: URI;
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
 }
 

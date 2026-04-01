@@ -32,7 +32,7 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection } fr
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, IAgentInstructionFile, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
@@ -50,7 +50,8 @@ import { IIterativePager } from '../../../../base/common/paging.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { CodeReviewStateKind, ICodeReviewService, ICodeReviewState, IPRReviewState, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from './sessions/mockCodeReviewService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
@@ -95,7 +96,7 @@ function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier;
 	};
 }
 
-function createMockPromptsService(files: IFixtureFile[], agentInstructions: IResolvedAgentFile[]): IPromptsService {
+function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[]): IPromptsService {
 	const applyToMap = new ResourceMap<string | undefined>();
 	const descriptionMap = new ResourceMap<string | undefined>();
 	for (const f of files) { applyToMap.set(f.uri, f.applyTo); descriptionMap.set(f.uri, f.description); }
@@ -147,16 +148,18 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
 			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
 			const commands = await Promise.all(promptFiles.map(async f => {
-				const promptPath = { uri: f.uri, storage: f.storage, type: f.type, extension: toExtensionInfo(f) as never };
-				const parsedPromptFile = await this.parseNew(f.uri, CancellationToken.None);
 				return {
+					uri: f.uri,
+					userInvocable: true,
 					name: f.name ?? 'prompt',
 					description: f.description,
 					argumentHint: undefined,
-					promptPath: promptPath as IChatPromptSlashCommand['promptPath'],
-					parsedPromptFile,
+					type: f.type,
+					storage: f.storage,
+					source: undefined,
+					extension: toExtensionInfo(f) as never,
 					when: undefined,
-				};
+				} satisfies IChatPromptSlashCommand;
 			}));
 			return commands;
 		}
@@ -208,30 +211,6 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		override clearFeedback(): void { }
 		override removeFeedback(): void { }
 		override async addFeedbackAndSubmit(): Promise<void> { }
-	}();
-}
-
-function createMockCodeReviewService(): ICodeReviewService {
-	return new class extends mock<ICodeReviewService>() {
-		private readonly reviewState = observableValue<ICodeReviewState>('fixture.reviewState', { kind: CodeReviewStateKind.Idle });
-		private readonly prReviewState = observableValue<IPRReviewState>('fixture.prReviewState', { kind: PRReviewStateKind.None });
-
-		override getReviewState() {
-			return this.reviewState;
-		}
-
-		override getPRReviewState() {
-			return this.prReviewState;
-		}
-
-		override hasReview(): boolean {
-			return false;
-		}
-
-		override requestReview(): void { }
-		override removeComment(): void { }
-		override dismissReview(): void { }
-		override async resolvePRReviewThread(): Promise<void> { }
 	}();
 }
 
@@ -324,10 +303,10 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/home/dev/.copilot/hooks/backup-changes.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Backup Changes', description: 'Auto-stash uncommitted changes' },
 ];
 
-const agentInstructions: IResolvedAgentFile[] = [
-	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentFileType.claudeMd },
-	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+const agentInstructions: IAgentInstructionFile[] = [
+	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentInstructionFileType.claudeMd },
+	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 ];
 
 const mcpWorkspaceServers = [

@@ -41,7 +41,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
@@ -655,10 +655,6 @@ export class ChatService extends Disposable implements IChatService {
 			modelRef.object.inputModel.setState({ permissionLevel: storedPermissionLevel });
 		}
 
-		modelRef.object.setContributedChatSession({
-			chatSessionResource: sessionResource,
-		});
-
 		if (providedSession.title) {
 			modelRef.object.setCustomTitle(providedSession.title);
 		}
@@ -825,15 +821,6 @@ export class ChatService extends Disposable implements IChatService {
 		return modelRef;
 	}
 
-	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined {
-		const model = this._sessionModels.get(sessionResource);
-		if (!model) {
-			return;
-		}
-		const { contributedChatSession } = model;
-		return contributedChatSession;
-	}
-
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
 		const model = this._sessionModels.get(request.session.sessionResource);
 		if (!model && model !== request.session) {
@@ -931,10 +918,9 @@ export class ChatService extends Disposable implements IChatService {
 
 				// Update the new model's contributed session with initialSessionOptions
 				// so that the agent receives them when invoked.
-				model.setContributedChatSession({
-					chatSessionResource: newItem.resource,
-					initialSessionOptions: initialSessionOptions,
-				});
+				if (initialSessionOptions) {
+					this.chatSessionService.updateSessionOptions(model.sessionResource, initialSessionOptions);
+				}
 
 				sessionResource = newItem.resource;
 				newSessionResource = newItem.resource;
@@ -1128,7 +1114,7 @@ export class ChatService extends Disposable implements IChatService {
 			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
-				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
+				const hooksInfo = await this.promptsService.getHooks(token);
 				if (hooksInfo) {
 					collectedHooks = hooksInfo.hooks;
 					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
@@ -1141,7 +1127,7 @@ export class ChatService extends Disposable implements IChatService {
 			const agentName = options?.modeInfo?.modeInstructions?.name;
 			if (agentName) {
 				try {
-					const agents = await this.promptsService.getCustomAgents(token, model.sessionResource);
+					const agents = await this.promptsService.getCustomAgents(token);
 					const customAgent = agents.find(a => a.name === agentName);
 					if (customAgent?.hooks) {
 						collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
