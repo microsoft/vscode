@@ -505,6 +505,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.remove('kind-default', 'kind-accent', 'kind-warning', 'kind-prominent');
 		this.container.classList.add(`kind-${state.kind}`);
 		this.container.classList.toggle('menu-visible', this.isMenuVisible);
+		this.container.classList.toggle('primary-state', state.source === 'update');
 		this.container.setAttribute('aria-label', state.ariaLabel);
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(state.icon)}`;
@@ -574,9 +575,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private createCombinedPanelContent(panelStore: DisposableStore): HTMLElement {
 		const panel = $('div.sessions-account-titlebar-panel');
 		const headerSection = append(panel, $('.sessions-account-titlebar-panel-header'));
-		const headerIcon = append(headerSection, $('div.sessions-account-titlebar-panel-icon'));
-		headerIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.account));
-		headerIcon.setAttribute('aria-hidden', 'true');
 		const title = append(headerSection, $('div.sessions-account-titlebar-panel-title'));
 		title.textContent = this.getPanelHeaderLabel();
 		const headerActions = this.getHeaderActions();
@@ -618,6 +616,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				button.disabled = !action.enabled;
 				button.setAttribute('aria-label', action.tooltip || action.label);
 				button.classList.toggle('checked', !!action.checked);
+				button.classList.toggle('primary-action', this.isUpdateAction(action));
 				append(button, ...renderLabelWithIcons(action.label));
 
 				panelStore.add(addDisposableListener(button, EventType.CLICK, async event => {
@@ -709,17 +708,17 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		switch (state.type) {
 			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', localize('downloadUpdateVersion', 'Download Update ({0})', versionLabel), undefined, true, async () => {
+				return new Action('update.downloadNow', localize('downloadUpdateVersion', 'Download Update • {0}', versionLabel), undefined, true, async () => {
 					await this.runSyntheticUpdateAction(state);
 				});
 
 			case StateType.Downloaded:
-				return new Action('update.install', localize('installUpdateVersion', 'Install Update... ({0})', versionLabel), undefined, true, async () => {
+				return new Action('update.install', localize('installUpdateVersion', 'Install Update... • {0}', versionLabel), undefined, true, async () => {
 					await this.runSyntheticUpdateAction(state);
 				});
 
 			case StateType.Ready:
-				return new Action('update.restart', localize('restartToUpdateVersion', 'Restart to Update ({0})', versionLabel), undefined, true, async () => {
+				return new Action('update.restart', localize('restartToUpdateVersion', 'Restart to Update • {0}', versionLabel), undefined, true, async () => {
 					await this.runSyntheticUpdateAction(state);
 				});
 

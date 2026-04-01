@@ -46,6 +46,39 @@
 	display: none;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground) !important;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-icon,
+.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-label {
+	color: var(--vscode-button-foreground);
+}
+
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled).sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-icon.codicon,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled).sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-icon.codicon::before {
+	color: var(--vscode-button-foreground) !important;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state:hover,
+.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.primary-state:hover {
+	background: var(--vscode-button-hoverBackground);
+	color: var(--vscode-button-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state:active,
+.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state.menu-visible,
+.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.primary-state.menu-visible {
+	background: var(--vscode-button-hoverBackground);
+	color: var(--vscode-button-foreground);
+}
+
+.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.primary-state {
+	outline-color: var(--vscode-focusBorder);
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-widget-badge {
 	flex: 0 0 auto;
 	display: inline-flex;
@@ -90,15 +123,9 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-header {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	min-height: 28px;
 	padding: 6px 8px 0;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-icon {
-	flex: 0 0 auto;
-	font-size: 16px;
-	color: var(--vscode-descriptionForeground);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-title {
@@ -229,6 +256,40 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-action:disabled {
 	opacity: 0.6;
+	cursor: default;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action {
+	margin: 4px 8px;
+	padding: 0 12px;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:hover {
+	background: var(--vscode-button-hoverBackground);
+	color: var(--vscode-button-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action.checked,
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:active {
+	background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
+	color: var(--vscode-button-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:focus-visible {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:disabled {
+	opacity: 0.5;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 	cursor: default;
 }
 
