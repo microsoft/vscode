@@ -17,6 +17,10 @@
 	transition: opacity 200ms ease-out;
 }
 
+.sessions-walkthrough-overlay .hidden {
+	display: none;
+}
+
 /* Hide titlebar right actions during sign-in */
 .monaco-workbench:has(.sessions-walkthrough-overlay) .part.titlebar .titlebar-right {
 	visibility: hidden;
@@ -123,6 +127,10 @@
 	font-weight: 500;
 	cursor: pointer;
 	transition: background 100ms, border-color 100ms;
+}
+
+.sessions-walkthrough-provider-label {
+	line-height: 1;
 }
 
 .sessions-walkthrough-provider-btn:hover {
@@ -276,4 +284,27 @@
 	margin: 0;
 	font-size: 12px;
 	color: var(--vscode-errorForeground);
+}
+
+.sessions-walkthrough-disclaimer {
+	position: absolute;
+	left: 50%;
+	bottom: 24px;
+	transform: translateX(-50%);
+	width: min(720px, calc(100vw - 64px));
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	line-height: 1.4;
+	text-align: center;
+}
+
+.sessions-walkthrough-disclaimer-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.sessions-walkthrough-disclaimer-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
 }

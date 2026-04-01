@@ -305,6 +305,40 @@ suite('SessionsWelcomeContribution', () => {
 		}
 	});
 
+	test('walkthrough shows disclaimer links on the initial sign-in screen', () => {
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
+		instantiationService.stub(ICommandService, {
+			executeCommand: () => Promise.resolve(false)
+		} as unknown as ICommandService);
+		instantiationService.stub(IExtensionService, {
+			stopExtensionHosts: () => Promise.resolve(false),
+			startExtensionHosts: () => Promise.resolve()
+		} as unknown as IExtensionService);
+		instantiationService.stub(IDefaultAccountService, {
+			getDefaultAccount: () => Promise.resolve(undefined)
+		} as unknown as IDefaultAccountService);
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		try {
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const disclaimer = container.querySelector<HTMLElement>('.sessions-walkthrough-disclaimer');
+			assert.ok(disclaimer);
+			assert.strictEqual(disclaimer.classList.contains('hidden'), false);
+
+			const links = Array.from(disclaimer.querySelectorAll<HTMLAnchorElement>('a'));
+			assert.deepStrictEqual(links.map(link => link.textContent), ['Terms', 'Privacy Statement', 'public code', 'settings']);
+
+			overlay.dispose();
+		} finally {
+			container.remove();
+		}
+	});
+
 	test('dismissing walkthrough does not mark welcome complete', async () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
 		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);

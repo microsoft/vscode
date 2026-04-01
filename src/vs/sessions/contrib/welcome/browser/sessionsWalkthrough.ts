@@ -12,11 +12,14 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export type WalkthroughOutcome = 'completed' | 'dismissed';
 
@@ -31,6 +34,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private readonly card: HTMLElement;
 	private readonly contentContainer: HTMLElement;
 	private readonly footerContainer: HTMLElement;
+	private readonly disclaimerElement: HTMLElement;
 	private readonly stepDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly previouslyFocusedElement: HTMLElement | undefined;
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
@@ -45,6 +49,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -82,6 +88,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Fixed footer
 		this.footerContainer = append(this.card, $('.sessions-walkthrough-footer'));
+		this.disclaimerElement = this._createDisclaimer();
 
 		this._renderSignIn();
 	}
@@ -94,6 +101,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		this.contentContainer.textContent = '';
 		this.footerContainer.textContent = '';
+		this.disclaimerElement.classList.remove('hidden');
 
 		// Horizontal layout: icon left, text + buttons right
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
@@ -176,6 +184,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		error.style.display = 'none';
 
 		// Fade the content
+		this.disclaimerElement.classList.add('hidden');
 		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 		await new Promise(resolve => setTimeout(resolve, 200));
 		if (this._shouldAbortUpdate(titleEl, subtitleEl, providerRow)) {
@@ -268,6 +277,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private async _showSignInSuccess(): Promise<void> {
 		const stepDisposables = this.stepDisposables.value = new DisposableStore();
+		this.disclaimerElement.classList.add('hidden');
 
 		// Get user's account name
 		const account = await this.defaultAccountService.getDefaultAccount();
@@ -379,5 +389,41 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _shouldAbortUpdate(...elements: HTMLElement[]): boolean {
 		return !this.overlay.isConnected || elements.some(element => !element.isConnected);
+	}
+
+	private _createDisclaimer(): HTMLElement {
+		const defaultChatAgent = this.productService.defaultChatAgent;
+		const disclaimer = append(this.overlay, $('p.sessions-walkthrough-disclaimer.hidden'));
+		const termsLink = this._appendDisclaimerLink(defaultChatAgent?.termsStatementUrl ?? '', localize('walkthrough.disclaimer.terms', "Terms"));
+		const privacyLink = this._appendDisclaimerLink(defaultChatAgent?.privacyStatementUrl ?? '', localize('walkthrough.disclaimer.privacy', "Privacy Statement"));
+		const publicCodeLink = this._appendDisclaimerLink(defaultChatAgent?.publicCodeMatchesUrl ?? '', localize('walkthrough.disclaimer.publicCode', "public code"));
+		const settingsLink = this._appendDisclaimerLink(defaultChatAgent?.manageSettingsUrl ?? '', localize('walkthrough.disclaimer.settings', "settings"));
+
+		append(disclaimer, document.createTextNode(localize('walkthrough.disclaimer.prefix', "By continuing, you agree to GitHub's ")));
+		disclaimer.appendChild(termsLink);
+		append(disclaimer, document.createTextNode(localize('walkthrough.disclaimer.middle', " and ")));
+		disclaimer.appendChild(privacyLink);
+		append(disclaimer, document.createTextNode(localize('walkthrough.disclaimer.suffix', ". GitHub Copilot may show ")));
+		disclaimer.appendChild(publicCodeLink);
+		append(disclaimer, document.createTextNode(localize('walkthrough.disclaimer.final', " suggestions and use your data to improve the product. You can change these ")));
+		disclaimer.appendChild(settingsLink);
+		append(disclaimer, document.createTextNode(localize('walkthrough.disclaimer.end', " anytime.")));
+
+		return disclaimer;
+	}
+
+	private _appendDisclaimerLink(href: string, label: string): HTMLAnchorElement {
+		const link = $('a', {
+			className: 'sessions-walkthrough-disclaimer-link',
+			href,
+		}, label) as HTMLAnchorElement;
+		this._register(addDisposableListener(link, EventType.CLICK, e => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (href) {
+				void this.openerService.open(URI.parse(href), { fromUserGesture: true });
+			}
+		}));
+		return link;
 	}
 }
