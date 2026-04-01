@@ -40,7 +40,7 @@ import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountTitleBarState } from './accountTitleBarState.js';
+import { getAccountTitleBarBadgeKey, getAccountTitleBarState } from './accountTitleBarState.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 
@@ -50,6 +50,8 @@ const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidg
 const SessionsTitleBarUpdateWidgetAction = 'sessions.action.titleBarUpdateWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 280;
 const SIMULATE_SESSIONS_UPDATE_AVAILABLE = false;
+type SessionsTokenSimulationState = 'off' | 'warning' | 'error';
+const SIMULATE_SESSIONS_TOKEN_STATE: SessionsTokenSimulationState = 'off';
 const SIMULATED_SESSIONS_UPDATE_STATE = State.AvailableForDownload({
 	version: 'b7c2d9f',
 	productVersion: '1.115.0',
@@ -58,6 +60,41 @@ const SIMULATED_SESSIONS_UPDATE_STATE = State.AvailableForDownload({
 
 function getSessionsUpdateState(updateService: IUpdateService): State {
 	return SIMULATE_SESSIONS_UPDATE_AVAILABLE ? SIMULATED_SESSIONS_UPDATE_STATE : updateService.state;
+}
+
+function getSessionsSimulatedEntitlement(entitlement: ChatEntitlement): ChatEntitlement {
+	return SIMULATE_SESSIONS_TOKEN_STATE === 'off' ? entitlement : ChatEntitlement.Free;
+}
+
+function getSessionsSimulatedQuotas(quotas: ChatEntitlementService['quotas']): ChatEntitlementService['quotas'] {
+	switch (SIMULATE_SESSIONS_TOKEN_STATE) {
+		case 'warning':
+			return {
+				...quotas,
+				chat: {
+					total: 100,
+					remaining: 20,
+					percentRemaining: 20,
+					overageEnabled: false,
+					overageCount: 0,
+					unlimited: false,
+				},
+			};
+		case 'error':
+			return {
+				...quotas,
+				chat: {
+					total: 100,
+					remaining: 0,
+					percentRemaining: 0,
+					overageEnabled: false,
+					overageCount: 0,
+					unlimited: false,
+				},
+			};
+		default:
+			return quotas;
+	}
 }
 
 function shouldHideSessionsTitleBarUpdateWidget(type: StateType): boolean {
@@ -497,6 +534,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountRequestCounter = 0;
 	private lastState: ReturnType<typeof getAccountTitleBarState>;
 	private isMenuVisible = false;
+	private lastBadgeKey: string | undefined;
+	private dismissedBadgeKey: string | undefined;
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 
@@ -513,9 +552,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		super(undefined, action, options);
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
-			entitlement: this.chatEntitlementService.entitlement,
+			entitlement: getSessionsSimulatedEntitlement(this.chatEntitlementService.entitlement),
 			sentiment: this.chatEntitlementService.sentiment,
-			quotas: this.chatEntitlementService.quotas,
+			quotas: getSessionsSimulatedQuotas(this.chatEntitlementService.quotas),
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
@@ -572,9 +611,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			isAccountLoading: this.isAccountLoading,
 			accountName: this.accountName,
 			accountProviderLabel: this.accountProviderLabel,
-			entitlement: this.chatEntitlementService.entitlement,
+			entitlement: getSessionsSimulatedEntitlement(this.chatEntitlementService.entitlement),
 			sentiment: this.chatEntitlementService.sentiment,
-			quotas: this.chatEntitlementService.quotas,
+			quotas: getSessionsSimulatedQuotas(this.chatEntitlementService.quotas),
 		});
 		this.lastState = state;
 
@@ -584,10 +623,22 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.remove('primary-state');
 		this.container.setAttribute('aria-label', state.ariaLabel);
 
-		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(state.icon)}`;
+		const badgeKey = getAccountTitleBarBadgeKey(state);
+		if (badgeKey !== this.lastBadgeKey) {
+			this.lastBadgeKey = badgeKey;
+			this.dismissedBadgeKey = undefined;
+		}
+
+		const shouldShowDotBadge = !!badgeKey && badgeKey !== this.dismissedBadgeKey;
+		const titleBarIcon = state.dotBadge ? Codicon.account : state.icon;
+
+		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
 		this.labelElement.textContent = '';
 		this.badgeElement.textContent = '';
-		this.badgeElement.style.display = 'none';
+		this.badgeElement.classList.toggle('dot-badge', shouldShowDotBadge);
+		this.badgeElement.classList.toggle('dot-badge-warning', shouldShowDotBadge && state.dotBadge === 'warning');
+		this.badgeElement.classList.toggle('dot-badge-error', shouldShowDotBadge && state.dotBadge === 'error');
+		this.badgeElement.style.display = shouldShowDotBadge ? '' : 'none';
 
 		this.hoverDisposable.clear();
 	}
@@ -617,13 +668,20 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const panelStore = new DisposableStore();
 		this.clickPanelDisposable.value = panelStore;
 
+		const badgeKey = getAccountTitleBarBadgeKey(this.lastState);
+		if (badgeKey) {
+			this.dismissedBadgeKey = badgeKey;
+		}
+
 		this.isMenuVisible = true;
 		this.container.classList.add('menu-visible');
+		this.renderState();
 
 		panelStore.add({
 			dispose: () => {
 				this.isMenuVisible = false;
 				this.container?.classList.remove('menu-visible');
+				this.renderState();
 			}
 		});
 

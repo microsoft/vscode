@@ -30,7 +30,16 @@ export interface IAccountTitleBarState {
 	readonly label: string;
 	readonly ariaLabel: string;
 	readonly badge?: string;
+	readonly dotBadge?: 'warning' | 'error';
 	readonly revealLabelOnHover?: boolean;
+}
+
+export function getAccountTitleBarBadgeKey(state: IAccountTitleBarState): string | undefined {
+	if (!state.dotBadge) {
+		return undefined;
+	}
+
+	return `${state.source}:${state.dotBadge}:${state.label}:${state.badge ?? ''}`;
 }
 
 export function getAccountTitleBarState(context: IAccountTitleBarStateContext): IAccountTitleBarState {
@@ -111,6 +120,7 @@ function getCopilotPresentation(
 			kind: 'warning',
 			icon: Codicon.copilotWarning,
 			label: localize('copilotQuotaReached', "Quota Reached"),
+			dotBadge: 'error',
 			ariaLabel: getQuotaReachedAriaLabel(chatQuotaExceeded, completionsQuotaExceeded),
 		};
 	}
@@ -123,6 +133,7 @@ function getCopilotPresentation(
 			icon: remainingPercent <= 10 ? Codicon.copilotWarning : Codicon.copilot,
 			label: localize('copilotTokensRemaining', "Tokens Remaining"),
 			badge: `${remainingPercent}%`,
+			dotBadge: remainingPercent <= 10 ? 'error' : 'warning',
 			ariaLabel: localize('copilotTokensRemainingAria', "{0}% GitHub Copilot tokens remaining", remainingPercent),
 		};
 	}

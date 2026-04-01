@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAccountTitleBarState, IAccountTitleBarStateContext } from '../../browser/accountTitleBarState.js';
+import { getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarStateContext } from '../../browser/accountTitleBarState.js';
 
 suite('Sessions - Account Title Bar State', () => {
 
@@ -34,12 +34,37 @@ suite('Sessions - Account Title Bar State', () => {
 			source: state.source,
 			label: state.label,
 			badge: state.badge,
+			dotBadge: state.dotBadge,
 			kind: state.kind,
 		}, {
 			source: 'copilot',
 			label: 'Tokens Remaining',
 			badge: '10%',
+			dotBadge: 'error',
 			kind: 'warning',
+		});
+
+		assert.strictEqual(getAccountTitleBarBadgeKey(state), 'copilot:error:Tokens Remaining:10%');
+	});
+
+	test('shows warning dot badge for low but non-critical tokens', () => {
+		const state = getAccountTitleBarState(createState({
+			entitlement: ChatEntitlement.Free,
+			quotas: { chat: { total: 100, remaining: 20, percentRemaining: 20, overageEnabled: false, overageCount: 0, unlimited: false } },
+		}));
+
+		assert.deepStrictEqual({
+			source: state.source,
+			label: state.label,
+			badge: state.badge,
+			dotBadge: state.dotBadge,
+			kind: state.kind,
+		}, {
+			source: 'copilot',
+			label: 'Tokens Remaining',
+			badge: '20%',
+			dotBadge: 'warning',
+			kind: 'accent',
 		});
 	});
 
@@ -52,12 +77,16 @@ suite('Sessions - Account Title Bar State', () => {
 		assert.deepStrictEqual({
 			source: state.source,
 			label: state.label,
+			dotBadge: state.dotBadge,
 			kind: state.kind,
 		}, {
 			source: 'copilot',
 			label: 'Quota Reached',
+			dotBadge: 'error',
 			kind: 'warning',
 		});
+
+		assert.strictEqual(getAccountTitleBarBadgeKey(state), 'copilot:error:Quota Reached:');
 	});
 
 	test('falls back to signed-in account label when no higher-priority state exists', () => {

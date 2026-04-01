@@ -8,6 +8,7 @@
 	align-items: center;
 	justify-content: center;
 	gap: 0;
+	position: relative;
 	height: 22px;
 	min-width: 0;
 	max-width: none;
@@ -116,18 +117,41 @@
 	line-height: 1;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-widget-badge.dot-badge {
+	position: absolute;
+	top: 3px;
+	right: 3px;
+	min-width: 0;
+	width: 6px;
+	height: 6px;
+	padding: 0;
+	border-radius: 50%;
+	border: 1px solid var(--vscode-titleBar-activeBackground);
+	background: var(--vscode-editorWarning-foreground);
+	color: transparent;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-badge.dot-badge-warning {
+	background: var(--vscode-editorWarning-foreground) !important;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-badge.dot-badge-error {
+	background: var(--vscode-editorError-foreground) !important;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-widget.kind-warning .sessions-account-titlebar-widget-icon,
 .agent-sessions-workbench .sessions-account-titlebar-widget.kind-warning .sessions-account-titlebar-widget-label {
 	color: var(--vscode-statusBarItem-warningForeground);
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.kind-prominent .sessions-account-titlebar-widget-badge,
-.agent-sessions-workbench .sessions-account-titlebar-widget.kind-warning .sessions-account-titlebar-widget-badge {
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-prominent .sessions-account-titlebar-widget-badge:not(.dot-badge),
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-warning .sessions-account-titlebar-widget-badge:not(.dot-badge) {
 	background: var(--vscode-activityBarBadge-background);
 	color: var(--vscode-activityBarBadge-foreground);
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.kind-accent .sessions-account-titlebar-widget-badge {
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-accent .sessions-account-titlebar-widget-badge:not(.dot-badge) {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 }
