@@ -327,7 +327,22 @@ export async function createRunInTerminalToolData(
 					description: 'Timeout in milliseconds that determines how long to wait before returning. Required for mode=sync. Ignored for mode=async. Use 0 for no timeout.',
 				},
 			},
-			required: ['command', 'explanation', 'goal', 'mode']
+			required: ['command', 'explanation', 'goal', 'mode'],
+			allOf: [
+				{
+					if: {
+						properties: {
+							mode: {
+								const: 'sync'
+							}
+						},
+						required: ['mode']
+					},
+					then: {
+						required: ['timeout']
+					}
+				}
+			]
 		}
 	};
 }
