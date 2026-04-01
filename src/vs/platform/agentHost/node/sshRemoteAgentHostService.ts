@@ -243,17 +243,13 @@ function createWebSocketRelay(
 				});
 			});
 
-			ws.on('message', (data: unknown) => {
-				if (typeof data === 'string') {
-					onMessage(data);
-				} else if (Buffer.isBuffer(data)) {
-					onMessage(data.toString());
-				} else if (Array.isArray(data)) {
+			ws.on('message', (data: WebSocket.RawData) => {
+				if (Array.isArray(data)) {
 					onMessage(Buffer.concat(data).toString());
 				} else if (data instanceof ArrayBuffer) {
-					onMessage(Buffer.from(data).toString());
+					onMessage(Buffer.from(new Uint8Array(data)).toString());
 				} else {
-					onMessage(String(data));
+					onMessage(data.toString());
 				}
 			});
 
