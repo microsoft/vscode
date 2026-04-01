@@ -337,10 +337,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._sessions.deleteAndDispose(sessionId);
 
-			if (keepUpToTurnIndex >= 0) {
-				const copilotDataDir = getCopilotDataDir();
-				await truncateCopilotSessionOnDisk(copilotDataDir, sessionId, keepUpToTurnIndex);
-			}
+			const copilotDataDir = getCopilotDataDir();
+			await truncateCopilotSessionOnDisk(copilotDataDir, sessionId, keepUpToTurnIndex);
 
 			// Resume the session from the modified on-disk data
 			await this._resumeSession(sessionId);

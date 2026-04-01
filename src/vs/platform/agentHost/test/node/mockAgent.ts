@@ -418,6 +418,16 @@ export class ScriptedMockAgent implements IAgent {
 		// Mock agent doesn't track model state
 	}
 
+	async truncateSession(_session: URI, _turnIndex?: number): Promise<void> {
+		// Mock agent accepts truncation without side effects
+	}
+
+	async forkSession(_sourceSession: URI, newSessionId: string, _turnIndex: number): Promise<void> {
+		// Create the forked session so it can be resumed
+		const session = AgentSession.uri('mock', newSessionId);
+		this._sessions.set(newSessionId, session);
+	}
+
 	respondToPermissionRequest(toolCallId: string, approved: boolean): void {
 		const callback = this._pendingPermissions.get(toolCallId);
 		if (callback) {

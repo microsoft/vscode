@@ -190,7 +190,8 @@ export class AgentService extends Disposable implements IAgentService {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
 			let sourceTurns: ITurn[] = [];
 			if (sourceState) {
-				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1);
+				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1)
+					.map(t => ({ ...t, id: generateUuid() }));
 			}
 
 			const summary: ISessionSummary = {
@@ -202,7 +203,8 @@ export class AgentService extends Disposable implements IAgentService {
 				modifiedAt: Date.now(),
 				workingDirectory: config.workingDirectory?.toString(),
 			};
-			this._stateManager.restoreSession(summary, sourceTurns);
+			const state = this._stateManager.createSession(summary);
+			state.turns = sourceTurns;
 		} else {
 			// Create empty state for new sessions
 			const summary: ISessionSummary = {

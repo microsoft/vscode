@@ -336,9 +336,12 @@ export class ProtocolServerHandler extends Disposable {
 			let fork: { session: URI; turnIndex: number } | undefined;
 			if (params.fork) {
 				const sourceState = this._stateManager.getSessionState(params.fork.session);
-				const turnIndex = sourceState?.turns.findIndex(t => t.id === params.fork!.turnId) ?? -1;
+				if (!sourceState) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);
+				}
+				const turnIndex = sourceState.turns.findIndex(t => t.id === params.fork!.turnId);
 				if (turnIndex < 0) {
-					throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
 				}
 				fork = { session: URI.parse(params.fork.session), turnIndex };
 			}

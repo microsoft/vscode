@@ -5,6 +5,7 @@
 
 import { Throttler } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableResourceMap, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -66,7 +67,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		readonly sessionResource: URI,
 		readonly history: readonly IChatSessionHistoryItem[],
 		private readonly _sendRequest: (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => Promise<void>,
-		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>) | undefined,
+		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		initialProgress: IChatProgress[] | undefined,
 		onDispose: () => void,
 		@ILogService private readonly _logService: ILogService,
@@ -312,6 +313,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			sessionResource,
 			history,
 			async (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => {
+				// todo@connor4312, I think IChatSession.requestHandler is actually
+				// dead code and I don't believe this is ever called.
 				const backendSession = resolvedSession ?? await this._createAndSubscribe(sessionResource, request.userSelectedModelId);
 				if (!resolvedSession) {
 					resolvedSession = backendSession;
@@ -322,9 +325,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._ensurePendingMessageSubscription(sessionResource, backendSession);
 				return this._handleTurn(backendSession, request, progress, token);
 			},
-			resolvedSession
-				? (request, token) => this._forkSession(sessionResource, resolvedSession!, request, token)
-				: undefined,
+			(request, token) => {
+				resolvedSession ??= this._sessionToBackend.get(sessionResource);
+				if (!resolvedSession) {
+					throw new BugIndicatingError('Cannot fork session before the initial request');
+				}
+
+				return this._forkSession(sessionResource, resolvedSession!, request, token);
+			},
 			initialProgress,
 			() => {
 				this._activeSessions.delete(sessionResource);
@@ -1352,7 +1360,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			resource: forkedResource,
 			label: chatModel?.title
 				? localize('chat.forked.title', "Forked: {0}", chatModel.title)
-				: `Forked session`,
+				: localize('chat.forked.fallbackTitle', "Forked Session"),
 			iconPath: getAgentHostIcon(this._productService),
 			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
 		};

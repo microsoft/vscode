@@ -1270,4 +1270,175 @@ suite('Protocol WebSocket E2E', function () {
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
+
+	// ---- Truncation tests ---------------------------------------------------
+
+	test('truncate session removes turns after specified turn', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-truncate');
+
+		// Create two turns
+		dispatchTurnStarted(client, sessionUri, 'turn-t1', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-t1');
+
+		client.clearReceived();
+		dispatchTurnStarted(client, sessionUri, 'turn-t2', 'hello', 2);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-t2');
+
+		// Verify 2 turns exist
+		let snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		let state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.turns.length, 2);
+
+		client.clearReceived();
+
+		// Truncate: keep only turn-t1
+		client.notify('dispatchAction', {
+			clientSeq: 3,
+			action: { type: 'session/truncated', session: sessionUri, turnId: 'turn-t1' },
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
+
+		snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.turns.length, 1);
+		assert.strictEqual(state.turns[0].id, 'turn-t1');
+	});
+
+	test('truncate all turns clears session history', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-truncate-all');
+
+		dispatchTurnStarted(client, sessionUri, 'turn-ta1', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		client.clearReceived();
+
+		// Truncate all (no turnId)
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: { type: 'session/truncated', session: sessionUri },
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
+
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.turns.length, 0);
+	});
+
+	test('new turn after truncation works correctly', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-truncate-resume');
+
+		dispatchTurnStarted(client, sessionUri, 'turn-tr1', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-tr1');
+
+		client.clearReceived();
+		dispatchTurnStarted(client, sessionUri, 'turn-tr2', 'hello', 2);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-tr2');
+
+		client.clearReceived();
+
+		// Truncate to turn-tr1
+		client.notify('dispatchAction', {
+			clientSeq: 3,
+			action: { type: 'session/truncated', session: sessionUri, turnId: 'turn-tr1' },
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/truncated'));
+
+		// Send a new turn after truncation
+		dispatchTurnStarted(client, sessionUri, 'turn-tr3', 'hello', 4);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.turns.length, 2);
+		assert.strictEqual(state.turns[0].id, 'turn-tr1');
+		assert.strictEqual(state.turns[1].id, 'turn-tr3');
+	});
+
+	// ---- Fork tests ---------------------------------------------------------
+
+	test('fork creates a new session with source history', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-fork');
+
+		// Create two turns
+		dispatchTurnStarted(client, sessionUri, 'turn-f1', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-f1');
+
+		client.clearReceived();
+		dispatchTurnStarted(client, sessionUri, 'turn-f2', 'hello', 2);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-f2');
+
+		client.clearReceived();
+
+		// Fork at turn-f1 (keep turns up to and including turn-f1)
+		const forkedSessionUri = nextSessionUri();
+		await client.call('createSession', {
+			session: forkedSessionUri,
+			provider: 'mock',
+			fork: { session: sessionUri, turnId: 'turn-f1' },
+		});
+
+		const addedNotif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		const addedSession = (addedNotif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
+
+		// Subscribe — forked session should have 1 turn (from the protocol state
+		// populated during createSession with fork params).
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: addedSession.summary.resource });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.lifecycle, 'ready');
+		assert.strictEqual(state.turns.length, 1, 'forked session should have 1 turn');
+
+		// Source session should be unaffected
+		const sourceSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const sourceState = sourceSnapshot.snapshot.state as ISessionState;
+		assert.strictEqual(sourceState.turns.length, 2);
+	});
+
+	test('fork with invalid turn ID returns error', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-fork-invalid');
+
+		let gotError = false;
+		try {
+			await client.call('createSession', {
+				session: nextSessionUri(),
+				provider: 'mock',
+				fork: { session: sessionUri, turnId: 'nonexistent-turn' },
+			});
+		} catch {
+			gotError = true;
+		}
+		assert.ok(gotError, 'should get error for invalid fork turn ID');
+	});
+
+	test('fork with invalid source session returns error', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-fork-no-source' });
+
+		let gotError = false;
+		try {
+			await client.call('createSession', {
+				session: nextSessionUri(),
+				provider: 'mock',
+				fork: { session: 'mock://nonexistent-session', turnId: 'turn-1' },
+			});
+		} catch {
+			gotError = true;
+		}
+		assert.ok(gotError, 'should get error for invalid fork source session');
+	});
 });

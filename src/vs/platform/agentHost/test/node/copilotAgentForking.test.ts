@@ -246,6 +246,30 @@ suite('CopilotAgentForking', () => {
 			const entries = buildTestEventLog(1);
 			assert.throws(() => buildForkedEventLog(entries, 5, 'new-session-id'));
 		});
+
+		test('falls back to last kept event when lifecycle event parent is stripped', () => {
+			const entries = buildTestEventLog(2);
+			// Insert shutdown event between turns, then make the next turn's
+			// user.message point to the shutdown event (which will be stripped)
+			const shutdownEntry = makeEntry('session.shutdown', {
+				id: 'shutdown-1',
+				parentId: entries[4].id, // turn-end-0
+			});
+			entries.splice(5, 0, shutdownEntry);
+			// Next entry (user-msg-1) now points to the shutdown event
+			entries[6] = { ...entries[6], parentId: 'shutdown-1' };
+
+			const forked = buildForkedEventLog(entries, 1, 'new-session-id');
+
+			// All parentIds should be valid
+			const idSet = new Set(forked.map(e => e.id));
+			for (let i = 1; i < forked.length; i++) {
+				assert.ok(
+					forked[i].parentId !== null && idSet.has(forked[i].parentId!),
+					`Event ${i} (${forked[i].type}) should have a valid parentId, got ${forked[i].parentId}`,
+				);
+			}
+		});
 	});
 
 	// ---- buildTruncatedEventLog -----------------------------------------
@@ -642,6 +666,37 @@ suite('CopilotAgentForking', () => {
 				const searchEntries = await all(db, 'SELECT * FROM search_index WHERE session_id = ?', ['sess']);
 				assert.strictEqual(searchEntries.length, 1);
 				assert.strictEqual(searchEntries[0].source_id, 'sess:turn:0');
+			} finally {
+				await close(db);
+			}
+		});
+
+		test('removes all turns when keepUpToTurnIndex is -1', async () => {
+			const db = await openTestDb();
+			try {
+				await setupSchema(db);
+				await exec(db, `
+					INSERT INTO sessions (id, cwd, summary, created_at, updated_at)
+					VALUES ('sess', '/test', 'Test', '2026-01-01', '2026-01-01');
+				`);
+				for (let i = 0; i < 3; i++) {
+					await exec(db, `
+						INSERT INTO turns (session_id, turn_index, user_message, timestamp)
+						VALUES ('sess', ${i}, 'msg ${i}', '2026-01-01');
+					`);
+					await exec(db, `
+						INSERT INTO search_index (content, session_id, source_type, source_id)
+						VALUES ('content ${i}', 'sess', 'turn', 'sess:turn:${i}');
+					`);
+				}
+
+				await truncateSessionInDb(db, 'sess', -1);
+
+				const turns = await all(db, 'SELECT * FROM turns WHERE session_id = ?', ['sess']);
+				assert.strictEqual(turns.length, 0, 'all turns should be removed');
+
+				const searchEntries = await all(db, 'SELECT * FROM search_index WHERE session_id = ?', ['sess']);
+				assert.strictEqual(searchEntries.length, 0, 'all search entries should be removed');
 			} finally {
 				await close(db);
 			}

@@ -169,7 +169,7 @@ export function buildForkedEventLog(
 		}
 
 		const newParentId = entry.parentId !== null
-			? (idMap.get(entry.parentId) ?? null)
+			? (idMap.get(entry.parentId) ?? result[result.length - 1]?.id ?? null)
 			: null;
 
 		result.push({
@@ -541,7 +541,24 @@ export async function truncateCopilotSessionOnDisk(
 	const eventsPath = path.join(sessionDir, 'events.jsonl');
 	const content = await fs.promises.readFile(eventsPath, 'utf-8');
 	const entries = parseEventLog(content);
-	const truncatedEntries = buildTruncatedEventLog(entries, keepUpToTurnIndex);
+
+	let truncatedEntries: ICopilotEventLogEntry[];
+	if (keepUpToTurnIndex < 0) {
+		// Truncate all turns: keep only a fresh session.start event
+		const originalStart = entries.find(e => e.type === 'session.start');
+		if (!originalStart) {
+			throw new Error('No session.start event found in event log');
+		}
+		truncatedEntries = [{
+			type: 'session.start',
+			data: { ...originalStart.data, startTime: new Date().toISOString() },
+			id: generateUuid(),
+			timestamp: new Date().toISOString(),
+			parentId: null,
+		}];
+	} else {
+		truncatedEntries = buildTruncatedEventLog(entries, keepUpToTurnIndex);
+	}
 
 	// Overwrite events.jsonl
 	await fs.promises.writeFile(eventsPath, serializeEventLog(truncatedEntries), 'utf-8');
