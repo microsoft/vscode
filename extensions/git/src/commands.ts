@@ -5643,6 +5643,9 @@ export class CommandCenter {
 						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
+					case GitErrorCodes.PullWithReconcileNotConfigured:
+						message = l10n.t('Your local and remote branches have diverged. Please configure how to reconcile divergent branches by running "git config pull.rebase false" for merge or "git config pull.rebase true" for rebase.');
+						break;
 					default: {
 						const hintLines = (err.stderr || err.stdout || err.message || String(err))
 							.replace(/^error: /mi, '')
