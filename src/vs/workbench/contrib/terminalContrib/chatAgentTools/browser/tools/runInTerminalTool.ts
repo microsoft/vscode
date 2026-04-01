@@ -133,7 +133,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`,
+		`- NEVER run Start-Sleep or similar wait commands. You will be automatically notified when async terminal commands complete or need input`,
 	);
 
 	return parts.join('\n');
@@ -206,7 +206,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`);
+- NEVER run sleep or similar wait commands in a terminal. You will be automatically notified when async terminal commands complete or need input`);
 
 	return parts.join('');
 }
@@ -304,7 +304,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion up to timeout; if still running, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion up to timeout; if still running, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID.\n\nAsync terminal notifications: When a command finishes in an async terminal, you will be automatically notified with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -1403,7 +1403,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
-			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}. Use ${TerminalToolId.GetTerminalOutput} to check its current output, ${TerminalToolId.SendToTerminal} to send further input, or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait.\n\n`);
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}. You will be automatically notified when it completes. Use ${TerminalToolId.SendToTerminal} to send further input or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait.\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
