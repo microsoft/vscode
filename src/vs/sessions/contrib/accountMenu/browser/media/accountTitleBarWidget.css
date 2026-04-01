@@ -46,37 +46,57 @@
 	display: none;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	margin-right: 6px;
+	min-width: 0;
+	padding: 0 8px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.hidden {
+	display: none;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget:hover,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget:focus-within {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget:active,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state {
 	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground) !important;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-icon,
-.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-label {
 	color: var(--vscode-button-foreground);
 }
 
-
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled).sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-icon.codicon,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled).sessions-account-titlebar-widget.primary-state .sessions-account-titlebar-widget-icon.codicon::before {
-	color: var(--vscode-button-foreground) !important;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state:hover,
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.primary-state:hover {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state:hover,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state:focus-within,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.primary-state:active {
 	background: var(--vscode-button-hoverBackground);
 	color: var(--vscode-button-foreground);
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state:active,
-.agent-sessions-workbench .sessions-account-titlebar-widget.primary-state.menu-visible,
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.primary-state.menu-visible {
-	background: var(--vscode-button-hoverBackground);
-	color: var(--vscode-button-foreground);
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget.busy-state {
+	cursor: default;
+	color: var(--vscode-descriptionForeground);
 }
 
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.primary-state {
-	outline-color: var(--vscode-focusBorder);
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-action-bar .action-item.sessions-update-titlebar-widget .sessions-update-titlebar-widget-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 16px;
+	color: inherit;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-badge {

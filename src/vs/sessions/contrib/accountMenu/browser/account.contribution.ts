@@ -22,7 +22,7 @@ import { fillInActionBarActions } from '../../../../platform/actions/browser/men
 import { $, addDisposableListener, append, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionViewItem, BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -41,12 +41,15 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountTitleBarState } from './accountTitleBarState.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
+const SessionsTitleBarUpdateWidgetAction = 'sessions.action.titleBarUpdateWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 280;
-const SIMULATE_SESSIONS_UPDATE_AVAILABLE = false;
+const SIMULATE_SESSIONS_UPDATE_AVAILABLE = true;
 const SIMULATED_SESSIONS_UPDATE_STATE = State.AvailableForDownload({
 	version: 'b7c2d9f',
 	productVersion: '1.115.0',
@@ -55,6 +58,100 @@ const SIMULATED_SESSIONS_UPDATE_STATE = State.AvailableForDownload({
 
 function getSessionsUpdateState(updateService: IUpdateService): State {
 	return SIMULATE_SESSIONS_UPDATE_AVAILABLE ? SIMULATED_SESSIONS_UPDATE_STATE : updateService.state;
+}
+
+function shouldHideSessionsTitleBarUpdateWidget(type: StateType): boolean {
+	return type === StateType.Uninitialized
+		|| type === StateType.Idle
+		|| type === StateType.Disabled
+		|| type === StateType.CheckingForUpdates;
+}
+
+function isPrimarySessionsTitleBarUpdateWidget(type: StateType): boolean {
+	return type === StateType.AvailableForDownload
+		|| type === StateType.Downloaded
+		|| type === StateType.Ready;
+}
+
+function isBusySessionsTitleBarUpdateWidget(type: StateType): boolean {
+	return type === StateType.Downloading
+		|| type === StateType.Overwriting
+		|| type === StateType.Updating
+		|| type === StateType.Restarting;
+}
+
+function getSessionsTitleBarUpdateLabel(state: State): string {
+	switch (state.type) {
+		case StateType.AvailableForDownload:
+			return localize('sessionsTitleBarUpdateAvailable', 'Update Available');
+		case StateType.Downloaded:
+			return localize('sessionsTitleBarInstallUpdate', 'Install Update');
+		case StateType.Ready:
+			return localize('sessionsTitleBarRestartToUpdate', 'Restart to Update');
+		case StateType.Downloading:
+		case StateType.Overwriting:
+			return localize('sessionsTitleBarDownloading', 'Downloading...');
+		case StateType.Updating:
+		case StateType.Restarting:
+			return localize('sessionsTitleBarInstalling', 'Installing...');
+		default:
+			return localize('sessionsTitleBarUpdate', 'Update');
+	}
+}
+
+function getSessionsTitleBarUpdateAriaLabel(state: State): string {
+	switch (state.type) {
+		case StateType.AvailableForDownload:
+			return localize('sessionsTitleBarUpdateAvailableAria', 'Update available');
+		case StateType.Downloaded:
+			return localize('sessionsTitleBarInstallUpdateAria', 'Install downloaded update');
+		case StateType.Ready:
+			return localize('sessionsTitleBarRestartToUpdateAria', 'Restart to apply update');
+		case StateType.Downloading:
+		case StateType.Overwriting:
+			return localize('sessionsTitleBarDownloadingAria', 'Update download in progress');
+		case StateType.Updating:
+		case StateType.Restarting:
+			return localize('sessionsTitleBarInstallingAria', 'Update install in progress');
+		default:
+			return localize('sessionsTitleBarUpdateAria', 'Update');
+	}
+}
+
+async function runSessionsUpdateAction(
+	state: State,
+	updateService: IUpdateService,
+	openerService: IOpenerService,
+	productService: IProductService,
+	dialogService: IDialogService,
+	hostService: IHostService,
+): Promise<void> {
+	if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
+		const { confirmed } = await dialogService.confirm({
+			message: localize('sessionsUpdateFromVSCode.title', 'Update from VS Code'),
+			detail: localize('sessionsUpdateFromVSCode.detail', 'This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete.'),
+			primaryButton: localize('sessionsUpdateFromVSCode.open', 'Close and Open VS Code'),
+		});
+
+		if (confirmed) {
+			await openerService.open(URI.from({
+				scheme: productService.urlProtocol,
+				query: 'windowId=_blank',
+			}), { openExternal: true });
+			await hostService.close();
+		}
+
+		return;
+	}
+
+	if (state.type === StateType.Ready) {
+		await updateService.quitAndInstall();
+		return;
+	}
+
+	if (state.type === StateType.Downloaded) {
+		await updateService.applyUpdate();
+	}
 }
 
 // Sign In (shown when signed out)
@@ -138,7 +235,7 @@ export class AccountWidget extends ActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
-		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
+		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService, () => getSessionsUpdateState(this.updateService));
 	}
 
 	protected override getTooltip(): string | undefined {
@@ -371,27 +468,14 @@ export class AccountWidget extends ActionViewItem {
 	}
 
 	private async update(): Promise<void> {
-		const state = this.updateService.state;
-		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
-			const { confirmed } = await this.dialogService.confirm({
-				message: localize('updateFromVSCode.title', "Update from VS Code"),
-				detail: localize('updateFromVSCode.detail', "This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete."),
-				primaryButton: localize('updateFromVSCode.open', "Close and Open VS Code"),
-			});
-			if (confirmed) {
-				await this.openVSCode();
-				await this.hostService.close();
-			}
-			return;
-		}
-		await this.updateService.quitAndInstall();
-	}
-
-	private async openVSCode(): Promise<void> {
-		await this.openerService.open(URI.from({
-			scheme: this.productService.urlProtocol,
-			query: 'windowId=_blank',
-		}), { openExternal: true });
+		await runSessionsUpdateAction(
+			getSessionsUpdateState(this.updateService),
+			this.updateService,
+			this.openerService,
+			this.productService,
+			this.dialogService,
+			this.hostService,
+		);
 	}
 
 
@@ -420,28 +504,21 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
-		@IUpdateService private readonly updateService: IUpdateService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IProductService private readonly productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 	) {
 		super(undefined, action, options);
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
-			updateState: getSessionsUpdateState(this.updateService),
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
 		});
 
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refreshAccount()));
-		this._register(this.updateService.onStateChange(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderState()));
@@ -495,7 +572,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			isAccountLoading: this.isAccountLoading,
 			accountName: this.accountName,
 			accountProviderLabel: this.accountProviderLabel,
-			updateState: getSessionsUpdateState(this.updateService),
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
@@ -505,7 +581,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.container.classList.remove('kind-default', 'kind-accent', 'kind-warning', 'kind-prominent');
 		this.container.classList.add(`kind-${state.kind}`);
 		this.container.classList.toggle('menu-visible', this.isMenuVisible);
-		this.container.classList.toggle('primary-state', state.source === 'update');
+		this.container.classList.remove('primary-state');
 		this.container.setAttribute('aria-label', state.ariaLabel);
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(state.icon)}`;
@@ -616,7 +692,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				button.disabled = !action.enabled;
 				button.setAttribute('aria-label', action.tooltip || action.label);
 				button.classList.toggle('checked', !!action.checked);
-				button.classList.toggle('primary-action', this.isUpdateAction(action));
 				append(button, ...renderLabelWithIcons(action.label));
 
 				panelStore.add(addDisposableListener(button, EventType.CLICK, async event => {
@@ -671,19 +746,14 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		fillInActionBarActions(menu.getActions(), rawActions);
 		menu.dispose();
 
-		if (!rawActions.some(action => this.isUpdateAction(action))) {
-			const updateAction = this.createSyntheticUpdateAction();
-			if (updateAction) {
-				rawActions.push(updateAction);
-			}
-		}
-
 		return rawActions.filter(action => {
 			if (action instanceof Separator) {
 				return true;
 			}
 
-			return action.id !== 'workbench.action.agenticSignOut' && action.id !== 'workbench.action.openSettings';
+			return action.id !== 'workbench.action.agenticSignOut'
+				&& action.id !== 'workbench.action.openSettings'
+				&& !action.id.startsWith('update.');
 		});
 	}
 
@@ -695,72 +765,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 				return Codicon.signOut;
 			default:
 				return Codicon.circleLargeFilled;
-		}
-	}
-
-	private isUpdateAction(action: IAction): boolean {
-		return !(action instanceof Separator) && action.id.startsWith('update.');
-	}
-
-	private createSyntheticUpdateAction(): IAction | undefined {
-		const state = getSessionsUpdateState(this.updateService);
-		const versionLabel = this.getSyntheticUpdateVersionLabel(state);
-
-		switch (state.type) {
-			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', localize('downloadUpdateVersion', 'Download Update • {0}', versionLabel), undefined, true, async () => {
-					await this.runSyntheticUpdateAction(state);
-				});
-
-			case StateType.Downloaded:
-				return new Action('update.install', localize('installUpdateVersion', 'Install Update... • {0}', versionLabel), undefined, true, async () => {
-					await this.runSyntheticUpdateAction(state);
-				});
-
-			case StateType.Ready:
-				return new Action('update.restart', localize('restartToUpdateVersion', 'Restart to Update • {0}', versionLabel), undefined, true, async () => {
-					await this.runSyntheticUpdateAction(state);
-				});
-
-			default:
-				return undefined;
-		}
-	}
-
-	private getSyntheticUpdateVersionLabel(state: ReturnType<typeof getSessionsUpdateState>): string {
-		if (state.type === StateType.AvailableForDownload || state.type === StateType.Downloaded || state.type === StateType.Ready || state.type === StateType.Overwriting || state.type === StateType.Updating || state.type === StateType.Restarting) {
-			return state.update.productVersion ?? state.update.version;
-		}
-
-		return this.productService.version ?? 'unknown';
-	}
-
-	private async runSyntheticUpdateAction(state: ReturnType<typeof getSessionsUpdateState>): Promise<void> {
-		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
-			const { confirmed } = await this.dialogService.confirm({
-				message: localize('sessionsUpdateFromVSCode.title', 'Update from VS Code'),
-				detail: localize('sessionsUpdateFromVSCode.detail', 'This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete.'),
-				primaryButton: localize('sessionsUpdateFromVSCode.open', 'Close and Open VS Code'),
-			});
-
-			if (confirmed) {
-				await this.openerService.open(URI.from({
-					scheme: this.productService.urlProtocol,
-					query: 'windowId=_blank',
-				}), { openExternal: true });
-				await this.hostService.close();
-			}
-
-			return;
-		}
-
-		if (state.type === StateType.Ready) {
-			await this.updateService.quitAndInstall();
-			return;
-		}
-
-		if (state.type === StateType.Downloaded) {
-			await this.updateService.applyUpdate();
 		}
 	}
 
@@ -790,6 +794,82 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 }
 
+class TitleBarUpdateWidget extends BaseActionViewItem {
+
+	private container: HTMLElement | undefined;
+	private labelElement: HTMLElement | undefined;
+	private readonly updateHoverWidget: UpdateHoverWidget;
+	private readonly hoverAttachment = this._register(new MutableDisposable());
+
+	constructor(
+		action: IAction,
+		options: IBaseActionViewItemOptions | undefined,
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IProductService private readonly productService: IProductService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService,
+	) {
+		super(undefined, action, options);
+		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService, () => getSessionsUpdateState(this.updateService));
+		this._register(this.updateService.onStateChange(() => this.renderState()));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		this.container = container;
+		container.classList.add('sessions-update-titlebar-widget');
+
+		this.labelElement = append(container, $('span.sessions-update-titlebar-widget-label'));
+		this.hoverAttachment.value = this.updateHoverWidget.attachTo(container);
+
+		this.renderState();
+	}
+
+	override onClick(): void {
+		const state = getSessionsUpdateState(this.updateService);
+		if (shouldHideSessionsTitleBarUpdateWidget(state.type) || isBusySessionsTitleBarUpdateWidget(state.type)) {
+			return;
+		}
+
+		void runSessionsUpdateAction(
+			state,
+			this.updateService,
+			this.openerService,
+			this.productService,
+			this.dialogService,
+			this.hostService,
+		);
+	}
+
+	private renderState(): void {
+		if (!this.container || !this.labelElement) {
+			return;
+		}
+
+		const state = getSessionsUpdateState(this.updateService);
+		const hidden = shouldHideSessionsTitleBarUpdateWidget(state.type);
+		const busy = isBusySessionsTitleBarUpdateWidget(state.type);
+		const primary = isPrimarySessionsTitleBarUpdateWidget(state.type);
+
+		this.container.classList.toggle('hidden', hidden);
+		this.container.classList.toggle('disabled', busy);
+		this.container.classList.toggle('primary-state', primary);
+		this.container.classList.toggle('busy-state', busy);
+
+		if (hidden) {
+			this.container.removeAttribute('aria-label');
+			this.labelElement.textContent = '';
+			return;
+		}
+
+		this.container.setAttribute('aria-label', getSessionsTitleBarUpdateAriaLabel(state));
+		this.labelElement.textContent = getSessionsTitleBarUpdateLabel(state);
+	}
+}
+
 // --- Register custom view item --- //
 
 class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
@@ -802,9 +882,32 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
+		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, SessionsTitleBarUpdateWidgetAction, (action, options) => {
+			return instantiationService.createInstance(TitleBarUpdateWidget, action, options);
+		}, undefined));
+
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, SessionsTitleBarAccountWidgetAction, (action, options) => {
 			return instantiationService.createInstance(TitleBarAccountWidget, action, options);
 		}, undefined));
+
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SessionsTitleBarUpdateWidgetAction,
+					title: localize2('agentsUpdateTitleBar', 'Agents Update'),
+					menu: {
+						id: Menus.TitleBarSessionMenu,
+						group: 'navigation',
+						order: 7.5,
+						when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+					}
+				});
+			}
+
+			async run(): Promise<void> {
+				// Handled by the custom view item
+			}
+		}));
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {

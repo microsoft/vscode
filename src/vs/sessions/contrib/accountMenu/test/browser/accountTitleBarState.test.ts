@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { State, UpdateType } from '../../../../../platform/update/common/update.js';
 import { getAccountTitleBarState, IAccountTitleBarStateContext } from '../../browser/accountTitleBarState.js';
 
 suite('Sessions - Account Title Bar State', () => {
@@ -18,33 +17,12 @@ suite('Sessions - Account Title Bar State', () => {
 			isAccountLoading: false,
 			accountName: 'lee@example.com',
 			accountProviderLabel: 'GitHub',
-			updateState: State.Idle(UpdateType.Setup),
 			entitlement: ChatEntitlement.Pro,
 			sentiment: {},
 			quotas: {},
 			...overrides,
 		};
 	}
-
-	test('prefers update status over account and Copilot status', () => {
-		const state = getAccountTitleBarState(createState({
-			updateState: State.AvailableForDownload({ version: '1.0.0' }, false),
-			entitlement: ChatEntitlement.Free,
-			quotas: { chat: { total: 100, remaining: 10, percentRemaining: 10, overageEnabled: false, overageCount: 0, unlimited: false } },
-		}));
-
-		assert.deepStrictEqual({
-			source: state.source,
-			label: state.label,
-			badge: state.badge,
-			kind: state.kind,
-		}, {
-			source: 'update',
-			label: 'New Update Available',
-			badge: 'New',
-			kind: 'prominent',
-		});
-	});
 
 	test('shows low token badge for Copilot Free users', () => {
 		const state = getAccountTitleBarState(createState({
@@ -116,22 +94,6 @@ suite('Sessions - Account Title Bar State', () => {
 			label: 'Loading Account...',
 			kind: 'default',
 			revealLabelOnHover: true,
-		});
-	});
-
-	test('keeps status labels visible when they are not profile names', () => {
-		const state = getAccountTitleBarState(createState({
-			updateState: State.Ready({ version: '1.0.0' }, true, false),
-		}));
-
-		assert.deepStrictEqual({
-			source: state.source,
-			label: state.label,
-			revealLabelOnHover: state.revealLabelOnHover,
-		}, {
-			source: 'update',
-			label: 'Restart to Update',
-			revealLabelOnHover: undefined,
 		});
 	});
 

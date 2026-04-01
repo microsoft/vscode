@@ -6,17 +6,15 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { State, StateType } from '../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 
-export type AccountTitleBarStateSource = 'account' | 'copilot' | 'update';
+export type AccountTitleBarStateSource = 'account' | 'copilot';
 export type AccountTitleBarStateKind = 'default' | 'accent' | 'warning' | 'prominent';
 
 export interface IAccountTitleBarStateContext {
 	readonly isAccountLoading: boolean;
 	readonly accountName?: string;
 	readonly accountProviderLabel?: string;
-	readonly updateState: State;
 	readonly entitlement: ChatEntitlement;
 	readonly sentiment: Pick<IChatSentiment, 'hidden' | 'disabled' | 'untrusted'>;
 	readonly quotas: {
@@ -36,16 +34,6 @@ export interface IAccountTitleBarState {
 }
 
 export function getAccountTitleBarState(context: IAccountTitleBarStateContext): IAccountTitleBarState {
-	const updateState = getUpdatePresentation(context.updateState);
-	if (updateState) {
-		return updateState;
-	}
-
-	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas);
-	if (copilotState) {
-		return copilotState;
-	}
-
 	if (context.isAccountLoading) {
 		return {
 			source: 'account',
@@ -55,6 +43,11 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 			ariaLabel: localize('loadingAccountAria', "Loading account"),
 			revealLabelOnHover: true,
 		};
+	}
+
+	const copilotState = getCopilotPresentation(context.entitlement, context.sentiment, context.quotas);
+	if (copilotState) {
+		return copilotState;
 	}
 
 	if (context.accountName) {
@@ -77,67 +70,6 @@ export function getAccountTitleBarState(context: IAccountTitleBarStateContext): 
 		label: localize('signInLabel', "Sign In"),
 		ariaLabel: localize('signInAria', "Sign in to your account"),
 	};
-}
-
-function getUpdatePresentation(state: State): IAccountTitleBarState | undefined {
-	switch (state.type) {
-		case StateType.AvailableForDownload:
-			return {
-				source: 'update',
-				kind: 'prominent',
-				icon: Codicon.cloudDownload,
-				label: localize('updateAvailable', "New Update Available"),
-				badge: localize('updateBadgeNew', "New"),
-				ariaLabel: localize('updateAvailableAria', "New update available"),
-			};
-
-		case StateType.Ready:
-			return {
-				source: 'update',
-				kind: 'prominent',
-				icon: Codicon.cloudDownload,
-				label: localize('restartToUpdate', "Restart to Update"),
-				badge: localize('updateBadgeReady', "Ready"),
-				ariaLabel: localize('restartToUpdateAria', "Update ready to install"),
-			};
-
-		case StateType.Downloading:
-		case StateType.Overwriting:
-			return {
-				source: 'update',
-				kind: 'accent',
-				icon: ThemeIcon.modify(Codicon.loading, 'spin'),
-				label: localize('downloadingUpdate', "Downloading Update"),
-				badge: getUpdateProgressBadge(state),
-				ariaLabel: localize('downloadingUpdateAria', "Update download in progress"),
-			};
-
-		case StateType.Downloaded:
-		case StateType.Updating:
-		case StateType.Restarting:
-			return {
-				source: 'update',
-				kind: 'accent',
-				icon: ThemeIcon.modify(Codicon.loading, 'spin'),
-				label: localize('installingUpdate', "Installing Update"),
-				ariaLabel: localize('installingUpdateAria', "Update install in progress"),
-			};
-
-		default:
-			return undefined;
-	}
-}
-
-function getUpdateProgressBadge(state: Extract<State, { type: StateType.Downloading | StateType.Overwriting }>): string | undefined {
-	if (state.type !== StateType.Downloading) {
-		return undefined;
-	}
-
-	if (typeof state.downloadedBytes !== 'number' || typeof state.totalBytes !== 'number' || state.totalBytes <= 0) {
-		return undefined;
-	}
-
-	return `${Math.min(100, Math.max(0, Math.round((state.downloadedBytes / state.totalBytes) * 100)))}%`;
 }
 
 function getCopilotPresentation(
