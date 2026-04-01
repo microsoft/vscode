@@ -1614,30 +1614,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 
-		// Check if this session type has a customAgentTarget
-		const customAgentTarget = sessionResource && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource));
-		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
-
-		// Check if this session type requires custom models
-		const requiresCustomModels = sessionResource && this.chatSessionsService.requiresCustomModelsForSessionType(getChatSessionType(sessionResource));
-		this.chatSessionHasTargetedModels.set(!!requiresCustomModels);
-
-		// Handle agent option from session - set initial mode
-		if (customAgentTarget) {
-			const contribution = sessionResource && this.chatSessionsService.getChatSessionContribution(getChatSessionType(sessionResource));
-			const agentOption = this.chatSessionsService.getSessionOption(sessionResource, agentOptionId);
-			if (typeof agentOption !== 'undefined' && !contribution?.useRequestToPopulateBuiltInPickers) {
-				const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
-				const currentMode = this._currentModeObservable.get();
-				const isDefaultAgent = agentId === ChatMode.Agent.id;
-				const needsUpdate = isDefaultAgent
-					? currentMode.id !== ChatMode.Agent.id
-					: currentMode.label.get() !== agentId; // Extensions use Label (name) as identifier for custom agents.
-
-				if (needsUpdate) {
-					this.setChatMode(agentId);
-				}
-			}
+		if (sessionResource) {
+			this.updateStateForCustomAgentTargetIfNeeded(sessionResource);
 		}
 
 		// Step 1: Determine the session type
@@ -1711,6 +1689,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatSessionOptionsValid.set(allOptionsValid);
 
 		return { visibleGroupIds, optionGroups, sessionResource, effectiveSessionType };
+	}
+
+	private updateStateForCustomAgentTargetIfNeeded(sessionResource: URI) {
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource));
+		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
+
+		// Check if this session type requires custom models
+		const requiresCustomModels = this.chatSessionsService.requiresCustomModelsForSessionType(getChatSessionType(sessionResource));
+		this.chatSessionHasTargetedModels.set(!!requiresCustomModels);
+
+		// Handle agent option from session - set initial mode
+		if (customAgentTarget) {
+			const contribution = this.chatSessionsService.getChatSessionContribution(getChatSessionType(sessionResource));
+			const agentOption = this.chatSessionsService.getSessionOption(sessionResource, agentOptionId);
+			if (typeof agentOption !== 'undefined' && !contribution?.useRequestToPopulateBuiltInPickers) {
+				const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
+				const currentMode = this._currentModeObservable.get();
+				const isDefaultAgent = agentId === ChatMode.Agent.id;
+				const needsUpdate = isDefaultAgent
+					? currentMode.id !== ChatMode.Agent.id
+					: currentMode.label.get() !== agentId; // Extensions use Label (name) as identifier for custom agents.
+
+				if (needsUpdate) {
+					this.setChatMode(agentId);
+				}
+			}
+		}
 	}
 
 	/**
