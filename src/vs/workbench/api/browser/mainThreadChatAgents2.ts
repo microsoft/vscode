@@ -154,6 +154,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
 					this._customizationProviders.clearAndDisposeAll();
 					this._customizationProviderEmitters.clearAndDisposeAll();
+					this._lastChangedTypes.clear();
 				}
 			}
 		}));
@@ -694,6 +695,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$unregisterChatSessionCustomizationProvider(handle: number): void {
 		this._customizationProviders.deleteAndDispose(handle);
 		this._customizationProviderEmitters.deleteAndDispose(handle);
+		this._lastChangedTypes.delete(handle);
 	}
 
 	$onDidChangeCustomizations(handle: number, event: IChatSessionCustomizationChangeEventDto): void {
@@ -754,6 +756,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		return {
 			kind: 'fileList',
 			discoveryType: 'customization-provider',
+			durationInMillis: 0,
 			files: [
 				...result.items.map(item => ({
 					uri: item.uri,

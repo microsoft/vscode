@@ -53,7 +53,7 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter, ICustomizationSyncProvider } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IExternalCustomizationResult, matchesWorkspaceSubpath, matchesInstructionFileFilter, ICustomizationSyncProvider } from '../../common/customizationHarnessService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -585,6 +585,13 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly collapsedGroups = new Set<string>();
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
+	/**
+	 * Cached provider result to avoid redundant IPC calls.
+	 * Invalidated when the active provider fires `onDidChange` or the
+	 * active harness switches.
+	 */
+	private _cachedProviderResult: IExternalCustomizationResult | undefined;
+
 	private readonly delayedFilter = new Delayer<void>(200);
 
 	private readonly _onDidSelectItem = this._register(new Emitter<IAICustomizationListItem>());
@@ -634,6 +641,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Re-filter when the active harness changes
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			this._cachedProviderResult = undefined;
 			this.updateAddButton();
 			this.refresh();
 		}));
@@ -641,6 +649,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Refresh when available harnesses change (external provider registered/unregistered)
 		this._register(autorun(reader => {
 			this.harnessService.availableHarnesses.read(reader);
+			this._cachedProviderResult = undefined;
 			this.refresh();
 		}));
 
@@ -651,7 +660,10 @@ export class AICustomizationListWidget extends Disposable {
 			this.harnessService.activeHarness.read(reader);
 			const activeDescriptor = this.harnessService.getActiveDescriptor();
 			if (activeDescriptor.itemProvider) {
-				providerChangeDisposable.value = activeDescriptor.itemProvider.onDidChange(() => this.refresh());
+				providerChangeDisposable.value = activeDescriptor.itemProvider.onDidChange(() => {
+					this._cachedProviderResult = undefined;
+					this.refresh();
+				});
 			} else {
 				providerChangeDisposable.clear();
 			}
@@ -1606,7 +1618,10 @@ export class AICustomizationListWidget extends Disposable {
 	 * the provider's items into the list widget format.
 	 */
 	private async fetchItemsFromProvider(provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const result = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		if (!this._cachedProviderResult) {
+			this._cachedProviderResult = await provider.provideChatSessionCustomizations(CancellationToken.None) ?? undefined;
+		}
+		const result = this._cachedProviderResult;
 		if (!result) {
 			return [];
 		}
