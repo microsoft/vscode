@@ -1790,22 +1790,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const listener = commandDetection.onCommandFinished(command => {
 			const execution = RunInTerminalTool._activeExecutions.get(termId);
 			if (!execution) {
-				listener.dispose();
-				bgCts?.cancel();
-				outputMonitor?.dispose();
+				cleanup();
 				return;
 			}
 
 			// Dispose after first notification to avoid chatty repeated messages
 			// if the user runs additional commands via send_to_terminal.
-			listener.dispose();
-
-			// Clean up background monitoring on command finish
-			if (bgCts) {
-				bgCts.cancel();
-				bgCts = undefined;
-			}
-			outputMonitor?.dispose();
+			cleanup();
 
 			const exitCode = command.exitCode;
 			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
@@ -1821,7 +1812,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			});
 		});
 
+		// Clean up all background resources when the terminal is disposed
+		// (e.g. user closes the terminal) to avoid leaking listeners and monitors.
+		const disposedListener = terminalInstance.onDisposed(() => {
+			cleanup();
+		});
+
+		const cleanup = () => {
+			listener.dispose();
+			disposedListener.dispose();
+			bgCts?.cancel();
+			outputMonitor?.dispose();
+		};
+
 		this._register(listener);
+		this._register(disposedListener);
 	}
 	// #endregion
 }
