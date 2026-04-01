@@ -44,6 +44,10 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 				type: 'string',
 				description: 'A one-sentence description of what the command does. This will be shown to the user in the confirmation dialog.'
 			},
+			goal: {
+				type: 'string',
+				description: 'A short description of the goal or purpose of the command.'
+			},
 			mode: {
 				type: 'string',
 				enum: ['sync', 'async'],
@@ -53,6 +57,7 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 		required: [
 			'command',
 			'explanation',
+			'goal',
 			'mode',
 		]
 	}

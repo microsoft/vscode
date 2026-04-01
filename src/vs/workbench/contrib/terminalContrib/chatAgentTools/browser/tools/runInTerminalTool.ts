@@ -1004,12 +1004,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 		if (executionOptions.mode === 'sync' && args.timeout === undefined) {
-			return {
-				content: [{
-					kind: 'text',
-					value: 'Error: timeout is required for mode=sync and must be provided in milliseconds (use 0 for no timeout).'
-				}]
-			};
+			if (args.isBackground === false) {
+				// Legacy path: isBackground=false didn't require timeout, default to no timeout
+				args.timeout = 0;
+			} else {
+				return {
+					content: [{
+						kind: 'text',
+						value: 'Error: timeout is required for mode=sync and must be provided in milliseconds (use 0 for no timeout).'
+					}]
+				};
+			}
 		}
 
 		const chatSessionResource = invocation.context.sessionResource;
