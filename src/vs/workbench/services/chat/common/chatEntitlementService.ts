@@ -1096,7 +1096,7 @@ export class ChatEntitlementContext extends Disposable {
 			this.storageService.store(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_MIGRATED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 			if (this._state.installed) {
-				this.update({ completed: true });
+				this._state.completed = true;
 			}
 		}
 
