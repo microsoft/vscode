@@ -97,6 +97,10 @@ kerberos/src/**
 kerberos/node_modules/**
 !kerberos/**/*.node
 
+ssh2/lib/protocol/crypto/binding.gyp
+ssh2/lib/protocol/crypto/build/**
+ssh2/lib/protocol/crypto/src/**
+
 node-pty/binding.gyp
 node-pty/build/**
 node-pty/src/**

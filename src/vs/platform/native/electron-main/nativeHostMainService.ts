@@ -308,6 +308,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
+			cli: this.environmentMainService.args
 		});
 	}
 
