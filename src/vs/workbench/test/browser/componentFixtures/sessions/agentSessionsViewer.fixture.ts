@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { FuzzyScore } from '../../../../base/common/filters.js';
-import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { observableValue } from '../../../../base/common/observable.js';
-import { IMarkdownRendererService, MarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EditorMarkdownCodeBlockRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
-import { AgentSessionRenderer, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
-import { AgentSessionStatus, IAgentSession, AgentSessionSection, IAgentSessionSection } from '../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { AgentSessionProviders } from '../../../contrib/chat/browser/agentSessions/agentSessions.js';
-import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
+import { AgentSessionRenderer, AgentSessionSectionRenderer, IAgentSessionRendererOptions } from '../../../../contrib/chat/browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionStatus, IAgentSession, AgentSessionSection, IAgentSessionSection } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionProviders } from '../../../../contrib/chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
-import '../../../contrib/chat/browser/agentSessions/media/agentsessionsviewer.css';
+import '../../../../contrib/chat/browser/agentSessions/media/agentsessionsviewer.css';
 
 // ============================================================================
 // Mock helpers

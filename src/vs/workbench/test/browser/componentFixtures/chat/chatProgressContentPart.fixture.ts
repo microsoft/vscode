@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Event } from '../../../../base/common/event.js';
-import { observableValue } from '../../../../base/common/observable.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
-import { IMarkdownRendererService, MarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { ChatProgressContentPart } from '../../../contrib/chat/browser/widget/chatContentParts/chatProgressContentPart.js';
-import { ChatContentMarkdownRenderer } from '../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
-import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import { IChatMarkdownAnchorService } from '../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
-import { IChatProgressMessage } from '../../../contrib/chat/common/chatService/chatService.js';
-import { IChatResponseViewModel } from '../../../contrib/chat/common/model/chatViewModel.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Event } from '../../../../../base/common/event.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { ChatProgressContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatProgressContentPart.js';
+import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
+import { IChatMarkdownAnchorService } from '../../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { IChatProgressMessage } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
-import '../../../contrib/chat/browser/widget/media/chat.css';
+import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 function createMockContext(opts?: { isComplete?: boolean; hasFollowingContent?: boolean }): IChatContentPartRenderContext {
 	const element = new class extends mock<IChatResponseViewModel>() {
