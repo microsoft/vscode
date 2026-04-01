@@ -107,8 +107,7 @@ class SlashCommandCompletions extends Disposable {
 				let customAgentTarget: Target | undefined = undefined;
 				if (widget.lockedAgentId) {
 					const sessionResource = widget.viewModel.model.sessionResource;
-					const ctx = sessionResource && chatService.getChatSessionFromInternalUri(sessionResource);
-					customAgentTarget = (ctx ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
+					customAgentTarget = (sessionResource ? chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource)) : undefined) ?? Target.Undefined;
 				}
 
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
@@ -259,7 +258,7 @@ class SlashCommandCompletions extends Disposable {
 						if (widget.lockedAgentId) {
 							// Exclude hooks as those don't work in locked agent scenarios.
 							try {
-								const promptType = getPromptFileType(c.promptPath.uri);
+								const promptType = getPromptFileType(c.uri);
 								if (promptType && promptType === PromptsType.hook) {
 									return false;
 								}
@@ -269,7 +268,7 @@ class SlashCommandCompletions extends Disposable {
 						}
 						return true;
 					})
-					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false)
+					.filter(c => c.userInvocable)
 					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
 				if (userInvocableCommands.length === 0) {
 					return null;

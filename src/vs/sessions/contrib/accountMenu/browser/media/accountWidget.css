@@ -56,6 +56,70 @@
 	display: none;
 }
 
+/* Copilot Status Button */
+.account-widget-copilot-status {
+	flex: 0 0 auto;
+	width: fit-content;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.account-widget-copilot-status.hidden {
+	display: none;
+}
+
+.account-widget-copilot-status .account-widget-copilot-status-button {
+	width: auto;
+	max-width: none;
+	padding: 4px 6px;
+}
+
+/* Chat status dashboard shown from sidebar footer */
+.monaco-hover .chat-status-bar-entry-tooltip {
+	font-size: 12px;
+	max-width: 320px;
+	padding: 4px 6px;
+	overflow: hidden;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip div.header {
+	font-size: 12px;
+	margin-bottom: 6px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip div.description {
+	font-size: 11px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip hr {
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 4px;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip .contribution .body {
+	font-size: 11px;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip .contribution .body .description,
+.monaco-hover .chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button {
 	width: auto;
 	max-width: none;

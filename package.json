@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.115.0",
-  "distro": "f7bd750d5f598365ecd892bd9fd2c2b61315db0c",
+  "distro": "75e88c7dfc4bd9d5180292833f44954dbf303d6d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,9 +55,11 @@
     "valid-layers-check": "node build/checker/layersChecker.ts && tsgo --project build/checker/tsconfig.browser.json && tsgo --project build/checker/tsconfig.worker.json && tsgo --project build/checker/tsconfig.node.json && tsgo --project build/checker/tsconfig.electron-browser.json && tsgo --project build/checker/tsconfig.electron-main.json && tsgo --project build/checker/tsconfig.electron-utility.json",
     "define-class-fields-check": "node build/lib/propertyInitOrderChecker.ts && tsgo --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
+    "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
     "compile-cli": "npm run gulp compile-cli",
     "compile-web": "npm run gulp compile-web",
+    "serve-out-rspack": "cd build/rspack && npx rspack serve --config rspack.serve-out.config.mts",
     "watch-web": "npm run gulp watch-web",
     "watch-cli": "npm run gulp watch-cli",
     "eslint": "node build/eslint.ts",
@@ -75,9 +77,9 @@
     "extensions-ci-pr": "npm run gulp extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
-    "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
-    "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",
-    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/vite && npm install @vscode/component-explorer-vite-plugin@next && npm install @vscode/component-explorer@next"
+    "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-webpack-plugin-0.1.0.tgz --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
+    "symlink-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/packages/explorer ../vscode-packages/js-component-explorer/packages/cli --no-save && cd build/rspack && npm install ../../../vscode-packages/js-component-explorer/packages/webpack-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save && cd ../vite && npm install ../../../vscode-packages/js-component-explorer/packages/vite-plugin ../../../vscode-packages/js-component-explorer/packages/explorer --no-save",
+    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/rspack && npm install @vscode/component-explorer-webpack-plugin@next @vscode/component-explorer@next && cd ../vite && npm install @vscode/component-explorer-vite-plugin@next @vscode/component-explorer@next"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.42",
@@ -123,6 +125,7 @@
     "node-pty": "^1.2.0-beta.12",
     "open": "^10.1.2",
     "playwright-core": "1.59.0-alpha-2026-02-20",
+    "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
     "undici": "^7.24.0",
     "v8-inspect-profiler": "^0.1.1",
@@ -148,6 +151,7 @@
     "@types/node": "^22.18.10",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
+    "@types/ssh2": "^1.15.4",
     "@types/trusted-types": "^2.0.7",
     "@types/vscode-notebook-renderer": "^1.72.0",
     "@types/wicg-file-system-access": "^2023.10.7",
@@ -158,8 +162,8 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
     "@typescript/native-preview": "^7.0.0-dev.20260306",
-    "@vscode/component-explorer": "^0.1.1-24",
-    "@vscode/component-explorer-cli": "^0.1.1-20",
+    "@vscode/component-explorer": "^0.2.1-6",
+    "@vscode/component-explorer-cli": "^0.2.1-5",
     "@vscode/gulp-electron": "1.41.0",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",
@@ -237,7 +241,10 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
-    "serialize-javascript": "^7.0.3"
+    "serialize-javascript": "^7.0.3",
+    "ssh2": {
+      "cpu-features": "0.0.0"
+    }
   },
   "repository": {
     "type": "git",

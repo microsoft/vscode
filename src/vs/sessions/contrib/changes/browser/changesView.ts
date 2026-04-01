@@ -19,7 +19,7 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IObservabl
 import { basename } from '../../../../base/common/path.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
+import { dirname, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -32,7 +32,7 @@ import { IActionWidgetDropdownActionProvider } from '../../../../platform/action
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -74,6 +74,7 @@ import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/
 import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
+import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 
 const $ = dom.$;
 
@@ -136,7 +137,6 @@ interface IChangesRootItem {
 	readonly type: 'root';
 	readonly uri: URI;
 	readonly name: string;
-	readonly description?: string;
 }
 
 interface IChangesTreeRootInfo {
@@ -190,10 +190,14 @@ function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTre
 					incompressible: true,
 				});
 			} else {
-				// Folder node
+				// Folder node. Ensure that the first level of folders under
+				// the root folder are not being collapsed with the root folder
+				// as that is a special node showing the workspace folder and
+				// branch information.
 				result.push({
 					element: child,
 					children: convertChildren(child),
+					incompressible: parent === resourceTree.root,
 					collapsible: true,
 					collapsed: false,
 				});
@@ -246,45 +250,6 @@ function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undef
 	});
 }
 
-async function collectWorkspaceFiles(fileService: IFileService, rootUri: URI): Promise<IChangesFileItem[]> {
-	const files: IChangesFileItem[] = [];
-
-	const collect = async (uri: URI): Promise<void> => {
-		let stat;
-		try {
-			stat = await fileService.resolve(uri);
-		} catch {
-			return;
-		}
-
-		if (!stat.children) {
-			return;
-		}
-
-		for (const child of stat.children) {
-			if (child.isDirectory) {
-				await collect(child.resource);
-				continue;
-			}
-
-			files.push({
-				type: 'file',
-				uri: child.resource,
-				state: ModifiedFileEntryState.Accepted,
-				isDeletion: false,
-				changeType: 'none',
-				linesAdded: 0,
-				linesRemoved: 0,
-				reviewCommentCount: 0,
-				agentFeedbackCount: 0,
-			});
-		}
-	};
-
-	await collect(rootUri);
-	return files;
-}
-
 // --- View Model
 
 class ChangesViewModel extends Disposable {
@@ -292,11 +257,13 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionBaseBranchNameObs: IObservable<string | undefined>;
-	readonly activeSessionUpstreamBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly activeSessionWorkspaceFilesObs: IObservableWithChange<IObservable<readonly IChangesFileItem[] | undefined>>;
+	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
+	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
+	readonly activeSessionAllChangesObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
+	readonly activeSessionLastTurnChangesObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
@@ -319,12 +286,12 @@ class ChangesViewModel extends Disposable {
 	}
 
 	constructor(
+		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
-		@IFileService private readonly fileService: IFileService,
+		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitService private readonly gitService: IGitService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -397,15 +364,14 @@ class ChangesViewModel extends Disposable {
 
 		// Active session base branch name
 		this.activeSessionBaseBranchNameObs = derived(reader => {
-			return activeSessionRepositoryObs.read(reader)?.baseBranchName;
-		});
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return undefined;
+			}
 
-		// Active session upstream branch name
-		this.activeSessionUpstreamBranchNameObs = derived(reader => {
-			const repositoryState = this.activeSessionRepositoryObs.read(reader)?.state.read(reader);
-			return repositoryState?.HEAD?.upstream
-				? `${repositoryState.HEAD.upstream.remote}/${repositoryState.HEAD.upstream.name}`
-				: undefined;
+			this.sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+			return model?.metadata?.baseBranchName as string | undefined;
 		});
 
 		// Active session has git repository
@@ -446,22 +412,87 @@ class ChangesViewModel extends Disposable {
 			return model?.metadata?.lastCheckpointRef as string | undefined;
 		});
 
-		// Active session workspace files
-		this.activeSessionWorkspaceFilesObs = derived(reader => {
-			if (!this.activeSessionResourceObs.read(reader)) {
+		// Active session all changes
+		this.activeSessionAllChangesObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(reader);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
+
+			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
 				return constObservable([]);
 			}
 
-			if (this.activeSessionHasGitRepositoryObs.read(reader)) {
+			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+			return new ObservablePromise(diffPromise).resolvedValue;
+		});
+
+		// Active session last turn changes
+		this.activeSessionLastTurnChangesObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
+
+			if (!repository || !lastCheckpointRef) {
 				return constObservable([]);
 			}
 
-			const rootUri = this.workspaceContextService.getWorkspace().folders[0]?.uri;
-			if (!rootUri) {
-				return constObservable([]);
+			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
+			return new ObservablePromise(diffPromise).resolvedValue;
+		});
+
+		this.activeSessionReviewCommentCountByFileObs = derived(reader => {
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			const changes = [...this.activeSessionChangesObs.read(reader)];
+
+			if (!sessionResource) {
+				return new Map<string, number>();
 			}
 
-			return new ObservablePromise(collectWorkspaceFiles(this.fileService, rootUri)).resolvedValue;
+			const result = new Map<string, number>();
+			const prReviewState = this.codeReviewService.getPRReviewState(sessionResource).read(reader);
+			if (prReviewState.kind === PRReviewStateKind.Loaded) {
+				for (const comment of prReviewState.comments) {
+					const uriKey = comment.uri.fsPath;
+					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
+				}
+			}
+
+			if (changes.length === 0) {
+				return result;
+			}
+
+			const reviewFiles = getCodeReviewFilesFromSessionChanges(changes as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
+			const reviewVersion = getCodeReviewVersion(reviewFiles);
+			const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
+
+			if (reviewState.kind !== CodeReviewStateKind.Result || reviewState.version !== reviewVersion) {
+				return result;
+			}
+
+			for (const comment of reviewState.comments) {
+				const uriKey = comment.uri.fsPath;
+				result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
+			}
+
+			return result;
+		});
+
+		this.activeSessionAgentFeedbackCountByFileObs = derived(reader => {
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return new Map<string, number>();
+			}
+
+			observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback).read(reader);
+
+			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
+			const result = new Map<string, number>();
+			for (const item of feedbackItems) {
+				if (!item.sourcePRReviewCommentId) {
+					const uriKey = item.resourceUri.fsPath;
+					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
+				}
+			}
+			return result;
 		});
 
 		// Version mode
@@ -524,8 +555,7 @@ export class ChangesViewPane extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
-		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -644,8 +674,8 @@ export class ChangesViewPane extends ViewPane {
 		const ciWidget = this.ciStatusWidget;
 		const ciPane: IView = {
 			element: ciElement,
-			minimumSize: ciMinHeight,
-			maximumSize: Number.POSITIVE_INFINITY,
+			get minimumSize() { return ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : ciMinHeight; },
+			get maximumSize() { return ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Number.POSITIVE_INFINITY; },
 			onDidChange: Event.map(this.ciStatusWidget.onDidChangeHeight, () => undefined),
 			layout: (height) => {
 				ciElement.style.height = `${height}px`;
@@ -667,6 +697,25 @@ export class ChangesViewPane extends ViewPane {
 
 		// Initially hide CI pane until checks arrive
 		this.splitView.setViewVisible(1, false);
+
+		let savedCIPaneHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT;
+		this._register(this.ciStatusWidget.onDidToggleCollapsed(collapsed => {
+			if (!this.splitView || !this.ciStatusWidget) {
+				return;
+			}
+			if (collapsed) {
+				// Save current size before collapsing
+				const currentSize = this.splitView.getViewSize(1);
+				if (currentSize > CIStatusWidget.HEADER_HEIGHT) {
+					savedCIPaneHeight = currentSize;
+				}
+				this.splitView.resizeView(1, CIStatusWidget.HEADER_HEIGHT);
+			} else {
+				// Restore saved size on expand
+				this.splitView.resizeView(1, savedCIPaneHeight);
+			}
+			this.layoutSplitView();
+		}));
 
 		this._register(this.ciStatusWidget.onDidChangeHeight(() => {
 			if (!this.splitView || !this.ciStatusWidget) {
@@ -701,66 +750,10 @@ export class ChangesViewPane extends ViewPane {
 	private onVisible(): void {
 		this.renderDisposables.clear();
 
-		const reviewCommentCountByFileObs = derived(reader => {
-			const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
-			const changes = [...this.viewModel.activeSessionChangesObs.read(reader)];
-
-			if (!sessionResource) {
-				return new Map<string, number>();
-			}
-
-			const result = new Map<string, number>();
-			const prReviewState = this.codeReviewService.getPRReviewState(sessionResource).read(reader);
-			if (prReviewState.kind === PRReviewStateKind.Loaded) {
-				for (const comment of prReviewState.comments) {
-					const uriKey = comment.uri.fsPath;
-					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
-				}
-			}
-
-			if (changes.length === 0) {
-				return result;
-			}
-
-			const reviewFiles = getCodeReviewFilesFromSessionChanges(changes as readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[]);
-			const reviewVersion = getCodeReviewVersion(reviewFiles);
-			const reviewState = this.codeReviewService.getReviewState(sessionResource).read(reader);
-
-			if (reviewState.kind !== CodeReviewStateKind.Result || reviewState.version !== reviewVersion) {
-				return result;
-			}
-
-			for (const comment of reviewState.comments) {
-				const uriKey = comment.uri.fsPath;
-				result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
-			}
-
-			return result;
-		});
-
-		const agentFeedbackCountByFileObs = derived(reader => {
-			const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
-				return new Map<string, number>();
-			}
-
-			observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback).read(reader);
-
-			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
-			const result = new Map<string, number>();
-			for (const item of feedbackItems) {
-				if (!item.sourcePRReviewCommentId) {
-					const uriKey = item.resourceUri.fsPath;
-					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
-				}
-			}
-			return result;
-		});
-
 		// Convert session file changes to list items (cloud/background sessions)
 		const sessionFilesObs = derived(reader => {
-			const reviewCommentCountByFile = reviewCommentCountByFileObs.read(reader);
-			const agentFeedbackCountByFile = agentFeedbackCountByFileObs.read(reader);
+			const reviewCommentCountByFile = this.viewModel.activeSessionReviewCommentCountByFileObs.read(reader);
+			const agentFeedbackCountByFile = this.viewModel.activeSessionAgentFeedbackCountByFileObs.read(reader);
 			const changes = [...this.viewModel.activeSessionChangesObs.read(reader)];
 
 			return changes.map((entry): IChangesFileItem => {
@@ -784,50 +777,23 @@ export class ChangesViewPane extends ViewPane {
 			});
 		});
 
-		const allChangesObs = derived(reader => {
-			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(reader);
-			const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
-
-			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
-				return constObservable(undefined);
-			}
-
-			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
-			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		const lastTurnChangesObs = derived(reader => {
-			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
-
-			if (!repository || !lastCheckpointRef) {
-				return constObservable(undefined);
-			}
-
-			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
-			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
 		const isLoadingChangesObs = derived(reader => {
-			if (!this.viewModel.activeSessionHasGitRepositoryObs.read(reader)) {
-				const files = this.viewModel.activeSessionWorkspaceFilesObs.read(reader).read(reader);
-				return files === undefined;
-			}
-
 			const versionMode = this.viewModel.versionModeObs.read(reader);
-			if (versionMode !== ChangesVersionMode.AllChanges && versionMode !== ChangesVersionMode.LastTurn) {
+			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return false;
 			}
 
-			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			if (!repository) {
-				return false;
+			if (versionMode === ChangesVersionMode.AllChanges) {
+				const allChangesResult = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader);
+				return allChangesResult === undefined;
 			}
 
-			const allChangesResult = allChangesObs.read(reader).read(reader);
-			const lastTurnChangesResult = lastTurnChangesObs.read(reader).read(reader);
-			return allChangesResult === undefined || lastTurnChangesResult === undefined;
+			if (versionMode === ChangesVersionMode.LastTurn) {
+				const lastTurnChangesResult = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader);
+				return lastTurnChangesResult === undefined;
+			}
+
+			return false;
 		});
 
 		this.renderDisposables.add(autorun(reader => {
@@ -842,24 +808,22 @@ export class ChangesViewPane extends ViewPane {
 		// Combine both entry sources for display
 		const combinedEntriesObs = derived(reader => {
 			const versionMode = this.viewModel.versionModeObs.read(reader);
+			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			if (!hasGitRepository) {
+				return [];
+			}
 
 			const sourceEntries: IChangesFileItem[] = [];
 			if (versionMode === ChangesVersionMode.BranchChanges) {
-				const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-				if (hasGitRepository) {
-					const sessionFiles = sessionFilesObs.read(reader);
-					sourceEntries.push(...sessionFiles);
-				} else {
-					const files = this.viewModel.activeSessionWorkspaceFilesObs.read(reader).read(reader) ?? [];
-					sourceEntries.push(...files);
-				}
+				const sessionFiles = sessionFilesObs.read(reader);
+				sourceEntries.push(...sessionFiles);
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
-				const allChanges = allChangesObs.read(reader).read(reader) ?? [];
-				const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(reader);
-				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
+				const allChanges = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader) ?? [];
+				const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(undefined);
+				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(undefined);
 				sourceEntries.push(...toChangesFileItem(allChanges, lastCheckpointRef, firstCheckpointRef));
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
-				const diffChanges = lastTurnChangesObs.read(reader).read(reader) ?? [];
+				const diffChanges = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader) ?? [];
 				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(undefined);
 				sourceEntries.push(...toChangesFileItem(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined));
 			}
@@ -1001,12 +965,6 @@ export class ChangesViewPane extends ViewPane {
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
-							if (
-								action.id === 'chatEditing.viewAllSessionChanges' ||
-								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
-							) {
-								return { showIcon: true, showLabel: false, isSecondary: true };
-							}
 							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
 								const customLabel = outgoingChanges > 0
 									? `${action.label} ${outgoingChanges}↑`
@@ -1023,8 +981,19 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: false, isSecondary: true };
 							}
 							if (
+								action.id === 'chatEditing.viewAllSessionChanges' ||
+								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
+							) {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
+							if (action.id === 'agentFeedbackEditor.action.submitActiveSession') {
+								return { showIcon: false, showLabel: true, isSecondary: false };
+							}
+							if (
 								action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR' ||
 								action.id === 'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge' ||
+								action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
+								action.id === 'pr.checkoutFromChat' ||
 								action.id === 'github.copilot.sessions.initializeRepository' ||
 								action.id === 'github.copilot.sessions.commitChanges' ||
 								action.id === 'agentSession.markAsDone'
@@ -1032,6 +1001,16 @@ export class ChangesViewPane extends ViewPane {
 								return { showIcon: true, showLabel: true, isSecondary: false };
 							}
 
+							// Unknown actions (e.g. extension-contributed): only hide the label when an icon is present.
+							if (action instanceof MenuItemAction) {
+								const icon = action.item.icon;
+								if (icon) {
+									// Icon-only button (no forced secondary state so primary/secondary can be inferred).
+									return { showIcon: true, showLabel: false };
+								}
+							}
+
+							// Fall back to default button behavior for actions without an icon.
 							return undefined;
 						}
 					}
@@ -1044,6 +1023,9 @@ export class ChangesViewPane extends ViewPane {
 			if (isLoadingChangesObs.read(reader)) {
 				return;
 			}
+
+			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			dom.setVisibility(hasGitRepository, this.filesHeaderNode!);
 
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
@@ -1140,6 +1122,8 @@ export class ChangesViewPane extends ViewPane {
 				if (!e.element || !isChangesFileItem(e.element)) {
 					return;
 				}
+
+				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
 
 				const items = combinedEntriesObs.get();
 				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
@@ -1247,29 +1231,35 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
+		// Get the repository details for the session
+		// - uri: location of the repository
+		// - workingDirectory (optional): location of the worktree
+		const activeSession = this.sessionManagementService.activeSession.get();
+		const repository = activeSession?.workspace.get()?.repositories[0];
+		const workspaceFolderUri = repository?.workingDirectory ?? repository?.uri;
+		if (!repository?.uri || !workspaceFolderUri) {
 			return undefined;
 		}
 
 		const sampleUri = items[0].uri;
-		let resourceTreeRootUri = workspaceFolder.uri;
+		let resourceTreeRootUri = workspaceFolderUri;
 
 		if (sampleUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			const parts = sampleUri.path.split('/').filter(Boolean);
 			if (parts.length >= 3) {
 				resourceTreeRootUri = sampleUri.with({ path: '/' + parts.slice(0, 3).join('/'), query: '', fragment: '' });
 			}
-		} else if (sampleUri.scheme !== workspaceFolder.uri.scheme || sampleUri.authority !== workspaceFolder.uri.authority) {
-			resourceTreeRootUri = sampleUri.with({ path: workspaceFolder.uri.path, authority: workspaceFolder.uri.authority, query: '', fragment: '' });
+		} else if (sampleUri.scheme !== workspaceFolderUri.scheme || sampleUri.authority !== workspaceFolderUri.authority) {
+			resourceTreeRootUri = sampleUri.with({ path: workspaceFolderUri.path, authority: workspaceFolderUri.authority, query: '', fragment: '' });
 		}
 
 		return {
 			root: {
 				type: 'root',
-				uri: workspaceFolder.uri,
-				name: workspaceFolder.name,
-				description: this.viewModel.activeSessionBranchNameObs.get(),
+				uri: workspaceFolderUri,
+				name: repository.workingDirectory
+					? `${basename(repository.uri.fsPath)} (${this.viewModel.activeSessionBranchNameObs.get()})`
+					: basename(repository.uri.fsPath),
 			},
 			resourceTreeRootUri,
 		};
@@ -1378,7 +1368,13 @@ export class ChangesViewPane extends ViewPane {
 			'ChangesViewTree',
 			container,
 			new ChangesTreeDelegate(),
-			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, MenuId.ChatEditingSessionChangeToolbar, actionRunner)],
+			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, actionRunner,
+				() => {
+					// Pass in the tree root to be used to compute the label description
+					const activeSession = this.sessionManagementService.activeSession.get();
+					const repository = activeSession?.workspace.get()?.repositories[0];
+					return repository?.workingDirectory ?? repository?.uri;
+				})],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -1518,8 +1514,8 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	constructor(
 		private viewModel: ChangesViewModel,
 		private labels: ResourceLabels,
-		private menuId: MenuId | undefined,
 		private actionRunner: ActionRunner | undefined,
+		private getRootUri: () => URI | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1543,24 +1539,24 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		lineCountsContainer.appendChild(removedSpan);
 		label.element.appendChild(lineCountsContainer);
 
-		let toolbar: MenuWorkbenchToolBar | undefined;
-		let contextKeyService: IContextKeyService | undefined;
-		if (this.menuId) {
-			const actionBarContainer = $('.chat-collapsible-list-action-bar');
-			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
-			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
-			label.element.appendChild(actionBarContainer);
+		const actionBarContainer = $('.chat-collapsible-list-action-bar');
+		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
+		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ChatEditingSessionChangeToolbar, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
+		label.element.appendChild(actionBarContainer);
 
-			templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
-				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				return activeSession?.sessionType ?? '';
-			}));
+		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.sessionType ?? '';
+		}));
 
-			templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
-				return this.viewModel.versionModeObs.read(reader);
-			}));
-		}
+		templateDisposables.add(bindContextKey(hasGitRepositoryContextKey, contextKeyService, reader => {
+			return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+		}));
+
+		templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
+			return this.viewModel.versionModeObs.read(reader);
+		}));
 
 		const decorationBadge = dom.$('.changes-decoration-badge');
 		label.element.appendChild(decorationBadge);
@@ -1611,11 +1607,21 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	}
 
 	private renderFileElement(data: IChangesFileItem, templateData: IChangesTreeTemplate): void {
-		templateData.label.setFile(data.uri, {
+		const root = this.getRootUri();
+		const viewMode = this.viewModel.viewModeObs.get();
+
+		templateData.label.setResource({
+			resource: data.uri,
+			name: basename(data.uri.path),
+			description: viewMode === ChangesViewMode.List
+				? root
+					? relativePath(root, dirname(data.uri))
+					: undefined
+				: undefined,
+		}, {
 			fileKind: FileKind.FILE,
 			fileDecorations: undefined,
-			strikethrough: data.changeType === 'deleted',
-			hidePath: false
+			strikethrough: data.changeType === 'deleted'
 		});
 
 		const showChangeDecorations = data.changeType !== 'none';
@@ -1712,6 +1718,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	private renderFolderElement(node: IResourceNode<IChangesFileItem, undefined>, templateData: IChangesTreeTemplate): void {
 		templateData.label.setFile(node.uri, {
 			fileKind: FileKind.FOLDER,
+			hidePath: true,
 		});
 
 		// Hide file-specific decorations for folders
@@ -1752,7 +1759,8 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+	async runInView(accessor: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.List);
 		view.viewModel.setViewMode(ChangesViewMode.List);
 	}
 }
@@ -1774,7 +1782,8 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+	async runInView(accessor: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.Tree);
 		view.viewModel.setViewMode(ChangesViewMode.Tree);
 	}
 }
@@ -1814,29 +1823,26 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const branchName = viewModel.activeSessionBranchNameObs.get();
 				const baseBranchName = viewModel.activeSessionBaseBranchNameObs.get();
-				const hasGitRepository = viewModel.activeSessionHasGitRepositoryObs.get();
 
 				return [
 					{
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
-						label: hasGitRepository
-							? localize('chatEditing.versionsBranchChanges', 'Branch Changes')
-							: localize('chatEditing.versionsFolderChanges', 'Folder Changes'),
-						description: hasGitRepository
+						label: localize('chatEditing.versionsBranchChanges', 'Branch Changes'),
+						description: branchName && baseBranchName
 							? `${branchName} → ${baseBranchName}`
-							: this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath,
+							: branchName,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
 						category: { label: 'changes', order: 1, showHeader: false },
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.BranchChanges);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.BranchChanges);
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -1853,6 +1859,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.AllChanges);
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -1869,6 +1876,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.LastTurn);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.LastTurn);
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -1882,7 +1890,6 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		this._register(autorun(reader => {
 			viewModel.versionModeObs.read(reader);
-			viewModel.activeSessionHasGitRepositoryObs.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -1892,12 +1899,8 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const mode = this.viewModel.versionModeObs.get();
-		const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.get();
-
 		const label = mode === ChangesVersionMode.BranchChanges
-			? hasGitRepository
-				? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
-				: localize('sessionsChanges.versionsFolderChanges', "Folder Changes")
+			? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
 			: mode === ChangesVersionMode.AllChanges
 				? localize('sessionsChanges.versionsAllChanges', "All Changes")
 				: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
