@@ -252,7 +252,6 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionBaseBranchNameObs: IObservable<string | undefined>;
-	readonly activeSessionUpstreamBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
@@ -360,15 +359,14 @@ class ChangesViewModel extends Disposable {
 
 		// Active session base branch name
 		this.activeSessionBaseBranchNameObs = derived(reader => {
-			return activeSessionRepositoryObs.read(reader)?.baseBranchName;
-		});
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return undefined;
+			}
 
-		// Active session upstream branch name
-		this.activeSessionUpstreamBranchNameObs = derived(reader => {
-			const repositoryState = this.activeSessionRepositoryObs.read(reader)?.state.read(reader);
-			return repositoryState?.HEAD?.upstream
-				? `${repositoryState.HEAD.upstream.remote}/${repositoryState.HEAD.upstream.name}`
-				: undefined;
+			this.sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+			return model?.metadata?.baseBranchName as string | undefined;
 		});
 
 		// Active session has git repository
