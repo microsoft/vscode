@@ -70,7 +70,7 @@ suite('SendToTerminalTool', () => {
 
 	test('tool description documents terminal IDs and use cases', () => {
 		const idProperty = SendToTerminalToolData.inputSchema?.properties?.id as { description?: string; pattern?: string } | undefined;
-		assert.ok(SendToTerminalToolData.modelDescription.includes('existing background terminal'));
+		assert.ok(SendToTerminalToolData.modelDescription.includes('existing persistent terminal session'));
 		assert.ok(idProperty?.pattern?.includes('[0-9a-fA-F]{8}'));
 	});
 

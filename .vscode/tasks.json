@@ -393,9 +393,9 @@
 			]
 		},
 		{
-			"label": "Launch Component Explorer",
+			"label": "Component Explorer Server",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
 			"inSessions": true,
 			"problemMatcher": {
@@ -408,7 +408,7 @@
 					"column": 3
 				},
 				"background": {
-					"activeOnStart": true,
+					"activeOnStart": false,
 					"beginsPattern": ".*Setting up sessions.*",
 					"endsPattern": "  current: (?<componentExplorerUrl>.*) \\(current\\)"
 				}
@@ -424,6 +424,29 @@
 			"inSessions": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
+			}
+		},
+		{
+			"label": "Serve Out (rspack)",
+			"type": "npm",
+			"script": "serve-out-rspack",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "rspack",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*compiling.*",
+					"endsPattern": ".*compiled.*successfully.*"
+				}
 			}
 		},
 		{

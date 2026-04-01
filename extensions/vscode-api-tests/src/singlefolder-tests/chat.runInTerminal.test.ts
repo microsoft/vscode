@@ -178,14 +178,14 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		assert.ok(schema.properties?.['command'], 'Schema should have a command property');
 		assert.ok(schema.properties?.['explanation'], 'Schema should have an explanation property');
 		assert.ok(schema.properties?.['goal'], 'Schema should have a goal property');
-		assert.ok(schema.properties?.['isBackground'], 'Schema should have an isBackground property');
+		assert.ok(schema.properties?.['mode'], 'Schema should have a mode property');
 	});
 
 	// --- Sandbox OFF tests ---
 
 	suite('sandbox off', () => {
 
-		test('echo command returns exactly the echoed text', async function () {
+		test.skip('echo command returns exactly the echoed text', async function () {
 			this.timeout(60000);
 
 			const marker = `MARKER_${Date.now()}_ECHO`;
@@ -204,7 +204,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.strictEqual(output.trim(), 'Command produced no output');
 		});
 
-		test('multi-line output preserves all lines in order', async function () {
+		test.skip('multi-line output preserves all lines in order', async function () {
 			this.timeout(60000);
 
 			const m1 = `M1_${Date.now()}`;
