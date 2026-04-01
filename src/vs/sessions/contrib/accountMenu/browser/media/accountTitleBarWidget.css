@@ -1,0 +1,149 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-workbench .sessions-account-titlebar-widget {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 22px;
+	min-width: 0;
+	max-width: 240px;
+	padding: 0 8px;
+	background: transparent;
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: inherit;
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget:hover,
+.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget:active,
+.agent-sessions-workbench .sessions-account-titlebar-widget.menu-visible,
+.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.menu-visible {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-icon {
+	flex: 0 0 auto;
+	font-size: 16px;
+	color: inherit;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 16px;
+	color: inherit;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.reveal-label-on-hover .sessions-account-titlebar-widget-label {
+	max-width: 0;
+	opacity: 0;
+	transform: translateX(-4px);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-default.reveal-label-on-hover {
+	padding-inline: 5px;
+	gap: 4px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.reveal-label-on-hover:hover .sessions-account-titlebar-widget-label,
+.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.reveal-label-on-hover .sessions-account-titlebar-widget-label,
+.agent-sessions-workbench .sessions-account-titlebar-widget.reveal-label-on-hover.menu-visible .sessions-account-titlebar-widget-label {
+	max-width: 160px;
+	opacity: 1;
+	transform: translateX(0);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-badge {
+	flex: 0 0 auto;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 18px;
+	height: 16px;
+	padding: 0 5px;
+	border-radius: 8px;
+	background: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 10px;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-warning .sessions-account-titlebar-widget-icon,
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-warning .sessions-account-titlebar-widget-label {
+	color: var(--vscode-statusBarItem-warningForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-prominent .sessions-account-titlebar-widget-badge,
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-warning .sessions-account-titlebar-widget-badge {
+	background: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget.kind-accent .sessions-account-titlebar-widget-badge {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget {
+	transition: background-color 150ms ease-out, padding-inline 150ms ease-out, gap 150ms ease-out;
+}
+
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget-icon,
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget-label,
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget-badge,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget-icon,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget-label,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget-badge {
+	transition: opacity 150ms ease-out, transform 150ms ease-out, max-width 200ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget.reveal-label-on-hover:hover,
+.monaco-enable-motion .agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.reveal-label-on-hover,
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget.reveal-label-on-hover.menu-visible,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget.reveal-label-on-hover:hover,
+.agent-sessions-workbench.monaco-enable-motion .action-item:focus-within .sessions-account-titlebar-widget.reveal-label-on-hover,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget.reveal-label-on-hover.menu-visible {
+	padding-inline: 6px;
+	gap: 6px;
+}
+
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget:hover .sessions-account-titlebar-widget-badge,
+.monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget.menu-visible .sessions-account-titlebar-widget-badge,
+.monaco-enable-motion .agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget .sessions-account-titlebar-widget-badge,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget:hover .sessions-account-titlebar-widget-badge,
+.agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget.menu-visible .sessions-account-titlebar-widget-badge,
+.agent-sessions-workbench.monaco-enable-motion .action-item:focus-within .sessions-account-titlebar-widget .sessions-account-titlebar-widget-badge {
+	transform: scale(1.04);
+}
+
+.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget,
+.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget-icon,
+.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget-label,
+.monaco-reduce-motion .agent-sessions-workbench .sessions-account-titlebar-widget-badge,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-icon,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-label,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-account-titlebar-widget-badge {
+	transition-duration: 0ms !important;
+}
