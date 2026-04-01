@@ -413,10 +413,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	}
 
 	private _appendDisclaimerLink(href: string, label: string): HTMLAnchorElement {
-		const link = $('a', {
-			className: 'sessions-walkthrough-disclaimer-link',
-			href,
-		}, label) as HTMLAnchorElement;
+		const link = $('a', { href }, label) as HTMLAnchorElement;
 		this._register(addDisposableListener(link, EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
