@@ -425,7 +425,6 @@
 			"runOptions": {
 				"runOn": "worktreeCreated"
 			},
-			"isBackground": true,
 			"presentation": {
 				"focus": false,
 				"reveal": "never"
