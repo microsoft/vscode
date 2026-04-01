@@ -642,6 +642,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				case 'instructions': return AICustomizationManagementSection.Instructions;
 				case 'prompt': return AICustomizationManagementSection.Prompts;
 				case 'hook': return AICustomizationManagementSection.Hooks;
+				case 'plugins': return AICustomizationManagementSection.Plugins;
 				default: return type;
 			}
 		});
