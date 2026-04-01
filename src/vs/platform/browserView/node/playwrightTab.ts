@@ -17,6 +17,18 @@ declare module 'playwright-core' {
 }
 
 /**
+ * Thrown when a dialog (alert, confirm, prompt) opens while a page action is
+ * running. The caller should defer the underlying promise and let the agent
+ * handle the dialog before retrying.
+ */
+export class DialogInterruptedError extends Error {
+	constructor() {
+		super('Action was interrupted by a dialog');
+		this.name = 'DialogInterruptedError';
+	}
+}
+
+/**
  * Wrapper around a Playwright page that tracks additional state like active dialogs and recent console messages,
  * and can produce a summary of the page's current state for use in tools.
  *
@@ -152,7 +164,7 @@ export class PlaywrightTab {
 		return raceCancellablePromises([dialogOpened, actionCompleted]).then(() => {
 			if (!actionDidComplete) {
 				// A dialog was opened before the action completed. Note we don't cancel the action, just ignore its result.
-				throw new Error('Action was interrupted by a dialog');
+				throw new DialogInterruptedError();
 			}
 			return result!;
 		});
@@ -185,7 +197,7 @@ export class PlaywrightTab {
 				`Recent events:`,
 				...logs.map(log => `- [${new Date(log.time).toISOString()}] (${log.type}) ${log.description}`)
 			] : []),
-			...(snapshot ? ['Snapshot:', snapshot] : [])
+			`Snapshot: ${snapshotFromPage ? snapshot ? `\n${snapshot}` : '<unchanged>' : '<unavailable>'}`,
 		].join('\n');
 	}
 
