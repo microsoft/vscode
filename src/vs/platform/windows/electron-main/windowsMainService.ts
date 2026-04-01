@@ -1561,7 +1561,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			os: { release: release(), hostname: hostname(), arch: arch() },
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
-			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? this.themeMainService.isAutoDetectColorScheme(),
+			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
