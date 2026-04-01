@@ -304,6 +304,26 @@ macro_rules! get_next_entry {
 	};
 }
 
+impl KeyringStorage {
+	fn chunk_sealed_value(sealed: &str) -> Vec<String> {
+		let step_size = KEYCHAIN_ENTRY_LIMIT - CONTINUE_MARKER.len();
+		let mut out = Vec::new();
+
+		for i in (0..sealed.len()).step_by(step_size) {
+			let cutoff = i + step_size;
+			if cutoff < sealed.len() {
+				let mut part = sealed[i..cutoff].to_string();
+				part.push_str(CONTINUE_MARKER);
+				out.push(part);
+			} else {
+				out.push(sealed[i..].to_string());
+			}
+		}
+
+		out
+	}
+}
+
 impl StorageImplementation for KeyringStorage {
 	fn read(&mut self) -> Result<Option<StoredCredential>, AnyError> {
 		let mut str = String::new();
@@ -329,19 +349,10 @@ impl StorageImplementation for KeyringStorage {
 
 	fn store(&mut self, value: StoredCredential) -> Result<(), AnyError> {
 		let sealed = seal(&value);
-		let step_size = KEYCHAIN_ENTRY_LIMIT - CONTINUE_MARKER.len();
 
-		for i in (0..sealed.len()).step_by(step_size) {
-			let entry = get_next_entry!(self, i / step_size);
-
-			let cutoff = i + step_size;
-			let stored = if cutoff <= sealed.len() {
-				let mut part = sealed[i..cutoff].to_string();
-				part.push_str(CONTINUE_MARKER);
-				entry.set_password(&part)
-			} else {
-				entry.set_password(&sealed[i..])
-			};
+		for (i, part) in Self::chunk_sealed_value(&sealed).into_iter().enumerate() {
+			let entry = get_next_entry!(self, i);
+			let stored = entry.set_password(&part);
 
 			if let Err(e) = stored {
 				return Err(wrap(e, "error updating keyring").into());
@@ -361,6 +372,44 @@ impl StorageImplementation for KeyringStorage {
 		self.entries.clear();
 
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_keychain_chunking_does_not_end_with_continue_marker_at_exact_boundary() {
+		let step_size = KEYCHAIN_ENTRY_LIMIT - CONTINUE_MARKER.len();
+		let sealed = "a".repeat(step_size);
+
+		let parts = KeyringStorage::chunk_sealed_value(&sealed);
+		assert_eq!(parts.len(), 1);
+		assert_eq!(parts[0], sealed);
+	}
+
+	#[test]
+	fn test_keychain_chunking_marks_all_but_last_entry() {
+		let step_size = KEYCHAIN_ENTRY_LIMIT - CONTINUE_MARKER.len();
+		let sealed = "a".repeat(step_size + 1);
+
+		let parts = KeyringStorage::chunk_sealed_value(&sealed);
+		assert_eq!(parts.len(), 2);
+		assert!(parts[0].ends_with(CONTINUE_MARKER));
+		assert!(!parts[1].ends_with(CONTINUE_MARKER));
+		assert_eq!(parts[1].len(), 1);
+	}
+
+	#[test]
+	fn test_keychain_chunking_two_exact_chunks_has_no_trailing_marker() {
+		let step_size = KEYCHAIN_ENTRY_LIMIT - CONTINUE_MARKER.len();
+		let sealed = "a".repeat(step_size * 2);
+
+		let parts = KeyringStorage::chunk_sealed_value(&sealed);
+		assert_eq!(parts.len(), 2);
+		assert!(parts[0].ends_with(CONTINUE_MARKER));
+		assert!(!parts[1].ends_with(CONTINUE_MARKER));
 	}
 }
 
