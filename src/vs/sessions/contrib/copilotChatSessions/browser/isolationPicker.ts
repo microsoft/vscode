@@ -14,7 +14,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
@@ -60,12 +60,12 @@ export class IsolationPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
-			if (providerSession instanceof CopilotCLISession) {
-				const isLoading = providerSession.loading.read(reader);
+			const isLoading = session?.loading.read(reader);
+			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			if (providerSession) {
 				this._hasGitRepo = !isLoading && !!providerSession.gitRepository;
 				// Read isolation mode from session — session is the source of truth
-				providerSession.isolationModeObservable.read(reader);
+				providerSession.isolationMode.read(reader);
 			} else {
 				this._hasGitRepo = false;
 			}
@@ -75,8 +75,8 @@ export class IsolationPicker extends Disposable {
 
 	private _getSessionIsolationMode(): IsolationMode {
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
-		return providerSession instanceof CopilotCLISession ? providerSession.isolationMode : 'worktree';
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		return providerSession?.isolationMode.get() ?? 'worktree';
 	}
 
 	render(container: HTMLElement): void {
@@ -155,11 +155,8 @@ export class IsolationPicker extends Disposable {
 
 	private _setModeOnSession(mode: IsolationMode): void {
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
-		if (!(providerSession instanceof CopilotCLISession)) {
-			throw new Error('IsolationPicker requires a CopilotCLISession');
-		}
-		providerSession.setIsolationMode(mode);
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		providerSession?.setIsolationMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {

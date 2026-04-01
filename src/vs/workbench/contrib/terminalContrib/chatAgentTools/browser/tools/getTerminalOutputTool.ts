@@ -41,8 +41,8 @@ export interface IGetTerminalOutputInputParams {
 export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return {
-			invocationMessage: localize('bg.progressive', "Checking background terminal output"),
-			pastTenseMessage: localize('bg.past', "Checked background terminal output"),
+			invocationMessage: localize('getTerminalOutput.progressive', "Checking terminal output"),
+			pastTenseMessage: localize('getTerminalOutput.past', "Checked terminal output"),
 		};
 	}
 
