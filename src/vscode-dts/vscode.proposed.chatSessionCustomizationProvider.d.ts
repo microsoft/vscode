@@ -58,11 +58,11 @@ declare module 'vscode' {
 		readonly iconId?: string;
 
 		/**
-		 * Customization types that this provider does **not** support.
-		 * The corresponding sections will be hidden in the management UI
-		 * when this provider is active.
+		 * Customization types that this provider supports.
+		 * Only the corresponding sections will be shown in the management UI
+		 * when this provider is active. When omitted, all sections are shown.
 		 */
-		readonly unsupportedTypes?: readonly ChatSessionCustomizationType[];
+		readonly supportedTypes?: readonly ChatSessionCustomizationType[];
 	}
 
 	/**
