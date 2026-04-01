@@ -854,8 +854,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._lastSessionPickerOptions = pickerOptions;
 
 		const sessionResource = this.getCurrentSessionResource();
-		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
-		if (!result) {
+		const visibleOptionGroups = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
+		if (!visibleOptionGroups) {
 			return [];
 		}
 
@@ -864,7 +864,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return [];
 		}
 
-		const { visibleOptionGroups } = result;
 		this.chatSessionPickerWidgets.clearAndDisposeAll();
 
 		const widgets: (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] = [];
@@ -1603,27 +1602,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * @returns The result containing visible group IDs and related context, or undefined
 	 *          if there are no visible option groups
 	 */
-	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource: URI | undefined): {
-		visibleOptionGroups: IChatSessionProviderOptionGroup[];
-		allOptionGroups: IChatSessionProviderOptionGroup[];
-	} | undefined {
+	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] | undefined {
 		if (sessionResource) {
 			this.updateStateAndChatModeForSessionCustomAgentTarget(sessionResource);
 		}
 
-		const result = this.getVisibleOptionGroups(sessionResource);
-		if (!result) {
+		const visibleOptionGroups = this.getVisibleOptionGroups(sessionResource);
+		if (!visibleOptionGroups) {
 			this.chatSessionHasOptions.set(false);
 			this.chatSessionOptionsValid.set(true);
 			return undefined;
 		}
 
-		const allOptionsValid = sessionResource ? this.areAllOptionsValid(sessionResource, result.visibleOptionGroups) : true;
+		const allOptionsValid = sessionResource ? this.areAllOptionsValid(sessionResource, visibleOptionGroups) : true;
 
 		this.chatSessionHasOptions.set(true);
 		this.chatSessionOptionsValid.set(allOptionsValid);
 
-		return result;
+		return visibleOptionGroups;
 	}
 
 	private getCurrentSessionResource() {
@@ -1644,12 +1640,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return true;
 	}
 
-	private getVisibleOptionGroups(sessionResource: URI | undefined): {
-		visibleOptionGroups: IChatSessionProviderOptionGroup[];
-		allOptionGroups: IChatSessionProviderOptionGroup[];
-	} | undefined {
-
-		// Step 1: Determine the session type
+	private getAllOptionsGroups(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] | undefined {
 		// - Panel/Editor: Use actual session's type (ctx available)
 		// - Welcome view: Use delegate's type (ctx may not exist yet)
 		const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
@@ -1661,6 +1652,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Step 2: Get option groups for this session type
 		const allOptionGroups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
 		if (!allOptionGroups || allOptionGroups.length === 0) {
+			return undefined;
+		}
+		return allOptionGroups;
+	}
+
+	private getVisibleOptionGroups(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] | undefined {
+		const allOptionGroups = this.getAllOptionsGroups(sessionResource);
+		if (!allOptionGroups) {
 			return undefined;
 		}
 
@@ -1676,7 +1675,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		// Step 3: Filter to visible groups (has items AND passes `when` clause AND session has option configured)
+		// Filter to visible groups (has items AND passes `when` clause AND session has option configured)
 		const visibleGroups = new Map<string, IChatSessionProviderOptionGroup>();
 		for (const optionGroup of allOptionGroups) {
 			const hasItems = optionGroup.items.length > 0 || (optionGroup.commands || []).length > 0;
@@ -1695,10 +1694,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return undefined;
 		}
 
-		return {
-			allOptionGroups,
-			visibleOptionGroups: Array.from(visibleGroups.values()),
-		};
+		return Array.from(visibleGroups.values());
 	}
 
 	private updateStateAndChatModeForSessionCustomAgentTarget(sessionResource: URI) {
@@ -1735,15 +1731,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private refreshChatSessionPickers(): void {
 		// Use the shared helper to compute visibility and update context keys
 		const sessionResource = this.getCurrentSessionResource();
-		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
-
-		if (!result) {
+		const allOptionsGroups = this.getAllOptionsGroups(sessionResource);
+		const visibleOptionGroups = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
+		if (!allOptionsGroups || !visibleOptionGroups) {
 			// No visible options - helper already updated context keys
 			this.hideAllSessionPickerWidgets();
 			return;
 		}
 
-		const { allOptionGroups, visibleOptionGroups } = result;
 
 		// Check if widgets need recreation (different set of visible groups)
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
@@ -1771,7 +1766,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			for (const [optionGroupId] of this.chatSessionPickerWidgets) {
 				const currentOption = this.chatSessionsService.getSessionOption(sessionResource, optionGroupId);
 				if (currentOption) {
-					const optionGroup = allOptionGroups.find(g => g.id === optionGroupId);
+					const optionGroup = allOptionsGroups.find(g => g.id === optionGroupId);
 					if (optionGroup) {
 						const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
 						const item = optionGroup.items.find((m: IChatSessionProviderOptionItem) => m.id === currentOptionId);
