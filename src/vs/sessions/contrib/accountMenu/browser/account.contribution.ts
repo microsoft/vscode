@@ -49,7 +49,7 @@ const AccountMenu = new MenuId('SessionsAccountMenu');
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
 const SessionsTitleBarUpdateWidgetAction = 'sessions.action.titleBarUpdateWidget';
 const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 280;
-const SIMULATE_SESSIONS_UPDATE_AVAILABLE = true;
+const SIMULATE_SESSIONS_UPDATE_AVAILABLE = false;
 const SIMULATED_SESSIONS_UPDATE_STATE = State.AvailableForDownload({
 	version: 'b7c2d9f',
 	productVersion: '1.115.0',
