@@ -1186,16 +1186,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 								: `Command is running in terminal with ID=${termId}`
 				);
-				const backgroundOutput = pollingResult?.modelOutputEvalResponse ?? pollingResult?.output;
+				const backgroundOutput = pollingResult?.output;
 				const outputAnalyzerMessage = backgroundOutput
 					? await this._getOutputAnalyzerMessage(undefined, backgroundOutput, command, didSandboxWrapCommand)
 					: undefined;
-				if (pollingResult && pollingResult.modelOutputEvalResponse) {
+				if (pollingResult && pollingResult.state === OutputMonitorState.Idle) {
 					resultText += `\n\ The command became idle with output:\n`;
 					if (outputAnalyzerMessage) {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}
-					resultText += pollingResult.modelOutputEvalResponse;
+					resultText += pollingResult.output;
 				} else if (pollingResult) {
 					resultText += `\n\ The command is still running, with output:\n`;
 					if (outputAnalyzerMessage) {

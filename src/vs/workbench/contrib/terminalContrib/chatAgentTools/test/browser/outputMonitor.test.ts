@@ -195,8 +195,8 @@ suite('OutputMonitor', () => {
 			const timeoutThenIdle = async (): Promise<IPollingResult> => {
 				pass++;
 				return pass === 1
-					? { state: OutputMonitorState.Timeout, output: execution.getOutput(), modelOutputEvalResponse: 'Timed out' }
-					: { state: OutputMonitorState.Idle, output: execution.getOutput(), modelOutputEvalResponse: 'Done' };
+					? { state: OutputMonitorState.Timeout, output: execution.getOutput() }
+					: { state: OutputMonitorState.Idle, output: execution.getOutput() };
 			};
 
 			monitor = store.add(

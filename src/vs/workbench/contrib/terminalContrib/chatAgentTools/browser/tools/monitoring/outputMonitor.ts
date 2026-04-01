@@ -142,7 +142,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	): Promise<void> {
 		const pollStartTime = Date.now();
 
-		let modelOutputEvalResponse;
 		let resources;
 		let output;
 
@@ -179,9 +178,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
-							this._logService.trace(`OutputMonitor: Idle handler -> stop polling (hasResources=${!!idleResult.resources}, hasModelEval=${!!idleResult.modelOutputEvalResponse}, outputLen=${idleResult.output?.length ?? 0})`);
+							this._logService.trace(`OutputMonitor: Idle handler -> stop polling (hasResources=${!!idleResult.resources}, outputLen=${idleResult.output?.length ?? 0})`);
 							resources = idleResult.resources;
-							modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
 							output = idleResult.output;
 						}
 						break;
@@ -200,7 +198,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			this._pollingResult = {
 				state: this._state,
 				output: output ?? this._execution.getOutput(),
-				modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
 			};
@@ -220,7 +217,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 
-	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean; output?: string }> {
+	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; shouldContinuePollling: boolean; output?: string }> {
 		const output = this._execution.getOutput(this._lastPromptMarker);
 		this._logService.trace(`OutputMonitor: Idle output summary: len=${output.length}, lastLine=${this._formatLastLineForLog(output)}`);
 
@@ -353,15 +350,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 		}
 
-		// Clean up input listener before custom poll/error assessment
+		// Clean up input listener before custom poll
 		this._cleanupIdleInputListener();
 
 		// Let custom poller override if provided
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
 		this._logService.trace(`OutputMonitor: Custom poller result: ${custom ? 'provided' : 'none'}`);
 		const resources = custom?.resources;
-		const modelOutputEvalResponse = this._pollFn ? undefined : await this._assessOutputForErrors(this._execution.getOutput(), token);
-		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output ?? output };
+		return { resources, shouldContinuePollling: false, output: custom?.output ?? output };
 	}
 
 	private async _handleTimeoutState(_command: string, _invocationContext: IToolInvocationContext | undefined, _extended: boolean, _token: CancellationToken): Promise<boolean> {
@@ -468,28 +464,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _cleanupIdleInputListener(): void {
 		this._userInputtedSinceIdleDetected = false;
 		this._userInputListener.clear();
-	}
-
-	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
-		const model = await this._getLanguageModel();
-		if (!model) {
-			return 'No models available';
-
-		}
-
-		const response = await this._languageModelsService.sendChatRequest(
-			model,
-			undefined,
-			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors. If there are errors, return them. Otherwise, return undefined: ${buffer}.` }] }],
-			{},
-			token
-		);
-
-		try {
-			return await getTextResponseFromStream(response);
-		} catch (err) {
-			return 'Error occurred ' + err;
-		}
 	}
 
 	private async _determineUserInputOptions(execution: IExecution, token: CancellationToken): Promise<IConfirmationPrompt | undefined> {
