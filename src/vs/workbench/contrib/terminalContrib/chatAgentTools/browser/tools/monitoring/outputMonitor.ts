@@ -356,6 +356,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return { shouldContinuePolling: true };
 		}
 
+		// In async mode, skip the LLM-based prompt detection to avoid expensive calls
+		// on every idle cycle. The pattern-based checks above (detectsInputRequiredPattern
+		// in _waitForIdle, detectsGenericPressAnyKeyPattern) catch the most common prompts
+		// (passwords, [Y/n], "press any key") at zero cost. Ambiguous prompts that only the
+		// LLM can detect will be missed, but this is acceptable for background terminals.
+		if (this._asyncMode) {
+			this._cleanupIdleInputListener();
+			return { shouldContinuePolling: false, output };
+		}
+
 		this._logService.trace('OutputMonitor: Determining user input options via language model');
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 		this._logService.trace(`OutputMonitor: Input options result: ${confirmationPrompt ? `prompt=${this._formatLastLineForLog(confirmationPrompt.prompt)}, options=${confirmationPrompt.options.length} ${this._formatOptionsForLog(confirmationPrompt.options)}, freeForm=${!!confirmationPrompt.detectedRequestForFreeFormInput}` : 'none'}`);
@@ -431,13 +441,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		// Clean up input listener before custom poll/error assessment
 		this._cleanupIdleInputListener();
-
-		// In async mode, skip the custom poll function and error assessment
-		// since we're not returning results to the tool invocation. The caller
-		// will handle this idle state by waiting for new terminal data.
-		if (this._asyncMode) {
-			return { shouldContinuePolling: false, output };
-		}
 
 		// Let custom poller override if provided
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
