@@ -1612,6 +1612,8 @@ export class AICustomizationListWidget extends Disposable {
 			return [];
 		}
 
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+
 		return allItems
 			.filter(item => item.type === promptType)
 			.map((item: IExternalCustomizationItem) => ({
@@ -1624,8 +1626,27 @@ export class AICustomizationListWidget extends Disposable {
 				disabled: item.enabled === false,
 				status: item.status,
 				statusMessage: item.statusMessage,
+				groupKey: item.groupKey,
+				badge: item.badge,
+				badgeTooltip: item.badgeTooltip,
+				// Infer storage from URI when provider doesn't set groupKey,
+				// so the list widget can auto-group into Workspace vs User.
+				storage: item.groupKey ? undefined : this._inferStorageFromUri(item.uri, workspaceFolders),
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Infers the storage source from a URI by checking whether it falls
+	 * under a workspace folder (local) or not (user).
+	 */
+	private _inferStorageFromUri(uri: URI, workspaceFolders: readonly { uri: URI }[]): PromptsStorage {
+		for (const folder of workspaceFolders) {
+			if (isEqualOrParent(uri, folder.uri)) {
+				return PromptsStorage.local;
+			}
+		}
+		return PromptsStorage.user;
 	}
 
 	/**
