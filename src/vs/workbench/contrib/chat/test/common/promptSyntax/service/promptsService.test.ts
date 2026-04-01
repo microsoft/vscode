@@ -3515,7 +3515,7 @@ suite('PromptsService', () => {
 				'Should have userInvocable=false in parsed header');
 
 			// Verify the filtering logic would correctly exclude this skill
-			const filteredCommands = slashCommands.filter(c => c.userInvocable !== false);
+			const filteredCommands = slashCommands.filter(c => c.userInvocable);
 			const hiddenSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'hidden-skill');
 			assert.strictEqual(hiddenSkillInFiltered, undefined,
 				'Hidden skill should be filtered out when applying userInvocable filter');
@@ -3554,7 +3554,7 @@ suite('PromptsService', () => {
 				'Should have userInvocable=true in parsed header');
 
 			// Verify the filtering logic would correctly include this skill
-			const filteredCommands = slashCommands.filter(c => c.userInvocable !== false);
+			const filteredCommands = slashCommands.filter(c => c.userInvocable);
 			const visibleSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'visible-skill');
 			assert.ok(visibleSkillInFiltered,
 				'Visible skill should be included when applying userInvocable filter');
@@ -3591,7 +3591,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(defaultSkillCommand.userInvocable, true, 'Should have userInvocable=true when attribute is not specified');
 
 			// Verify the filtering logic would correctly include this skill (undefined !== false is true)
-			const filteredCommands = slashCommands.filter(c => c.userInvocable !== false);
+			const filteredCommands = slashCommands.filter(c => c.userInvocable);
 			const defaultSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'default-skill');
 			assert.ok(defaultSkillInFiltered,
 				'Skill without user-invocable attribute should be included when applying userInvocable filter');
@@ -3627,7 +3627,7 @@ suite('PromptsService', () => {
 				'Should have userInvocable=false in parsed header');
 
 			// Verify the filtering logic would correctly exclude this prompt
-			const filteredCommands = slashCommands.filter(c => c.userInvocable !== false);
+			const filteredCommands = slashCommands.filter(c => c.userInvocable);
 			const hiddenPromptInFiltered = filteredCommands.find(cmd => cmd.name === 'hidden-prompt');
 			assert.strictEqual(hiddenPromptInFiltered, undefined,
 				'Hidden prompt should be filtered out when applying userInvocable filter');
@@ -3696,7 +3696,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(slashCommands.length, 4, 'Should find all 4 commands');
 
 			// Apply the same filtering logic as chatInputCompletions.ts
-			const filteredCommands = slashCommands.filter(c => c.userInvocable !== false);
+			const filteredCommands = slashCommands.filter(c => c.userInvocable);
 
 			assert.strictEqual(filteredCommands.length, 2, 'Should have 2 commands after filtering');
 			assert.ok(filteredCommands.find(c => c.name === 'visible-prompt'), 'visible-prompt should be included');
@@ -3734,9 +3734,9 @@ suite('PromptsService', () => {
 			assert.ok(noHeaderSkill, 'Should find skill without header in slash commands');
 
 			// Verify the filtering logic handles missing header correctly
-			// parsedPromptFile?.header?.userInvocable !== false
+			// parsedPromptFile?.header?.userInvocable
 			// When header is undefined: undefined !== false is true, so skill is included
-			const filteredCommands = slashCommands.filter(c => c.userInvocable !== false);
+			const filteredCommands = slashCommands.filter(c => c.userInvocable);
 			const noHeaderSkillInFiltered = filteredCommands.find(cmd =>
 				cmd.uri.path.includes('no-header-skill'));
 			assert.ok(noHeaderSkillInFiltered,

@@ -148,7 +148,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
 			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
 			const commands = await Promise.all(promptFiles.map(async f => {
-				const parsedPromptFile = await this.parseNew(f.uri, CancellationToken.None);
 				return {
 					uri: f.uri,
 					userInvocable: true,
@@ -159,7 +158,6 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 					storage: f.storage,
 					source: undefined,
 					extension: toExtensionInfo(f) as never,
-					parsedPromptFile,
 					when: undefined,
 				} satisfies IChatPromptSlashCommand;
 			}));

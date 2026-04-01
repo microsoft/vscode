@@ -297,7 +297,7 @@ export class SlashCommandHandler extends Disposable {
 				}
 
 				const promptCommands = await this.aiCustomizationWorkspaceService.getFilteredPromptSlashCommands(token);
-				const userInvocable = promptCommands.filter(c => c.userInvocable !== false);
+				const userInvocable = promptCommands.filter(c => c.userInvocable);
 				if (userInvocable.length === 0) {
 					return null;
 				}
