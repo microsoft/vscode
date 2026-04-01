@@ -45,7 +45,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			try {
 				for (const promptType of [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook]) {
 					const discoveryInfo = await this.promptsService.getDiscoveryInfo(promptType, cts.token);
-					const { name, details } = await this.getDiscoveryLogEntry(promptType, discoveryInfo);
+					const { name, details } = this.getDiscoveryLogEntry(promptType, discoveryInfo);
 					const eventId = generateUuid();
 
 					this._discoveryEventDetails.set(eventId, discoveryInfo);
@@ -108,7 +108,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async getDiscoveryLogEntry(promptType: PromptsType, discoveryInfo: IPromptDiscoveryInfo): Promise<{ readonly name: string; readonly details?: string }> {
+	private getDiscoveryLogEntry(promptType: PromptsType, discoveryInfo: IPromptDiscoveryInfo): { readonly name: string; readonly details?: string } {
 
 		const durationInMillis = discoveryInfo.durationInMillis;
 		const loadedCount = discoveryInfo.files.filter(file => file.status === 'loaded').length;
