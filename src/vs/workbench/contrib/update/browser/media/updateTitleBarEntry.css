@@ -31,6 +31,7 @@
 	font-size: var(--vscode-bodyFontSize-small);
 	position: relative;
 	overflow: hidden;
+	text-overflow: ellipsis;
 	transition: max-width 0.3s ease, opacity 0.2s ease, margin-left 0.3s ease;
 }
 
@@ -41,6 +42,7 @@
 	opacity: 0;
 	overflow: hidden;
 	white-space: nowrap;
+	text-overflow: ellipsis;
 	font-size: var(--vscode-bodyFontSize-small);
 	margin-left: 0;
 	transition: max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease 0.15s, margin-left 0.3s ease;

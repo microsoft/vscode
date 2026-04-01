@@ -231,6 +231,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private showTooltipOnRender = false;
 	private hintTimer: ReturnType<typeof setTimeout> | undefined;
 	private currentStateType: StateType | undefined;
+	private hoverVisible = false;
 
 	constructor(
 		action: IAction,
@@ -247,6 +248,12 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 
 		this.action.run = () => this.runAction();
 		this._register(this.updateService.onStateChange(state => this.onStateChange(state)));
+		this._register(toDisposable(() => {
+			if (this.hintTimer !== undefined) {
+				clearTimeout(this.hintTimer);
+				this.hintTimer = undefined;
+			}
+		}));
 	}
 
 	public override render(container: HTMLElement) {
@@ -273,6 +280,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			return;
 		}
 
+		this.hoverVisible = true;
 		this.content.classList.add('hint-visible');
 
 		this.hoverService.showInstantHover({
@@ -280,6 +288,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			target: {
 				targetElements: [this.content],
 				dispose: () => {
+					this.hoverVisible = false;
 					if (!!this.content?.isConnected) {
 						this.content.classList.remove('hint-visible');
 						this.onUserDismissedTooltip();
@@ -294,6 +303,8 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	protected override updateTooltip(): void {
 		// Tooltip is handled by showTooltip/showInstantHover which track
 		// hint-visible to keep the button expanded while the tooltip is open.
+		// Still update aria-label so the element is accessible to screen readers.
+		this.updateAriaLabel();
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
@@ -353,7 +364,10 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		}
 
 		dom.clearNode(this.content);
-		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled', 'hint-visible');
+		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled');
+		if (!this.hoverVisible) {
+			this.content.classList.remove('hint-visible');
+		}
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
