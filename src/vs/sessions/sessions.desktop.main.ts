@@ -200,6 +200,7 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 // Remote Agent Host
 import '../platform/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
 

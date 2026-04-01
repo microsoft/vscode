@@ -125,6 +125,7 @@
     "node-pty": "^1.2.0-beta.12",
     "open": "^10.1.2",
     "playwright-core": "1.59.0-alpha-2026-02-20",
+    "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
     "undici": "^7.24.0",
     "v8-inspect-profiler": "^0.1.1",
@@ -150,6 +151,7 @@
     "@types/node": "^22.18.10",
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
+    "@types/ssh2": "^1.15.4",
     "@types/trusted-types": "^2.0.7",
     "@types/vscode-notebook-renderer": "^1.72.0",
     "@types/wicg-file-system-access": "^2023.10.7",
@@ -239,7 +241,10 @@
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
     },
-    "serialize-javascript": "^7.0.3"
+    "serialize-javascript": "^7.0.3",
+    "ssh2": {
+      "cpu-features": "0.0.0"
+    }
   },
   "repository": {
     "type": "git",

@@ -1195,7 +1195,6 @@ export class CodeApplication extends Disposable {
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
-
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
