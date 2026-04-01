@@ -133,7 +133,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. If you need to wait for an async process, use ${TerminalToolId.GetTerminalOutput} instead`,
+		`- NEVER run Start-Sleep or similar wait commands. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`,
 	);
 
 	return parts.join('\n');
@@ -206,7 +206,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. If you need to wait for an async process, use ${TerminalToolId.GetTerminalOutput} instead`);
+- NEVER run sleep or similar wait commands in a terminal. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`);
 
 	return parts.join('');
 }
