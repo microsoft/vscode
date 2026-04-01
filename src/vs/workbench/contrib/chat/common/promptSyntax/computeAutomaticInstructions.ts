@@ -108,11 +108,11 @@ export class ComputeAutomaticInstructions {
 		// find instructions where the `applyTo` matches the attached context
 		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, token);
 
-		// add all instructions referenced by all instruction files that are in the context
-		await this._addReferencedInstructions(variables, telemetryEvent, token);
-
-		// get copilot instructions
-		await this._addAgentInstructions(variables, telemetryEvent, token);
+		// referenced instructions (depends on applying instructions above) and agent instructions are independent
+		await Promise.all([
+			this._addReferencedInstructions(variables, telemetryEvent, token),
+			this._addAgentInstructions(variables, telemetryEvent, token),
+		]);
 
 		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
 		if (customizationsIndexVariable) {
@@ -129,25 +129,27 @@ export class ComputeAutomaticInstructions {
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
 	}
 
-	private async _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): Promise<void> {
-		type SkillLoadedIntoContextEvent = {
-			skillNameHash: string;
-			skillStorage: string;
-			extensionIdHash: string;
-			extensionVersion: string;
-			pluginNameHash: string;
-			pluginVersion: string;
+	private _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): void {
+		type SkillsLoadedIntoContextEvent = {
+			skillCount: number;
+			skillNameHashes: string;
+			skillStorages: string;
+			extensionIdHashes: string;
+			extensionVersions: string;
+			pluginNameHashes: string;
+			pluginVersions: string;
 		};
 
-		type SkillLoadedIntoContextClassification = {
-			skillNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hash of the skill name loaded into the agent context.' };
-			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
-			extensionIdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hash of the contributing extension identifier, empty if none.' };
-			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the contributing extension, empty if none.' };
-			pluginNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hash of the plugin display name, empty if not from a plugin.' };
-			pluginVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the plugin, empty if unavailable.' };
+		type SkillsLoadedIntoContextClassification = {
+			skillCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills loaded into context.' };
+			skillNameHashes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated hashes of skill names loaded into the agent context.' };
+			skillStorages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated storage sources of skills (local, user, extension, plugin, internal).' };
+			extensionIdHashes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated hashes of contributing extension identifiers, empty if none.' };
+			extensionVersions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated semver versions of contributing extensions, empty if none.' };
+			pluginNameHashes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated hashes of plugin display names, empty if not from a plugin.' };
+			pluginVersions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated semver versions of plugins, empty if unavailable.' };
 			owner: 'manishj, dbreshears';
-			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
+			comment: 'Tracks batch of skills loaded into agent context with provenance metadata.';
 		};
 
 		try {
@@ -162,17 +164,32 @@ export class ComputeAutomaticInstructions {
 				return value !== undefined ? String(hash(value)) : '';
 			};
 
+			const nameHashes: string[] = [];
+			const storages: string[] = [];
+			const extIdHashes: string[] = [];
+			const extVersions: string[] = [];
+			const pluginNameHashes: string[] = [];
+			const pluginVersions: string[] = [];
+
 			for (const skill of skills) {
 				const skillPlugin = skill.pluginUri ? pluginByUri.get(skill.pluginUri) : undefined;
-				this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
-					skillNameHash: hashOrEmpty(skill.name),
-					skillStorage: skill.storage,
-					extensionIdHash: hashOrEmpty(skill.extension?.identifier.value),
-					extensionVersion: skill.extension?.version ?? '',
-					pluginNameHash: hashOrEmpty(skillPlugin?.label),
-					pluginVersion: skillPlugin?.fromMarketplace?.version ?? '',
-				});
+				nameHashes.push(hashOrEmpty(skill.name));
+				storages.push(skill.storage);
+				extIdHashes.push(hashOrEmpty(skill.extension?.identifier.value));
+				extVersions.push(skill.extension?.version ?? '');
+				pluginNameHashes.push(hashOrEmpty(skillPlugin?.label));
+				pluginVersions.push(skillPlugin?.fromMarketplace?.version ?? '');
 			}
+
+			this._telemetryService.publicLog2<SkillsLoadedIntoContextEvent, SkillsLoadedIntoContextClassification>('skillsLoadedIntoContext', {
+				skillCount: skills.length,
+				skillNameHashes: nameHashes.join(','),
+				skillStorages: storages.join(','),
+				extensionIdHashes: extIdHashes.join(','),
+				extensionVersions: extVersions.join(','),
+				pluginNameHashes: pluginNameHashes.join(','),
+				pluginVersions: pluginVersions.join(','),
+			});
 		} catch (err) {
 			this._logService.error('[InstructionsContextComputer] Failed to log skill telemetry', err);
 		}
@@ -328,7 +345,14 @@ export class ComputeAutomaticInstructions {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 
-		const remoteEnv = await this._remoteAgentService.getEnvironment();
+		// Start all independent async operations concurrently
+		const remoteEnvPromise = this._remoteAgentService.getEnvironment();
+		const agentSkillsPromise = readTool ? this._promptsService.findAgentSkills(token) : Promise.resolve(undefined);
+		const customAgentsPromise = (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents))
+			? this._promptsService.getCustomAgents(token)
+			: Promise.resolve(undefined);
+
+		const remoteEnv = await remoteEnvPromise;
 		const remoteOS = remoteEnv?.os;
 		const filePath = (uri: URI) => getFilePath(uri, remoteOS);
 
@@ -376,7 +400,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const agentSkills = await this._promptsService.findAgentSkills(token);
+			const agentSkills = await agentSkillsPromise;
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
 			// Also filter by `when` clause using the scoped context key service
 			// Also filter out the troubleshoot skill when the feature flags are disabled
@@ -395,7 +419,7 @@ export class ComputeAutomaticInstructions {
 				return true;
 			});
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
-				// Log per-skill telemetry for each skill loaded into context
+				// Log batched skill telemetry
 				this._logSkillLoadedTelemetry(modelInvocableSkills);
 
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
@@ -431,7 +455,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
 		}
-		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+		if (runSubagentTool && customAgentsPromise) {
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
@@ -440,8 +464,8 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
-			if (agents.length > 0) {
+			const agents = await customAgentsPromise;
+			if (agents && agents.length > 0) {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');
 				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');

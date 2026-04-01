@@ -118,6 +118,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly cachedInstructions: CachedPromise<IInstructionDiscoveryInfo>;
 
 	/**
+	 * Cached agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md).
+	 */
+	private readonly cachedAgentInstructions: CachedPromise<IAgentInstructionFile[]>;
+
+	/**
 	 * Cache for parsed prompt files keyed by URI.
 	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
 	 */
@@ -242,6 +247,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this._onDidContributedWhenChange.event,
 				this._onDidChangeInstructions.event,
 				this._onDidPluginPromptFilesChange.event,
+			)
+		));
+
+		this.cachedAgentInstructions = this._register(new CachedPromise(
+			(token) => this._computeAgentInstructions(token),
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.instructions),
+				Event.filter(this.configurationService.onDidChangeConfiguration, e =>
+					e.affectsConfiguration(PromptsConfig.USE_AGENT_MD) ||
+					e.affectsConfiguration(PromptsConfig.USE_CLAUDE_MD) ||
+					e.affectsConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES) ||
+					e.affectsConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS)),
 			)
 		));
 
@@ -947,23 +964,27 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return [];
 	}
 
-	public async listAgentInstructions(token: CancellationToken, logger: Logger | undefined): Promise<IAgentInstructionFile[]> {
+	public async listAgentInstructions(token: CancellationToken, _logger: Logger | undefined): Promise<IAgentInstructionFile[]> {
+		return this.cachedAgentInstructions.get(token);
+	}
+
+	private async _computeAgentInstructions(token: CancellationToken): Promise<IAgentInstructionFile[]> {
 		const resolvedAgentFiles: IAgentInstructionFile[] = [];
 		const promises: Promise<IAgentInstructionFile[]>[] = [];
 
 		const includeParents = this.configurationService.getValue(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
-		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents, logger);
+		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents, undefined);
 
 		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useAgentMD) {
-			logger?.logInfo('Agent MD files are disabled via configuration.');
+			this.logger.trace('[PromptsService] Agent MD files are disabled via configuration.');
 		} else {
 			rootFiles.push({ fileName: AGENT_MD_FILENAME, type: AgentInstructionFileType.agentsMd });
 		}
 		const useClaudeMD = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_MD);
 		if (!useClaudeMD) {
-			logger?.logInfo('Claude MD files are disabled via configuration.');
+			this.logger.trace('[PromptsService] Claude MD files are disabled via configuration.');
 		} else {
 			const claudeMdFile = { fileName: CLAUDE_MD_FILENAME, type: AgentInstructionFileType.claudeMd };
 			rootFiles.push(claudeMdFile); // CLAUDE.md in workspace root
@@ -974,7 +995,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
 		if (!useCopilotInstructionsFiles) {
-			logger?.logInfo('Copilot instructions files are disabled via configuration.');
+			this.logger.trace('[PromptsService] Copilot instructions files are disabled via configuration.');
 		} else {
 			const githubConfigFiles = [{ fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd }];
 			promises.push(this.fileLocator.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, githubConfigFiles, token, resolvedAgentFiles));
@@ -1002,7 +1023,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		resolvedAgentFiles.forEach(add);
 		for (const symlink of symlinks) {
 			if (seenFileURI.has(symlink.realPath)) {
-				logger?.logInfo(`Skipping symlinked agent instructions file ${symlink.uri} as target already included: ${symlink.realPath}`);
+				this.logger.trace(`[PromptsService] Skipping symlinked agent instructions file ${symlink.uri} as target already included: ${symlink.realPath}`);
 			} else {
 				result.push(symlink);
 				seenFileURI.add(symlink.realPath);
