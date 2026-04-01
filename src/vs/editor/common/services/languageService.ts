@@ -10,7 +10,7 @@ import { LanguagesRegistry } from './languagesRegistry.js';
 import { ILanguageNameIdPair, ILanguageSelection, ILanguageService, ILanguageIcon, ILanguageExtensionPoint } from '../languages/language.js';
 import { ILanguageIdCodec, TokenizationRegistry } from '../languages.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
-import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
+import { IObservable, derived, observableFromEventOpts } from '../../../base/common/observable.js';
 
 export class LanguageService extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;
@@ -23,11 +23,19 @@ export class LanguageService extends Disposable implements ILanguageService {
 	private readonly _onDidRequestRichLanguageFeatures = this._register(new Emitter<string>());
 	public readonly onDidRequestRichLanguageFeatures = this._onDidRequestRichLanguageFeatures.event;
 
-	protected readonly _onDidChange = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
+	protected readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private readonly _requestedBasicLanguages = new Set<string>();
 	private readonly _requestedRichLanguages = new Set<string>();
+
+	/**
+	 * A shared observable that tracks when languages change. All LanguageSelection
+	 * instances derive from this single observable, ensuring only one listener is
+	 * registered on the onDidChange event regardless of how many models are open.
+	 * This prevents listener leak warnings (https://github.com/microsoft/vscode/issues/305051).
+	 */
+	private readonly _onDidChangeObservable: IObservable<void>;
 
 	protected readonly _registry: LanguagesRegistry;
 	public readonly languageIdCodec: ILanguageIdCodec;
@@ -38,6 +46,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 		this._registry = this._register(new LanguagesRegistry(true, warnOnOverwrite));
 		this.languageIdCodec = this._registry.languageIdCodec;
 		this._register(this._registry.onDidChange(() => this._onDidChange.fire()));
+		this._onDidChangeObservable = observableFromEventOpts({ owner: this, equalsFn: () => false }, this.onDidChange, () => { });
 	}
 
 	public override dispose(): void {
@@ -99,20 +108,20 @@ export class LanguageService extends Disposable implements ILanguageService {
 	}
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {
-		return new LanguageSelection(this.onDidChange, () => {
+		return new LanguageSelection(this._onDidChangeObservable, () => {
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByMimeType(mimeType: string | null | undefined): ILanguageSelection {
-		return new LanguageSelection(this.onDidChange, () => {
+		return new LanguageSelection(this._onDidChangeObservable, () => {
 			const languageId = this.getLanguageIdByMimeType(mimeType);
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
 	}
 
 	public createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection {
-		return new LanguageSelection(this.onDidChange, () => {
+		return new LanguageSelection(this._onDidChangeObservable, () => {
 			const languageId = this.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
 			return this._createAndGetLanguageIdentifier(languageId);
 		});
@@ -153,8 +162,15 @@ class LanguageSelection implements ILanguageSelection {
 	private readonly _value: IObservable<string>;
 	public readonly onDidChange: Event<string>;
 
-	constructor(onDidChangeLanguages: Event<void>, selector: () => string) {
-		this._value = observableFromEvent(this, onDidChangeLanguages, () => selector());
+	constructor(onDidChangeObservable: IObservable<void>, selector: () => string) {
+		// Use a derived observable that reads from the shared onDidChangeObservable.
+		// This ensures all LanguageSelection instances share a single subscription
+		// to the language service's onDidChange event, preventing listener leaks
+		// when many models are open simultaneously.
+		this._value = derived(this, (reader) => {
+			onDidChangeObservable.read(reader);
+			return selector();
+		});
 		this.onDidChange = Event.fromObservable(this._value);
 	}
 
