@@ -109,7 +109,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'Background Processes:',
 		'- For long-running tasks (e.g., servers), use mode=async',
 		'- Returns a terminal ID for checking status and runtime later',
-		`- Use ${TerminalToolId.SendToTerminal} to send commands to a background terminal`,
+		`- Use ${TerminalToolId.SendToTerminal} to send commands to a persistent terminal session (async mode)`,
 		'- Use Start-Job for background PowerShell jobs',
 	];
 
