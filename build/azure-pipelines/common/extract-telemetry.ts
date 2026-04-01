@@ -79,7 +79,7 @@ if (hasLocalConfigOverrides) {
 }
 
 try {
-	cp.execSync(`node "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" --excludedDir "${path.join(BUILD_SOURCESDIRECTORY, 'extensions')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node "${extractor}" --sourceDir "${path.join(BUILD_SOURCESDIRECTORY, 'src')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
 	cp.execSync(`node "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);

@@ -55,6 +55,7 @@ interface IRelaxedScannedExtension {
 	isValid: boolean;
 	validations: readonly [Severity, string][];
 	preRelease: boolean;
+	autoUpdate: boolean;
 }
 
 export type IScannedExtension = Readonly<IRelaxedScannedExtension> & { manifest: IExtensionManifest };
@@ -351,6 +352,9 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
+		const autoUpdateBuiltinExtensions = this.productService.autoUpdateBuiltinExtensions;
+		const productVersion = autoUpdateBuiltinExtensions?.length ? this.getProductVersion() : undefined;
+		const productMajorMinor = productVersion ? `${semver.major(productVersion.version)}.${semver.minor(productVersion.version)}` : undefined;
 		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
 			if (!isDevelopment) {
 				if (existing.metadata?.isApplicationScoped && !extension.metadata?.isApplicationScoped) {
@@ -399,7 +403,18 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
 				return;
 			}
+			if (productMajorMinor && autoUpdateBuiltinExtensions?.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
+				const extensionMajorMinor = `${semver.major(extension.manifest.version)}.${semver.minor(extension.manifest.version)}`;
+				if (productMajorMinor !== extensionMajorMinor) {
+					this.logService.info(`Skipping auto-update builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it does not match the product version ${productVersion!.version}`);
+					return;
+				}
+			}
 			if (!existing || pick(existing, extension, false)) {
+				// Mark as builtin when extension is an auto-update builtin extension
+				if (autoUpdateBuiltinExtensions?.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
+					extension = { ...extension, isBuiltin: true };
+				}
 				result.set(extension.identifier.id, extension);
 			}
 		});
@@ -563,6 +578,8 @@ type NlsConfiguration = {
 class ExtensionsScanner extends Disposable {
 
 	private readonly extensionsEnabledWithApiProposalVersion: string[];
+	private readonly productQuality: string | undefined;
+	private readonly autoUpdateBuiltinExtensions: ReadonlySet<string>;
 
 	constructor(
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
@@ -574,6 +591,8 @@ class ExtensionsScanner extends Disposable {
 	) {
 		super();
 		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
+		this.productQuality = productService.quality;
+		this.autoUpdateBuiltinExtensions = new Set(productService.autoUpdateBuiltinExtensions?.map(id => id.toLowerCase()) ?? []);
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -712,6 +731,7 @@ class ExtensionsScanner extends Disposable {
 			isValid,
 			validations,
 			preRelease: !!metadata?.preRelease,
+			autoUpdate: type === ExtensionType.System && this.autoUpdateBuiltinExtensions.has(id.toLowerCase()) && this.productQuality === 'stable',
 		};
 		if (input.validate) {
 			extension = this.validate(extension, input);

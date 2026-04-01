@@ -114,6 +114,11 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX (background)
+
   - script: npm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -134,6 +139,11 @@ steps:
     - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc darwin
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
+
+  - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX
 
   - script: |
       set -e

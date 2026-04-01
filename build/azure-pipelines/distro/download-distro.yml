@@ -53,3 +53,15 @@ steps:
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Download distro (non-Windows)
+
+  # Copilot
+  - script: git submodule update --init --depth=1
+    displayName: Initialize submodules
+
+  - script: git lfs install --local
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Initialize Git LFS
+
+  - script: git lfs pull
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Pull Git LFS objects

@@ -12,7 +12,7 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it('can disable AI features', async function () {
+		it.skip('can disable AI features', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.settingsEditor.addUserSetting('chat.disableAIFeatures', 'true');

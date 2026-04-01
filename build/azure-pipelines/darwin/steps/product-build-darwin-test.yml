@@ -130,6 +130,10 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
+  - template: ../../copilot/test-integration-steps.yml@self
+    parameters:
+      OS: darwin
+
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:

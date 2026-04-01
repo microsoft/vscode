@@ -1,0 +1,3 @@
+[submodule "extensions/copilot"]
+	path = extensions/copilot
+	url = https://github.com/microsoft/vscode-copilot-chat
