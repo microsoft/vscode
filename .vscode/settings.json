@@ -213,5 +213,6 @@
 		".github/skills/.local": true,
 		".agents/skills/.local": true,
 		".claude/skills/.local": true,
-	}
+	},
+	"github.copilot.chat.summarizeAgentConversationHistoryThreshold": 65000
 }
