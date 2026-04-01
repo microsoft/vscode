@@ -164,6 +164,7 @@ export class StartTracing extends Action2 {
 			'renderer',
 			'blink',
 			'blink.user_timing',
+			'netlog',
 			'net',
 			'v8',
 			'disabled-by-default-v8.cpu_profiler',
