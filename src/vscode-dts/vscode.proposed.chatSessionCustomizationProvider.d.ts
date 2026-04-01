@@ -25,6 +25,8 @@ declare module 'vscode' {
 		static readonly Prompt: ChatSessionCustomizationType;
 		/** Hook customization (event-driven automation). */
 		static readonly Hook: ChatSessionCustomizationType;
+		/** Plugin customization (agent runtime plugins). */
+		static readonly Plugins: ChatSessionCustomizationType;
 
 		/**
 		 * The string identifier for this customization type.
