@@ -630,8 +630,8 @@ export class ChatEntitlementRequests extends Disposable {
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.resolve()));
 
 		this._register(this.context.onDidChange(() => {
-			if (!this.context.state.installed || this.context.state.disabled || this.context.state.entitlement === ChatEntitlement.Unknown) {
-				// When the extension is not installed, disabled or the user is not entitled
+			if (this.context.state.disabled || this.context.state.entitlement === ChatEntitlement.Unknown) {
+				// When the extension is disabled or the user is not entitled
 				// make sure to clear quotas so that any indicators are also gone
 				this.state = { entitlement: this.state.entitlement, quotas: undefined };
 				this.chatQuotasAccessor.clearQuotas();
