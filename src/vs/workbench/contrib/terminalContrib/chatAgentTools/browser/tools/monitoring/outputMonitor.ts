@@ -504,7 +504,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			while (!token.isCancellationRequested && waited < maxWaitMs) {
 				const waitTime = Math.min(currentInterval, maxWaitMs - waited);
-				await timeout(waitTime, token);
+				try {
+					await timeout(waitTime, token);
+				} catch (err) {
+					if (token.isCancellationRequested) {
+						return OutputMonitorState.Cancelled;
+					}
+					throw err;
+				}
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
