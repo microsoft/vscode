@@ -51,17 +51,17 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
-		createNewSessionFrom: () => { throw new Error('Not implemented'); },
 		setSessionType: () => { throw new Error('Not implemented'); },
 		getSessionTypes: () => [],
-		renameSession: async () => { },
+		renameChat: async () => { },
 		setModel: () => { },
 		archiveSession: async () => { },
 		unarchiveSession: async () => { },
 		deleteSession: async () => { },
+		deleteChat: async () => { },
 		setRead: () => { },
-		getUntitledSession: () => undefined,
-		sendRequest: async () => { throw new Error('Not implemented'); },
+		sendAndCreateChat: async () => { throw new Error('Not implemented'); },
+		capabilities: { multipleChatsPerSession: false },
 	};
 }
 
