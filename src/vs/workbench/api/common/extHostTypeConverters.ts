@@ -3696,12 +3696,16 @@ export namespace ChatAgentResult {
 			} else if (value.$mid === MarshalledId.LanguageModelDataPart) {
 				let buffer: Uint8Array;
 				// correction for old data serialized pre-303151
-				if (typeof value.data === 'object' && value.data.type === 'Buffer' && Array.isArray(value.data.data)) {
+				if (value.data && typeof value.data === 'object' && value.data.type === 'Buffer' && Array.isArray(value.data.data)) {
 					buffer = new Uint8Array(value.data.data);
 				} else if (typeof value.data === 'string') {
-					buffer = decodeBase64(value.data).buffer;
+					try {
+						buffer = decodeBase64(value.data).buffer;
+					} catch {
+						buffer = new Uint8Array(0);
+					}
 				} else {
-					buffer = value; // ?
+					buffer = new Uint8Array(0);
 				}
 
 				return new types.LanguageModelDataPart(buffer, value.mimeType, value.audience);
