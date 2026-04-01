@@ -23,6 +23,10 @@ import { URI } from '../../../../base/common/uri.js';
 
 export type WalkthroughOutcome = 'completed' | 'dismissed';
 
+const fadeDuration = 200;
+const resetMessageDuration = 2000;
+const dismissDuration = 250;
+
 /**
  * Sign-in onboarding overlay:
  *   - Sign in via GitHub / Google / Apple
@@ -192,7 +196,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		// Fade the content
 		this.disclaimerElement.classList.add('hidden');
 		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-		await new Promise(resolve => setTimeout(resolve, 200));
+		await this._wait(fadeDuration);
 		if (this._shouldAbortUpdate(titleEl, subtitleEl, providerRow)) {
 			return;
 		}
@@ -245,14 +249,14 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				// Show cancellation feedback, then reset to sign-in
 				error.textContent = localize('walkthrough.canceledError', "Sign-in was canceled. Please try again.");
 				error.style.display = '';
-				await new Promise(resolve => setTimeout(resolve, 2000));
+				await this._wait(resetMessageDuration);
 				if (this._shouldAbortUpdate(error)) {
 					return;
 				}
 				error.style.display = 'none';
 
 				this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-				await new Promise(resolve => setTimeout(resolve, 200));
+				await this._wait(fadeDuration);
 				if (!this.overlay.isConnected) {
 					return;
 				}
@@ -265,14 +269,14 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			// Show error feedback, then reset to sign-in
 			error.textContent = localize('walkthrough.signInError', "Something went wrong. Please try again.");
 			error.style.display = '';
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			await this._wait(resetMessageDuration);
 			if (this._shouldAbortUpdate(error)) {
 				return;
 			}
 			error.style.display = 'none';
 
 			this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-			await new Promise(resolve => setTimeout(resolve, 200));
+			await this._wait(fadeDuration);
 			if (!this.overlay.isConnected) {
 				return;
 			}
@@ -294,7 +298,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Fade out current content
 		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-		await new Promise(resolve => setTimeout(resolve, 200));
+		await this._wait(fadeDuration);
 		if (!this.overlay.isConnected) {
 			return;
 		}
@@ -336,7 +340,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _finish(outcome: WalkthroughOutcome): void {
 		this.overlay.classList.add('sessions-walkthrough-dismissed');
-		this._register(disposableTimeout(() => this.dispose(), 250));
+		this._register(disposableTimeout(() => this.dispose(), dismissDuration));
 		if (!this._outcomeResolved) {
 			this._outcomeResolved = true;
 			this._resolveOutcome(outcome);
@@ -391,6 +395,25 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 	private _getFocusableElements(): HTMLElement[] {
 		return this.currentFocusableElements.filter(element => element.isConnected);
+	}
+
+	private _wait(duration: number): Promise<void> {
+		return new Promise(resolve => {
+			let didResolve = false;
+			const timeoutDisposables = this.stepDisposables.value?.add(new DisposableStore()) ?? this._register(new DisposableStore());
+			const complete = () => {
+				if (didResolve) {
+					return;
+				}
+
+				didResolve = true;
+				timeoutDisposables.dispose();
+				resolve();
+			};
+
+			timeoutDisposables.add(disposableTimeout(complete, duration));
+			timeoutDisposables.add(toDisposable(complete));
+		});
 	}
 
 	private _shouldAbortUpdate(...elements: HTMLElement[]): boolean {
