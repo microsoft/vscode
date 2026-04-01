@@ -453,6 +453,13 @@ suite('Encoding', () => {
 		});
 	});
 
+	test('cp857 encoding is supported', async function () {
+		assert.ok('cp857' in encoding.SUPPORTED_ENCODINGS, 'cp857 should be in SUPPORTED_ENCODINGS');
+		assert.strictEqual(encoding.SUPPORTED_ENCODINGS['cp857'].labelShort, 'CP 857');
+		const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
+		assert.strictEqual(iconv.encodingExists('cp857'), true, 'iconv-lite should support cp857');
+	});
+
 	test('encodingExists', async function () {
 		for (const enc in encoding.SUPPORTED_ENCODINGS) {
 			if (enc === encoding.UTF8_with_bom) {
