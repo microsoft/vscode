@@ -50,6 +50,7 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsTerminalAttachments?: boolean;
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
+	supportsCheckpoints?: boolean;
 }
 
 export interface IChatAgentData {
