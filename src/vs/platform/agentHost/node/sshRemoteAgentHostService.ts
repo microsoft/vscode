@@ -53,9 +53,11 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
 const REMOTE_CLI_DIR = '~/.vscode-cli';
 const REMOTE_CLI_BIN = `${REMOTE_CLI_DIR}/code`;
 
-/** Escape a string for use as a single shell argument. */
+/** Escape a string for use as a single shell argument (single-quote wrapping). */
 function shellEscape(s: string): string {
-	return `'${s.replace(/'/g, "'\\''")}'`;
+	// Wrap in single quotes; escape embedded single quotes as: '\''
+	const escaped = s.replace(/'/g, '\'\\\'\'');
+	return `'${escaped}'`;
 }
 
 function resolveRemotePlatform(unameS: string, unameM: string): { os: string; arch: string } | undefined {
