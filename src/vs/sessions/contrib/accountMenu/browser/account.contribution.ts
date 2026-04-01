@@ -19,19 +19,19 @@ import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $, append, disposableWindowInterval, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ActionViewItem, BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
@@ -45,16 +45,7 @@ import { getAccountTitleBarState } from './accountTitleBarState.js';
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
 const SessionsTitleBarAccountWidgetAction = 'sessions.action.titleBarAccountWidget';
-const SIMULATE_SESSIONS_UPDATE_AVAILABLE = true;
-const SIMULATED_SESSIONS_UPDATE_STATE = State.AvailableForDownload({
-	version: 'b7c2d9f',
-	productVersion: '1.115.0',
-	timestamp: Date.now() - (2 * 60 * 60 * 1000),
-}, false);
-
-function getSessionsUpdateState(updateService: IUpdateService): State {
-	return SIMULATE_SESSIONS_UPDATE_AVAILABLE ? SIMULATED_SESSIONS_UPDATE_STATE : updateService.state;
-}
+const SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH = 280;
 
 // Sign In (shown when signed out)
 registerAction2(class extends Action2 {
@@ -308,7 +299,7 @@ export class AccountWidget extends ActionViewItem {
 			return;
 		}
 
-		const state = getSessionsUpdateState(this.updateService);
+		const state = this.updateService.state;
 
 		// In the embedded app, updates are detected but cannot be installed directly.
 		// Show a hint button to update via VS Code only when an update is actually available.
@@ -370,7 +361,7 @@ export class AccountWidget extends ActionViewItem {
 	}
 
 	private async update(): Promise<void> {
-		const state = getSessionsUpdateState(this.updateService);
+		const state = this.updateService.state;
 		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
 			const { confirmed } = await this.dialogService.confirm({
 				message: localize('updateFromVSCode.title', "Update from VS Code"),
@@ -414,6 +405,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private lastState: ReturnType<typeof getAccountTitleBarState>;
 	private isMenuVisible = false;
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
+	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		action: IAction,
@@ -422,13 +414,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IProductService private readonly productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 	) {
@@ -437,7 +424,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
 		this.lastState = getAccountTitleBarState({
 			isAccountLoading: true,
-			updateState: getSessionsUpdateState(this.updateService),
+			updateState: this.updateService.state,
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
@@ -470,33 +457,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 
-		if (this.lastState.source === 'update') {
-			this.update();
-			return;
-		}
-
-		if (this.lastState.source === 'copilot') {
-			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (this.chatEntitlementService.quotas.chat?.percentRemaining === 0 || this.chatEntitlementService.quotas.completions?.percentRemaining === 0)) {
-				this.commandService.executeCommand('workbench.action.chat.openQuotaExceededDialog');
-				return;
-			}
-		}
-
-		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
-		const actions: IAction[] = [];
-		fillInActionBarActions(menu.getActions(), actions);
-		menu.dispose();
-		this.isMenuVisible = true;
-		this.container.classList.add('menu-visible');
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.container!,
-			getActions: () => actions,
-			onHide: () => {
-				this.isMenuVisible = false;
-				this.container?.classList.remove('menu-visible');
-			},
-		});
+		this.showCombinedPanel();
 	}
 
 	private async refreshAccount(): Promise<void> {
@@ -524,7 +485,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			isAccountLoading: this.isAccountLoading,
 			accountName: this.accountName,
 			accountProviderLabel: this.accountProviderLabel,
-			updateState: getSessionsUpdateState(this.updateService),
+			updateState: this.updateService.state,
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
@@ -539,51 +500,134 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(state.icon)}`;
 		this.labelElement.textContent = state.label;
-
-		if (state.badge) {
-			this.badgeElement.textContent = state.badge;
-			this.badgeElement.style.display = '';
-		} else {
-			this.badgeElement.textContent = '';
-			this.badgeElement.style.display = 'none';
-		}
+		this.badgeElement.textContent = '';
+		this.badgeElement.style.display = 'none';
 
 		this.hoverDisposable.clear();
-		this.hoverDisposable.value = this.hoverService.setupDelayedHover(this.container, () => {
-			const { left } = getDomNodePagePosition(this.container!);
-			const hoverTarget = {
-				targetElements: [this.container!],
-				x: left - 8,
-			};
+	}
 
-			if (state.source === 'update') {
-				return {
-					content: this.updateHoverWidget.createHoverContent(getSessionsUpdateState(this.updateService)),
-					target: hoverTarget,
-					position: { hoverPosition: HoverPosition.BELOW },
-					appearance: { showPointer: true },
-				};
+	private getHoverTarget(): { targetElements: HTMLElement[]; x: number; y: number } {
+		const { left, top, width, height } = getDomNodePagePosition(this.container!);
+		return {
+			targetElements: [this.container!],
+			x: left + width - SESSIONS_ACCOUNT_TITLEBAR_PANEL_WIDTH,
+			y: top + height - 2,
+		};
+	}
+
+	private showCombinedPanel(): void {
+		if (!this.container) {
+			return;
+		}
+
+		if (this.isMenuVisible) {
+			this.hoverService.hideHover(true);
+			this.clickPanelDisposable.clear();
+			return;
+		}
+
+		this.hoverService.hideHover(true);
+		this.clickPanelDisposable.clear();
+
+		const panelStore = new DisposableStore();
+		this.clickPanelDisposable.value = panelStore;
+
+		this.isMenuVisible = true;
+		this.container.classList.add('menu-visible');
+
+		panelStore.add({
+			dispose: () => {
+				this.isMenuVisible = false;
+				this.container?.classList.remove('menu-visible');
 			}
-
-			if (this.shouldShowCopilotDashboardHover()) {
-				return {
-					content: this.createCopilotHoverContent(),
-					target: hoverTarget,
-					position: { hoverPosition: HoverPosition.BELOW },
-					appearance: { showPointer: true, skipFadeInAnimation: true },
-				};
-			}
-
-			return {
-				content: state.ariaLabel,
-				target: hoverTarget,
-				position: { hoverPosition: HoverPosition.BELOW },
-				appearance: { showPointer: true },
-			};
-		}, {
-			groupId: 'sessions-account-titlebar',
-			reducedDelay: true,
 		});
+
+		const panelContent = this.createCombinedPanelContent(panelStore);
+		const hoverWidget = this.hoverService.showInstantHover({
+			content: panelContent,
+			target: this.getHoverTarget(),
+			additionalClasses: ['sessions-account-titlebar-panel-hover'],
+			position: { hoverPosition: HoverPosition.BELOW },
+			persistence: { sticky: true, hideOnHover: false },
+			appearance: { showPointer: false, skipFadeInAnimation: true },
+		}, true);
+
+		if (hoverWidget) {
+			panelStore.add(hoverWidget);
+		}
+
+		panelStore.add(disposableWindowInterval(mainWindow, () => {
+			if (!panelContent.isConnected || hoverWidget?.isDisposed) {
+				this.clickPanelDisposable.clear();
+			}
+		}, 500));
+	}
+
+	private createCombinedPanelContent(panelStore: DisposableStore): HTMLElement {
+		const panel = $('div.sessions-account-titlebar-panel');
+		const contentSection = append(panel, $('.sessions-account-titlebar-panel-content'));
+		const state = this.lastState;
+
+		if (state.source === 'update') {
+			append(contentSection, this.updateHoverWidget.createHoverContent(this.updateService.state));
+		} else if (this.shouldShowCopilotDashboardHover()) {
+			append(contentSection, this.createCopilotHoverContent());
+		} else {
+			const summary = append(contentSection, $('.sessions-account-titlebar-panel-summary'));
+			summary.textContent = state.ariaLabel;
+		}
+
+		const actions = this.getPanelActions();
+		if (actions.length > 0) {
+			const actionsSection = append(panel, $('.sessions-account-titlebar-panel-actions'));
+			let lastWasSeparator = true;
+
+			for (const action of actions) {
+				if (action instanceof Separator) {
+					if (!lastWasSeparator) {
+						append(actionsSection, $('.sessions-account-titlebar-panel-separator'));
+						lastWasSeparator = true;
+					}
+					continue;
+				}
+
+				lastWasSeparator = false;
+				const button = append(actionsSection, $('button.sessions-account-titlebar-panel-action', { type: 'button' })) as HTMLButtonElement;
+				button.disabled = !action.enabled;
+				button.setAttribute('aria-label', action.tooltip || action.label);
+				button.classList.toggle('checked', !!action.checked);
+				append(button, ...renderLabelWithIcons(action.label));
+
+				panelStore.add(addDisposableListener(button, EventType.CLICK, async event => {
+					event.preventDefault();
+					event.stopPropagation();
+					this.hoverService.hideHover(true);
+					this.clickPanelDisposable.clear();
+					await Promise.resolve(action.run());
+				}));
+			}
+		}
+
+		return panel;
+	}
+
+	private getPanelActions(): IAction[] {
+		const menu = this.menuService.createMenu(AccountMenu, this.contextKeyService);
+		const rawActions: IAction[] = [];
+		fillInActionBarActions(menu.getActions(), rawActions);
+		menu.dispose();
+
+		const signOutAction = rawActions.find(action => !(action instanceof Separator) && action.id === 'workbench.action.agenticSignOut');
+		const actions = rawActions.filter(action => !(action instanceof Separator) && action.id !== 'workbench.action.agenticSignOut');
+
+		if (signOutAction) {
+			if (actions.length > 0) {
+				actions.push(new Separator());
+			}
+			actions.push(signOutAction);
+		}
+
+		return actions;
 	}
 
 	private shouldShowCopilotDashboardHover(): boolean {
@@ -610,30 +654,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		return dashboardElement;
 	}
 
-	private async update(): Promise<void> {
-		const state = getSessionsUpdateState(this.updateService);
-		if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
-			const { confirmed } = await this.dialogService.confirm({
-				message: localize('updateFromVSCode.title', "Update from VS Code"),
-				detail: localize('updateFromVSCode.detail', "This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete."),
-				primaryButton: localize('updateFromVSCode.open', "Close and Open VS Code"),
-			});
-			if (confirmed) {
-				await this.openVSCode();
-				await this.hostService.close();
-			}
-			return;
-		}
-
-		await this.updateService.quitAndInstall();
-	}
-
-	private async openVSCode(): Promise<void> {
-		await this.openerService.open(URI.from({
-			scheme: this.productService.urlProtocol,
-			query: 'windowId=_blank',
-		}), { openExternal: true });
-	}
 }
 
 // --- Register custom view item --- //

@@ -104,6 +104,87 @@
 	color: var(--vscode-button-foreground);
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel {
+	display: flex;
+	flex-direction: column;
+	width: 280px;
+	max-width: 280px;
+	color: var(--vscode-foreground);
+}
+
+.monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover,
+.workbench-hover-container.locked .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover,
+.workbench-hover-container:focus-within.locked .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover {
+	outline: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-content {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-summary {
+	padding: 12px 16px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	padding: 4px 0;
+	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-separator {
+	height: 1px;
+	margin: 5px 0;
+	background: var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action {
+	display: flex;
+	align-items: center;
+	width: auto;
+	box-sizing: border-box;
+	height: 24px;
+	margin: 0 4px;
+	padding: 0 16px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: transparent;
+	color: inherit;
+	font-size: 12px;
+	line-height: 1;
+	text-align: left;
+	cursor: default;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action.checked,
+.agent-sessions-workbench .sessions-account-titlebar-panel-action:active {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+	background: var(--vscode-list-focusBackground);
+	color: var(--vscode-list-focusForeground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-action:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
 .monaco-enable-motion .agent-sessions-workbench .sessions-account-titlebar-widget,
 .agent-sessions-workbench.monaco-enable-motion .sessions-account-titlebar-widget {
 	transition: background-color 150ms ease-out, padding-inline 150ms ease-out, gap 150ms ease-out;
