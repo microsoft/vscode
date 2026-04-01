@@ -413,7 +413,8 @@ export interface IPromptDiscoveryInfo {
  * Discovery result for a slash command file, including the parsed prompt file.
  */
 export interface ISlashCommandDiscoveryResult extends IPromptFileDiscoveryResult {
-	readonly parsedPromptFile?: ParsedPromptFile;
+	readonly userInvocable?: boolean;
+	readonly argumentHint?: string;
 }
 
 /**

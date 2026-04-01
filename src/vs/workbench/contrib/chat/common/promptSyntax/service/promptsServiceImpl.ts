@@ -612,7 +612,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
 				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
 				const description = parsedPromptFile?.header?.description ?? promptPath.description;
-				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), parsedPromptFile } satisfies ISlashCommandDiscoveryResult;
+				const argumentHint = parsedPromptFile?.header?.argumentHint;
+				const userInvocable = parsedPromptFile?.header?.userInvocable;
+				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), argumentHint, userInvocable } satisfies ISlashCommandDiscoveryResult;
 			} catch (e) {
 				this.logger.error(`[computeSlashCommandDiscoveryInfo] Failed to parse prompt file for slash command: ${promptPath.uri}`, e instanceof Error ? e.message : String(e));
 				return { status: 'skipped', skipReason: 'parse-error', errorMessage: e instanceof Error ? e.message : String(e), promptPath } satisfies ISlashCommandDiscoveryResult;
@@ -639,8 +641,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const seen = new ResourceSet();
 
 		for (const file of discoveryInfo.files) {
-			if (file.status === 'loaded' && file.parsedPromptFile) {
-				result.push(this.asChatPromptSlashCommand(file.parsedPromptFile, file.promptPath));
+			if (file.status === 'loaded') {
+				result.push(this.asChatPromptSlashCommand(file.argumentHint, file.userInvocable, file.promptPath));
 				seen.add(file.promptPath.uri);
 			}
 		}
@@ -649,7 +651,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const model of this.modelService.getModels()) {
 			if (model.getLanguageId() === PROMPT_LANGUAGE_ID && model.uri.scheme === Schemas.untitled && !seen.has(model.uri)) {
 				const parsedPromptFile = this.getParsedPromptFile(model);
-				result.push(this.asChatPromptSlashCommand(parsedPromptFile, { uri: model.uri, storage: PromptsStorage.local, type: PromptsType.prompt }));
+				const name = parsedPromptFile?.header?.name ?? getCleanPromptName(model.uri);
+				const description = parsedPromptFile?.header?.description;
+				result.push(this.asChatPromptSlashCommand(parsedPromptFile?.header?.argumentHint, parsedPromptFile?.header?.userInvocable, { uri: model.uri, storage: PromptsStorage.local, type: PromptsType.prompt, name, description }));
 			}
 		}
 
@@ -672,8 +676,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return undefined;
 	}
 
-	private asChatPromptSlashCommand(parsedPromptFile: ParsedPromptFile, promptPath: IPromptPath): IChatPromptSlashCommand {
-		let name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
+		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
 		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
 		return {
 			uri: promptPath.uri,
@@ -683,9 +687,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			type: promptPath.type,
 			extension: promptPath.extension,
 			pluginUri: promptPath.pluginUri,
-			description: parsedPromptFile?.header?.description ?? promptPath.description,
-			argumentHint: parsedPromptFile?.header?.argumentHint,
-			userInvocable: parsedPromptFile?.header?.userInvocable ?? true,
+			description: promptPath.description,
+			argumentHint: argumentHint,
+			userInvocable: userInvocable ?? true,
 			when: undefined,
 		};
 	}
