@@ -1783,7 +1783,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let bgCts: CancellationTokenSource | undefined;
 		if (outputMonitor) {
 			bgCts = new CancellationTokenSource();
-			this._register(bgCts);
 			outputMonitor.continueMonitoringAsync(bgCts.token);
 		}
 
@@ -1822,7 +1821,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const cleanup = () => {
 			listener.dispose();
 			disposedListener.dispose();
-			bgCts?.cancel();
+			bgCts?.dispose();
 			outputMonitor?.dispose();
 		};
 

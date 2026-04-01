@@ -1336,19 +1336,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
 
-	/**
-	 * Reopens a completed response so that additional progress (e.g. an
-	 * elicitation for terminal input) can be appended after the response
-	 * was already marked complete.
-	 */
-	reopen(): void {
-		if (!this.isComplete) {
-			return;
-		}
-		this._modelState.set({ value: ResponseModelState.Pending }, undefined);
-		this._onDidChange.fire(defaultChatResponseModelChangeReason);
-	}
-
 	complete(): void {
 		// No-op if it's already complete
 		if (this.isComplete) {

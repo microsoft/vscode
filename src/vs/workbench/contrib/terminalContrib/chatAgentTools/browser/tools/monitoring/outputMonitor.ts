@@ -15,8 +15,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
-import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
+import { ChatRequestTextPart } from '../../../../../chat/common/requestParser/chatParserTypes.js';
+import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, getTextResponseFromStream, type ILanguageModelChatSelector, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
@@ -962,16 +964,38 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// In async mode the last request may be an implicit (hidden) steering request.
 		// Attach the elicitation to the last visible request so it renders in the UI.
 		const requests = chatModel.getRequests();
-		const request = requests.findLast(r => !r.isSystemInitiated) ?? requests.at(-1);
+		let request: ChatRequestModel | undefined;
+		if (this._asyncMode) {
+			// In async mode the previous response is already complete.
+			// Create a new system-initiated request so the data model properly
+			// represents a finished response followed by a new request/response
+			// rather than reopening the completed response.
+			const message = localize('terminalPromptDetected', "Terminal is waiting for input");
+			const parts = [new ChatRequestTextPart(new OffsetRange(0, message.length), { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, message)];
+			request = chatModel.addRequest(
+				{ text: message, parts },
+				{ variables: [] },
+				0, // attempt
+				undefined, // modeInfo
+				undefined, // chatAgent
+				undefined, // slashCommand
+				undefined, // confirmation
+				undefined, // locationData
+				undefined, // attachments
+				undefined, // isCompleteAddedRequest
+				undefined, // modelId
+				undefined, // userSelectedTools
+				undefined, // id
+				true, // isSystemInitiated
+			);
+		} else {
+			request = requests.findLast(r => !r.isSystemInitiated) ?? requests.at(-1);
+		}
 		if (!request) {
 			throw new Error('No request');
 		}
-		// In async mode the response may already be complete. Reopen it so we
-		// can append the elicitation progress to it.
-		if (this._asyncMode && request.response?.isComplete) {
-			request.response.reopen();
-		}
 		let part!: ChatElicitationRequestPart;
+		const asyncRequest = this._asyncMode ? request : undefined;
 		const promise = new Promise<T | undefined>(resolve => {
 			const thePart = part = new ChatElicitationRequestPart(
 				title,
@@ -993,6 +1017,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					}
 					thePart.hide();
 					this._promptPart = undefined;
+					asyncRequest?.response?.complete();
 					return ElicitationState.Accepted;
 				},
 				async () => {
@@ -1009,6 +1034,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					}
 					thePart.hide();
 					this._promptPart = undefined;
+					asyncRequest?.response?.complete();
 					return ElicitationState.Rejected;
 				},
 				undefined, // source
@@ -1020,7 +1046,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			this._promptPart = thePart;
 		});
 
-		this._register(token.onCancellationRequested(() => part.hide()));
+		this._register(token.onCancellationRequested(() => {
+			part.hide();
+			asyncRequest?.response?.complete();
+		}));
 
 		return { promise, part };
 	}
