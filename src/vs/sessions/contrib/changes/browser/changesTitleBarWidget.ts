@@ -24,6 +24,7 @@ import { IsAuxiliaryWindowContext, AuxiliaryBarVisibleContext } from '../../../.
 import { getAgentChangesSummary } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -31,6 +32,16 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { CHANGES_VIEW_CONTAINER_ID } from './changesView.js';
 
 const TOGGLE_CHANGES_VIEW_ID = 'workbench.action.agentSessions.toggleChangesView';
+
+type ChangesViewTogglePanelEvent = {
+	visible: boolean;
+};
+
+type ChangesViewTogglePanelClassification = {
+	owner: 'osortega';
+	comment: 'Tracks when the user toggles the Changes panel open or closed.';
+	visible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the Changes panel is now visible.' };
+};
 
 /**
  * Action view item that renders the diff stats indicator (file change counts)
@@ -182,11 +193,16 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const isVisible = !layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		layoutService.setPartHidden(!isVisible, Parts.AUXILIARYBAR_PART);
 		if (isVisible) {
 			paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
 		}
+
+		telemetryService.publicLog2<ChangesViewTogglePanelEvent, ChangesViewTogglePanelClassification>('changesView/togglePanel', {
+			visible: isVisible,
+		});
 	}
 });

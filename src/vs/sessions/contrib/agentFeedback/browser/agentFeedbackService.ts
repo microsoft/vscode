@@ -20,8 +20,23 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 // --- Types --------------------------------------------------------------------
+
+type AgentFeedbackAddedEvent = {
+	hasExistingFeedback: boolean;
+	hasSuggestion: boolean;
+	isFromPRReview: boolean;
+};
+
+type AgentFeedbackAddedClassification = {
+	owner: 'osortega';
+	comment: 'Tracks when a user adds a review comment (feedback) to a file in the Changes panel.';
+	hasExistingFeedback: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there was already feedback on this file.' };
+	hasSuggestion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback includes a code suggestion.' };
+	isFromPRReview: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback was converted from a PR review comment.' };
+};
 
 export interface IAgentFeedback {
 	readonly id: string;
@@ -144,6 +159,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -200,6 +216,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeNavigation.fire(sessionResource);
 
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+
+		this._telemetryService.publicLog2<AgentFeedbackAddedEvent, AgentFeedbackAddedClassification>('changesView/reviewCommentAdded', {
+			hasExistingFeedback: hasExistingForFile,
+			hasSuggestion: !!suggestion,
+			isFromPRReview: !!sourcePRReviewCommentId,
+		});
 
 		return feedback;
 	}

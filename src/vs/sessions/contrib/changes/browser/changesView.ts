@@ -77,6 +77,28 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/
 
 const $ = dom.$;
 
+// --- Telemetry
+
+type ChangesViewVersionModeChangeEvent = {
+	mode: string;
+};
+
+type ChangesViewVersionModeChangeClassification = {
+	owner: 'osortega';
+	comment: 'Tracks when the user switches the version mode in the Changes panel (Branch Changes, All Changes, Last Turn).';
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version mode selected by the user.' };
+};
+
+type ChangesViewFileSelectEvent = {
+	changeType: string;
+};
+
+type ChangesViewFileSelectClassification = {
+	owner: 'osortega';
+	comment: 'Tracks when the user selects a changed file in the Changes panel.';
+	changeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of change (added, modified, deleted).' };
+};
+
 // --- Constants
 
 export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
@@ -551,7 +573,8 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
-		@IGitHubService private readonly gitHubService: IGitHubService
+		@IGitHubService private readonly gitHubService: IGitHubService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1118,6 +1141,10 @@ export class ChangesViewPane extends ViewPane {
 				if (!e.element || !isChangesFileItem(e.element)) {
 					return;
 				}
+
+				this.telemetryService.publicLog2<ChangesViewFileSelectEvent, ChangesViewFileSelectClassification>('changesView/fileSelect', {
+					changeType: e.element.changeType,
+				});
 
 				const items = combinedEntriesObs.get();
 				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
@@ -1810,7 +1837,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -1829,6 +1856,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						category: { label: 'changes', order: 1, showHeader: false },
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.BranchChanges);
+							this.telemetryService.publicLog2<ChangesViewVersionModeChangeEvent, ChangesViewVersionModeChangeClassification>('changesView/versionModeChange', {
+								mode: ChangesVersionMode.BranchChanges,
+							});
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -1845,6 +1875,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
+							this.telemetryService.publicLog2<ChangesViewVersionModeChangeEvent, ChangesViewVersionModeChangeClassification>('changesView/versionModeChange', {
+								mode: ChangesVersionMode.AllChanges,
+							});
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -1861,6 +1894,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.LastTurn);
+							this.telemetryService.publicLog2<ChangesViewVersionModeChangeEvent, ChangesViewVersionModeChangeClassification>('changesView/versionModeChange', {
+								mode: ChangesVersionMode.LastTurn,
+							});
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
