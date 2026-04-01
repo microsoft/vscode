@@ -241,10 +241,10 @@ function getActionEnvelope(n: IAhpNotification): IActionEnvelope {
 }
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
-async function createAndSubscribeSession(c: TestProtocolClient, clientId: string): Promise<string> {
+async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
 	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
 
-	await c.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+	await c.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
@@ -926,7 +926,7 @@ suite('Protocol WebSocket E2E', function () {
 	test('auto-approves write to regular file (no pending confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove', 'file:///workspace');
 		client.clearReceived();
 
 		// Start a turn that triggers a write permission request for a regular .ts file
@@ -952,7 +952,7 @@ suite('Protocol WebSocket E2E', function () {
 	test('blocks write to .env file (requires manual confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny', 'file:///workspace');
 		client.clearReceived();
 
 		// Start a turn that tries to write .env (blocked by default patterns)

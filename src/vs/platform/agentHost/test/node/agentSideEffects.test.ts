@@ -440,7 +440,7 @@ suite('AgentSideEffects', () => {
 
 	suite('edit auto-approve patterns', () => {
 
-		test('auto-approves regular files with default patterns', async () => {
+		test('auto-approves regular files with default patterns', () => {
 			setupSession(URI.file('/workspace').toString());
 			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
@@ -450,9 +450,6 @@ suite('AgentSideEffects', () => {
 
 			// Fire tool_ready with write permission for a regular .ts file
 			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
-
-			// Wait for the async auto-approve check to complete
-			await Promise.resolve();
 
 			// The agent should have been auto-responded to with approved=true
 			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-1');
@@ -468,16 +465,13 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.Running);
 		});
 
-		test('default patterns block .env files', async () => {
+		test('default patterns block .env files', () => {
 			setupSession(URI.file('/workspace').toString());
 			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
 
 			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-2', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
 			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-2', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env' });
-
-			// Wait for the async auto-approve check to complete
-			await Promise.resolve();
 
 			// Should NOT have auto-responded
 			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-2');
@@ -492,7 +486,7 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.PendingConfirmation);
 		});
 
-		test('default patterns block .git files', async () => {
+		test('default patterns block .git files', () => {
 			setupSession(URI.file('/workspace').toString());
 			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
@@ -500,13 +494,11 @@ suite('AgentSideEffects', () => {
 			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-3', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
 			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-3', invocationMessage: 'Write .git/config', permissionKind: 'write', permissionPath: '/workspace/.git/config' });
 
-			await Promise.resolve();
-
 			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-3');
 			assert.ok(!permCall, 'should not auto-approve .git files with default patterns');
 		});
 
-		test('writes outside working directory are not auto-approved', async () => {
+		test('writes outside working directory are not auto-approved', () => {
 			setupSession(URI.file('/workspace').toString());
 			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
@@ -514,7 +506,6 @@ suite('AgentSideEffects', () => {
 			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-4', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
 			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-4', invocationMessage: 'Write /etc/config', permissionKind: 'write', permissionPath: '/etc/config' });
 
-			await Promise.resolve();
 			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-4');
 			assert.ok(!permCall, 'should not auto-approve writes outside working directory');
 

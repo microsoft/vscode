@@ -124,15 +124,24 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	/**
-	 * Attempts to auto-approve a `tool_ready` event based on permission kind.
-	 * Returns `true` if auto-approved (and the event should not be dispatched
-	 * to the state manager), or `false` to proceed with the normal flow.
+	 * Initializes async resources (tree-sitter WASM) used for command
+	 * auto-approval. Await this before any session events can arrive to
+	 * guarantee that {@link _tryAutoApproveToolReady} is fully synchronous.
 	 */
-	private async _tryAutoApproveToolReady(
+	initialize(): Promise<void> {
+		return this._commandAutoApprover.initialize();
+	}
+
+	/**
+	 * Synchronously attempts to auto-approve a `tool_ready` event based on
+	 * permission kind. Returns `true` if auto-approved (event should not be
+	 * dispatched to the state manager), or `false` to proceed normally.
+	 */
+	private _tryAutoApproveToolReady(
 		e: { readonly toolCallId: string; readonly session: URI; readonly permissionKind?: string; readonly permissionPath?: string; readonly toolInput?: string },
 		sessionKey: ProtocolURI,
 		agent: IAgent,
-	): Promise<boolean> {
+	): boolean {
 		// Write auto-approval: only within the session's working directory,
 		// then apply the default glob patterns for protected files.
 		if (e.permissionKind === 'write' && e.permissionPath) {
@@ -150,22 +159,18 @@ export class AgentSideEffects extends Disposable {
 			return false;
 		}
 
-		// Shell auto-approval: parse the command via tree-sitter and match
-		// against default rules.
+		// Shell auto-approval: parse the command via tree-sitter (synchronous
+		// after initialize() has been awaited) and match against default rules.
 		if (e.permissionKind === 'shell' && e.toolInput) {
-			try {
-				const result = await this._commandAutoApprover.shouldAutoApprove(e.toolInput);
-				if (result === 'approved') {
-					this._logService.trace(`[AgentSideEffects] Auto-approving shell command`);
-					this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
-					agent.respondToPermissionRequest(e.toolCallId, true);
-					return true;
-				}
-				if (result === 'denied') {
-					this._logService.trace(`[AgentSideEffects] Shell command denied by rule`);
-				}
-			} catch (err) {
-				this._logService.warn('[AgentSideEffects] Shell auto-approval check failed', err);
+			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput);
+			if (result === 'approved') {
+				this._logService.trace(`[AgentSideEffects] Auto-approving shell command`);
+				this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+				agent.respondToPermissionRequest(e.toolCallId, true);
+				return true;
+			}
+			if (result === 'denied') {
+				this._logService.trace(`[AgentSideEffects] Shell command denied by rule`);
 			}
 			return false;
 		}
@@ -198,16 +203,12 @@ export class AgentSideEffects extends Disposable {
 			const sessionKey = e.session.toString();
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
-				// Check auto-approval for tool_ready events before dispatching.
-				// The check is async (tree-sitter for shell commands), so we
-				// dispatch the event to the state manager only after.
+				// Auto-approve tool_ready events synchronously before dispatching.
+				// Tree-sitter is pre-warmed via initialize(), so this is fully sync.
 				if (e.type === 'tool_ready') {
-					this._tryAutoApproveToolReady(e, sessionKey, agent).then(autoApproved => {
-						if (!autoApproved) {
-							this._dispatchProgressActions(agentMapper, e, sessionKey, turnId);
-						}
-					});
-					return;
+					if (this._tryAutoApproveToolReady(e, sessionKey, agent)) {
+						return;
+					}
 				}
 
 				this._dispatchProgressActions(agentMapper, e, sessionKey, turnId);

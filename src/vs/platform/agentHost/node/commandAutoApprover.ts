@@ -37,27 +37,41 @@ const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
  * The default rules mirror the VS Code `chat.tools.terminal.autoApprove`
  * setting defaults.
  *
- * Tree-sitter initialization is lazy; if it fails (e.g. missing WASM files),
- * the approver falls back to matching the full command line against rules.
+ * Tree-sitter is initialized eagerly; call {@link initialize} and await the
+ * result before using {@link shouldAutoApprove} to guarantee synchronous
+ * parsing. If tree-sitter failed to load, compound commands fall back to
+ * `noMatch` (user confirmation required).
  */
 export class CommandAutoApprover extends Disposable {
 
 	private _allowRules: IAutoApproveRule[] | undefined;
 	private _denyRules: IAutoApproveRule[] | undefined;
-	private _treeSitterInit: Promise<{ parser: Parser; bashLanguage: Language; queryClass: typeof Query } | undefined> | undefined;
+	private _parser: Parser | undefined;
+	private _bashLanguage: Language | undefined;
+	private _queryClass: typeof Query | undefined;
+	private readonly _initPromise: Promise<void>;
 
 	constructor(
 		private readonly _logService: ILogService,
 	) {
 		super();
+		this._initPromise = this._initTreeSitter();
 	}
 
 	/**
-	 * Check whether the given command line should be auto-approved.
-	 * Uses tree-sitter when available to parse compound commands into
-	 * sub-commands, otherwise falls back to full command-line matching.
+	 * Returns a promise that resolves once tree-sitter WASM has been loaded.
+	 * Await this before processing any events to guarantee that
+	 * {@link shouldAutoApprove} can parse commands synchronously.
 	 */
-	async shouldAutoApprove(commandLine: string): Promise<CommandApprovalResult> {
+	initialize(): Promise<void> {
+		return this._initPromise;
+	}
+
+	/**
+	 * Synchronously check whether the given command line should be auto-approved.
+	 * Uses tree-sitter (if loaded) to parse compound commands into sub-commands.
+	 */
+	shouldAutoApprove(commandLine: string): CommandApprovalResult {
 		const trimmed = commandLine.trimStart();
 		if (trimmed.length === 0) {
 			return 'approved';
@@ -66,7 +80,7 @@ export class CommandAutoApprover extends Disposable {
 		this._ensureRules();
 
 		// Try to extract sub-commands via tree-sitter
-		const subCommands = await this._extractSubCommands(trimmed);
+		const subCommands = this._extractSubCommands(trimmed);
 		if (subCommands && subCommands.length > 0) {
 			return this._matchSubCommands(subCommands);
 		}
@@ -129,22 +143,20 @@ export class CommandAutoApprover extends Disposable {
 
 	// ---- Tree-sitter --------------------------------------------------------
 
-	private async _extractSubCommands(commandLine: string): Promise<string[] | undefined> {
-		try {
-			const ts = await this._ensureTreeSitter();
-			if (!ts) {
-				return undefined;
-			}
+	private _extractSubCommands(commandLine: string): string[] | undefined {
+		if (!this._parser || !this._bashLanguage || !this._queryClass) {
+			return undefined;
+		}
 
-			const { parser, bashLanguage, queryClass } = ts;
-			parser.setLanguage(bashLanguage);
-			const tree = parser.parse(commandLine);
+		try {
+			this._parser.setLanguage(this._bashLanguage);
+			const tree = this._parser.parse(commandLine);
 			if (!tree) {
 				return undefined;
 			}
 
 			try {
-				const query = new queryClass(bashLanguage, '(command) @command');
+				const query = new this._queryClass(this._bashLanguage, '(command) @command');
 				const captures: QueryCapture[] = query.captures(tree.rootNode);
 				const subCommands = captures.map(c => c.node.text);
 				query.delete();
@@ -153,19 +165,12 @@ export class CommandAutoApprover extends Disposable {
 				tree.delete();
 			}
 		} catch (err) {
-			this._logService.warn('[CommandAutoApprover] Tree-sitter parsing failed, falling back to full command match', err);
+			this._logService.warn('[CommandAutoApprover] Tree-sitter parsing failed', err);
 			return undefined;
 		}
 	}
 
-	private _ensureTreeSitter(): Promise<{ parser: Parser; bashLanguage: Language; queryClass: typeof Query } | undefined> {
-		if (!this._treeSitterInit) {
-			this._treeSitterInit = this._initTreeSitter();
-		}
-		return this._treeSitterInit;
-	}
-
-	private async _initTreeSitter(): Promise<{ parser: Parser; bashLanguage: Language; queryClass: typeof Query } | undefined> {
+	private async _initTreeSitter(): Promise<void> {
 		try {
 			const TreeSitter = await import('@vscode/tree-sitter-wasm');
 
@@ -187,11 +192,12 @@ export class CommandAutoApprover extends Disposable {
 			const bashWasm = await fs.promises.readFile(bashWasmPath);
 			const bashLanguage = await TreeSitter.Language.load(new Uint8Array(bashWasm.buffer, bashWasm.byteOffset, bashWasm.byteLength));
 
+			this._parser = parser;
+			this._bashLanguage = bashLanguage;
+			this._queryClass = TreeSitter.Query;
 			this._logService.info('[CommandAutoApprover] Tree-sitter initialized successfully');
-			return { parser, bashLanguage, queryClass: TreeSitter.Query };
 		} catch (err) {
 			this._logService.warn('[CommandAutoApprover] Failed to initialize tree-sitter', err);
-			return undefined;
 		}
 	}
 
