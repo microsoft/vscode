@@ -102,13 +102,13 @@ steps:
       env:
         VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    # TODO https://dev.azure.com/monacotools/Monaco/_build/results?buildId=426316&view=logs&j=573fdb8c-432d-57b7-addd-e5c3edb6227f&t=6fad2a73-ceba-567d-939f-7bd557eba1dc&s=40b405d8-d9ea-5f38-8ab3-8db0b216e2d0
-    # - powershell: npm run test:completions-core
-    #   workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    #   displayName: 🧪 Run Copilot completions core tests
-    #   timeoutInMinutes: 15
-    #   env:
-    #     VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    # MAYBE https://dev.azure.com/monacotools/Monaco/_build/results?buildId=426316&view=logs&j=573fdb8c-432d-57b7-addd-e5c3edb6227f&t=6fad2a73-ceba-567d-939f-7bd557eba1dc&s=40b405d8-d9ea-5f38-8ab3-8db0b216e2d0
+    - powershell: npm run test:completions-core
+      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      displayName: 🧪 Run Copilot completions core tests
+      timeoutInMinutes: 15
+      env:
+        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
     - powershell: npm run test:sanity
       workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
