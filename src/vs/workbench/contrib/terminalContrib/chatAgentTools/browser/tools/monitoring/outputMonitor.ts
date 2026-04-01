@@ -958,6 +958,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!request) {
 			throw new Error('No request');
 		}
+		// In async mode the response may already be complete. Reopen it so we
+		// can append the elicitation progress to it.
+		if (this._asyncMode && request.response?.isComplete) {
+			request.response.reopen();
+		}
 		let part!: ChatElicitationRequestPart;
 		const promise = new Promise<T | undefined>(resolve => {
 			const thePart = part = new ChatElicitationRequestPart(
