@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Event } from '../../../../base/common/event.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
-import { ActionList, ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ActionList, ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 
-import '../../../../platform/actionWidget/browser/actionWidget.css';
-import '../../../../base/browser/ui/codicons/codiconStyles.js';
-import '../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
+import '../../../../../platform/actionWidget/browser/actionWidget.css';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
 
 interface CodeActionFixtureOptions extends ComponentFixtureContext {
 	items: IActionListItem<string>[];
