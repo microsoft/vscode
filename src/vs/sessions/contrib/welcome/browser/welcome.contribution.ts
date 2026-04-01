@@ -27,6 +27,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
@@ -40,13 +41,14 @@ class SessionsWelcomeOverlay extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 
 		this.overlay = append(container, $('.sessions-welcome-overlay'));
 		this.overlay.setAttribute('role', 'dialog');
 		this.overlay.setAttribute('aria-modal', 'true');
-		this.overlay.setAttribute('aria-label', localize('welcomeOverlay.aria', "Sign in to use Sessions"));
+		this.overlay.setAttribute('aria-label', localize('welcomeOverlay.aria', "Sign in to use Agents"));
 		this._register(toDisposable(() => this.overlay.remove()));
 
 		const card = append(this.overlay, $('.sessions-welcome-card'));
@@ -55,7 +57,7 @@ class SessionsWelcomeOverlay extends Disposable {
 		const header = append(card, $('.sessions-welcome-header'));
 		const iconEl = append(header, $('span.sessions-welcome-icon'));
 		iconEl.appendChild(renderIcon(Codicon.agent));
-		append(header, $('h2', undefined, localize('welcomeTitle', "Sign in to use Sessions")));
+		append(header, $('h2', undefined, localize('welcomeTitle', "Sign in to use Agents")));
 		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Agent-powered development")));
 
 		// Action area
@@ -71,8 +73,11 @@ class SessionsWelcomeOverlay extends Disposable {
 
 		this._register(actionButton.onDidClick(() => this._runSetup(actionButton, spinnerContainer, errorContainer)));
 
-		// Focus the button so the overlay traps keyboard input
-		actionButton.focus();
+		// Focus the button so the overlay traps keyboard input,
+		// but only if no quick input is currently visible.
+		if (!this.quickInputService.currentQuickInput) {
+			actionButton.focus();
+		}
 	}
 
 	private async _runSetup(button: Button, spinner: HTMLElement, error: HTMLElement): Promise<void> {
@@ -88,8 +93,8 @@ class SessionsWelcomeOverlay extends Disposable {
 			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
 				dialogIcon: Codicon.agent,
 				dialogTitle: this.chatEntitlementService.anonymous ?
-					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions"),
+					localize('agents.startUsingAgents', "Start using Agents") :
+					localize('agents.signinRequired', "Sign in to use Agents"),
 			});
 
 			if (success) {
@@ -254,7 +259,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.resetSessionsWelcome',
-			title: localize2('resetSessionsWelcome', "Reset Sessions Welcome"),
+			title: localize2('resetSessionsWelcome', "Reset Agents Welcome"),
 			category: Categories.Developer,
 			f1: true,
 		});

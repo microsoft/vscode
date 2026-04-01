@@ -485,6 +485,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
 	private _suppressHover = false;
+	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 
@@ -761,8 +762,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._filterInput?.focus();
 			// Keep a highlighted item in the list so Enter works without pressing DownArrow first
 			this._focusCheckedOrFirst();
-		} else {
-			this._list.domFocus();
+		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
 			if (focusedItem) {
 				const focusedItemId = (focusedItem.item as { id?: string })?.id;
@@ -918,6 +918,7 @@ export class ActionListWidget<T> extends Disposable {
 	 * Lays out the list widget with the given explicit dimensions.
 	 */
 	layout(height: number, width?: number): void {
+		this._hasLaidOut = true;
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
 
@@ -1242,13 +1243,20 @@ export class ActionListWidget<T> extends Disposable {
 		const groupsWithActions = submenuGroups.filter(g => g.actions.length > 0);
 		for (let gi = 0; gi < groupsWithActions.length; gi++) {
 			const group = groupsWithActions[gi];
+			if (group.label) {
+				submenuItems.push({
+					kind: ActionListItemKind.Header,
+					group: { title: group.label },
+					label: group.label,
+				});
+			}
 			for (let ci = 0; ci < group.actions.length; ci++) {
 				const child = group.actions[ci];
 				submenuItems.push({
 					item: child,
 					kind: ActionListItemKind.Action,
 					label: child.label,
-					description: ci === 0 && group.label ? group.label : (child.tooltip || undefined),
+					description: child.tooltip || undefined,
 					group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
 					hideIcon: false,
 					hover: {},

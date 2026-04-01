@@ -8,6 +8,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IObservable } from '../../../../base/common/observable.js';
 
 /**
  * A platform-level session type identifying an agent backend.
@@ -40,7 +42,7 @@ export interface ISessionsBrowseAction {
 /**
  * Event fired when sessions change within a provider.
  */
-export interface ISessionsChangeEvent {
+export interface ISessionChangeEvent {
 	readonly added: readonly ISessionData[];
 	readonly removed: readonly ISessionData[];
 	readonly changed: readonly ISessionData[];
@@ -73,6 +75,25 @@ export interface ISessionsProvider {
 	/** Session types this provider supports. */
 	readonly sessionTypes: readonly ISessionType[];
 
+	/**
+	 * Observable connection status for remote providers.
+	 * When defined, indicates the provider represents a remote connection
+	 * and its status should be shown in the workspace picker.
+	 */
+	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+
+	/**
+	 * The address of the remote agent host, if this provider represents one.
+	 * Used by the workspace picker to offer management actions (reconnect, remove, etc.).
+	 */
+	readonly remoteAddress?: string;
+
+	/**
+	 * Output channel ID for this provider's IPC log.
+	 * When set, a "Show Output" action is available in the workspace picker.
+	 */
+	readonly outputChannelId?: string;
+
 	// -- Workspaces --
 
 	/** Browse actions shown in the workspace picker. */
@@ -82,34 +103,46 @@ export interface ISessionsProvider {
 
 	// -- Sessions (existing) --
 
-	/** Returns all sessions owned by this provider. */
+	/** Returns all chats owned by this provider. */
 	getSessions(): ISessionData[];
-	/** Fires when sessions are added, removed, or changed. */
-	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+	/** Fires when chats are added, removed, or changed. */
+	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+	/**
+	 * Optional. Fires when a temporary (untitled) session is atomically replaced
+	 * by a committed session after the first turn.
+	 */
+	readonly onDidReplaceSession?: Event<{ readonly from: ISessionData; readonly to: ISessionData }>;
 
 	// -- Session Management --
 
 	/** Create a new session for the given workspace. */
 	createNewSession(workspace: ISessionWorkspace): ISessionData;
+
+	createNewSessionFrom(chatId: string): ISessionData;
 	/** Update the session type for a session. */
-	setSessionType(sessionId: string, type: ISessionType): ISessionData;
+	setSessionType(chatId: string, type: ISessionType): ISessionData;
 	/** Returns session types available for the given session. */
-	getSessionTypes(session: ISessionData): ISessionType[];
+	getSessionTypes(chatId: string): ISessionType[];
 	/** Rename a session. */
-	renameSession(sessionId: string, title: string): Promise<void>;
+	renameSession(chatId: string, title: string): Promise<void>;
 	/** Set the model for a session. */
-	setModel(sessionId: string, modelId: string): void;
+	setModel(chatId: string, modelId: string): void;
 	/** Archive a session. */
-	archiveSession(sessionId: string): Promise<void>;
+	archiveSession(chatId: string): Promise<void>;
 	/** Unarchive a session. */
-	unarchiveSession(sessionId: string): Promise<void>;
+	unarchiveSession(chatId: string): Promise<void>;
 	/** Delete a session. */
-	deleteSession(sessionId: string): Promise<void>;
+	deleteSession(chatId: string): Promise<void>;
 	/** Mark a session as read or unread. */
-	setRead(sessionId: string, read: boolean): void;
+	setRead(chatId: string, read: boolean): void;
+
+	// -- Untitled --
+
+	/** Returns the current untitled (not yet sent) session, if any. */
+	getUntitledSession(): ISessionData | undefined; // TODO: Shoulds ideally be removed when new chat and picker is cleaned up
 
 	// -- Send --
 
-	/** Send the initial request for a new session. Returns the created session data. */
-	sendRequest(sessionId: string, options: ISendRequestOptions): Promise<ISessionData>;
+	/** Send the initial request for a new session. Returns the created chat data. */
+	sendRequest(chatId: string, options: ISendRequestOptions): Promise<ISessionData>;
 }

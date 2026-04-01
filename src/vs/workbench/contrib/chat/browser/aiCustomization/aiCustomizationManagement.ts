@@ -53,6 +53,16 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<str
 );
 
 /**
+ * Context key for the active harness (session type) in the customizations editor.
+ * Extensions use this in when-clauses to scope create actions to their harness.
+ */
+export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS = new RawContextKey<string>(
+	'aiCustomizationManagementHarness',
+	'',
+	localize('aiCustomizationManagementHarness', "The active harness (session type) in the Chat Customizations editor")
+);
+
+/**
  * Menu ID for the AI Customization Management Editor title bar actions.
  */
 export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationManagementEditorTitle');
@@ -61,6 +71,13 @@ export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationM
  * Menu ID for the AI Customization Management Editor item context menu.
  */
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');
+
+/**
+ * Menu ID for the AI Customization Management Editor create/add button.
+ * Extensions can contribute commands here to add create actions to the section's add button dropdown.
+ * Use the `aiCustomizationManagementSection` context key to target a specific section.
+ */
+export const AICustomizationManagementCreateMenuId = MenuId.for('AICustomizationManagementCreate');
 
 /**
  * Context key for the item prompt type (e.g. 'prompt', 'agent') used in when-clause filtering.

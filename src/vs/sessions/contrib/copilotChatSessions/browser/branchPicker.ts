@@ -12,6 +12,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { CopilotCLISession } from './copilotChatSessionsProvider.js';
 
 const FILTER_THRESHOLD = 10;
@@ -34,17 +35,19 @@ export class BranchPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			if (session instanceof CopilotCLISession) {
-				session.loading.read(reader);
-				session.branches.read(reader);
-				session.branchesLoading.read(reader);
-				session.branchObservable.read(reader);
-				session.isolationModeObservable.read(reader);
+			const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
+			if (providerSession instanceof CopilotCLISession) {
+				providerSession.loading.read(reader);
+				providerSession.branches.read(reader);
+				providerSession.branchesLoading.read(reader);
+				providerSession.branchObservable.read(reader);
+				providerSession.isolationModeObservable.read(reader);
 			}
 			this._updateTriggerLabel();
 		}));
@@ -52,7 +55,11 @@ export class BranchPicker extends Disposable {
 
 	private _getSession(): CopilotCLISession | undefined {
 		const session = this.sessionsManagementService.activeSession.get();
-		return session instanceof CopilotCLISession ? session : undefined;
+		if (!session) {
+			return undefined;
+		}
+		const providerSession = this.sessionsProvidersService.getUntitledSession(session.providerId);
+		return providerSession instanceof CopilotCLISession ? providerSession : undefined;
 	}
 
 	render(container: HTMLElement): void {

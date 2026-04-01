@@ -355,9 +355,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		...options,
 		equals: ignoreCase ? equalsIgnoreCase : (a: string, b: string) => a === b,
 		endsWith: ignoreCase ? endsWithIgnoreCase : (str: string, candidate: string) => str.endsWith(candidate),
-		// TODO: the '!isLinux' part below is to keep current behavior unchanged, but it should probably be removed
-		// in favor of passing correct options from the caller.
-		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, !isLinux || ignoreCase)
+		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, options.ignoreCase ?? !isLinux /* preserve old behaviour for when option is not adopted */)
 	};
 
 	// Check cache
@@ -371,13 +369,13 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) {
 		parsedPattern = trivia1(pattern.substring(4), pattern, internalOptions); 			// common pattern: **/*.txt just need endsWith check
-	} else if (match = T2.exec(trimForExclusions(pattern, internalOptions))) { 	// common pattern: **/some.txt just need basename check
+	} else if (match = T2.exec(trimForExclusions(pattern, internalOptions))) { 				// common pattern: **/some.txt just need basename check
 		parsedPattern = trivia2(match[1], pattern, internalOptions);
-	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
+	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { 					// repetition of common patterns (see above) {**/*.txt,**/*.png}
 		parsedPattern = trivia3(pattern, internalOptions);
-	} else if (match = T4.exec(trimForExclusions(pattern, internalOptions))) { 	// common pattern: **/something/else just need endsWith check
+	} else if (match = T4.exec(trimForExclusions(pattern, internalOptions))) { 				// common pattern: **/something/else just need endsWith check
 		parsedPattern = trivia4and5(match[1].substring(1), pattern, true, internalOptions);
-	} else if (match = T5.exec(trimForExclusions(pattern, internalOptions))) { 	// common pattern: something/else just need equals check
+	} else if (match = T5.exec(trimForExclusions(pattern, internalOptions))) { 				// common pattern: something/else just need equals check
 		parsedPattern = trivia4and5(match[1], pattern, false, internalOptions);
 	}
 

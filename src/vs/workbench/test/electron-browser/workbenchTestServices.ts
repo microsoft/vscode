@@ -103,7 +103,7 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
-	async openSessionsWindow(): Promise<void> { }
+	async openAgentsWindow(): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }

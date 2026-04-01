@@ -19,6 +19,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -61,7 +62,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			}
 			const session = this.sessionsService.activeSession.read(reader);
 			const repo = session?.workspace.read(reader)?.repositories[0];
-			return repo?.workingDirectory ?? repo?.uri;
+			const root = repo?.workingDirectory ?? repo?.uri;
+			if (root?.scheme === AGENT_HOST_SCHEME) {
+				return undefined;
+			}
+			return root;
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -76,7 +81,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		}
 		const session = this.sessionsService.activeSession.get();
 		const repo = session?.workspace.get()?.repositories[0];
-		return repo?.workingDirectory ?? repo?.uri;
+		const root = repo?.workingDirectory ?? repo?.uri;
+		if (root?.scheme === AGENT_HOST_SCHEME) {
+			return undefined;
+		}
+		return root;
 	}
 
 	setOverrideProjectRoot(root: URI): void {
@@ -260,5 +269,19 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			const filter = this.getStorageSourceFilter(cmd.promptPath.type);
 			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
 		});
+	}
+
+	private static readonly _skillUIIntegrations: ReadonlyMap<string, string> = new Map([
+		['act-on-feedback', localize('skillUI.actOnFeedback', "Used by the Submit Feedback button in the Changes toolbar")],
+		['generate-run-commands', localize('skillUI.generateRunCommands', "Used by the Run button in the title bar")],
+		['create-pr', localize('skillUI.createPr', "Used by the Create Pull Request button in the Changes toolbar")],
+		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft Pull Request button in the Changes toolbar")],
+		['update-pr', localize('skillUI.updatePr', "Used by the Update Pull Request button in the Changes toolbar")],
+		['merge-changes', localize('skillUI.mergeChanges', "Used by the Merge button in the Changes toolbar")],
+		['commit', localize('skillUI.commit', "Used by the Commit button in the Changes toolbar")],
+	]);
+
+	getSkillUIIntegrations(): ReadonlyMap<string, string> {
+		return SessionsAICustomizationWorkspaceService._skillUIIntegrations;
 	}
 }

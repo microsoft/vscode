@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { Color } from '../../../../../base/common/color.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, ImmortalReference } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,21 +13,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { TestColorTheme } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../common/theme.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
-import { parseExitResult, TerminalInstance, TerminalInstanceColorProvider, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
-import { ITerminalProfileResolverService, ProcessState } from '../../common/terminal.js';
-import { TERMINAL_BACKGROUND_COLOR } from '../../common/terminalColorRegistry.js';
+import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -128,7 +124,8 @@ suite('Workbench - TerminalInstance', () => {
 
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
-		test('should create an instance of TerminalInstance with env from default profile', async () => {
+
+		async function createTerminalInstance(): Promise<TerminalInstance> {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -152,8 +149,14 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
-			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+			await instance.xtermReadyPromise;
+			return instance;
+		}
+
+		test('should create an instance of TerminalInstance with env from default profile', async () => {
+			terminalInstance = await createTerminalInstance();
+			// Wait for the terminal instance to resolve shell launch config env.
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
@@ -197,6 +200,67 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
+			const instance = await createTerminalInstance();
+			const keybindingService = instance['_keybindingService'];
+			const originalSoftDispatch = keybindingService.softDispatch;
+			keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'workbench.action.zoomIn', commandArgs: undefined, isBubble: false });
+
+			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
+			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			instance.attachToElement(container);
+			instance.setVisible(true);
+
+			const event = new KeyboardEvent('keydown', { key: '=', cancelable: true });
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+					{ result: false, defaultPrevented: true }
+				);
+			} finally {
+				keybindingService.softDispatch = originalSoftDispatch;
+				container.remove();
+			}
+		});
+
+		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
+			const instance = await createTerminalInstance();
+			const keybindingService = instance['_keybindingService'];
+			const originalSoftDispatch = keybindingService.softDispatch;
+			strictEqual(DEFAULT_COMMANDS_TO_SKIP_SHELL.includes('test.metaKeyInterceptCommand'), false);
+			keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'test.metaKeyInterceptCommand', commandArgs: undefined, isBubble: false });
+
+			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
+			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			instance.attachToElement(container);
+			instance.setVisible(true);
+
+			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+					{ result: false, defaultPrevented: true }
+				);
+			} finally {
+				keybindingService.softDispatch = originalSoftDispatch;
+				container.remove();
+			}
+		});
+	});
+	suite('DEFAULT_COMMANDS_TO_SKIP_SHELL', () => {
+		test('should include zoom commands so they are not consumed by kitty keyboard protocol', () => {
+			deepStrictEqual(
+				['workbench.action.zoomIn', 'workbench.action.zoomOut', 'workbench.action.zoomReset'].every(
+					cmd => DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(cmd)
+				),
+				true
+			);
 		});
 	});
 	suite('parseExitResult', () => {
@@ -565,106 +629,5 @@ suite('Workbench - TerminalInstance', () => {
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);
 		});
-	});
-});
-
-suite('TerminalInstanceColorProvider', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	let configurationService: TestConfigurationService;
-	let viewDescriptorService: TestViewDescriptorService;
-
-	function createColorProvider(location: TerminalLocation | undefined): TerminalInstanceColorProvider {
-		const instantiationService = workbenchInstantiationService({
-			configurationService: () => configurationService,
-		}, store);
-		viewDescriptorService = new TestViewDescriptorService();
-		instantiationService.stub(IViewDescriptorService, viewDescriptorService as Partial<IViewDescriptorService>);
-		return instantiationService.createInstance(TerminalInstanceColorProvider, new ImmortalReference(location));
-	}
-
-	setup(() => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: true
-				}
-			}
-		});
-	});
-
-	test('editor terminal with editorUseEditorBackground=true returns editor background', () => {
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#1e1e1e'));
-	});
-
-	test('editor terminal with editorUseEditorBackground=false and TERMINAL_BACKGROUND_COLOR defined returns terminal background', () => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: false
-				}
-			}
-		});
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#ff0000'));
-	});
-
-	test('editor terminal with editorUseEditorBackground=false and no TERMINAL_BACKGROUND_COLOR falls back to editor background', () => {
-		configurationService = new TestConfigurationService({
-			terminal: {
-				integrated: {
-					editorUseEditorBackground: false
-				}
-			}
-		});
-		const provider = createColorProvider(TerminalLocation.Editor);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#1e1e1e'));
-	});
-
-	test('panel terminal ignores editorUseEditorBackground and uses TERMINAL_BACKGROUND_COLOR', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		const theme = new TestColorTheme({
-			[editorBackground]: '#1e1e1e',
-			[TERMINAL_BACKGROUND_COLOR]: '#ff0000',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#ff0000'));
-	});
-
-	test('panel terminal without TERMINAL_BACKGROUND_COLOR falls back to panel background', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Panel);
-		const theme = new TestColorTheme({
-			[PANEL_BACKGROUND]: '#00ff00',
-			[SIDE_BAR_BACKGROUND]: '#0000ff',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#00ff00'));
-	});
-
-	test('sidebar terminal without TERMINAL_BACKGROUND_COLOR falls back to sidebar background', () => {
-		const provider = createColorProvider(TerminalLocation.Panel);
-		viewDescriptorService.moveTerminalToLocation(ViewContainerLocation.Sidebar);
-		const theme = new TestColorTheme({
-			[PANEL_BACKGROUND]: '#00ff00',
-			[SIDE_BAR_BACKGROUND]: '#0000ff',
-		});
-		const result = provider.getBackgroundColor(theme);
-		deepStrictEqual(result, Color.fromHex('#0000ff'));
 	});
 });

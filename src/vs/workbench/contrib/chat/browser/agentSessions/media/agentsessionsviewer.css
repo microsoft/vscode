@@ -131,37 +131,12 @@
 				align-items: center;
 				justify-content: center;
 
-				&.codicon.codicon-session-in-progress {
-					color: var(--vscode-textLink-foreground);
-				}
-
-				&.codicon.codicon-error {
-					color: var(--vscode-errorForeground);
-				}
-
-				&.codicon.codicon-circle-filled {
-					color: var(--vscode-textLink-foreground);
-				}
-
-				&.codicon.codicon-circle-filled.needs-input {
-					color: var(--vscode-list-warningForeground);
+				&.needs-input {
 					animation: agent-session-needs-input-pulse 2s ease-in-out infinite;
 				}
 
-				&.codicon.codicon-circle-small-filled {
-					color: var(--vscode-agentSessionReadIndicator-foreground);
-				}
-
-				&.codicon.codicon-git-pull-request {
-					color: var(--vscode-charts-green);
-				}
-
-				&.codicon.codicon-git-merge {
-					color: var(--vscode-charts-purple);
-				}
-
 				@media (prefers-reduced-motion: reduce) {
-					&.codicon.codicon-circle-filled.needs-input {
+					&.needs-input {
 						animation: none;
 					}
 				}
@@ -374,6 +349,10 @@
 
 		.agent-session-section-label {
 			flex: 1;
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 
 		.agent-session-section-count {
@@ -395,8 +374,7 @@
 		}
 	}
 
-	.monaco-list-row:hover .agent-session-section .agent-session-section-count,
-	.monaco-list-row.focused:not(.selected) .agent-session-section .agent-session-section-count {
+	.monaco-list-row:hover .agent-session-section .agent-session-section-count {
 		display: none;
 	}
 

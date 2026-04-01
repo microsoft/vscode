@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
+import { URI } from '../../../../base/common/uri.js';
+import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { ToolResultContentType, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationStatus, ToolResultContentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -28,6 +30,11 @@ export class MockAgent implements IAgent {
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: string }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
+	readonly setClientCustomizationsCalls: { clientId: string; customizations: ICustomizationRef[] }[] = [];
+	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
+
+	/** Configurable return value for getCustomizations. */
+	customizations: ICustomizationRef[] = [];
 
 	/** Configurable return value for getSessionMessages. */
 	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
@@ -95,6 +102,27 @@ export class MockAgent implements IAgent {
 	async authenticate(resource: string, token: string): Promise<boolean> {
 		this.authenticateCalls.push({ resource, token });
 		return true;
+	}
+
+	getCustomizations(): ICustomizationRef[] {
+		return this.customizations;
+	}
+
+	async setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+		this.setClientCustomizationsCalls.push({ clientId, customizations });
+		const results: ISyncedCustomization[] = customizations.map(c => ({
+			customization: {
+				customization: c,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			},
+		}));
+		progress?.(results);
+		return results;
+	}
+
+	setCustomizationEnabled(uri: string, enabled: boolean): void {
+		this.setCustomizationEnabledCalls.push({ uri, enabled });
 	}
 
 	async shutdown(): Promise<void> { }
@@ -212,14 +240,88 @@ export class ScriptedMockAgent implements IAgent {
 					toolInput: 'echo test',
 					confirmationTitle: 'Run a test command',
 				};
-				setTimeout(() => {
+				(async () => {
+					await timeout(10);
 					this._onDidSessionProgress.fire(toolStartEvent);
-					setTimeout(() => this._onDidSessionProgress.fire(toolReadyEvent), 5);
-				}, 10);
+					await timeout(5);
+					this._onDidSessionProgress.fire(toolReadyEvent);
+				})();
 				this._pendingPermissions.set('tc-perm-1', (approved) => {
 					if (approved) {
 						this._fireSequence(session, [
 							{ type: 'delta', session, messageId: 'msg-1', content: 'Allowed.' },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'write-file': {
+				// Fire tool_start + tool_ready with write permission for a regular file (should be auto-approved)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
+					// Auto-approved writes resolve immediately — complete the tool and turn
+					await timeout(10);
+					this._fireSequence(session, [
+						{ type: 'tool_complete', session, toolCallId: 'tc-write-1', result: { pastTenseMessage: 'Wrote file', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+						{ type: 'idle', session },
+					]);
+				})();
+				break;
+			}
+
+			case 'write-env': {
+				// Fire tool_start + tool_ready with write permission for .env (should be blocked)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-env-1', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' });
+				})();
+				this._pendingPermissions.set('tc-write-env-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-write-env-1', result: { pastTenseMessage: 'Wrote .env', content: [{ type: ToolResultContentType.Text, text: 'ok' }], success: true } },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'run-safe-command': {
+				// Fire tool_start + tool_ready with shell permission for an allowed command (should be auto-approved)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-shell-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-shell-1', invocationMessage: 'ls -la', permissionKind: 'shell', toolInput: 'ls -la' });
+					// Auto-approved shell commands resolve immediately
+					await timeout(10);
+					this._fireSequence(session, [
+						{ type: 'tool_complete', session, toolCallId: 'tc-shell-1', result: { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true } },
+						{ type: 'idle', session },
+					]);
+				})();
+				break;
+			}
+
+			case 'run-dangerous-command': {
+				// Fire tool_start + tool_ready with shell permission for a denied command (should require confirmation)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-shell-deny-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-shell-deny-1', invocationMessage: 'rm -rf /', permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' });
+				})();
+				this._pendingPermissions.set('tc-shell-deny-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-shell-deny-1', result: { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: '' }], success: true } },
 							{ type: 'idle', session },
 						]);
 					}
@@ -254,6 +356,14 @@ export class ScriptedMockAgent implements IAgent {
 				]);
 				break;
 		}
+	}
+
+	async setClientCustomizations() {
+		return [];
+	}
+
+	setCustomizationEnabled() {
+
 	}
 
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
