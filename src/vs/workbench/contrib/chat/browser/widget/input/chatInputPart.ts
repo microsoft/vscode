@@ -587,7 +587,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
 			this._register(this.options.sessionTypePickerDelegate.onDidChangeActiveSessionProvider(async (newSessionType) => {
-				this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
+				this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(this.getCurrentSessionResource());
 				this.agentSessionTypeKey.set(newSessionType);
 				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(newSessionType));
 				this.updateWidgetLockStateFromSessionType(newSessionType);
@@ -853,7 +853,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._lastSessionPickerAction = action;
 		this._lastSessionPickerOptions = pickerOptions;
 
-		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
+		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(this.getCurrentSessionResource());
 		if (!result) {
 			return [];
 		}
@@ -1597,14 +1597,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * @returns The result containing visible group IDs and related context, or undefined
 	 *          if there are no visible option groups
 	 */
-	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(): {
+	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource: URI | undefined): {
 		visibleOptionGroups: IChatSessionProviderOptionGroup[];
 		allOptionGroups: IChatSessionProviderOptionGroup[];
-		sessionResource: URI | undefined;
 		effectiveSessionType: string;
 	} | undefined {
-		const sessionResource = this._widget?.viewModel?.model.sessionResource;
-
 		if (sessionResource) {
 			this.updateStateAndChatModeForSessionCustomAgentTarget(sessionResource);
 		}
@@ -1621,7 +1618,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatSessionHasOptions.set(true);
 		this.chatSessionOptionsValid.set(allOptionsValid);
 
-		return { ...result, sessionResource };
+		return result;
+	}
+
+	private getCurrentSessionResource() {
+		return this._widget?.viewModel?.model.sessionResource;
 	}
 
 	private areAllOptionsValid(sessionResource: URI, visibleOptionGroups: readonly IChatSessionProviderOptionGroup[]): boolean {
@@ -1730,7 +1731,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private refreshChatSessionPickers(): void {
 		// Use the shared helper to compute visibility and update context keys
-		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
+		const sessionResource = this.getCurrentSessionResource();
+		const result = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
 
 		if (!result) {
 			// No visible options - helper already updated context keys
@@ -1738,7 +1740,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const { allOptionGroups, visibleOptionGroups, sessionResource } = result;
+		const { allOptionGroups, visibleOptionGroups } = result;
 
 		// Check if widgets need recreation (different set of visible groups)
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
@@ -1940,7 +1942,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
-		this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys();
+		this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(this.getCurrentSessionResource());
 
 		// Initialize lock state when rendering with a pre-selected session provider (e.g., welcome view restore)
 		const delegate = this.options.sessionTypePickerDelegate;
