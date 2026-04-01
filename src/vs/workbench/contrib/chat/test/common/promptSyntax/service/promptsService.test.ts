@@ -3588,8 +3588,7 @@ suite('PromptsService', () => {
 
 			const defaultSkillCommand = slashCommands.find(cmd => cmd.name === 'default-skill');
 			assert.ok(defaultSkillCommand, 'Should find default skill in slash commands');
-			assert.strictEqual(defaultSkillCommand.userInvocable, undefined,
-				'Should have userInvocable=undefined when attribute is not specified');
+			assert.strictEqual(defaultSkillCommand.userInvocable, true, 'Should have userInvocable=true when attribute is not specified');
 
 			// Verify the filtering logic would correctly include this skill (undefined !== false is true)
 			const filteredCommands = slashCommands.filter(c => c.userInvocable !== false);
