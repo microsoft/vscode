@@ -19,7 +19,7 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IObservabl
 import { basename } from '../../../../base/common/path.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
+import { dirname, extUriBiasedIgnorePathCase, isEqual, relativePath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -136,7 +136,6 @@ interface IChangesRootItem {
 	readonly type: 'root';
 	readonly uri: URI;
 	readonly name: string;
-	readonly description?: string;
 }
 
 interface IChangesTreeRootInfo {
@@ -552,8 +551,7 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
-		@IGitHubService private readonly gitHubService: IGitHubService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IGitHubService private readonly gitHubService: IGitHubService
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1227,29 +1225,35 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
+		// Get the repository details for the session
+		// - uri: location of the repository
+		// - workingDirectory (optional): location of the worktree
+		const activeSession = this.sessionManagementService.activeSession.get();
+		const repository = activeSession?.workspace.get()?.repositories[0];
+		const workspaceFolderUri = repository?.workingDirectory ?? repository?.uri;
+		if (!repository?.uri || !workspaceFolderUri) {
 			return undefined;
 		}
 
 		const sampleUri = items[0].uri;
-		let resourceTreeRootUri = workspaceFolder.uri;
+		let resourceTreeRootUri = workspaceFolderUri;
 
 		if (sampleUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			const parts = sampleUri.path.split('/').filter(Boolean);
 			if (parts.length >= 3) {
 				resourceTreeRootUri = sampleUri.with({ path: '/' + parts.slice(0, 3).join('/'), query: '', fragment: '' });
 			}
-		} else if (sampleUri.scheme !== workspaceFolder.uri.scheme || sampleUri.authority !== workspaceFolder.uri.authority) {
-			resourceTreeRootUri = sampleUri.with({ path: workspaceFolder.uri.path, authority: workspaceFolder.uri.authority, query: '', fragment: '' });
+		} else if (sampleUri.scheme !== workspaceFolderUri.scheme || sampleUri.authority !== workspaceFolderUri.authority) {
+			resourceTreeRootUri = sampleUri.with({ path: workspaceFolderUri.path, authority: workspaceFolderUri.authority, query: '', fragment: '' });
 		}
 
 		return {
 			root: {
 				type: 'root',
-				uri: workspaceFolder.uri,
-				name: workspaceFolder.name,
-				description: this.viewModel.activeSessionBranchNameObs.get(),
+				uri: workspaceFolderUri,
+				name: repository.workingDirectory
+					? `${basename(repository.uri.fsPath)} (${this.viewModel.activeSessionBranchNameObs.get()})`
+					: basename(repository.uri.fsPath),
 			},
 			resourceTreeRootUri,
 		};
@@ -1358,7 +1362,13 @@ export class ChangesViewPane extends ViewPane {
 			'ChangesViewTree',
 			container,
 			new ChangesTreeDelegate(),
-			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, MenuId.ChatEditingSessionChangeToolbar, actionRunner)],
+			[this.instantiationService.createInstance(ChangesTreeRenderer, this.viewModel, resourceLabels, actionRunner,
+				() => {
+					// Pass in the tree root to be used to compute the label description
+					const activeSession = this.sessionManagementService.activeSession.get();
+					const repository = activeSession?.workspace.get()?.repositories[0];
+					return repository?.workingDirectory ?? repository?.uri;
+				})],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -1498,8 +1508,8 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	constructor(
 		private viewModel: ChangesViewModel,
 		private labels: ResourceLabels,
-		private menuId: MenuId | undefined,
 		private actionRunner: ActionRunner | undefined,
+		private getRootUri: () => URI | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1523,24 +1533,20 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		lineCountsContainer.appendChild(removedSpan);
 		label.element.appendChild(lineCountsContainer);
 
-		let toolbar: MenuWorkbenchToolBar | undefined;
-		let contextKeyService: IContextKeyService | undefined;
-		if (this.menuId) {
-			const actionBarContainer = $('.chat-collapsible-list-action-bar');
-			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
-			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
-			label.element.appendChild(actionBarContainer);
+		const actionBarContainer = $('.chat-collapsible-list-action-bar');
+		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
+		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ChatEditingSessionChangeToolbar, { menuOptions: { shouldForwardArgs: true, arg: undefined }, actionRunner: this.actionRunner }));
+		label.element.appendChild(actionBarContainer);
 
-			templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
-				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				return activeSession?.sessionType ?? '';
-			}));
+		templateDisposables.add(bindContextKey(ChatContextKeys.agentSessionType, contextKeyService, reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.sessionType ?? '';
+		}));
 
-			templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
-				return this.viewModel.versionModeObs.read(reader);
-			}));
-		}
+		templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
+			return this.viewModel.versionModeObs.read(reader);
+		}));
 
 		const decorationBadge = dom.$('.changes-decoration-badge');
 		label.element.appendChild(decorationBadge);
@@ -1591,11 +1597,21 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	}
 
 	private renderFileElement(data: IChangesFileItem, templateData: IChangesTreeTemplate): void {
-		templateData.label.setFile(data.uri, {
+		const root = this.getRootUri();
+		const viewMode = this.viewModel.viewModeObs.get();
+
+		templateData.label.setResource({
+			resource: data.uri,
+			name: basename(data.uri.path),
+			description: viewMode === ChangesViewMode.List
+				? root
+					? relativePath(root, dirname(data.uri))
+					: undefined
+				: undefined,
+		}, {
 			fileKind: FileKind.FILE,
 			fileDecorations: undefined,
-			strikethrough: data.changeType === 'deleted',
-			hidePath: this.viewModel.viewModeObs.get() === ChangesViewMode.Tree
+			strikethrough: data.changeType === 'deleted'
 		});
 
 		const showChangeDecorations = data.changeType !== 'none';
