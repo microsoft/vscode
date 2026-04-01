@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, constObservable, derived, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
@@ -113,11 +114,23 @@ export class DocumentDiffItemViewModel extends Disposable {
 
 	public readonly isAlive = observableValue<boolean>(this, true);
 
+	private _getDiffEditorOptions(): IDiffEditorOptions {
+		const options = this.documentDiffItem.options ?? {};
+		return {
+			...options,
+			hideUnchangedRegions: {
+				...(options.hideUnchangedRegions ?? {}),
+				enabled: this._configurationService.getValue<boolean>('multiDiffEditor.hideUnchangedRegions.enabled') ?? true,
+			},
+		};
+	}
+
 	constructor(
 		documentDiffItem: RefCounted<IDocumentDiffItem>,
 		private readonly _editorViewModel: MultiDiffEditorViewModel,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -127,21 +140,20 @@ export class DocumentDiffItemViewModel extends Disposable {
 
 		this.documentDiffItemRef = this._register(documentDiffItem.createNewRef(this));
 
-		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
-			return {
-				...options,
-				hideUnchangedRegions: {
-					enabled: true,
-				},
-			};
-		}
-
-		const options = this._instantiationService.createInstance(DiffEditorOptions, updateOptions(this.documentDiffItem.options || {}));
+		const options = this._instantiationService.createInstance(DiffEditorOptions, this._getDiffEditorOptions());
+		const refreshOptions = () => {
+			options.updateOptions(this._getDiffEditorOptions());
+		};
 		if (this.documentDiffItem.onOptionsDidChange) {
 			this._register(this.documentDiffItem.onOptionsDidChange(() => {
-				options.updateOptions(updateOptions(this.documentDiffItem.options || {}));
+				refreshOptions();
 			}));
 		}
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('multiDiffEditor.hideUnchangedRegions.enabled')) {
+				refreshOptions();
+			}
+		}));
 
 		const diffEditorViewModelStore = new DisposableStore();
 		const originalTextModel = this.documentDiffItem.original ?? diffEditorViewModelStore.add(this._modelService.createModel('', null));

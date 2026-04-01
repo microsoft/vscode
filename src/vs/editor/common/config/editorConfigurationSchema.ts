@@ -301,6 +301,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
 			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
 		},
+		'multiDiffEditor.hideUnchangedRegions.enabled': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('multiDiffEditor.hideUnchangedRegions.enabled', "Controls whether the multi-file diff editor shows unchanged regions."),
+		},
 	}
 };
 

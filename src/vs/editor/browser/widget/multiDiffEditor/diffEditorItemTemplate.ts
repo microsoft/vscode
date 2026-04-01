@@ -10,6 +10,7 @@ import { autorun, derived, globalTransaction, observableValue } from '../../../.
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, type IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -69,6 +70,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		private readonly _overflowWidgetsDomNode: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService _parentContextKeyService: IContextKeyService,
 	) {
 		super();
@@ -191,6 +193,12 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
 			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
 		}));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('multiDiffEditor.hideUnchangedRegions.enabled')) {
+				this._applyEditorOptions();
+			}
+		}));
 	}
 
 	public setScrollLeft(left: number): void {
@@ -205,26 +213,37 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 	private _data: TemplateData | undefined;
 
+	private _getEditorOptions(): IDiffEditorOptions {
+		const options = this._data?.viewModel.documentDiffItem.options ?? {};
+		return {
+			...options,
+			scrollBeyondLastLine: false,
+			hideUnchangedRegions: {
+				...(options.hideUnchangedRegions ?? {}),
+				enabled: this._configurationService.getValue<boolean>('multiDiffEditor.hideUnchangedRegions.enabled') ?? true,
+			},
+			scrollbar: {
+				vertical: 'hidden',
+				horizontal: 'hidden',
+				handleMouseWheel: false,
+				useShadows: false,
+			},
+			renderOverviewRuler: false,
+			fixedOverflowWidgets: true,
+			overviewRulerBorder: false,
+		};
+	}
+
+	private _applyEditorOptions(): void {
+		if (!this._data) {
+			return;
+		}
+
+		this.editor.updateOptions(this._getEditorOptions());
+	}
+
 	public setData(data: TemplateData | undefined): void {
 		this._data = data;
-		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
-			return {
-				...options,
-				scrollBeyondLastLine: false,
-				hideUnchangedRegions: {
-					enabled: true,
-				},
-				scrollbar: {
-					vertical: 'hidden',
-					horizontal: 'hidden',
-					handleMouseWheel: false,
-					useShadows: false,
-				},
-				renderOverviewRuler: false,
-				fixedOverflowWidgets: true,
-				overviewRulerBorder: false,
-			};
-		}
 
 		if (!data) {
 			globalTransaction(tx => {
@@ -264,11 +283,11 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);
 			this.editor.setDiffModel(data.viewModel.diffEditorViewModelRef, tx);
-			this.editor.updateOptions(updateOptions(value.options ?? {}));
+			this._applyEditorOptions();
 		});
 		if (value.onOptionsDidChange) {
 			this._dataStore.add(value.onOptionsDidChange(() => {
-				this.editor.updateOptions(updateOptions(value.options ?? {}));
+				this._applyEditorOptions();
 			}));
 		}
 		data.viewModel.isAlive.recomputeInitiallyAndOnChange(this._dataStore, value => {
