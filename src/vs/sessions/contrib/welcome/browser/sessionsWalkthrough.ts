@@ -360,7 +360,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			this._resolveOutcome('dismissed');
 		}
 		super.dispose();
-		this.previouslyFocusedElement?.isConnected && this.previouslyFocusedElement.focus();
+		if (this.previouslyFocusedElement?.isConnected) {
+			this.previouslyFocusedElement.focus();
+		}
 	}
 
 	private _trapFocus(event: KeyboardEvent): void {
