@@ -584,7 +584,7 @@ suite('ChatService', () => {
 	test('disabled Claude hooks hint is shown once per workspace (fix for #295079)', async () => {
 		// Set up a prompts service that reports disabled Claude hooks
 		const mockPromptsService = new class extends MockPromptsService {
-			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+			override getHooks(_token: CancellationToken): Promise<IConfiguredHooksInfo> {
 				return Promise.resolve({ hooks: {}, hasDisabledClaudeHooks: true });
 			}
 		}();
@@ -632,7 +632,7 @@ suite('ChatService', () => {
 		// followed by the real resent request (with disabled hooks).
 		const mockPromptsService = new class extends MockPromptsService {
 			private _callCount = 0;
-			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+			override getHooks(_token: CancellationToken): Promise<IConfiguredHooksInfo> {
 				this._callCount++;
 				// First call (setup agent): no disabled hooks
 				// Second call (real request after resend): disabled hooks present

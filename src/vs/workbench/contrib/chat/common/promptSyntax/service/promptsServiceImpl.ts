@@ -590,7 +590,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedSlashCommands.onDidChangePromise;
 	}
 
-	public async getPromptSlashCommands(token: CancellationToken, _sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]> {
+	public async getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		const discoveryInfo = await this.cachedSlashCommands.get(token);
 		const result = this.slashCommandsFromDiscoveryInfo(discoveryInfo);
 		return result;
@@ -703,7 +703,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedInstructions.onDidChangePromise;
 	}
 
-	public async getCustomAgents(token: CancellationToken, _sessionResource?: URI): Promise<readonly ICustomAgent[]> {
+	public async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
 		const discoveryInfo = await this.cachedCustomAgents.get(token);
 		const result = this.agentsFromDiscoveryInfo(discoveryInfo);
 		return result;
@@ -1112,7 +1112,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedSkills.onDidChangePromise;
 	}
 
-	public async findAgentSkills(token: CancellationToken, _sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
+	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		if (!useAgentSkills) {
 			return undefined;
@@ -1251,7 +1251,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return { type: PromptsType.skill, files, sourceFolders, durationInMillis: stopWatch.elapsed() };
 	}
 
-	public async getHooks(token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined> {
+	public async getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined> {
 		const discoveryInfo = await this.cachedHooks.get(token);
 		const result = discoveryInfo.hooksInfo;
 		return result;
@@ -1272,7 +1272,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-	public async getInstructionFiles(token: CancellationToken, _sessionResource?: URI): Promise<readonly IPromptPath[]> {
+	public async getInstructionFiles(token: CancellationToken): Promise<readonly IPromptPath[]> {
 		const discoveryInfo = await this.cachedInstructions.get(token);
 		const result = discoveryInfo.files.filter(file => file.status === 'loaded').map(file => file.promptPath);
 		return result;

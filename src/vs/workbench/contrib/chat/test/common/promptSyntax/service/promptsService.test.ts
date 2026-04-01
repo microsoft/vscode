@@ -3936,7 +3936,7 @@ suite('PromptsService', () => {
 
 			testPluginsObservable.set([plugin], undefined);
 
-			const result = await service.getHooks(CancellationToken.None, URI.file('/session'));
+			const result = await service.getHooks(CancellationToken.None);
 			const capturedDiscoveryInfo = await service.getDiscoveryInfo(PromptsType.hook, CancellationToken.None);
 
 			assert.ok(result, 'Expected hooks result with plugin hooks');

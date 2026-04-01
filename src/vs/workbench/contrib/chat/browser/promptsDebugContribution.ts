@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatService } from '../common/chatService/chatService.js';
@@ -32,6 +33,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatService chatService: IChatService,
 		@IChatDebugService chatDebugService: IChatDebugService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 
@@ -42,8 +44,8 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 
 			try {
 				for (const promptType of [PromptsType.agent, PromptsType.instructions, PromptsType.prompt, PromptsType.skill, PromptsType.hook]) {
-
-					const { discoveryInfo, name, details, category } = await this.getDiscoveryLogEntry(promptType, cts.token);
+					const discoveryInfo = await this.promptsService.getDiscoveryInfo(promptType, cts.token);
+					const { name, details } = await this.getDiscoveryLogEntry(promptType, discoveryInfo);
 					const eventId = generateUuid();
 
 					this._discoveryEventDetails.set(eventId, discoveryInfo);
@@ -87,9 +89,11 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 						name,
 						newDetails,
 						undefined,
-						{ id: eventId, category },
+						{ id: eventId, category: 'discovery' },
 					);
 				}
+			} catch (error) {
+				logService.error('Error while logging prompt discovery info to chat debug service', error);
 			} finally {
 				cts.dispose();
 			}
@@ -104,8 +108,8 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	private async getDiscoveryLogEntry(promptType: PromptsType, token: CancellationToken): Promise<{ readonly name: string; readonly details?: string; readonly category: 'discovery'; readonly discoveryInfo: IPromptDiscoveryInfo }> {
-		const discoveryInfo = await this.promptsService.getDiscoveryInfo(promptType, token);
+	private async getDiscoveryLogEntry(promptType: PromptsType, discoveryInfo: IPromptDiscoveryInfo): Promise<{ readonly name: string; readonly details?: string }> {
+
 		const durationInMillis = discoveryInfo.durationInMillis;
 		const loadedCount = discoveryInfo.files.filter(file => file.status === 'loaded').length;
 		const skippedCount = discoveryInfo.files.length - loadedCount;
@@ -116,37 +120,28 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 					name: localize('promptsService.loadSlashCommands', 'Load Slash Commands'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedSlashCommand', 'Resolved {0} slash command in {1}ms', loadedCount, durationInMillis)
-						: localize('promptsDebugContribution.resolvedSlashCommands', 'Resolved {0} slash commands in {1}ms', loadedCount, durationInMillis),
-					category: 'discovery',
-					discoveryInfo
+						: localize('promptsDebugContribution.resolvedSlashCommands', 'Resolved {0} slash commands in {1}ms', loadedCount, durationInMillis)
 				};
 			case PromptsType.agent:
 				return {
 					name: localize('promptsService.loadAgents', 'Load Agents'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedAgent', 'Resolved {0} agent in {1}ms', loadedCount, durationInMillis)
-						: localize('promptsDebugContribution.resolvedAgents', 'Resolved {0} agents in {1}ms', loadedCount, durationInMillis),
-					category: 'discovery',
-					discoveryInfo
-
+						: localize('promptsDebugContribution.resolvedAgents', 'Resolved {0} agents in {1}ms', loadedCount, durationInMillis)
 				};
 			case PromptsType.skill:
 				return {
 					name: localize('promptsService.loadSkills', 'Load Skills'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedSkill', 'Resolved {0} skill in {1}ms', loadedCount, durationInMillis)
-						: localize('promptsDebugContribution.resolvedSkills', 'Resolved {0} skills in {1}ms', loadedCount, durationInMillis),
-					category: 'discovery',
-					discoveryInfo
+						: localize('promptsDebugContribution.resolvedSkills', 'Resolved {0} skills in {1}ms', loadedCount, durationInMillis)
 				};
 			case PromptsType.instructions:
 				return {
 					name: localize('promptsService.loadInstructions', 'Load Instructions'),
 					details: loadedCount === 1
 						? localize('promptsDebugContribution.resolvedInstruction', 'Resolved {0} instruction in {1}ms', loadedCount, durationInMillis)
-						: localize('promptsDebugContribution.resolvedInstructions', 'Resolved {0} instructions in {1}ms', loadedCount, durationInMillis),
-					category: 'discovery',
-					discoveryInfo
+						: localize('promptsDebugContribution.resolvedInstructions', 'Resolved {0} instructions in {1}ms', loadedCount, durationInMillis)
 				};
 			case PromptsType.hook: {
 				const hookDiscoveryInfo = discoveryInfo as IHookDiscoveryInfo;
@@ -160,9 +155,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 						: localize('promptsDebugContribution.resolvedHooks', 'Resolved {0} hooks in {1}ms', hookCount, durationInMillis);
 				return {
 					name: localize('promptsService.loadHooks', 'Load Hooks'),
-					details,
-					category: 'discovery',
-					discoveryInfo
+					details
 				};
 			}
 		}
