@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
-import { IChatModel, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
@@ -51,6 +51,7 @@ export interface IChatSessionProviderOptionGroup {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly selected?: IChatSessionProviderOptionItem;
 	readonly items: readonly IChatSessionProviderOptionItem[];
 	readonly searchable?: boolean;
 	readonly onSearch?: (query: string, token: CancellationToken) => Thenable<IChatSessionProviderOptionItem[]>;
@@ -243,6 +244,8 @@ export interface IChatSessionItemController {
 	refresh(token: CancellationToken): Promise<void>;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	getNewChatSessionInputState?(token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -308,6 +311,13 @@ export interface IChatSessionCustomizationsProvider {
 }
 
 
+export interface IChatSessionCommitEvent {
+	/** The original (untitled) session resource. */
+	readonly original: URI;
+	/** The committed (real) session resource. */
+	readonly committed: URI;
+}
+
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
 
 export interface IChatSessionsService {
@@ -316,6 +326,12 @@ export interface IChatSessionsService {
 	// #region Chat session item provider support
 	readonly onDidChangeItemsProviders: Event<{ readonly chatSessionType: string }>;
 	readonly onDidChangeSessionItems: Event<IChatSessionItemsDelta>;
+
+	/**
+	 * Fired when an untitled session is committed (URI swapped to a real resource)
+	 * after the first turn completes.
+	 */
+	readonly onDidCommitSession: Event<IChatSessionCommitEvent>;
 
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
@@ -412,10 +428,11 @@ export interface IChatSessionsService {
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 
-	getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined;
-	setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void;
-
-	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
+	/**
+	 * Get the default options for new sessions of this type, derived from option groups'
+	 * `selected` or `default` items.
+	 */
+	getNewChatSessionInputState(chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	/**
 	 * Creates a new chat session item using the controller's newChatSessionItemHandler.
@@ -428,6 +445,12 @@ export interface IChatSessionsService {
 	 * are redirected to the canonical (untitled) resource in the internal session map.
 	 */
 	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
+
+	/**
+	 * Fires {@link onDidCommitSession} to notify listeners that an untitled
+	 * session has been committed with a real resource URI.
+	 */
+	fireSessionCommitted(original: URI, committed: URI): void;
 
 	// #region Customizations provider support
 	readonly onDidChangeCustomizations: Event<{ readonly chatSessionType: string }>;

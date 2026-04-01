@@ -625,7 +625,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.ShellIntegrationTimeout]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to skip the wait entirely. The default value {1} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to {0} if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. The default value {0} uses a variable wait time based on whether shell integration injection is enabled and whether it's a remote window. Values between 1 and 499 are clamped to 500ms. Consider setting this to a large value if your shell starts very slowly.", '`-1`'),
 		type: 'integer',
 		minimum: -1,
 		maximum: 60000,
@@ -728,19 +728,67 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
-		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[]; allowTrustedDomains?: boolean }, valueAccessor) => {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxEnabled,
+		migrateFn: (value: boolean, valueAccessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value }]);
 			}
-			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxEnabled, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetwork,
+		migrateFn: (value: { allowedDomains?: string[]; deniedDomains?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value?.allowedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value: value.allowedDomains }]);
 			}
-			if (value?.allowTrustedDomains !== undefined && valueAccessor(TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.TerminalSandboxNetworkAllowTrustedDomains, { value: value.allowTrustedDomains }]);
+			if (value?.deniedDomains !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value: value.deniedDomains }]);
 			}
 			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetwork, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains,
+		migrateFn: (value: string[], valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkAllowedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkAllowedDomains, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains,
+		migrateFn: (value: string[], valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxNetworkDeniedDomains) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxNetworkDeniedDomains, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	},
+	{
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem,
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxLinuxFileSystem, { value: undefined }]);
+			return configurationKeyValuePairs;
+		}
+	}, {
+		key: TerminalContribSettingId.DeprecatedTerminalSandboxMacFileSystem,
+		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
+			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
+			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
+				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
+			}
+			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedTerminalSandboxMacFileSystem, { value: undefined }]);
 			return configurationKeyValuePairs;
 		}
 	}]);

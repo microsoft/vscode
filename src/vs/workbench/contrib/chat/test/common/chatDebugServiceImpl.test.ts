@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
@@ -355,8 +356,14 @@ suite('ChatDebugServiceImpl', () => {
 			};
 
 			disposables.add(service.registerProvider(provider));
-			// Should not throw
-			await service.invokeProviders(errorSession);
+			// Suppress the expected onUnexpectedError from _invokeProvider
+			const origHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(() => { });
+			try {
+				await service.invokeProviders(errorSession);
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(origHandler);
+			}
 			assert.strictEqual(service.getEvents(errorSession).length, 0);
 		});
 	});

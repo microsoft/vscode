@@ -7,9 +7,10 @@ import assert from 'assert';
 import { ChildProcess, fork } from 'child_process';
 import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
+import { timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISubscribeResult } from '../../common/state/protocol/commands.js';
-import type { IActionEnvelope, IResponsePartAction, ISessionAddedNotification, ISessionRemovedNotification, IUsageAction } from '../../common/state/sessionActions.js';
+import type { IActionEnvelope, IResponsePartAction, ISessionAddedNotification, ISessionRemovedNotification, ITitleChangedAction, IUsageAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import {
 	isJsonRpcNotification,
@@ -25,8 +26,8 @@ import {
 	type IProtocolMessage,
 	type IReconnectResult
 } from '../../common/state/sessionProtocol.js';
-import { ResponsePartKind, type IMarkdownResponsePart, type ISessionState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
-import { PRE_EXISTING_SESSION_URI } from './mockAgent.js';
+import { PendingMessageKind, ResponsePartKind, type IMarkdownResponsePart, type ISessionState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { MOCK_AUTO_TITLE, PRE_EXISTING_SESSION_URI } from './mockAgent.js';
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -241,10 +242,10 @@ function getActionEnvelope(n: IAhpNotification): IActionEnvelope {
 }
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
-async function createAndSubscribeSession(c: TestProtocolClient, clientId: string): Promise<string> {
+async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
 	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
 
-	await c.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+	await c.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
@@ -697,6 +698,213 @@ suite('Protocol WebSocket E2E', function () {
 		assert.strictEqual(sessionAddedNotifs.length, 0, 'restore should not emit sessionAdded');
 	});
 
+	// ---- Multi-client tests -----------------------------------------------------
+
+	test('sessionAdded notification is broadcast to all connected clients', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-broadcast-add-1' });
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-broadcast-add-2' });
+
+		client.clearReceived();
+		client2.clearReceived();
+
+		await client.call('createSession', { session: nextSessionUri(), provider: 'mock' });
+
+		const n1 = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		const n2 = await client2.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		assert.ok(n1, 'client 1 should receive sessionAdded');
+		assert.ok(n2, 'client 2 should receive sessionAdded');
+
+		const uri1 = ((n1.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
+		const uri2 = ((n2.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary.resource;
+		assert.strictEqual(uri1, uri2, 'both clients should see the same session URI');
+
+		client2.close();
+	});
+
+	test('sessionRemoved notification is broadcast to all connected clients', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-broadcast-remove-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-broadcast-remove-2' });
+		client2.clearReceived();
+
+		await client.call('disposeSession', { session: sessionUri });
+
+		const n1 = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+		);
+		const n2 = await client2.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+		);
+		assert.ok(n1, 'client 1 should receive sessionRemoved');
+		assert.ok(n2, 'client 2 should receive sessionRemoved even without subscribing');
+
+		const removed1 = (n1.params as INotificationBroadcastParams).notification as ISessionRemovedNotification;
+		const removed2 = (n2.params as INotificationBroadcastParams).notification as ISessionRemovedNotification;
+		assert.strictEqual(removed1.session.toString(), sessionUri.toString());
+		assert.strictEqual(removed2.session.toString(), sessionUri.toString());
+
+		client2.close();
+	});
+
+	test('client B sends message on session created by client A', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-cross-msg-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-cross-msg-2' });
+		await client2.call('subscribe', { resource: sessionUri });
+		client.clearReceived();
+		client2.clearReceived();
+
+		// Client B dispatches the turn
+		dispatchTurnStarted(client2, sessionUri, 'turn-cross', 'hello', 1);
+
+		const r1 = await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		const r2 = await client2.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		assert.ok(r1, 'client A should see responsePart from client B turn');
+		assert.ok(r2, 'client B should see its own responsePart');
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		client2.close();
+	});
+
+	test('both clients receive full tool progress updates', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-tool-progress-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-tool-progress-2' });
+		await client2.call('subscribe', { resource: sessionUri });
+		client.clearReceived();
+		client2.clearReceived();
+
+		dispatchTurnStarted(client, sessionUri, 'turn-tool-mc', 'use-tool', 1);
+
+		// Both clients should see the full tool lifecycle
+		for (const c of [client, client2]) {
+			await c.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+			await c.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+			await c.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
+			await c.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+			await c.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		}
+
+		client2.close();
+	});
+
+	test('unsubscribed client receives no actions but still gets notifications', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-scoping-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-scoping-2' });
+		// Client 2 does NOT subscribe to the session
+		client2.clearReceived();
+
+		dispatchTurnStarted(client, sessionUri, 'turn-scoped', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Give some time for any stray actions to arrive
+		await new Promise(resolve => setTimeout(resolve, 300));
+		const sessionActions = client2.receivedNotifications(n => n.method === 'action');
+		assert.strictEqual(sessionActions.length, 0, 'unsubscribed client should receive no session actions');
+
+		// But disposing the session should still broadcast a notification
+		client2.clearReceived();
+		await client.call('disposeSession', { session: sessionUri });
+
+		const removed = await client2.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionRemoved'
+		);
+		assert.ok(removed, 'unsubscribed client should still receive sessionRemoved notification');
+
+		client2.close();
+	});
+
+	test('late subscriber gets current state via snapshot', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-late-sub');
+		dispatchTurnStarted(client, sessionUri, 'turn-late', 'hello', 1);
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Client 2 joins after the turn has completed
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-late-sub-2' });
+
+		const result = await client2.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = result.snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 1, `late subscriber should see completed turn, got ${state.turns.length}`);
+		assert.strictEqual(state.turns[0].id, 'turn-late');
+		assert.strictEqual(state.turns[0].state, 'complete');
+
+		client2.close();
+	});
+
+	test('permission flow: client B confirms tool started by client A', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-cross-perm-1');
+
+		const client2 = new TestProtocolClient(server.port);
+		await client2.connect();
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-cross-perm-2' });
+		await client2.call('subscribe', { resource: sessionUri });
+		client.clearReceived();
+		client2.clearReceived();
+
+		// Client A starts the permission turn
+		dispatchTurnStarted(client, sessionUri, 'turn-cross-perm', 'permission', 1);
+
+		// Both clients should see tool_start and tool_ready
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client2.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+		await client2.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+
+		// Client B confirms the tool call
+		client2.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/toolCallConfirmed',
+				session: sessionUri,
+				turnId: 'turn-cross-perm',
+				toolCallId: 'tc-perm-1',
+				approved: true,
+			},
+		});
+
+		// Both clients should see the response and turn completion
+		await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		await client2.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+		await client2.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		client2.close();
+	});
+
 	test('malformed JSON message returns parse error', async function () {
 		this.timeout(10_000);
 
@@ -712,5 +920,354 @@ suite('Protocol WebSocket E2E', function () {
 		assert.strictEqual(response.error.code, JSON_RPC_PARSE_ERROR);
 
 		raw.close();
+	});
+
+	// ---- Edit auto-approve patterns -----------------------------------------
+
+	test('auto-approves write to regular file (no pending confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove', 'file:///workspace');
+		client.clearReceived();
+
+		// Start a turn that triggers a write permission request for a regular .ts file
+		dispatchTurnStarted(client, sessionUri, 'turn-autoapprove', 'write-file', 1);
+
+		// The write should be auto-approved — we should see tool_start, tool_complete, and turn_complete
+		// but NOT a pending-confirmation toolCallReady (one without `confirmed`).
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify no pending-confirmation toolCallReady was received
+		const pendingConfirmNotifs = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'session/toolCallReady')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { confirmed?: string };
+			return !action.confirmed;
+		});
+		assert.strictEqual(pendingConfirmNotifs.length, 0, 'should not have received pending-confirmation toolCallReady for auto-approved write');
+	});
+
+	test('blocks write to .env file (requires manual confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny', 'file:///workspace');
+		client.clearReceived();
+
+		// Start a turn that tries to write .env (blocked by default patterns)
+		dispatchTurnStarted(client, sessionUri, 'turn-deny', 'write-env', 1);
+
+		// The .env write should NOT be auto-approved — we should see toolCallReady (pending confirmation)
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+
+		// Confirm it manually to let the turn complete
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/toolCallConfirmed',
+				session: sessionUri,
+				turnId: 'turn-deny',
+				toolCallId: 'tc-write-env-1',
+				approved: true,
+				confirmed: 'user-action',
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
+
+	// ---- Session rename / title --------------------------------------------------
+
+	test('client titleChanged updates session state snapshot', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-titleChanged');
+
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/titleChanged',
+				session: sessionUri,
+				title: 'My Custom Title',
+			},
+		});
+
+		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
+		assert.strictEqual(titleAction.title, 'My Custom Title');
+
+		// Verify the snapshot reflects the new title
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.summary.title, 'My Custom Title');
+	});
+
+	test('agent-generated titleChanged is broadcast', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-agent-title');
+		dispatchTurnStarted(client, sessionUri, 'turn-title', 'with-title', 1);
+
+		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
+		assert.strictEqual(titleAction.title, MOCK_AUTO_TITLE);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify the snapshot reflects the auto-generated title
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.strictEqual(state.summary.title, MOCK_AUTO_TITLE);
+	});
+
+	test('renamed session title persists across listSessions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-title-list');
+
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/titleChanged',
+				session: sessionUri,
+				title: 'Persisted Title',
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+
+		// Poll listSessions until the persisted title appears (async DB write)
+		let session: { title: string } | undefined;
+		for (let i = 0; i < 20; i++) {
+			const result = await client.call<IListSessionsResult>('listSessions');
+			session = result.items.find(s => s.resource === sessionUri);
+			if (session?.title === 'Persisted Title') {
+				break;
+			}
+			await timeout(100);
+		}
+		assert.ok(session, 'session should appear in listSessions');
+		assert.strictEqual(session.title, 'Persisted Title');
+	});
+
+	// ---- Reasoning events -------------------------------------------------------
+
+	test('reasoning events produce reasoning response parts and append actions', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-reasoning');
+		dispatchTurnStarted(client, sessionUri, 'turn-reasoning', 'with-reasoning', 1);
+
+		// The first reasoning event produces a responsePart with kind Reasoning
+		const reasoningPart = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/responsePart')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as IResponsePartAction;
+			return action.part.kind === ResponsePartKind.Reasoning;
+		});
+		const reasoningAction = getActionEnvelope(reasoningPart).action as IResponsePartAction;
+		assert.strictEqual(reasoningAction.part.kind, ResponsePartKind.Reasoning);
+
+		// The second reasoning chunk produces a session/reasoning append action
+		const appendNotif = await client.waitForNotification(n => isActionNotification(n, 'session/reasoning'));
+		const appendAction = getActionEnvelope(appendNotif).action;
+		assert.strictEqual(appendAction.type, 'session/reasoning');
+		if (appendAction.type === 'session/reasoning') {
+			assert.strictEqual(appendAction.content, ' about this...');
+		}
+
+		// Then the markdown response part
+		const mdPart = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/responsePart')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as IResponsePartAction;
+			return action.part.kind === ResponsePartKind.Markdown;
+		});
+		assert.ok(mdPart);
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+	});
+
+	// ---- Queued messages --------------------------------------------------------
+
+	test('queued message is auto-consumed when session is idle', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-queue-idle');
+		client.clearReceived();
+
+		// Queue a message when the session is idle — server should immediately consume it
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/pendingMessageSet',
+				session: sessionUri,
+				kind: PendingMessageKind.Queued,
+				id: 'q-1',
+				userMessage: { text: 'hello' },
+			},
+		});
+
+		// The server should auto-consume the queued message and start a turn
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnStarted'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify the turn was created from the queued message
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 1);
+		assert.strictEqual(state.turns[state.turns.length - 1].userMessage.text, 'hello');
+		// Queue should be empty after consumption
+		assert.ok(!state.queuedMessages?.length, 'queued messages should be empty after consumption');
+	});
+
+	test('queued message waits for in-progress turn to complete', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-queue-wait');
+
+		// Start a turn first
+		dispatchTurnStarted(client, sessionUri, 'turn-first', 'hello', 1);
+
+		// Wait for the first turn's response to confirm it is in progress
+		await client.waitForNotification(n => isActionNotification(n, 'session/responsePart'));
+
+		// Queue a message while the turn is in progress
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/pendingMessageSet',
+				session: sessionUri,
+				kind: PendingMessageKind.Queued,
+				id: 'q-wait-1',
+				userMessage: { text: 'hello' },
+			},
+		});
+
+		// First turn should complete
+		const firstComplete = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/turnComplete')) {
+				return false;
+			}
+			return (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-first';
+		});
+		const firstSeq = getActionEnvelope(firstComplete).serverSeq;
+
+		// The queued message's turn should complete AFTER the first turn
+		const secondComplete = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/turnComplete')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return (envelope.action as { turnId: string }).turnId !== 'turn-first'
+				&& envelope.serverSeq > firstSeq;
+		});
+		assert.ok(secondComplete, 'should receive a second turnComplete from the queued message');
+
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.ok(state.turns.length >= 2, `expected >= 2 turns but got ${state.turns.length}`);
+	});
+
+	// ---- Steering messages ------------------------------------------------------
+
+	test('steering message is set and consumed by agent', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-steering');
+
+		// Start a turn first
+		dispatchTurnStarted(client, sessionUri, 'turn-steer', 'hello', 1);
+
+		// Set a steering message while the turn is in progress
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/pendingMessageSet',
+				session: sessionUri,
+				kind: PendingMessageKind.Steering,
+				id: 'steer-1',
+				userMessage: { text: 'Please be concise' },
+			},
+		});
+
+		// The steering message should be set in state initially
+		const setNotif = await client.waitForNotification(n => isActionNotification(n, 'session/pendingMessageSet'));
+		assert.ok(setNotif, 'should see pendingMessageSet action');
+
+		// The mock agent consumes steering and fires steering_consumed,
+		// which causes the server to dispatch pendingMessageRemoved
+		const removedNotif = await client.waitForNotification(n => isActionNotification(n, 'session/pendingMessageRemoved'));
+		assert.ok(removedNotif, 'should see pendingMessageRemoved after agent consumes steering');
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Steering should be cleared from state
+		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const state = snapshot.snapshot.state as ISessionState;
+		assert.ok(!state.steeringMessage, 'steering message should be cleared after consumption');
+	});
+
+	// ---- Shell auto-approve -------------------------------------------------
+
+	test('auto-approves allowed shell command (no pending confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-shell-approve');
+		client.clearReceived();
+
+		// Start a turn that triggers a shell permission request for "ls -la" (allowed command)
+		dispatchTurnStarted(client, sessionUri, 'turn-shell-approve', 'run-safe-command', 1);
+
+		// The shell command should be auto-approved — we should see tool_start, tool_complete, and turn_complete
+		// but NOT a pending-confirmation toolCallReady.
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallComplete'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Verify no pending-confirmation toolCallReady was received
+		const pendingConfirmNotifs = client.receivedNotifications(n => {
+			if (!isActionNotification(n, 'session/toolCallReady')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { confirmed?: string };
+			return !action.confirmed;
+		});
+		assert.strictEqual(pendingConfirmNotifs.length, 0, 'should not have received pending-confirmation toolCallReady for allowed shell command');
+	});
+
+	test('blocks denied shell command (requires manual confirmation)', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-shell-deny');
+		client.clearReceived();
+
+		// Start a turn that triggers a shell permission request for "rm -rf /" (denied command)
+		dispatchTurnStarted(client, sessionUri, 'turn-shell-deny', 'run-dangerous-command', 1);
+
+		// The denied command should NOT be auto-approved — we should see toolCallReady (pending confirmation)
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallStart'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'));
+
+		// Confirm it manually to let the turn complete
+		client.notify('dispatchAction', {
+			clientSeq: 2,
+			action: {
+				type: 'session/toolCallConfirmed',
+				session: sessionUri,
+				turnId: 'turn-shell-deny',
+				toolCallId: 'tc-shell-deny-1',
+				approved: true,
+				confirmed: 'user-action',
+			},
+		});
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
 	});
 });

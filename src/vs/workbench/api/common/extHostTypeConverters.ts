@@ -48,7 +48,8 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { ChatRequestHooks, IHookCommand, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { ChatRequestHooks, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { type IParsedHookCommand } from '../../../platform/agentPlugins/common/pluginParsers.js';
 import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -3512,6 +3513,12 @@ export namespace ChatLocation {
 	}
 }
 
+export namespace ChatSessionCustomizationType {
+	export function from(type: types.ChatSessionCustomizationType): string {
+		return type.id;
+	}
+}
+
 export namespace ChatPromptReference {
 	export function to(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], logService: ILogService): vscode.ChatPromptReference | undefined {
 		let value: vscode.ChatPromptReference['value'] = variable.value;
@@ -4148,7 +4155,7 @@ export namespace ChatRequestHooksConverter {
 }
 
 export namespace ChatHookCommand {
-	export function to(hook: IHookCommand): vscode.ChatHookCommand | undefined {
+	export function to(hook: IParsedHookCommand): vscode.ChatHookCommand | undefined {
 		const command = resolveEffectiveCommand(hook, OS);
 		if (!command) {
 			return undefined;
@@ -4205,36 +4212,6 @@ export namespace ChatSessionItem {
 			},
 			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
 			metadata: sessionContent.metadata,
-		};
-	}
-}
-
-export namespace ChatSessionCustomizations {
-	function commandFrom(cmd: vscode.Command): extHostProtocol.ICommandDto {
-		return {
-			id: cmd.command,
-			title: cmd.title,
-			tooltip: cmd.tooltip,
-			arguments: cmd.arguments,
-		};
-	}
-
-	export function fromItem(item: vscode.ChatSessionCustomizationItem): extHostProtocol.IChatSessionCustomizationItemDto {
-		return {
-			label: item.label,
-			description: item.description,
-			uri: item.uri,
-			storageLocation: item.storageLocation,
-			icon: item.icon ? { id: item.icon.id, color: item.icon.color } : undefined,
-		};
-	}
-
-	export function fromGroup(group: vscode.ChatSessionCustomizationItemGroup): extHostProtocol.IChatSessionCustomizationItemGroupDto {
-		return {
-			id: group.id,
-			items: group.items.map(fromItem),
-			commands: group.commands?.map(commandFrom),
-			itemCommands: group.itemCommands?.map(commandFrom),
 		};
 	}
 }

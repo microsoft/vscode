@@ -7,9 +7,10 @@ import { Event } from '../../../base/common/event.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
+import { AttachmentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -37,7 +38,7 @@ export interface IAgentSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
 }
 
 export type AgentProvider = string;
@@ -100,7 +101,7 @@ export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: string;
 	readonly session?: URI;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
@@ -239,12 +240,22 @@ export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
 	readonly toolInput?: string;
 	/** Short title for the confirmation prompt. */
 	readonly confirmationTitle?: StringOrMarkdown;
+	/** Kind of permission being requested (e.g. `'write'`, `'read'`). */
+	readonly permissionKind?: string;
+	/** File path associated with the permission request. */
+	readonly permissionPath?: string;
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
 export interface IAgentReasoningEvent extends IAgentProgressEventBase {
 	readonly type: 'reasoning';
 	readonly content: string;
+}
+
+/** A steering message was consumed (sent to the model). */
+export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
+	readonly type: 'steering_consumed';
+	readonly id: string;
 }
 
 export type IAgentProgressEvent =
@@ -257,7 +268,8 @@ export type IAgentProgressEvent =
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
 	| IAgentUsageEvent
-	| IAgentReasoningEvent;
+	| IAgentReasoningEvent
+	| IAgentSteeringConsumedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -352,6 +364,21 @@ export interface IAgent {
 	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
+
+	/**
+	 * Receives client-provided customization refs and syncs them (e.g. copies
+	 * plugin files to local storage). Returns per-customization status with
+	 * local plugin directories.
+	 *
+	 * The agent MAY defer a client restart until all active sessions are idle.
+	 */
+	setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+
+	/**
+	 * Notifies the agent that a customization has been toggled on or off.
+	 * The agent MAY restart its client before the next message is sent.
+	 */
+	setCustomizationEnabled(uri: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
@@ -452,6 +479,12 @@ export interface IAgentService {
 	 * or reading files from the remote filesystem).
 	 */
 	fetchContent(uri: URI): Promise<IFetchContentResult>;
+
+	/**
+	 * Write content to a file on the agent host's filesystem.
+	 * Used for undo/redo operations on file edits.
+	 */
+	writeFile(params: IWriteFileParams): Promise<IWriteFileResult>;
 }
 
 /**
@@ -464,6 +497,9 @@ export interface IAgentService {
 export interface IAgentConnection extends IAgentService {
 	/** Unique identifier for this client connection, used as the origin in action envelopes. */
 	readonly clientId: string;
+
+	/** Allocate the next client sequence number for action dispatch on this connection. */
+	nextClientSeq(): number;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');

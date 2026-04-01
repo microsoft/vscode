@@ -13,7 +13,8 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
@@ -42,6 +43,7 @@ export class IsolationPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -58,11 +60,12 @@ export class IsolationPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			if (session instanceof CopilotCLISession) {
-				const isLoading = session.loading.read(reader);
-				this._hasGitRepo = !isLoading && !!session.gitRepository;
+			const isLoading = session?.loading.read(reader);
+			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			if (providerSession) {
+				this._hasGitRepo = !isLoading && !!providerSession.gitRepository;
 				// Read isolation mode from session — session is the source of truth
-				session.isolationModeObservable.read(reader);
+				providerSession.isolationMode.read(reader);
 			} else {
 				this._hasGitRepo = false;
 			}
@@ -72,7 +75,8 @@ export class IsolationPicker extends Disposable {
 
 	private _getSessionIsolationMode(): IsolationMode {
 		const session = this.sessionsManagementService.activeSession.get();
-		return session instanceof CopilotCLISession ? session.isolationMode : 'worktree';
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		return providerSession?.isolationMode.get() ?? 'worktree';
 	}
 
 	render(container: HTMLElement): void {
@@ -151,10 +155,8 @@ export class IsolationPicker extends Disposable {
 
 	private _setModeOnSession(mode: IsolationMode): void {
 		const session = this.sessionsManagementService.activeSession.get();
-		if (!(session instanceof CopilotCLISession)) {
-			throw new Error('IsolationPicker requires a CopilotCLISession');
-		}
-		session.setIsolationMode(mode);
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		providerSession?.setIsolationMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {

@@ -14,16 +14,16 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, SessionsConfigurationService, ITaskEntry } from '../../browser/sessionsConfigurationService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
-import { ISessionData, SessionStatus } from '../../../sessions/common/sessionData.js';
+import { IChat, ISession, SessionStatus } from '../../../sessions/common/sessionData.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
-function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionData {
+function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession {
 	const workspace = opts.repository ? {
 		label: 'test',
 		icon: Codicon.folder,
@@ -31,31 +31,49 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISessionD
 			uri: opts.repository,
 			workingDirectory: opts.worktree,
 			detail: undefined,
+			baseBranchName: undefined,
 			baseBranchProtected: undefined,
 		}],
 		requiresWorkspaceTrust: false,
 	} : undefined;
-	return {
-		sessionId: 'test:session',
+	const chat: IChat = {
 		resource: URI.parse('file:///session'),
-		providerId: 'test',
-		sessionType: 'background',
-		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('workspace', workspace),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
 		changes: observableValue('changes', []),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
-		loading: observableValue('loading', false),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
-		pullRequest: observableValue('pullRequest', undefined),
 	};
+	const session: ISession = {
+		sessionId: 'test:session',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: 'background',
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('workspace', workspace),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('gitHubInfo', undefined),
+		chats: observableValue('chats', [chat]),
+		mainChat: chat,
+	};
+	return session;
 }
 
 function makeTask(label: string, command?: string, inSessions?: boolean): ITaskEntry {
@@ -81,10 +99,9 @@ suite('SessionsConfigurationService', () => {
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
 	let ranTasks: { label: string }[];
-	let committedFiles: { session: ISessionData; fileUris: URI[] }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
-	let activeSessionObs: ReturnType<typeof observableValue<ISessionData | undefined>>;
+	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let tasksByLabel: Map<string, Task>;
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
 
@@ -96,7 +113,6 @@ suite('SessionsConfigurationService', () => {
 		fileContents = new Map();
 		jsonEdits = [];
 		ranTasks = [];
-		committedFiles = [];
 		readFileCalls = [];
 		tasksByLabel = new Map();
 		workspaceFoldersByUri = new Map();
@@ -148,7 +164,6 @@ suite('SessionsConfigurationService', () => {
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
-			override async commitWorktreeFiles(session: ISessionData, fileUris: URI[]) { committedFiles.push({ session, fileUris }); }
 		});
 
 		storageService = store.add(new InMemoryStorageService());
@@ -303,8 +318,6 @@ suite('SessionsConfigurationService', () => {
 
 		assert.strictEqual(jsonEdits.length, 1);
 		assert.deepStrictEqual(jsonEdits[0].values, [{ path: ['tasks', 1, 'inSessions'], value: true }]);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	test('addTaskToSessions does nothing when task label not found', async () => {
@@ -332,7 +345,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(jsonEdits.length, 1);
 		assert.strictEqual(jsonEdits[0].uri.toString(), repoTasksUri.toString());
 		assert.deepStrictEqual(jsonEdits[0].values, [{ path: ['tasks', 1, 'inSessions'], value: true }]);
-		assert.strictEqual(committedFiles.length, 0, 'should not commit when there is no worktree');
 	});
 
 	test('addTaskToSessions updates runOptions when provided', async () => {
@@ -385,8 +397,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(tasks.length, 2);
 		assert.strictEqual(tasks[1].label, 'npm run dev');
 		assert.strictEqual(tasks[1].inSessions, true);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	test('createAndAddTask writes to repository and does not commit when no worktree', async () => {
@@ -406,7 +416,6 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(tasks.length, 2);
 		assert.strictEqual(tasks[1].label, 'npm run dev');
 		assert.strictEqual(tasks[1].inSessions, true);
-		assert.strictEqual(committedFiles.length, 0, 'should not commit when there is no worktree');
 	});
 
 	test('createAndAddTask writes worktreeCreated run option when requested', async () => {
@@ -459,8 +468,6 @@ suite('SessionsConfigurationService', () => {
 				{ label: 'lint', type: 'shell', command: 'npm run lint' },
 			],
 		}]);
-		assert.strictEqual(committedFiles.length, 1);
-		assert.strictEqual(committedFiles[0].fileUris[0].path, '/worktree/.vscode/tasks.json');
 	});
 
 	// --- updateTask ---
@@ -492,7 +499,6 @@ suite('SessionsConfigurationService', () => {
 				runOptions: { runOn: 'worktreeCreated' }
 			}
 		}]);
-		assert.strictEqual(committedFiles.length, 1);
 	});
 
 	test('updateTask moves a task between workspace and user storage', async () => {
@@ -539,7 +545,6 @@ suite('SessionsConfigurationService', () => {
 				}
 			]
 		});
-		assert.strictEqual(committedFiles.length, 1);
 	});
 
 	// --- pinned task ---

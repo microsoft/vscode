@@ -1623,7 +1623,8 @@ export default tseslint.config(
 						'tas-client', // node module allowed even in /common/
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
-						'@xterm/headless' // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm' // used by agentHost for command auto-approval
 					]
 				},
 				{
@@ -2099,7 +2100,6 @@ export default tseslint.config(
 						'vs/editor/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
-						'vs/workbench/contrib/**',
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
@@ -2221,6 +2221,14 @@ export default tseslint.config(
 						'@parcel/*',
 						'@playwright/*',
 						'@modelcontextprotocol/sdk/**/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/componentFixtures/playwright/**',
+					'restrictions': [
+						'test/componentFixtures/playwright/**',
+						'@playwright/*',
 						'*' // node modules
 					]
 				}

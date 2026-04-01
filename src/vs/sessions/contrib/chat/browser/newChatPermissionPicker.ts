@@ -13,7 +13,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CopilotCLISession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -21,6 +21,7 @@ import Severity from '../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
@@ -60,16 +61,17 @@ export class NewChatPermissionPicker extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		// Write permission level to the active session data when it changes
 		this._register(this.onDidChangeLevel(level => {
 			const session = this.sessionsManagementService.activeSession.get();
-			if (!(session instanceof CopilotCLISession)) {
-				throw new Error('NewChatPermissionPicker requires a CopilotCLISession');
+			if (!session) {
+				return;
 			}
-			session.setPermissionLevel(level);
+			this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId)?.setPermissionLevel(level);
 		}));
 	}
 
@@ -163,11 +165,11 @@ export class NewChatPermissionPicker extends Disposable {
 			kind: ActionListItemKind.Action,
 			group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.blank },
 			item: {
-				label: localize('permissions.learnMore', "Learn More about Permissions"),
+				label: localize('permissions.learnMore', "Learn more about permissions"),
 				icon: Codicon.blank,
 				checked: false,
 			},
-			label: localize('permissions.learnMore', "Learn More about Permissions"),
+			label: localize('permissions.learnMore', "Learn more about permissions"),
 			hideIcon: false,
 			disabled: false,
 		});

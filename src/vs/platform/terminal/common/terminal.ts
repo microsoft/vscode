@@ -1061,6 +1061,10 @@ export const enum ShellIntegrationInjectionFailureReason {
 	FailedToCreateTmpDir = 'failedToCreateTmpDir',
 }
 
+export const enum ShellIntegrationTimeoutOverride {
+	DisableForTests = -2
+}
+
 export enum TerminalExitReason {
 	Unknown = 0,
 	Shutdown = 1,
