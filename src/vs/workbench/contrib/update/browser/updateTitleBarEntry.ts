@@ -8,12 +8,15 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -206,10 +209,16 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 /**
  * Custom action view item for the update indicator in the title bar.
+ *
+ * Actionable states (AvailableForDownload, Downloaded, Ready) show
+ * "Update" prominently, then collapse to a blue dot with icon after
+ * a few seconds and re-expand on hover.
  */
 export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private content: HTMLElement | undefined;
 	private showTooltipOnRender = false;
+	private hintTimer: ReturnType<typeof setTimeout> | undefined;
+	private currentStateType: StateType | undefined;
 
 	constructor(
 		action: IAction,
@@ -217,6 +226,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		private readonly tooltip: UpdateTooltip,
 		private readonly onUserDismissedTooltip: () => void,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService private readonly updateService: IUpdateService,
@@ -234,6 +244,11 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.updateTooltip();
 		this.onStateChange(this.updateService.state);
 
+		// Show tooltip on hover (using showTooltip to track hint-visible)
+		this._register(dom.addDisposableListener(this.content, 'mouseenter', () => {
+			this.showTooltip();
+		}));
+
 		if (this.showTooltipOnRender) {
 			this.showTooltipOnRender = false;
 			dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => this.showTooltip());
@@ -241,24 +256,32 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	}
 
 	public showTooltip(focus = false) {
-		if (!this.element?.isConnected) {
+		if (!this.content?.isConnected) {
 			this.showTooltipOnRender = true;
 			return;
 		}
 
+		this.content.classList.add('hint-visible');
+
 		this.hoverService.showInstantHover({
 			content: this.tooltip.domNode,
 			target: {
-				targetElements: [this.element],
+				targetElements: [this.content],
 				dispose: () => {
-					if (!!this.element?.isConnected) {
+					if (!!this.content?.isConnected) {
+						this.content.classList.remove('hint-visible');
 						this.onUserDismissedTooltip();
 					}
 				}
 			},
-			persistence: { sticky: true },
+			persistence: { sticky: false, hideOnHover: false },
 			appearance: { showPointer: true, compact: true },
 		}, focus);
+	}
+
+	protected override updateTooltip(): void {
+		// Tooltip is handled by showTooltip/showInstantHover which track
+		// hint-visible to keep the button expanded while the tooltip is open.
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
@@ -291,42 +314,119 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			return;
 		}
 
+		// Fast path: for progress updates of the same state type, just update the value
+		if (this.currentStateType === state.type && this.content.childElementCount > 0) {
+			if (state.type === StateType.Downloading) {
+				const pct = computeProgressPercent(state.downloadedBytes, state.totalBytes);
+				if (pct !== undefined) {
+					this.content.style.setProperty('--update-progress', `${pct}%`);
+				}
+				return;
+			}
+			if (state.type === StateType.Updating) {
+				const pct = computeProgressPercent(state.currentProgress, state.maxProgress);
+				if (pct !== undefined) {
+					this.content.style.setProperty('--update-progress', `${pct}%`);
+				}
+				return;
+			}
+		}
+
+		this.currentStateType = state.type;
+
+		// Clear previous hint timer
+		if (this.hintTimer !== undefined) {
+			clearTimeout(this.hintTimer);
+			this.hintTimer = undefined;
+		}
+
 		dom.clearNode(this.content);
-		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled');
+		this.content.classList.remove('prominent', 'progress-indefinite', 'progress-percent', 'update-disabled', 'hint-visible');
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = localize('updateIndicator.update', "Update");
 
 		switch (state.type) {
 			case StateType.Disabled:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('update-disabled');
 				break;
 
 			case StateType.CheckingForUpdates:
-			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.checking', "Checking...");
 				this.renderProgressState(this.content);
 				break;
 
-			case StateType.Restarting:
-				label.textContent = localize('updateIndicator.restarting', "Restarting");
+			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.updating', "Updating...");
 				this.renderProgressState(this.content);
 				break;
 
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
-			case StateType.Ready:
+			case StateType.Ready: {
+				const icon = dom.append(this.content, dom.$('.indicator-icon'));
+				icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowCircleDown));
+				this.content.insertBefore(icon, label);
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
+				if (this.configurationService.getValue<string>('update.mode') === 'manual') {
+					const hint = dom.append(this.content, dom.$('.indicator-hint'));
+					switch (state.type) {
+						case StateType.AvailableForDownload:
+							hint.textContent = localize('updateIndicator.availableHint', "Available. Download?");
+							break;
+						case StateType.Downloaded:
+							hint.textContent = localize('updateIndicator.downloadedHint', "Downloaded. Install?");
+							break;
+						case StateType.Ready:
+							hint.textContent = localize('updateIndicator.readyHint', "Ready. Restart?");
+							break;
+					}
+					this.flashHintOnce();
+				}
 				break;
+			}
 
 			case StateType.Downloading:
+				label.textContent = localize('updateIndicator.downloading', "Downloading...");
 				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
+				label.textContent = localize('updateIndicator.installing', "Installing...");
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
 				break;
+
+			case StateType.Restarting:
+				label.textContent = localize('updateIndicator.restarting', "Restarting...");
+				this.renderProgressState(this.content);
+				break;
+
+			default:
+				label.textContent = localize('updateIndicator.update', "Update");
+				break;
 		}
+	}
+
+	/**
+	 * Flash hint text open briefly, then collapse it so hover can re-expand.
+	 */
+	private flashHintOnce() {
+		if (!this.content) {
+			return;
+		}
+
+		this.hintTimer = setTimeout(() => {
+			dom.getWindow(this.content!).requestAnimationFrame(() => {
+				this.content?.classList.add('hint-visible');
+			});
+
+			this.hintTimer = setTimeout(() => {
+				this.content?.classList.remove('hint-visible');
+				this.hintTimer = undefined;
+			}, 3000);
+		}, 500);
 	}
 
 	private renderProgressState(content: HTMLElement, percentage?: number) {
