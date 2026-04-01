@@ -424,6 +424,9 @@
 			"inSessions": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
+			},
+			"presentation": {
+				"reveal": "never"
 			}
 		},
 		{
