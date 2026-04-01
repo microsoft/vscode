@@ -1191,13 +1191,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					? await this._getOutputAnalyzerMessage(undefined, backgroundOutput, command, didSandboxWrapCommand)
 					: undefined;
 				if (pollingResult && pollingResult.state === OutputMonitorState.Idle) {
-					resultText += `\n\ The command became idle with output:\n`;
+					resultText += `\n The command became idle with output:\n`;
 					if (outputAnalyzerMessage) {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}
 					resultText += pollingResult.output;
 				} else if (pollingResult) {
-					resultText += `\n\ The command is still running, with output:\n`;
+					resultText += `\n The command is still running, with output:\n`;
 					if (outputAnalyzerMessage) {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}
