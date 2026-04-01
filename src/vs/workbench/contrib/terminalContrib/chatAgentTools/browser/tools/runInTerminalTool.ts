@@ -472,10 +472,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _resolveExecutionOptions(args: IRunInTerminalInputParams): IResolvedExecutionOptions {
-		const rawMode = (args as { mode?: string }).mode;
-		const mode = rawMode === 'hybrid'
-			? 'async'
-			: (args.mode ?? (args.isBackground ? 'async' : 'sync'));
+		const mode = args.mode ?? (args.isBackground ? 'async' : 'sync');
 		switch (mode) {
 			case 'async':
 				return { mode: 'async', persistentSession: true, waitStrategy: 'idle' };
@@ -582,9 +579,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
 			const truncatedCommand = buildCommandDisplayText(partialInput.command);
 			const rawMode = (partialInput as { mode?: string }).mode;
-			const modeSuggestsAsync = rawMode === 'async' || rawMode === 'hybrid' || partialInput.isBackground === true;
+			const modeSuggestsAsync = rawMode === 'async' || partialInput.isBackground === true;
 			const invocationMessage = modeSuggestsAsync
-				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", truncatedCommand))
+				? new MarkdownString(localize('runInTerminal.streaming.async', "Running `{0}` in persistent terminal session", truncatedCommand))
 				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
 			return { invocationMessage };
 		}
@@ -807,14 +804,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 
 			confirmationTitle = executionOptions.persistentSession
-				? localize('runInTerminal.background.inDirectory', "Run `{0}` command in background within `{1}`?", shellType, directoryLabel)
+				? localize('runInTerminal.async.inDirectory', "Run `{0}` command in persistent terminal session within `{1}`?", shellType, directoryLabel)
 				: localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, directoryLabel);
 		} else {
 			toolSpecificData.confirmation = {
 				commandLine: commandToDisplay,
 			};
 			confirmationTitle = executionOptions.persistentSession
-				? localize('runInTerminal.background', "Run `{0}` command in background?", shellType)
+				? localize('runInTerminal.async', "Run `{0}` command in persistent terminal session?", shellType)
 				: localize('runInTerminal', "Run `{0}` command?", shellType);
 		}
 
@@ -832,21 +829,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
 					if (presenterResult.languageDisplayName) {
 						confirmationTitle = executionOptions.persistentSession
-							? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
+							? localize('runInTerminal.presentationOverride.async.inDirectory', "Run `{0}` command in `{1}` in persistent terminal session within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
 							: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
 					} else {
 						confirmationTitle = executionOptions.persistentSession
-							? localize('runInTerminal.presentationOverride.background.inDirectory.withoutLanguage', "Run command in `{0}` in background within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel)
+							? localize('runInTerminal.presentationOverride.async.inDirectory.withoutLanguage', "Run command in `{0}` in persistent terminal session within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel)
 							: localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
 					}
 				} else {
 					if (presenterResult.languageDisplayName) {
 						confirmationTitle = executionOptions.persistentSession
-							? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
+							? localize('runInTerminal.presentationOverride.async', "Run `{0}` command in `{1}` in persistent terminal session?", presenterResult.languageDisplayName, shellType)
 							: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
 					} else {
 						confirmationTitle = executionOptions.persistentSession
-							? localize('runInTerminal.presentationOverride.background.withoutLanguage', "Run command in `{0}` in background?", shellType)
+							? localize('runInTerminal.presentationOverride.async.withoutLanguage', "Run command in `{0}` in persistent terminal session?", shellType)
 							: localize('runInTerminal.presentationOverride.withoutLanguage', "Run command in `{0}`?", shellType);
 					}
 				}
@@ -860,10 +857,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (requiresUnsandboxConfirmation) {
 			confirmationTitle = blockedDomains?.length
 				? (executionOptions.persistentSession
-					? localize('runInTerminal.unsandboxed.domain.background', "Run `{0}` command outside the [sandbox]({1}) in background to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
+					? localize('runInTerminal.unsandboxed.domain.async', "Run `{0}` command outside the [sandbox]({1}) in persistent terminal session to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
 					: localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains)))
 				: (executionOptions.persistentSession
-					? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the [sandbox]({1}) in background?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
+					? localize('runInTerminal.unsandboxed.async', "Run `{0}` command outside the [sandbox]({1}) in persistent terminal session?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
 					: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL));
 		}
 
@@ -892,10 +889,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			: rawDisplayCommand;
 		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
 			? executionOptions.persistentSession
-				? new MarkdownString(localize('runInTerminal.invocation.sandbox.background', "Running `{0}` in sandbox in background", displayCommand))
+				? new MarkdownString(localize('runInTerminal.invocation.sandbox.async', "Running `{0}` in sandbox in persistent terminal session", displayCommand))
 				: new MarkdownString(localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", displayCommand))
 			: executionOptions.persistentSession
-				? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", displayCommand))
+				? new MarkdownString(localize('runInTerminal.invocation.async', "Running `{0}` in persistent terminal session", displayCommand))
 				: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", displayCommand));
 
 		return {

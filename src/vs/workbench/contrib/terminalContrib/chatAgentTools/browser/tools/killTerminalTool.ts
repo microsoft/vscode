@@ -74,7 +74,7 @@ export class KillTerminalTool extends Disposable implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: `Successfully killed background terminal ${args.id}. ${outputSummary}`
+				value: `Successfully killed persistent terminal ${args.id}. ${outputSummary}`
 			}]
 		};
 	}
