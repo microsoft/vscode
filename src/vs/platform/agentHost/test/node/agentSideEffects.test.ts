@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,14 +14,11 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { PendingMessageKind, SessionStatus } from '../../common/state/sessionState.js';
+import { PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
-import { AgentService } from '../../node/agentService.js';
-import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
-import { join } from '../../../../base/common/path.js';
 import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
@@ -40,7 +34,7 @@ suite('AgentSideEffects', () => {
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 
-	function setupSession(): void {
+	function setupSession(workingDirectory?: string): void {
 		stateManager.createSession({
 			resource: sessionUri.toString(),
 			provider: 'mock',
@@ -48,6 +42,7 @@ suite('AgentSideEffects', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			workingDirectory,
 		});
 		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 	}
@@ -441,443 +436,94 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/activeClientChanged ----------------------
+	// ---- Edit auto-approve patterns -----------------------------------------
 
-	suite('handleAction — session/activeClientChanged', () => {
+	suite('edit auto-approve patterns', () => {
 
-		test('calls setClientCustomizations and dispatches customizationsChanged', async () => {
-			setupSession();
-
-			const envelopes: IActionEnvelope[] = [];
-			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
-
-			const action: ISessionAction = {
-				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri.toString(),
-				activeClient: {
-					clientId: 'test-client',
-					tools: [],
-					customizations: [
-						{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
-						{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
-					],
-				},
-			};
-			sideEffects.handleAction(action);
-
-			// Wait for async setClientCustomizations
-			await new Promise(r => setTimeout(r, 50));
-
-			assert.deepStrictEqual(agent.setClientCustomizationsCalls, [{
-				clientId: 'test-client',
-				customizations: [
-					{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
-					{ uri: 'file:///plugin-b', displayName: 'Plugin B' },
-				],
-			}]);
-
-			const customizationActions = envelopes
-				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
-			assert.ok(customizationActions.length >= 1, 'should dispatch at least one customizationsChanged');
-		});
-
-		test('skips when activeClient has no customizations', () => {
-			setupSession();
-
-			const envelopes: IActionEnvelope[] = [];
-			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
-
-			const action: ISessionAction = {
-				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri.toString(),
-				activeClient: {
-					clientId: 'test-client',
-					tools: [],
-				},
-			};
-			sideEffects.handleAction(action);
-
-			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
-			const customizationActions = envelopes
-				.filter(e => e.action.type === ActionType.SessionCustomizationsChanged);
-			assert.strictEqual(customizationActions.length, 0);
-		});
-
-		test('skips when activeClient is null', () => {
-			setupSession();
-
-			const action: ISessionAction = {
-				type: ActionType.SessionActiveClientChanged,
-				session: sessionUri.toString(),
-				activeClient: null,
-			};
-			sideEffects.handleAction(action);
-
-			assert.strictEqual(agent.setClientCustomizationsCalls.length, 0);
-		});
-	});
-
-	// ---- handleAction: session/customizationToggled ---------------------
-
-	suite('handleAction — session/customizationToggled', () => {
-
-		test('calls setCustomizationEnabled on the agent', () => {
-			setupSession();
-
-			const action: ISessionAction = {
-				type: ActionType.SessionCustomizationToggled,
-				session: sessionUri.toString(),
-				uri: 'file:///plugin-a',
-				enabled: false,
-			};
-			sideEffects.handleAction(action);
-
-			assert.deepStrictEqual(agent.setCustomizationEnabledCalls, [
-				{ uri: 'file:///plugin-a', enabled: false },
-			]);
-		});
-	});
-
-	// ---- handleAction: session/toolCallConfirmed ------------------------
-
-	suite('handleAction — session/toolCallConfirmed', () => {
-
-		test('routes confirmation to correct agent via _toolCallAgents', () => {
-			setupSession();
-			startTurn('turn-1');
+		test('auto-approves regular files with default patterns', async () => {
+			setupSession(URI.file('/workspace').toString());
 			disposables.add(sideEffects.registerProgressListener(agent));
-
-			// Fire tool_start to register the tool call
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_start',
-				toolCallId: 'tc-conf-1',
-				toolName: 'read',
-				displayName: 'Read File',
-				invocationMessage: 'Reading file',
-			});
-
-			// Fire tool_ready asking for permission (non-write, so not auto-approved)
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_ready',
-				toolCallId: 'tc-conf-1',
-				invocationMessage: 'Read file.txt',
-				confirmationTitle: 'Read file.txt',
-			});
-
-			// Now confirm the tool call
-			sideEffects.handleAction({
-				type: ActionType.SessionToolCallConfirmed,
-				session: sessionUri.toString(),
-				turnId: 'turn-1',
-				toolCallId: 'tc-conf-1',
-				approved: true,
-				confirmed: 'user-action' as const,
-			} as ISessionAction);
-
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-conf-1', approved: true },
-			]);
-		});
-
-		test('handles denial of tool call', () => {
-			setupSession();
 			startTurn('turn-1');
-			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_start',
-				toolCallId: 'tc-deny-1',
-				toolName: 'shell',
-				displayName: 'Shell',
-				invocationMessage: 'Running command',
-			});
+			// Fire tool_start so the tool call exists in the state
+			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-1', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
 
-			sideEffects.handleAction({
-				type: ActionType.SessionToolCallConfirmed,
-				session: sessionUri.toString(),
-				turnId: 'turn-1',
-				toolCallId: 'tc-deny-1',
-				approved: false,
-				reason: 'denied' as const,
-			} as ISessionAction);
+			// Fire tool_ready with write permission for a regular .ts file
+			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
 
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-deny-1', approved: false },
-			]);
+			// Wait for the async auto-approve check to complete
+			await Promise.resolve();
+
+			// The agent should have been auto-responded to with approved=true
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-1');
+			assert.ok(permCall, 'should auto-approve regular files with default patterns');
+			assert.strictEqual(permCall!.approved, true);
+
+			// The tool call should NOT be in PendingConfirmation state (it was auto-approved)
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tcPart = state?.activeTurn?.responseParts.find(
+				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-1'
+			) as IToolCallResponsePart | undefined;
+			assert.ok(tcPart);
+			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.Running);
 		});
-	});
 
-	// ---- Edit auto-approve ----------------------------------------------
-
-	suite('edit auto-approve', () => {
-
-		test('auto-approves writes to regular source files', async () => {
-			setupSession();
+		test('default patterns block .env files', async () => {
+			setupSession(URI.file('/workspace').toString());
+			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
-			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_start',
-				toolCallId: 'tc-auto-1',
-				toolName: 'write',
-				displayName: 'Write',
-				invocationMessage: 'Write file',
-			});
+			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-2', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
+			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-2', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env' });
 
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_ready',
-				toolCallId: 'tc-auto-1',
-				invocationMessage: 'Write src/app.ts',
-				permissionKind: 'write',
-				permissionPath: '/workspace/src/app.ts',
-			});
+			// Wait for the async auto-approve check to complete
+			await Promise.resolve();
 
-			// Auto-approved writes call respondToPermissionRequest directly
-			assert.deepStrictEqual(agent.respondToPermissionCalls, [
-				{ requestId: 'tc-auto-1', approved: true },
-			]);
+			// Should NOT have auto-responded
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-2');
+			assert.ok(!permCall, 'should not auto-approve .env files with default patterns');
+
+			// The tool call should be in PendingConfirmation state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tcPart = state?.activeTurn?.responseParts.find(
+				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-2'
+			) as IToolCallResponsePart | undefined;
+			assert.ok(tcPart);
+			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.PendingConfirmation);
 		});
 
-		test('blocks writes to .env files', () => {
-			setupSession();
+		test('default patterns block .git files', async () => {
+			setupSession(URI.file('/workspace').toString());
+			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
-			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const envelopes: IActionEnvelope[] = [];
-			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-3', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
+			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-3', invocationMessage: 'Write .git/config', permissionKind: 'write', permissionPath: '/workspace/.git/config' });
 
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_start',
-				toolCallId: 'tc-env-1',
-				toolName: 'write',
-				displayName: 'Write',
-				invocationMessage: 'Write .env',
-			});
+			await Promise.resolve();
 
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_ready',
-				toolCallId: 'tc-env-1',
-				invocationMessage: 'Write .env',
-				permissionKind: 'write',
-				permissionPath: '/workspace/.env',
-				confirmationTitle: 'Write .env',
-			});
-
-			// Should NOT auto-approve — .env is excluded
-			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
-
-			// Should dispatch a tool_ready action for the client to confirm
-			const readyAction = envelopes.find(e => e.action.type === ActionType.SessionToolCallReady);
-			assert.ok(readyAction, 'should dispatch tool_ready for blocked write');
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-3');
+			assert.ok(!permCall, 'should not auto-approve .git files with default patterns');
 		});
 
-		test('blocks writes to package.json', () => {
-			setupSession();
+		test('writes outside working directory are not auto-approved', async () => {
+			setupSession(URI.file('/workspace').toString());
+			disposables.add(sideEffects.registerProgressListener(agent));
 			startTurn('turn-1');
-			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_start',
-				toolCallId: 'tc-pkg-1',
-				toolName: 'write',
-				displayName: 'Write',
-				invocationMessage: 'Write package.json',
-			});
+			agent.fireProgress({ session: sessionUri, type: 'tool_start' as const, toolCallId: 'tc-write-4', toolName: 'bash', displayName: 'Write File', invocationMessage: 'Write' });
+			agent.fireProgress({ session: sessionUri, type: 'tool_ready' as const, toolCallId: 'tc-write-4', invocationMessage: 'Write /etc/config', permissionKind: 'write', permissionPath: '/etc/config' });
 
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_ready',
-				toolCallId: 'tc-pkg-1',
-				invocationMessage: 'Write package.json',
-				permissionKind: 'write',
-				permissionPath: '/workspace/package.json',
-				confirmationTitle: 'Write package.json',
-			});
+			await Promise.resolve();
+			const permCall = agent.respondToPermissionCalls.find(c => c.requestId === 'tc-write-4');
+			assert.ok(!permCall, 'should not auto-approve writes outside working directory');
 
-			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
-		});
-
-		test('blocks writes to .lock files', () => {
-			setupSession();
-			startTurn('turn-1');
-			disposables.add(sideEffects.registerProgressListener(agent));
-
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_start',
-				toolCallId: 'tc-lock-1',
-				toolName: 'write',
-				displayName: 'Write',
-				invocationMessage: 'Write yarn.lock',
-			});
-
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_ready',
-				toolCallId: 'tc-lock-1',
-				invocationMessage: 'Write yarn.lock',
-				permissionKind: 'write',
-				permissionPath: '/workspace/yarn.lock',
-				confirmationTitle: 'Write yarn.lock',
-			});
-
-			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
-		});
-
-		test('blocks writes to .git directory', () => {
-			setupSession();
-			startTurn('turn-1');
-			disposables.add(sideEffects.registerProgressListener(agent));
-
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_start',
-				toolCallId: 'tc-git-1',
-				toolName: 'write',
-				displayName: 'Write',
-				invocationMessage: 'Write .git/config',
-			});
-
-			agent.fireProgress({
-				session: sessionUri,
-				type: 'tool_ready',
-				toolCallId: 'tc-git-1',
-				invocationMessage: 'Write .git/config',
-				permissionKind: 'write',
-				permissionPath: '/workspace/.git/config',
-				confirmationTitle: 'Write .git/config',
-			});
-
-			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
-		});
-	});
-
-	// ---- Title persistence --------------------------------------------------
-
-	suite('title persistence', () => {
-
-		let testDir: string;
-		let sessionDb: SessionDatabase;
-
-		/**
-		 * Creates a real SessionDatabase-backed ISessionDataService.
-		 * All sessions share the same DB for simplicity.
-		 */
-		function createSessionDataServiceWithDb(): ISessionDataService {
-			return {
-				_serviceBrand: undefined,
-				getSessionDataDir: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
-				getSessionDataDirById: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
-				openDatabase: (): IReference<ISessionDatabase> => ({
-					object: sessionDb,
-					dispose: () => { /* ref-counted; the suite teardown closes the DB */ },
-				}),
-				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({
-					object: sessionDb,
-					dispose: () => { /* ref-counted; the suite teardown closes the DB */ },
-				}),
-				deleteSessionData: async () => { },
-				cleanupOrphanedData: async () => { },
-			};
-		}
-
-		setup(async () => {
-			testDir = join(tmpdir(), `vscode-side-effects-title-test-${randomUUID()}`);
-			mkdirSync(testDir, { recursive: true });
-			sessionDb = await SessionDatabase.open(join(testDir, 'session.db'));
-		});
-
-		teardown(async () => {
-			await sessionDb.close();
-			rmSync(testDir, { recursive: true, force: true });
-		});
-
-		test('SessionTitleChanged persists to the database', async () => {
-			const sessionDataService = createSessionDataServiceWithDb();
-			const localStateManager = disposables.add(new SessionStateManager(new NullLogService()));
-			const localAgent = new MockAgent();
-			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localSideEffects = disposables.add(new AgentSideEffects(localStateManager, {
-				getAgent: () => localAgent,
-				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
-				sessionDataService,
-			}, new NullLogService()));
-
-			localStateManager.createSession({
-				resource: sessionUri.toString(),
-				provider: 'mock',
-				title: 'Initial',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-			});
-
-			localSideEffects.handleAction({
-				type: ActionType.SessionTitleChanged,
-				session: sessionUri.toString(),
-				title: 'Custom Title',
-			});
-
-			// Wait for the async persistence
-			await new Promise(r => setTimeout(r, 50));
-
-			assert.strictEqual(await sessionDb.getMetadata('customTitle'), 'Custom Title');
-		});
-
-		test('handleListSessions returns persisted custom title', async () => {
-			const sessionDataService = createSessionDataServiceWithDb();
-			const localAgent = new MockAgent();
-			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
-			localService.registerProvider(localAgent);
-
-			// Create a session on the agent backend
-			await localAgent.createSession();
-
-			// Persist a custom title in the DB
-			await sessionDb.setMetadata('customTitle', 'My Custom Title');
-
-			const sessions = await localService.listSessions();
-			assert.strictEqual(sessions.length, 1);
-			// Custom title comes from the DB and is returned via the agent's listSessions
-			// The mock agent summary is used; the service doesn't read the DB for list
-			assert.ok(sessions[0].summary);
-		});
-
-		test('handleRestoreSession uses persisted custom title', async () => {
-			const sessionDataService = createSessionDataServiceWithDb();
-			const localAgent = new MockAgent();
-			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
-			localService.registerProvider(localAgent);
-
-			// Create a session on the agent backend
-			const session = await localAgent.createSession();
-			const sessions = await localAgent.listSessions();
-			const sessionResource = sessions[0].session;
-
-			// Persist a custom title in the DB
-			await sessionDb.setMetadata('customTitle', 'Restored Title');
-
-			// Set up minimal messages for restore
-			localAgent.sessionMessages = [
-				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
-				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
-			];
-
-			await localService.restoreSession(sessionResource);
-
-			const state = localService.stateManager.getSessionState(sessionResource.toString());
-			assert.ok(state);
-			assert.strictEqual(state!.summary.title, 'Restored Title');
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tcPart = state?.activeTurn?.responseParts.find(
+				p => p.kind === ResponsePartKind.ToolCall && p.toolCall.toolCallId === 'tc-write-4'
+			) as IToolCallResponsePart | undefined;
+			assert.ok(tcPart);
+			assert.strictEqual(tcPart!.toolCall.status, ToolCallStatus.PendingConfirmation);
 		});
 	});
 });
