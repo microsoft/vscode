@@ -352,7 +352,7 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
-		const autoUpdateBuiltinExtensions = this.productService.autoUpdateBuiltinExtensions;
+		const autoUpdateBuiltinExtensions = this.productService.builtInExtensionsEnabledWithAutoUpdates;
 		const productVersion = autoUpdateBuiltinExtensions?.length ? this.getProductVersion() : undefined;
 		const productMajorMinor = productVersion ? `${semver.major(productVersion.version)}.${semver.minor(productVersion.version)}` : undefined;
 		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
@@ -597,7 +597,7 @@ class ExtensionsScanner extends Disposable {
 		super();
 		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.productQuality = productService.quality;
-		this.autoUpdateBuiltinExtensions = new Set(productService.autoUpdateBuiltinExtensions?.map(id => id.toLowerCase()) ?? []);
+		this.autoUpdateBuiltinExtensions = new Set(productService.builtInExtensionsEnabledWithAutoUpdates?.map(id => id.toLowerCase()) ?? []);
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {

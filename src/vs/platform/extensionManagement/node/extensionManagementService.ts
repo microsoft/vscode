@@ -937,7 +937,7 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	private async removeStaleAutoUpdateBuiltinExtensions(): Promise<void> {
-		const autoUpdateBuiltinExtensions = this.productService.autoUpdateBuiltinExtensions;
+		const autoUpdateBuiltinExtensions = this.productService.builtInExtensionsEnabledWithAutoUpdates;
 		if (!autoUpdateBuiltinExtensions?.length) {
 			return;
 		}

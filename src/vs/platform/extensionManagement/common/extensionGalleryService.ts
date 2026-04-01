@@ -775,28 +775,32 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			try {
 				galleryExtension = await this.getLatestGalleryExtension(extensionInfo, options, resourceApi, extensionGalleryManifest, token);
 				if (isString(galleryExtension)) {
-					// fallback to query
-					this.telemetryService.publicLog2<
-						{
-							extension: string;
-							preRelease: boolean;
-							compatible: boolean;
-							errorCode: string;
-						},
-						{
-							owner: 'sandy081';
-							comment: 'Report the fallback to the Marketplace query for fetching extensions';
-							extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
-							preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
-							compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
-							errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
-						}>('galleryService:fallbacktoquery', {
-							extension: extensionInfo.id,
-							preRelease: !!extensionInfo.preRelease,
-							compatible: !!options.compatible,
-							errorCode: galleryExtension
-						});
-					toQuery.push(extensionInfo);
+					if (galleryExtension === 'NOT_APPLICABLE') {
+						this.logService.debug(`Skipping query API fallback for auto-update builtin extension ${extensionInfo.id} because the latest gallery version is older than the product version`);
+					} else {
+						// fallback to query
+						this.telemetryService.publicLog2<
+							{
+								extension: string;
+								preRelease: boolean;
+								compatible: boolean;
+								errorCode: string;
+							},
+							{
+								owner: 'sandy081';
+								comment: 'Report the fallback to the Marketplace query for fetching extensions';
+								extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
+								preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
+								compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
+								errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
+							}>('galleryService:fallbacktoquery', {
+								extension: extensionInfo.id,
+								preRelease: !!extensionInfo.preRelease,
+								compatible: !!options.compatible,
+								errorCode: galleryExtension
+							});
+						toQuery.push(extensionInfo);
+					}
 				} else {
 					result.push(galleryExtension);
 				}
@@ -856,6 +860,16 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension, rawGalleryExtension.versions, extensionInfo, options, allTargetPlatforms);
 
 		if (!rawGalleryExtensionVersion) {
+			// For auto-update builtin extensions, if the latest version's major.minor is less than
+			// the product version, a compatible version cannot exist — skip the query API fallback.
+			const extensionId = getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName);
+			if (this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === extensionId.toLowerCase())) {
+				const latestVersion = rawGalleryExtension.versions[0]?.version;
+				const productVersion = options.productVersion ?? { version: this.productService.version };
+				if (latestVersion && semver.major(latestVersion) * 1000 + semver.minor(latestVersion) < semver.major(productVersion.version) * 1000 + semver.minor(productVersion.version)) {
+					return 'NOT_APPLICABLE';
+				}
+			}
 			return 'NOT_COMPATIBLE';
 		}
 
@@ -1001,7 +1015,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 
 		// For auto-update extensions defined in product, only allow versions with same major.minor as the product version
-		if (this.productService.autoUpdateBuiltinExtensions?.some(id => id.toLowerCase() === extension.id.toLowerCase())) {
+		if (this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === extension.id.toLowerCase())) {
 			const productMajorMinor = `${semver.major(productVersion.version)}.${semver.minor(productVersion.version)}`;
 			const extensionMajorMinor = `${semver.major(extension.version)}.${semver.minor(extension.version)}`;
 			if (productMajorMinor !== extensionMajorMinor) {

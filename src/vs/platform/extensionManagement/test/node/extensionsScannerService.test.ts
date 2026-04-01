@@ -344,7 +344,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	suite('auto update builtin extensions', () => {
 
 		test('scan user extension with matching product version is included', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -355,7 +355,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('scan user extension with mismatched product version is excluded', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -365,7 +365,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('scan user extension not in autoUpdateBuiltinExtensions is not filtered', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.other'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.other'] });
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -375,7 +375,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('scan picks matching version when multiple versions exist', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
@@ -387,7 +387,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('scan all extensions prefers matching user extension over system extension', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.0' }));
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
@@ -401,7 +401,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('scan all extensions falls back to system extension when user extension has mismatched version', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.0' }));
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.67.0' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
@@ -415,7 +415,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('system extension has autoUpdate set to true when in autoUpdateBuiltinExtensions and quality is stable', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -426,7 +426,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('system extension has autoUpdate set to false when not in autoUpdateBuiltinExtensions', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', autoUpdateBuiltinExtensions: ['pub.other'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'stable', builtInExtensionsEnabledWithAutoUpdates: ['pub.other'] });
 			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -437,7 +437,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('system extension has autoUpdate set to false when quality is not stable', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -448,7 +448,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('scan user extension is excluded when autoUpdate is disabled (non-stable quality)', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
@@ -458,7 +458,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		});
 
 		test('scan all extensions uses system version when autoUpdate is disabled (non-stable quality)', async () => {
-			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', autoUpdateBuiltinExtensions: ['pub.name'] });
+			instantiationService.stub(IProductService, { version: '1.66.0', quality: 'insider', builtInExtensionsEnabledWithAutoUpdates: ['pub.name'] });
 			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.0' }));
 			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.66.1' }));
 			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));

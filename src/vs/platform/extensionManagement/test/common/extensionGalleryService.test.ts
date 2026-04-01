@@ -466,11 +466,11 @@ suite('Extension Gallery Service', () => {
 	});
 });
 
-suite.skip('Extension Gallery Service - Auto Update Builtin Extensions', () => {
+suite('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createGalleryService(autoUpdateBuiltinExtensions: string[], productVersion: string = '1.66.0') {
+	function createGalleryService(builtInExtensionsEnabledWithAutoUpdates: string[], productVersion: string = '1.66.0') {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
@@ -487,7 +487,7 @@ suite.skip('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 		instantiationService.stub(IProductService, {
 			_serviceBrand: undefined,
 			version: productVersion,
-			autoUpdateBuiltinExtensions,
+			builtInExtensionsEnabledWithAutoUpdates,
 		});
 		return instantiationService.createInstance(ExtensionGalleryServiceWithNoStorageService);
 	}
@@ -563,5 +563,23 @@ suite.skip('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
 
 		assert.strictEqual(result, true);
+	});
+
+	test('extension with older major.minor than product is not compatible', async () => {
+		const galleryService = createGalleryService(['pub.name'], '1.67.0');
+		const extension = aGalleryExtension('pub.name', '1.66.5');
+
+		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.67.0' });
+
+		assert.strictEqual(result, false);
+	});
+
+	test('extension with newer major.minor than product is not compatible', async () => {
+		const galleryService = createGalleryService(['pub.name'], '1.66.0');
+		const extension = aGalleryExtension('pub.name', '1.67.0');
+
+		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
+
+		assert.strictEqual(result, false);
 	});
 });
