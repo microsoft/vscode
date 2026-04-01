@@ -14,6 +14,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { extractImagesFromChatRequest, extractImagesFromChatResponse, IChatExtractedImage } from '../common/chatImageExtraction.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export const IChatImageCarouselService = createDecorator<IChatImageCarouselService>('chatImageCarouselService');
 
@@ -240,6 +241,20 @@ export function buildSingleImageArgs(resource: URI, data: Uint8Array): ICarousel
 
 const CAROUSEL_COMMAND = 'workbench.action.chat.openImageInCarousel';
 
+type ChatImageCarouselOpenedEvent = {
+	mode: 'collection' | 'single';
+	numImages: number;
+	numSections: number;
+};
+
+type ChatImageCarouselOpenedClassification = {
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the carousel was opened as a collection or a single image.' };
+	numImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The total number of images in the carousel.' };
+	numSections: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of sections (request/response pairs) in the carousel.' };
+	owner: 'bhavyaus';
+	comment: 'Tracks usage of the chat image carousel viewer.';
+};
+
 export class ChatImageCarouselService implements IChatImageCarouselService {
 
 	declare readonly _serviceBrand: undefined;
@@ -248,6 +263,7 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array): Promise<void> {
@@ -270,6 +286,14 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		}
 
 		const args = buildCollectionArgs(sections, clickedGlobalIndex, widget.viewModel.sessionResource);
+
+		const numImages = sections.reduce((sum, s) => sum + s.images.length, 0);
+		this.telemetryService.publicLog2<ChatImageCarouselOpenedEvent, ChatImageCarouselOpenedClassification>('chatImageCarouselOpened', {
+			mode: 'collection',
+			numImages,
+			numSections: sections.length,
+		});
+
 		await this.commandService.executeCommand(CAROUSEL_COMMAND, args);
 	}
 
@@ -278,6 +302,12 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			const content = await this.fileService.readFile(resource);
 			data = content.value.buffer;
 		}
+
+		this.telemetryService.publicLog2<ChatImageCarouselOpenedEvent, ChatImageCarouselOpenedClassification>('chatImageCarouselOpened', {
+			mode: 'single',
+			numImages: 1,
+			numSections: 0,
+		});
 
 		const args = buildSingleImageArgs(resource, data);
 		await this.commandService.executeCommand(CAROUSEL_COMMAND, args);

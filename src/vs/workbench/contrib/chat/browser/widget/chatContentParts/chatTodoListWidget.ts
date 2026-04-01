@@ -217,14 +217,15 @@ export class ChatTodoListWidget extends Disposable {
 		this._register(this.clearButton);
 
 		this._register(this.clearButton.onDidClick(() => {
-			const todoCount = this._currentSessionResource ? this.chatTodoListService.getTodos(this._currentSessionResource).length : 0;
-			this.telemetryService.publicLog2<ChatTodoListWidgetEvent, ChatTodoListWidgetClassification>(
-				'chatTodoListWidget',
-				{
-					action: 'clear',
-					todoCount
-				}
-			);
+			if (this._currentSessionResource) {
+				this.telemetryService.publicLog2<ChatTodoListWidgetEvent, ChatTodoListWidgetClassification>(
+					'chatTodoListWidget',
+					{
+						action: 'clear',
+						todoCount: this.chatTodoListService.getTodos(this._currentSessionResource).length
+					}
+				);
+			}
 			this.clearAllTodos();
 		}));
 	}
