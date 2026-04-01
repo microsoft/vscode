@@ -17,7 +17,6 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import product from '../../../../../platform/product/common/product.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -27,10 +26,12 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
-import { ChatViewId, ChatViewContainerId } from '../chat.js';
+import { ChatViewContainerId } from '../chat.js';
 import { ChatSetupAnonymous, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens, maybeEnableAuthExtension } from './chatSetup.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { EnablementState } from '../../../../services/extensionManagement/common/extensionManagement.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
@@ -60,7 +61,6 @@ export class ChatSetupController extends Disposable {
 		private readonly requests: ChatEntitlementRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IActivityService private readonly activityService: IActivityService,
@@ -131,8 +131,6 @@ export class ChatSetupController extends Disposable {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn(options);
 				if (!result.defaultAccount) {
-					this.doInstall(); // still install the extension in the background to remind the user to sign-in eventually
-
 					const provider = options.useSocialProvider ?? (options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id);
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNotSignedIn', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
 					return undefined; // treat as cancelled because signing in already triggers an error dialog
@@ -262,13 +260,15 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async doInstall(): Promise<void> {
-		await this.extensionsWorkbenchService.install(defaultChat.chatExtensionId, {
-			enable: true,
-			isApplicationScoped: true, 	// install into all profiles
-			isMachineScoped: false,		// do not ask to sync
-			installEverywhere: true,	// install in local and remote
-			installPreReleaseVersion: this.productService.quality !== 'stable'
-		}, ChatViewId);
+		const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
+		if (!defaultChatExtension) {
+			return;
+		}
+
+		// Since we ship the default chat extension as built-in
+		// we just need to make sure that the extension is enabled.
+		await this.extensionsWorkbenchService.setEnablement([defaultChatExtension], EnablementState.EnabledGlobally);
+		await this.extensionsWorkbenchService.updateRunningExtensions(localize('restartExtensionHost.reason.enable', "Enabling AI features"));
 	}
 
 	async setupWithProvider(options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
