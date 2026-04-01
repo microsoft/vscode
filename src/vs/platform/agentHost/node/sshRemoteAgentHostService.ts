@@ -244,7 +244,17 @@ function createWebSocketRelay(
 			});
 
 			ws.on('message', (data: unknown) => {
-				onMessage(typeof data === 'string' ? data : String(data));
+				if (typeof data === 'string') {
+					onMessage(data);
+				} else if (Buffer.isBuffer(data)) {
+					onMessage(data.toString());
+				} else if (Array.isArray(data)) {
+					onMessage(Buffer.concat(data).toString());
+				} else if (data instanceof ArrayBuffer) {
+					onMessage(Buffer.from(data).toString());
+				} else {
+					onMessage(String(data));
+				}
 			});
 
 			ws.on('close', onClose);

@@ -54,7 +54,7 @@ export type ISSHAgentHostConfigSanitized = Omit<ISSHAgentHostConfig, 'password' 
 export interface ISSHAgentHostConnection extends IDisposable {
 	/** The SSH config used to establish this connection (secrets stripped). */
 	readonly config: ISSHAgentHostConfigSanitized;
-	/** The local forwarded address (e.g. `127.0.0.1:54321`) registered with IRemoteAgentHostService. */
+	/** The connection address (e.g. `ssh:myhost` or `user@host:22`) registered with IRemoteAgentHostService. */
 	readonly localAddress: string;
 	/** The display name. */
 	readonly name: string;
@@ -66,9 +66,9 @@ export interface ISSHAgentHostConnection extends IDisposable {
  * Manages SSH connections that bootstrap a remote agent host process.
  *
  * Each connection SSHs into a remote machine, ensures the VS Code CLI
- * is installed, starts `code agent-host`, and creates a local TCP
- * port forward so the sessions app can connect via its standard
- * WebSocket transport.
+ * is installed, starts `code agent-host`, and creates a WebSocket relay
+ * over the SSH channel. Messages are forwarded between the renderer and
+ * the remote agent host via IPC through the shared process.
  */
 export interface ISSHRemoteAgentHostService {
 	readonly _serviceBrand: undefined;
@@ -88,8 +88,8 @@ export interface ISSHRemoteAgentHostService {
 	 * 1. Opens an SSH connection to the remote host
 	 * 2. Downloads and installs the VS Code CLI if needed
 	 * 3. Starts `code agent-host`
-	 * 4. Forwards the remote agent host port to a local port
-	 * 5. Registers the local address with {@link IRemoteAgentHostService}
+	 * 4. Creates a WebSocket relay over the SSH channel
+	 * 5. Registers the connection with {@link IRemoteAgentHostService}
 	 *
 	 * Resolves with the connection handle once the agent host is reachable.
 	 */
@@ -169,8 +169,8 @@ export interface ISSHRemoteAgentHostMainService {
 	/** Fires when the set of active SSH connections changes. */
 	readonly onDidChangeConnections: Event<void>;
 
-	/** Fires when a connection is closed from the main process side. */
-	readonly onDidCloseConnection: Event<string /* localAddress */>;
+	/** Fires when a connection is closed from the shared process side. */
+	readonly onDidCloseConnection: Event<string /* connectionId */>;
 
 	/** Progress messages during connect (e.g. "Installing CLI..."). */
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress>;
