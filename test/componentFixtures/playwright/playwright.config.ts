@@ -14,7 +14,7 @@ export default defineConfig({
 	timeout: 30_000,
 	retries: 0,
 	use: {
-		trace: 'on-first-retry',
+		trace: 'retain-on-failure',
 	},
 	webServer: {
 		command: 'npx component-explorer serve -p ../component-explorer.json --background --attach -vv',
