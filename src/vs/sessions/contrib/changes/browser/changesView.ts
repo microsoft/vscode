@@ -1015,6 +1015,9 @@ export class ChangesViewPane extends ViewPane {
 				return;
 			}
 
+			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			dom.setVisibility(hasGitRepository, this.filesHeaderNode!);
+
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
 
@@ -1785,26 +1788,20 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const branchName = viewModel.activeSessionBranchNameObs.get();
 				const baseBranchName = viewModel.activeSessionBaseBranchNameObs.get();
-				const hasGitRepository = viewModel.activeSessionHasGitRepositoryObs.get();
 
 				return [
 					{
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
-						label: hasGitRepository
-							? localize('chatEditing.versionsBranchChanges', 'Branch Changes')
-							: localize('chatEditing.versionsFolderChanges', 'Folder Changes'),
-						description: hasGitRepository
-							? branchName && baseBranchName
-								? `${branchName} → ${baseBranchName}`
-								: branchName
-							: this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath,
+						label: localize('chatEditing.versionsBranchChanges', 'Branch Changes'),
+						description: branchName && baseBranchName
+							? `${branchName} → ${baseBranchName}`
+							: branchName,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
 						category: { label: 'changes', order: 1, showHeader: false },
 						run: async () => {
@@ -1854,7 +1851,6 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		this._register(autorun(reader => {
 			viewModel.versionModeObs.read(reader);
-			viewModel.activeSessionHasGitRepositoryObs.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -1864,12 +1860,8 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const mode = this.viewModel.versionModeObs.get();
-		const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.get();
-
 		const label = mode === ChangesVersionMode.BranchChanges
-			? hasGitRepository
-				? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
-				: localize('sessionsChanges.versionsFolderChanges', "Folder Changes")
+			? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
 			: mode === ChangesVersionMode.AllChanges
 				? localize('sessionsChanges.versionsAllChanges', "All Changes")
 				: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
