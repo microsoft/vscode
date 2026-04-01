@@ -94,10 +94,10 @@ namespace snippetExt {
 	export const snippetsContribution: IJSONSchema = {
 		description: localize('vscode.extension.contributes.snippets', 'Contributes snippets.'),
 		type: 'array',
-		defaultSnippets: [{ body: [{ language: '', path: '' }] }],
+		defaultSnippets: [{ body: [{ language: '${1:id}', path: './snippets/$1$2.json' }] }],
 		items: {
 			type: 'object',
-			defaultSnippets: [{ body: { language: '${1:id}', path: './snippets/${2:id}.json.' } }],
+			defaultSnippets: [{ body: { language: '${1:id}', path: './snippets/$1$2.json' } }],
 			properties: {
 				language: {
 					description: localize('vscode.extension.contributes.snippets-language', 'Language identifier for which this snippet is contributed to.'),
