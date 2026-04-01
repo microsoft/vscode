@@ -261,7 +261,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					await that._sessionManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
+					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 				}
 			}));
 		}));
@@ -698,7 +698,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: addCategory,
 			run: async () => {
-				await this._sessionsManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
+				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 			},
 		});
 
