@@ -896,7 +896,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!this.partVisibility.panel ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.partVisibility.auxiliaryBar ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.partVisibility.chatBar ? LayoutClasses.CHATBAR_HIDDEN : undefined,
-			LayoutClasses.STATUSBAR_HIDDEN, // sessions window never has a status bar
+			LayoutClasses.STATUSBAR_HIDDEN, // agents window never has a status bar
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
 		]);
 	}

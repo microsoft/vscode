@@ -127,6 +127,12 @@ export interface IHarnessDescriptor {
 	 * discovery and filtering).
 	 */
 	readonly itemProvider?: IExternalCustomizationItemProvider;
+	/**
+	 * When set, this harness supports syncing local customizations to a
+	 * remote target. The UI shows local items with sync checkboxes when
+	 * this harness is active.
+	 */
+	readonly syncProvider?: ICustomizationSyncProvider;
 }
 
 /**
@@ -137,6 +143,12 @@ export interface IExternalCustomizationItem {
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
+	/** Server-reported loading status for this customization. */
+	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
+	/** Human-readable status detail (e.g. error message or warning). */
+	readonly statusMessage?: string;
+	/** Whether this customization is currently enabled. */
+	readonly enabled?: boolean;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
@@ -158,6 +170,38 @@ export interface IExternalCustomizationItemProvider {
 	 * Provide the customization items this harness supports.
 	 */
 	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
+}
+
+/**
+ * Provider interface for harnesses that support syncing local customizations
+ * to a remote target (e.g. a remote agent host).
+ *
+ * The UI shows local customization items with sync checkboxes when the
+ * active harness has a sync provider. Selected items are persisted and
+ * automatically included in the active client's customization set.
+ */
+export interface ICustomizationSyncProvider {
+	/**
+	 * Fires when the set of selected sync items changes.
+	 */
+	readonly onDidChange: Event<void>;
+	/**
+	 * Returns the URIs of local customizations currently selected for syncing.
+	 */
+	getSelectedUris(): readonly URI[];
+	/**
+	 * Updates the set of local customization URIs selected for syncing.
+	 */
+	setSelectedUris(uris: readonly URI[]): void;
+	/**
+	 * Returns whether the given URI is currently selected for syncing.
+	 */
+	isSelected(uri: URI): boolean;
+	/**
+	 * Toggles the sync selection state for a single URI.
+	 * @param type Optional prompt type for file-level sync tracking.
+	 */
+	toggleUri(uri: URI, type?: PromptsType): void;
 }
 
 /**
@@ -439,7 +483,8 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	}
 
 	private _getAllHarnesses(): readonly IHarnessDescriptor[] {
-		// External harnesses override static ones with the same id
+		// External harnesses shadow static ones with the same id so that
+		// extension-contributed harnesses can upgrade a built-in entry.
 		const externalIds = new Set(this._externalHarnesses.map(h => h.id));
 		return [
 			...this._staticHarnesses.filter(h => !externalIds.has(h.id)),
@@ -461,7 +506,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 					this._externalHarnesses.splice(idx, 1);
 					this._refreshAvailableHarnesses();
 					// If the removed harness was active, only fall back when no
-					// remaining harness (e.g. a restored static one) shares the id.
+					// remaining harness (e.g. the restored static one) shares the id.
 					if (this._activeHarness.get() === descriptor.id) {
 						const all = this._getAllHarnesses();
 						if (!all.some(h => h.id === descriptor.id) && all.length > 0) {

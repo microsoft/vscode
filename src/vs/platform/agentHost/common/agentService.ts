@@ -7,9 +7,10 @@ import { Event } from '../../../base/common/event.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
 import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
-import { AttachmentType, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import { AttachmentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -363,6 +364,21 @@ export interface IAgent {
 	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
+
+	/**
+	 * Receives client-provided customization refs and syncs them (e.g. copies
+	 * plugin files to local storage). Returns per-customization status with
+	 * local plugin directories.
+	 *
+	 * The agent MAY defer a client restart until all active sessions are idle.
+	 */
+	setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+
+	/**
+	 * Notifies the agent that a customization has been toggled on or off.
+	 * The agent MAY restart its client before the next message is sent.
+	 */
+	setCustomizationEnabled(uri: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
