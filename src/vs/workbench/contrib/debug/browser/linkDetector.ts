@@ -244,6 +244,23 @@ export class LinkDetector implements ILinkDetector {
 				const fsPath = uri.fsPath;
 				const path = await this.pathService.path;
 				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);
+				const selection = lineCol ? { startLineNumber: +lineCol[1], startColumn: lineCol[2] ? +lineCol[2] : 1 } : undefined;
+
+				// When connected to a remote, try the remote filesystem first
+				// since the debug adapter likely produces paths from the remote host
+				// https://github.com/microsoft/vscode/issues/111143
+				const remoteAuthority = this.environmentService.remoteAuthority;
+				if (remoteAuthority) {
+					const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: uri.path });
+					const existsRemote = await this.fileService.exists(remoteUri);
+					if (existsRemote) {
+						await this.editorService.openEditor({
+							resource: remoteUri,
+							options: { pinned: true, selection },
+						});
+						return;
+					}
+				}
 
 				const fileUri = URI.parse(fileUrl);
 				const exists = await this.fileService.exists(fileUri);
@@ -253,10 +270,7 @@ export class LinkDetector implements ILinkDetector {
 
 				await this.editorService.openEditor({
 					resource: fileUri,
-					options: {
-						pinned: true,
-						selection: lineCol ? { startLineNumber: +lineCol[1], startColumn: lineCol[2] ? +lineCol[2] : 1 } : undefined,
-					},
+					options: { pinned: true, selection },
 				});
 				return;
 			}
@@ -298,14 +312,39 @@ export class LinkDetector implements ILinkDetector {
 		const link = this.createLink(text);
 		link.tabIndex = 0;
 		const uri = URI.file(osPath.normalize(path));
-		this.fileService.stat(uri).then(stat => {
-			if (stat.isDirectory) {
-				return;
-			}
-			this.decorateLink(link, uri, fulltext, hoverBehavior, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
-		}).catch(() => {
-			// If the uri can not be resolved we should not spam the console with error, remain quite #86587
-		});
+
+		// When connected to a remote, try the remote filesystem first
+		// since the debug adapter likely produces paths from the remote host
+		// https://github.com/microsoft/vscode/issues/111143
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		if (remoteAuthority) {
+			const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: uri.path });
+			this.fileService.stat(remoteUri).then(stat => {
+				if (stat.isDirectory) {
+					return;
+				}
+				this.decorateLink(link, remoteUri, fulltext, hoverBehavior, (preserveFocus: boolean) => this.editorService.openEditor({ resource: remoteUri, options: { ...options, preserveFocus } }));
+			}).catch(() => {
+				// Remote file not found, fall back to local filesystem
+				this.fileService.stat(uri).then(stat => {
+					if (stat.isDirectory) {
+						return;
+					}
+					this.decorateLink(link, uri, fulltext, hoverBehavior, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
+				}).catch(() => {
+					// If the uri can not be resolved we should not spam the console with error, remain quiet #86587
+				});
+			});
+		} else {
+			this.fileService.stat(uri).then(stat => {
+				if (stat.isDirectory) {
+					return;
+				}
+				this.decorateLink(link, uri, fulltext, hoverBehavior, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
+			}).catch(() => {
+				// If the uri can not be resolved we should not spam the console with error, remain quiet #86587
+			});
+		}
 		return link;
 	}
 
