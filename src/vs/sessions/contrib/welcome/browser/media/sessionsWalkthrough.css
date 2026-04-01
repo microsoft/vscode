@@ -314,6 +314,7 @@
 	text-decoration: underline;
 }
 
+.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:focus,
 .sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:focus-visible {
 	outline-color: var(--vscode-focusBorder);
 	box-shadow: none;
