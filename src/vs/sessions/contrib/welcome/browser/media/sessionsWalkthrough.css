@@ -299,12 +299,20 @@
 	text-align: center;
 }
 
-.sessions-walkthrough-disclaimer-link {
+.sessions-walkthrough-disclaimer-link,
+.sessions-walkthrough-disclaimer-link:link,
+.sessions-walkthrough-disclaimer-link:visited {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 }
 
-.sessions-walkthrough-disclaimer-link:hover {
+.sessions-walkthrough-disclaimer-link:hover,
+.sessions-walkthrough-disclaimer-link:active {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
+}
+
+.sessions-walkthrough-disclaimer-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
