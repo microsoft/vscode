@@ -197,7 +197,7 @@ suite('CustomizationHarnessService', () => {
 		test('external harness with same id as static harness replaces it', () => {
 			const staticDescriptor: IHarnessDescriptor = {
 				id: 'cli',
-				label: 'Copilot CLI',
+				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 			};
@@ -223,16 +223,16 @@ suite('CustomizationHarnessService', () => {
 			const reg = service.registerExternalHarness(externalDescriptor);
 			store.add(reg);
 
-			// Should still be 2, not 3 — the external replaces the static
+			// Should still be 2, not 3 — the external shadows the static
 			assert.strictEqual(service.availableHarnesses.get().length, 2);
 			const cliHarness = service.availableHarnesses.get().find(h => h.id === 'cli')!;
 			assert.strictEqual(cliHarness.label, 'Copilot CLI (from API)');
 		});
 
-		test('static harness reappears when replacing external harness is disposed', () => {
+		test('static harness reappears when shadowing external harness is disposed', () => {
 			const staticDescriptor: IHarnessDescriptor = {
 				id: 'cli',
-				label: 'Copilot CLI',
+				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 			};
@@ -260,13 +260,13 @@ suite('CustomizationHarnessService', () => {
 			// Static harness should be back
 			assert.strictEqual(service.availableHarnesses.get().length, 2);
 			const cliHarness = service.availableHarnesses.get().find(h => h.id === 'cli')!;
-			assert.strictEqual(cliHarness.label, 'Copilot CLI');
+			assert.strictEqual(cliHarness.label, 'Copilot CLI (static)');
 		});
 
-		test('active harness stays when overriding external harness is disposed', () => {
+		test('active harness stays when shadowing external harness is disposed (static restored)', () => {
 			const staticDescriptor: IHarnessDescriptor = {
 				id: 'cli',
-				label: 'Copilot CLI',
+				label: 'Copilot CLI (static)',
 				icon: ThemeIcon.fromId('extensions'),
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 			};
@@ -294,7 +294,7 @@ suite('CustomizationHarnessService', () => {
 
 			reg.dispose();
 
-			// Active harness should stay on 'cli' — the static one is restored
+			// Active stays on 'cli' because the static harness with the same id is restored
 			assert.strictEqual(service.activeHarness.get(), 'cli');
 		});
 	});
