@@ -158,6 +158,41 @@ export interface IExternalCustomizationItem {
 }
 
 /**
+ * Describes a file that was found during customization discovery but
+ * could not be loaded.
+ */
+export interface IExternalCustomizationSkippedFile {
+	readonly uri: URI;
+	readonly reason: string;
+}
+
+/**
+ * Diagnostic information about the customization discovery process.
+ */
+export interface IExternalCustomizationDiagnostics {
+	/** Directories that were scanned for customization files. */
+	readonly scannedPaths?: readonly URI[];
+	/** Files found but skipped due to invalid properties/format. */
+	readonly skippedFiles?: readonly IExternalCustomizationSkippedFile[];
+}
+
+/**
+ * Result returned by {@link IExternalCustomizationItemProvider.provideChatSessionCustomizations}.
+ */
+export interface IExternalCustomizationResult {
+	readonly items: IExternalCustomizationItem[];
+	readonly diagnostics?: IExternalCustomizationDiagnostics;
+}
+
+/**
+ * Describes what changed when a customization provider fires {@link IExternalCustomizationItemProvider.onDidChange}.
+ */
+export interface IExternalCustomizationChangeEvent {
+	/** The customization type IDs that were affected. When `undefined`, all types changed. */
+	readonly changedTypes?: readonly string[];
+}
+
+/**
  * Provider interface for extension-contributed harnesses that supply
  * customization items directly from their SDK.
  */
@@ -165,11 +200,11 @@ export interface IExternalCustomizationItemProvider {
 	/**
 	 * Event that fires when the provider's customizations change.
 	 */
-	readonly onDidChange: Event<void>;
+	readonly onDidChange: Event<IExternalCustomizationChangeEvent>;
 	/**
 	 * Provide the customization items this harness supports.
 	 */
-	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
+	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationResult | undefined>;
 }
 
 /**

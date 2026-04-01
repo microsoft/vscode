@@ -1346,13 +1346,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	/**
-	 * Generates a debug report for the current section.
-	 */
-	public async generateDebugReport(): Promise<string> {
-		return this.listWidget.generateDebugReport();
-	}
-
 	//#region Embedded Editor
 
 	private createEmbeddedEditor(): void {

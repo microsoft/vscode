@@ -27,7 +27,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IInstructionDto, IMainContext, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatSessionCustomizationResultDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IInstructionDto, IMainContext, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -679,8 +679,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const disposables = new DisposableStore();
 
 		if (provider.onDidChange) {
-			disposables.add(provider.onDidChange(() => {
-				this._proxy.$onDidChangeCustomizations(handle);
+			disposables.add(provider.onDidChange((event) => {
+				this._proxy.$onDidChangeCustomizations(handle, {
+					changedTypes: event.changedTypes?.map(t => typeConvert.ChatSessionCustomizationType.from(t)),
+				});
 			}));
 		}
 
@@ -692,19 +694,19 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return disposables;
 	}
 
-	async $provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
+	async $provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationResultDto | undefined> {
 		const providerData = this._customizationProviders.get(handle);
 		if (!providerData) {
 			return undefined;
 		}
 
 		try {
-			const items = await providerData.provider.provideChatSessionCustomizations(token);
-			if (!items) {
+			const result = await providerData.provider.provideChatSessionCustomizations(token);
+			if (!result) {
 				return undefined;
 			}
 
-			return items.map(item => ({
+			const items = result.items.map(item => ({
 				uri: item.uri,
 				type: typeConvert.ChatSessionCustomizationType.from(item.type),
 				name: item.name,
@@ -713,6 +715,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				badge: item.badge,
 				badgeTooltip: item.badgeTooltip,
 			}));
+
+			return {
+				items,
+				diagnostics: result.diagnostics ? {
+					scannedPaths: result.diagnostics.scannedPaths?.map(uri => uri),
+					skippedFiles: result.diagnostics.skippedFiles?.map(f => ({
+						uri: f.uri,
+						reason: f.reason,
+					})),
+				} : undefined,
+			};
 		} catch (err) {
 			return undefined;
 		}

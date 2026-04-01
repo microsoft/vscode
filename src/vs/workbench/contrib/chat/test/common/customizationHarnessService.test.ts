@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CustomizationHarness, CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, IExternalCustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { CustomizationHarness, CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, IExternalCustomizationChangeEvent, IExternalCustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -28,7 +28,7 @@ suite('CustomizationHarnessService', () => {
 			const service = createService();
 			assert.strictEqual(service.availableHarnesses.get().length, 1);
 
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'test-ext',
@@ -37,7 +37,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -50,7 +50,7 @@ suite('CustomizationHarnessService', () => {
 
 		test('removes harness on dispose', () => {
 			const service = createService();
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'test-ext',
@@ -59,7 +59,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -72,7 +72,7 @@ suite('CustomizationHarnessService', () => {
 
 		test('falls back to first harness when active external harness is removed', () => {
 			const service = createService();
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'test-ext',
@@ -81,7 +81,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -95,7 +95,7 @@ suite('CustomizationHarnessService', () => {
 
 		test('allows switching to external harness', () => {
 			const service = createService();
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'test-ext',
@@ -104,7 +104,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -120,7 +120,7 @@ suite('CustomizationHarnessService', () => {
 
 		test('external harness provides storage filter', () => {
 			const service = createService();
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const customFilter = { sources: [PromptsStorage.local, PromptsStorage.user] };
 			const externalDescriptor: IHarnessDescriptor = {
@@ -130,7 +130,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => customFilter,
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -141,7 +141,7 @@ suite('CustomizationHarnessService', () => {
 
 		test('external harness item provider returns items', async () => {
 			const service = createService();
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const testItems = [
 				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill' },
@@ -149,7 +149,7 @@ suite('CustomizationHarnessService', () => {
 
 			const itemProvider: IExternalCustomizationItemProvider = {
 				onDidChange: emitter.event,
-				provideChatSessionCustomizations: async () => testItems,
+				provideChatSessionCustomizations: async () => ({ items: testItems }),
 			};
 
 			const externalDescriptor: IHarnessDescriptor = {
@@ -163,15 +163,15 @@ suite('CustomizationHarnessService', () => {
 			store.add(service.registerExternalHarness(externalDescriptor));
 			service.setActiveHarness('test-ext');
 
-			const items = await service.getActiveDescriptor().itemProvider!.provideChatSessionCustomizations(CancellationToken.None);
-			assert.strictEqual(items?.length, 1);
-			assert.strictEqual(items![0].name, 'Test Skill');
-			assert.strictEqual(items![0].type, 'skill');
+			const result = await service.getActiveDescriptor().itemProvider!.provideChatSessionCustomizations(CancellationToken.None);
+			assert.strictEqual(result?.items.length, 1);
+			assert.strictEqual(result!.items[0].name, 'Test Skill');
+			assert.strictEqual(result!.items[0].type, 'skill');
 		});
 
 		test('external harness with hidden sections and workspace subpaths', () => {
 			const service = createService();
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'test-ext',
@@ -182,7 +182,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -207,7 +207,7 @@ suite('CustomizationHarnessService', () => {
 			);
 			assert.strictEqual(service.availableHarnesses.get().length, 2);
 
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'cli',
@@ -216,7 +216,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -241,7 +241,7 @@ suite('CustomizationHarnessService', () => {
 				staticDescriptor,
 			);
 
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'cli',
@@ -250,7 +250,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 
@@ -275,7 +275,7 @@ suite('CustomizationHarnessService', () => {
 				staticDescriptor,
 			);
 
-			const emitter = new Emitter<void>();
+			const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 			store.add(emitter);
 			const externalDescriptor: IHarnessDescriptor = {
 				id: 'cli',
@@ -284,7 +284,7 @@ suite('CustomizationHarnessService', () => {
 				getStorageSourceFilter: () => ({ sources: [PromptsStorage.local] }),
 				itemProvider: {
 					onDidChange: emitter.event,
-					provideChatSessionCustomizations: async () => [],
+					provideChatSessionCustomizations: async () => ({ items: [] }),
 				},
 			};
 

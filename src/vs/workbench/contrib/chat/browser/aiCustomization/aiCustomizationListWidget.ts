@@ -45,7 +45,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
-import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
@@ -1607,12 +1606,12 @@ export class AICustomizationListWidget extends Disposable {
 	 * the provider's items into the list widget format.
 	 */
 	private async fetchItemsFromProvider(provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
-		if (!allItems) {
+		const result = await provider.provideChatSessionCustomizations(CancellationToken.None);
+		if (!result) {
 			return [];
 		}
 
-		return allItems
+		return result.items
 			.filter(item => item.type === promptType)
 			.map((item: IExternalCustomizationItem) => ({
 				id: item.uri.toString(),
@@ -1992,19 +1991,5 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	get itemCount(): number {
 		return this.allItems.length;
-	}
-
-	/**
-	 * Generates a debug report for the current section.
-	 */
-	async generateDebugReport(): Promise<string> {
-		const activeDescriptor = this.harnessService.getActiveDescriptor();
-		return generateCustomizationDebugReport(
-			this.currentSection,
-			this.promptsService,
-			this.workspaceService,
-			{ allItems: this.allItems, displayEntries: this.displayEntries },
-			activeDescriptor.itemProvider,
-		);
 	}
 }

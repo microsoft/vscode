@@ -6,6 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
@@ -41,12 +42,13 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatSessionCustomizationChangeEventDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
-import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, IExternalCustomizationChangeEvent, IExternalCustomizationItem, IExternalCustomizationItemProvider, IExternalCustomizationResult, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ChatDebugLogLevel, IChatDebugResolvedEventContent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -107,7 +109,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _promptFileContentRegistrations = this._register(new DisposableMap<number, DisposableMap<string, IDisposable>>());
 
 	private readonly _customizationProviders = this._register(new DisposableMap<number, IDisposable>());
-	private readonly _customizationProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _customizationProviderEmitters = this._register(new DisposableMap<number, Emitter<IExternalCustomizationChangeEvent>>());
+	private readonly _customizationDebugDetails = new Map<string, IExternalCustomizationResult>();
+	private readonly _lastChangedTypes = new Map<number, readonly string[] | undefined>();
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -131,9 +135,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
+
+		// Register a resolve provider for customization discovery debug events.
+		this._register(this._chatDebugService.registerProvider({
+			provideChatDebugLog: async () => undefined,
+			resolveChatDebugLogEvent: async (eventId) => {
+				return this._resolveCustomizationEvent(eventId);
+			}
+		}));
 
 		// When the provider API kill-switch is toggled off, dispose all registered providers
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -611,18 +624,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			return;
 		}
 
-		const emitter = new Emitter<void>();
+		const emitter = new Emitter<IExternalCustomizationChangeEvent>();
 		this._customizationProviderEmitters.set(handle, emitter);
 
 		// Build the item provider that calls back to the ExtHost
 		const itemProvider: IExternalCustomizationItemProvider = {
 			onDidChange: emitter.event,
 			provideChatSessionCustomizations: async (token) => {
-				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
-				if (!items) {
+				const result = await this._proxy.$provideChatSessionCustomizations(handle, token);
+				if (!result) {
 					return undefined;
 				}
-				return items.map((item: IChatSessionCustomizationItemDto): IExternalCustomizationItem => ({
+				const items = result.items.map((item): IExternalCustomizationItem => ({
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,
@@ -631,6 +644,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					badge: item.badge,
 					badgeTooltip: item.badgeTooltip,
 				}));
+				const mapped: IExternalCustomizationResult = {
+					items,
+					diagnostics: result.diagnostics ? {
+						scannedPaths: result.diagnostics.scannedPaths?.map(p => URI.revive(p)),
+						skippedFiles: result.diagnostics.skippedFiles?.map(f => ({
+							uri: URI.revive(f.uri),
+							reason: f.reason,
+						})),
+					} : undefined,
+				};
+				this._logCustomizationResult(handle, metadata.label, mapped);
+				return mapped;
 			},
 		};
 
@@ -642,6 +667,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				case 'instructions': return AICustomizationManagementSection.Instructions;
 				case 'prompt': return AICustomizationManagementSection.Prompts;
 				case 'hook': return AICustomizationManagementSection.Hooks;
+				case 'plugins': return AICustomizationManagementSection.Plugins;
 				default: return type;
 			}
 		});
@@ -668,11 +694,83 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._customizationProviderEmitters.deleteAndDispose(handle);
 	}
 
-	$onDidChangeCustomizations(handle: number): void {
+	$onDidChangeCustomizations(handle: number, event: IChatSessionCustomizationChangeEventDto): void {
+		this._lastChangedTypes.set(handle, event.changedTypes);
 		const emitter = this._customizationProviderEmitters.get(handle);
 		if (emitter) {
-			emitter.fire();
+			emitter.fire({ changedTypes: event.changedTypes });
 		}
+	}
+
+	private _logCustomizationResult(handle: number, label: string, result: IExternalCustomizationResult): void {
+		const sessionResource = this._chatDebugService.activeSessionResource;
+		if (!sessionResource) {
+			return;
+		}
+
+		const changedTypes = this._lastChangedTypes.get(handle);
+		this._lastChangedTypes.delete(handle);
+
+		const eventId = generateUuid();
+		this._customizationDebugDetails.set(eventId, result);
+
+		// Evict oldest entries when the map exceeds the cap.
+		if (this._customizationDebugDetails.size > 10_000) {
+			const first = this._customizationDebugDetails.keys().next().value;
+			if (first !== undefined) {
+				this._customizationDebugDetails.delete(first);
+			}
+		}
+
+		const parts: string[] = [];
+		parts.push(`${result.items.length} loaded`);
+		if (result.diagnostics?.skippedFiles?.length) {
+			parts.push(`${result.diagnostics.skippedFiles.length} skipped`);
+		}
+		if (result.diagnostics?.scannedPaths?.length) {
+			parts.push(`${result.diagnostics.scannedPaths.length} paths scanned`);
+		}
+		if (changedTypes?.length) {
+			parts.push(`changed: [${changedTypes.join(', ')}]`);
+		}
+
+		this._chatDebugService.log(
+			sessionResource,
+			`Customization discovery (${label})`,
+			parts.join(' | '),
+			ChatDebugLogLevel.Info,
+			{ id: eventId, category: 'customization-provider' },
+		);
+	}
+
+	private _resolveCustomizationEvent(eventId: string): IChatDebugResolvedEventContent | undefined {
+		const result = this._customizationDebugDetails.get(eventId);
+		if (!result) {
+			return undefined;
+		}
+
+		return {
+			kind: 'fileList',
+			discoveryType: 'customization-provider',
+			files: [
+				...result.items.map(item => ({
+					uri: item.uri,
+					name: item.name,
+					status: 'loaded' as const,
+					storage: item.groupKey,
+				})),
+				...(result.diagnostics?.skippedFiles ?? []).map(f => ({
+					uri: f.uri,
+					name: f.uri.path.split('/').pop(),
+					status: 'skipped' as const,
+					skipReason: f.reason,
+				})),
+			],
+			sourceFolders: result.diagnostics?.scannedPaths?.map(uri => ({
+				uri,
+				storage: 'external',
+			})),
+		};
 	}
 }
 

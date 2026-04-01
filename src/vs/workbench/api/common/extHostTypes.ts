@@ -3574,6 +3574,7 @@ export class ChatSessionCustomizationType {
 	static readonly Instructions = new ChatSessionCustomizationType('instructions');
 	static readonly Prompt = new ChatSessionCustomizationType('prompt');
 	static readonly Hook = new ChatSessionCustomizationType('hook');
+	static readonly Plugins = new ChatSessionCustomizationType('plugins');
 
 	constructor(public readonly id: string) { }
 }

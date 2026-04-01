@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AICustomizationManagementSection, type IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { type IHarnessDescriptor, type IExternalCustomizationItem, type IExternalCustomizationItemProvider } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { type IHarnessDescriptor, type IExternalCustomizationItem, type IExternalCustomizationItemProvider, type IExternalCustomizationResult, type IExternalCustomizationChangeEvent } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
 import { type IAgentInfo, type ICustomizationRef, type ISessionCustomization, CustomizationStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
@@ -44,8 +44,8 @@ function toStatusString(status: CustomizationStatus | undefined): 'loading' | 'l
  * status and enabled state.
  */
 export class RemoteAgentCustomizationItemProvider extends Disposable implements IExternalCustomizationItemProvider {
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<IExternalCustomizationChangeEvent>());
+	readonly onDidChange: Event<IExternalCustomizationChangeEvent> = this._onDidChange.event;
 
 	private _agentCustomizations: readonly ICustomizationRef[];
 	private _sessionCustomizations: readonly ISessionCustomization[] | undefined;
@@ -61,7 +61,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		this._register(this._clientState.onDidChangeSessionState(({ state }) => {
 			if (state.customizations !== this._sessionCustomizations) {
 				this._sessionCustomizations = state.customizations;
-				this._onDidChange.fire();
+				this._onDidChange.fire({});
 			}
 		}));
 	}
@@ -72,30 +72,34 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 	 */
 	updateAgentCustomizations(customizations: readonly ICustomizationRef[]): void {
 		this._agentCustomizations = customizations;
-		this._onDidChange.fire();
+		this._onDidChange.fire({});
 	}
 
-	async provideChatSessionCustomizations(_token: CancellationToken): Promise<IExternalCustomizationItem[]> {
+	async provideChatSessionCustomizations(_token: CancellationToken): Promise<IExternalCustomizationResult> {
 		// When a session is active, prefer session-level data (includes status)
 		if (this._sessionCustomizations) {
-			return this._sessionCustomizations.map(sc => ({
-				uri: URI.isUri(sc.customization.uri) ? sc.customization.uri : URI.parse(sc.customization.uri),
-				type: 'plugin',
-				name: sc.customization.displayName,
-				description: sc.customization.description,
-				status: toStatusString(sc.status),
-				statusMessage: sc.statusMessage,
-				enabled: sc.enabled,
-			}));
+			return {
+				items: this._sessionCustomizations.map(sc => ({
+					uri: URI.isUri(sc.customization.uri) ? sc.customization.uri : URI.parse(sc.customization.uri),
+					type: 'plugin',
+					name: sc.customization.displayName,
+					description: sc.customization.description,
+					status: toStatusString(sc.status),
+					statusMessage: sc.statusMessage,
+					enabled: sc.enabled,
+				})),
+			};
 		}
 
 		// Baseline: agent-level customizations (no status info)
-		return this._agentCustomizations.map(ref => ({
-			uri: URI.isUri(ref.uri) ? ref.uri : URI.parse(ref.uri as unknown as string),
-			type: 'plugin',
-			name: ref.displayName,
-			description: ref.description,
-		}));
+		return {
+			items: this._agentCustomizations.map(ref => ({
+				uri: URI.isUri(ref.uri) ? ref.uri : URI.parse(ref.uri as unknown as string),
+				type: 'plugin',
+				name: ref.displayName,
+				description: ref.description,
+			})),
+		};
 	}
 }
 

@@ -16,7 +16,6 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
 ├── aiCustomizationListWidget.ts                # Search + grouped list + harness toggle
 ├── aiCustomizationListWidgetUtils.ts           # List item helpers (truncation, etc.)
-├── aiCustomizationDebugPanel.ts                # Debug diagnostics panel
 ├── aiCustomizationWorkspaceService.ts          # Core VS Code workspace service impl
 ├── customizationHarnessService.ts              # Core harness service impl (agent-gated)
 ├── customizationCreatorService.ts              # AI-guided creation flow

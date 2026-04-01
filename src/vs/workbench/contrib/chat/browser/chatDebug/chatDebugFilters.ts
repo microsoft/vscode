@@ -48,11 +48,12 @@ export class ChatDebugFilterState extends Disposable {
 			case 'toolCall': return this.filterKindToolCall;
 			case 'modelTurn': return this.filterKindModelTurn;
 			case 'generic':
-				// The "Prompt Discovery" toggle only hides events produced by
-				// the prompt discovery pipeline (category === 'discovery').
-				// Other generic events (e.g. from external providers) are
-				// always visible and are not affected by this toggle.
-				if (category !== 'discovery') {
+				// The "Chat Customization" toggle hides events produced by
+				// the prompt discovery pipeline (category === 'discovery')
+				// and the customization provider pipeline
+				// (category === 'customization-provider').
+				// Other generic events are always visible.
+				if (category !== 'discovery' && category !== 'customization-provider') {
 					return true;
 				}
 				return this.filterKindPromptDiscovery;

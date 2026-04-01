@@ -1589,7 +1589,7 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$onDidChangePromptFiles(handle: number): void;
 	$registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extension: ExtensionIdentifier): void;
 	$unregisterChatSessionCustomizationProvider(handle: number): void;
-	$onDidChangeCustomizations(handle: number): void;
+	$onDidChangeCustomizations(handle: number, event: IChatSessionCustomizationChangeEventDto): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1657,7 +1657,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionResource: UriComponents): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
-	$provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined>;
+	$provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationResultDto | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
@@ -1692,6 +1692,25 @@ export interface IChatSessionCustomizationItemDto {
 	readonly groupKey?: string;
 	readonly badge?: string;
 	readonly badgeTooltip?: string;
+}
+
+export interface IChatSessionCustomizationSkippedFileDto {
+	readonly uri: UriComponents;
+	readonly reason: string;
+}
+
+export interface IChatSessionCustomizationDiagnosticsDto {
+	readonly scannedPaths?: readonly UriComponents[];
+	readonly skippedFiles?: readonly IChatSessionCustomizationSkippedFileDto[];
+}
+
+export interface IChatSessionCustomizationResultDto {
+	readonly items: IChatSessionCustomizationItemDto[];
+	readonly diagnostics?: IChatSessionCustomizationDiagnosticsDto;
+}
+
+export interface IChatSessionCustomizationChangeEventDto {
+	readonly changedTypes?: readonly string[];
 }
 export interface IChatParticipantMetadata {
 	participant: string;
