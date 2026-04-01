@@ -56,6 +56,7 @@ export class ChatDebugFilterState extends Disposable {
 					return true;
 				}
 				return this.filterKindPromptDiscovery;
+			case 'hook': return this.filterKindPromptDiscovery;
 			case 'subagentInvocation': return this.filterKindSubagent;
 
 			default: return true;
