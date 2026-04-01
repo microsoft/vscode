@@ -951,7 +951,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!(chatModel instanceof ChatModel)) {
 			throw new Error('No model');
 		}
-		const request = chatModel.getRequests().at(-1);
+		// In async mode the last request may be an implicit (hidden) steering request.
+		// Attach the elicitation to the last visible request so it renders in the UI.
+		const requests = chatModel.getRequests();
+		const request = requests.findLast(r => !r.isImplicit) ?? requests.at(-1);
 		if (!request) {
 			throw new Error('No request');
 		}
