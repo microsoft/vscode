@@ -677,6 +677,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			label: metadata.label,
 			icon: metadata.iconId ? ThemeIcon.fromId(metadata.iconId) : ThemeIcon.fromId(Codicon.extensions.id),
 			hiddenSections,
+			hideGenerateButton: metadata.hideGenerateButton,
+			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.

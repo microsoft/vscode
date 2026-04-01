@@ -1682,6 +1682,8 @@ export interface IChatSessionCustomizationProviderMetadataDto {
 	readonly label: string;
 	readonly iconId?: string;
 	readonly unsupportedTypes?: readonly string[];
+	readonly hideGenerateButton?: boolean;
+	readonly workspaceSubpaths?: readonly string[];
 }
 
 export interface IChatSessionCustomizationItemDto {
