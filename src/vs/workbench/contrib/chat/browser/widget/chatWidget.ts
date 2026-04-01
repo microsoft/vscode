@@ -2272,12 +2272,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const toolReferences = this.toolsService.toToolReferences(refs);
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
-		const promptPath = slashCommand.promptPath;
 		const promptRunEvent: ChatPromptRunEvent = {
-			storage: promptPath.storage,
+			storage: slashCommand.storage,
 		};
-		if (promptPath.storage === PromptsStorage.extension) {
-			promptRunEvent.extensionId = promptPath.extension.identifier.value;
+		if (slashCommand.extension) {
+			promptRunEvent.extensionId = slashCommand.extension.identifier.value;
 			promptRunEvent.promptName = slashCommand.name;
 		} else {
 			promptRunEvent.promptNameHash = hash(slashCommand.name).toString(16);
