@@ -88,6 +88,7 @@ export default tseslint.config(
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-accessor-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
