@@ -6,21 +6,6 @@
 import { localize } from '../../../../nls.js';
 
 /**
- * The four onboarding walkthrough variations.
- *
- * - **A**: Classic wizard modal — centered, one step at a time, progress dots
- * - **B**: Side-nav modal — persistent step list on left, content on right
- * - **C**: Chat-integrated welcome — walkthrough around chat input with project cards
- * - **D**: Agentic — full-screen chat where Copilot guides the setup
- */
-export const enum OnboardingVariation {
-	A = 'a',
-	B = 'b',
-	C = 'c',
-	D = 'd',
-}
-
-/**
  * Step identifiers for the onboarding walkthrough.
  */
 export const enum OnboardingStepId {
@@ -64,7 +49,6 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 
 /**
  * Ordered step IDs for the onboarding flow.
- * All variations share the same steps; the presentation differs.
  */
 export const ONBOARDING_STEPS: readonly OnboardingStepId[] = [
 	OnboardingStepId.SignIn,
