@@ -1458,8 +1458,6 @@ export interface IChatService {
 
 	getChatModelReferenceDebugInfo(): IChatModelReferenceDebugSnapshot;
 
-	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
-
 	/**
 	 * Sends a chat request for the given session.
 	 * @returns A result indicating whether the request was sent, queued, or rejected.
@@ -1537,7 +1535,6 @@ export interface IChatService {
 }
 
 export interface IChatSessionContext {
-	readonly chatSessionResource: URI;
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
 }
 
