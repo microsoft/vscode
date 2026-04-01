@@ -41,7 +41,8 @@ export namespace ChatEntitlementContextKeys {
 		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled due to any other reason than workspace trust.
 		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
 		later: new RawContextKey<boolean>('chatSetupLater', false, true),  			// True when the user wants to finish setup later.
-		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true)  // True when the user has registered as Free or Pro user.
+		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true), // True when the user has registered as Free or Pro user.
+		completed: new RawContextKey<boolean>('chatSetupCompleted', false, true)	// True when the user has completed the setup flow, regardless of the outcome.
 	};
 
 	export const Entitlement = {
@@ -92,6 +93,11 @@ export enum ChatEntitlement {
 }
 
 export interface IChatSentiment {
+
+	/**
+	 * Whether the user has completed the setup flow or not, regardless of the outcome
+	 */
+	completed?: boolean;
 
 	/**
 	 * User has Chat installed.
@@ -314,6 +320,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.onDidChangeSentiment = Event.map(
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
+					ChatEntitlementContextKeys.Setup.completed.key,
 					ChatEntitlementContextKeys.Setup.hidden.key,
 					ChatEntitlementContextKeys.Setup.disabled.key,
 					ChatEntitlementContextKeys.Setup.untrusted.key,
@@ -496,6 +503,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	get sentiment(): IChatSentiment {
 		return {
+			completed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.completed.key) === true,
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.hidden.key) === true,
 			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.disabled.key) === true,
@@ -622,8 +630,8 @@ export class ChatEntitlementRequests extends Disposable {
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.resolve()));
 
 		this._register(this.context.onDidChange(() => {
-			if (!this.context.state.installed || this.context.state.disabled || this.context.state.entitlement === ChatEntitlement.Unknown) {
-				// When the extension is not installed, disabled or the user is not entitled
+			if (this.context.state.disabled || this.context.state.entitlement === ChatEntitlement.Unknown) {
+				// When the extension is disabled or the user is not entitled
 				// make sure to clear quotas so that any indicators are also gone
 				this.state = { entitlement: this.state.entitlement, quotas: undefined };
 				this.chatQuotasAccessor.clearQuotas();
@@ -1005,16 +1013,12 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 	 * User's Copilot tracking ID from the entitlement API.
 	 */
 	copilotTrackingId: string | undefined;
-
-	/**
-	 * User is or was a registered Chat user.
-	 */
-	registered?: boolean;
 }
 
 export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
+	private static readonly CHAT_ENTITLEMENT_CONTEXT_MIGRATED_STORAGE_KEY = 'chat.setupContext.migrated.v1';
 
 	private static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
 
@@ -1032,6 +1036,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly isInternalContextKey: IContextKey<boolean>;
 	private readonly skuContextKey: IContextKey<string | undefined>;
 
+	private readonly completedContext: IContextKey<boolean>;
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly laterContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
@@ -1071,6 +1076,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.isInternalContextKey = ChatEntitlementContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.skuContextKey = ChatEntitlementContextKeys.Entitlement.sku.bindTo(contextKeyService);
 
+		this.completedContext = ChatEntitlementContextKeys.Setup.completed.bindTo(contextKeyService);
 		this.hiddenContext = ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatEntitlementContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatEntitlementContextKeys.Setup.installed.bindTo(contextKeyService);
@@ -1078,7 +1084,20 @@ export class ChatEntitlementContext extends Disposable {
 		this.untrustedContext = ChatEntitlementContextKeys.Setup.untrusted.bindTo(contextKeyService);
 		this.registeredContext = ChatEntitlementContextKeys.Setup.registered.bindTo(contextKeyService);
 
-		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown, organisations: undefined, sku: undefined, copilotTrackingId: undefined };
+		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? {
+			entitlement: ChatEntitlement.Unknown,
+			organisations: undefined,
+			sku: undefined,
+			copilotTrackingId: undefined
+		};
+
+		const migrated = this.storageService.getBoolean(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_MIGRATED_STORAGE_KEY, StorageScope.PROFILE) === true;
+		if (!migrated) {
+			this.storageService.store(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_MIGRATED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			if (this._state.installed) {
+				this._state.completed = true; // treat installation signal as completed signal once
+			}
+		}
 
 		this.updateContextSync();
 
@@ -1105,10 +1124,11 @@ export class ChatEntitlementContext extends Disposable {
 	}
 
 	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
+	update(context: { completed: true }): Promise<void>;
 	update(context: { hidden: false }): Promise<void>; // legacy UI state from before we had a setting to hide, keep around to still support users who used this
 	update(context: { later: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement; organisations: string[] | undefined; sku: string | undefined; copilotTrackingId: string | undefined }): Promise<void>;
-	async update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; sku?: string; copilotTrackingId?: string }): Promise<void> {
+	async update(context: { completed?: boolean; installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; sku?: string; copilotTrackingId?: string }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		const oldState = JSON.stringify(this._state);
@@ -1129,6 +1149,10 @@ export class ChatEntitlementContext extends Disposable {
 
 		if (typeof context.later === 'boolean') {
 			this._state.later = context.later;
+		}
+
+		if (typeof context.completed === 'boolean') {
+			this._state.completed = context.completed;
 		}
 
 		if (typeof context.entitlement === 'number') {
@@ -1183,6 +1207,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.isInternalContextKey.set(Boolean(state.organisations?.some(org => org === 'github' || org === 'microsoft' || org === 'ms-copilot' || org === 'MicrosoftCopilot')));
 		this.skuContextKey.set(state.sku);
 
+		this.completedContext.set(!!state.completed);
 		this.hiddenContext.set(!!state.hidden);
 		this.laterContext.set(!!state.later);
 		this.installedContext.set(!!state.installed);

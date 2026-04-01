@@ -40,7 +40,7 @@ suite('AgentSideEffects', () => {
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 
-	function setupSession(): void {
+	function setupSession(workingDirectory?: string): void {
 		stateManager.createSession({
 			resource: sessionUri.toString(),
 			provider: 'mock',
@@ -48,6 +48,7 @@ suite('AgentSideEffects', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			workingDirectory,
 		});
 		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 	}
@@ -615,7 +616,7 @@ suite('AgentSideEffects', () => {
 	suite('edit auto-approve', () => {
 
 		test('auto-approves writes to regular source files', async () => {
-			setupSession();
+			setupSession(URI.file('/workspace').toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -644,7 +645,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('blocks writes to .env files', () => {
-			setupSession();
+			setupSession(URI.file('/workspace').toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -679,7 +680,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('blocks writes to package.json', () => {
-			setupSession();
+			setupSession(URI.file('/workspace').toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -706,7 +707,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('blocks writes to .lock files', () => {
-			setupSession();
+			setupSession(URI.file('/workspace').toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -733,7 +734,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('blocks writes to .git directory', () => {
-			setupSession();
+			setupSession(URI.file('/workspace').toString());
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
