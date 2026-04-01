@@ -1095,6 +1095,11 @@ export class ChatEntitlementContext extends Disposable {
 		if (!migrated) {
 			this.storageService.store(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_MIGRATED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 
+			// From 1.116 the chat extension ships as built-in extension, so the
+			// `installed` state will always be `true` going forward. To track
+			// users that previously went through the setup flow, we do a one
+			// time migration by probing the `installed` property and update
+			// `completed` accordingly.
 			if (this._state.installed) {
 				this._state.completed = true;
 			}
