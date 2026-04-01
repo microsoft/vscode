@@ -12,6 +12,7 @@ permissions:
   contents: read
   statuses: write
   pull-requests: write
+  id-token: write
 
 concurrency:
   group: screenshots-${{ github.event.pull_request.number || github.sha }}
@@ -62,16 +63,28 @@ jobs:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
+      - name: Get OIDC token
+        id: oidc
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
+            | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
       - name: Trigger ingestion
         run: |
-          curl -sS -X POST "https://hediet-screenshots.azurewebsites.net/ingest" \
+          curl -sS -f -X POST "https://hediet-screenshots.azurewebsites.net/ingest" \
             -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $SCREENSHOT_SERVICE_TOKEN" \
             -d '{
               "owner": "${{ github.repository_owner }}",
               "repo": "${{ github.event.repository.name }}",
               "runId": ${{ github.run_id }},
               "artifactName": "screenshots"
             }'
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
 
       - name: Diff screenshots against merge base
         id: diff
@@ -90,6 +103,8 @@ jobs:
             echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
           fi
         continue-on-error: true
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
 
       - name: Post PR comment
         if: github.event_name == 'pull_request' && steps.diff.outputs.has_changes == 'true'
