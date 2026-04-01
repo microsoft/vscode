@@ -385,8 +385,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.isNewChatSessionContext.set(false);
 
 		const setActiveChatToLast = () => {
-			if (this._activeChatObservable) {
-				const chats = session.chats.get();
+			const activeSession = this._activeSession.get();
+			if (this._activeChatObservable && activeSession) {
+				const chats = activeSession.chats.get();
 				const lastChat = chats[chats.length - 1];
 				if (lastChat) {
 					this._activeChatObservable.set(lastChat, undefined);

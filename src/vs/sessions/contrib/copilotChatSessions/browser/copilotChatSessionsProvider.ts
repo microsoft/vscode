@@ -1088,11 +1088,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const sessions: ISession[] = [];
 
 		for (const chat of allChats) {
-			let groupId = this._groupModel.getSessionIdForChat(chat.id);
-			if (!groupId) {
-				groupId = chat.id;
-				this._groupModel.addChat(groupId, chat.id);
-			}
+			const groupId = this._groupModel.getSessionIdForChat(chat.id) ?? chat.id;
 			if (!seen.has(groupId)) {
 				seen.add(groupId);
 				sessions.push(this._chatToSession(chat));
@@ -1471,13 +1467,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return updatedSession;
 		} catch (error) {
-			// Clean up on error
+			// Clean up on error — fire changed on the parent session group
 			this._sessionCache.delete(key);
 			this._groupModel.removeChat(newChatSession.id);
 			this._sessionGroupCache.delete(sessionId);
 			this._currentNewSession = undefined;
 			newChatSession.dispose();
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(newChatSession)] });
+			// Find the parent session's primary chat to fire a valid changed event
+			const parentChatIds = this._groupModel.getChatIds(sessionId);
+			const parentChatId = parentChatIds[0];
+			const parentChat = parentChatId ? this._sessionCache.get(this._localIdFromchatId(parentChatId)) : undefined;
+			if (parentChat) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(parentChat)] });
+			}
 			throw error;
 		}
 	}
@@ -1673,26 +1675,42 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		removedData: ICopilotChatSession[],
 		changedData: ICopilotChatSession[],
 	): void {
+		// Track session group IDs for removed chats before modifying the group model
+		const removedGroupIds = new Map<ICopilotChatSession, string | undefined>();
+		for (const removed of removedData) {
+			removedGroupIds.set(removed, this._groupModel.getSessionIdForChat(removed.id));
+		}
+
 		// Handle removed chats: if a removed chat belongs to a group with
 		// remaining siblings, treat it as a changed event on the parent session
 		// instead of a removed session.
-		const trulyRemovedSessions: ICopilotChatSession[] = [];
+		const trulyRemovedSessions: { chat: ICopilotChatSession; groupId: string }[] = [];
+		const changedSessionIds = new Set<string>();
 		for (const removed of removedData) {
-			const sessionId = this._groupModel.getSessionIdForChat(removed.id);
+			const sessionId = removedGroupIds.get(removed);
 			this._groupModel.removeChat(removed.id);
 			if (sessionId && this._groupModel.getChatIds(sessionId).length > 0) {
 				// Group still has other chats — invalidate cache and treat as changed
 				this._sessionGroupCache.delete(sessionId);
-				const primaryChatId = this._groupModel.getChatIds(sessionId)[0];
-				const primaryChat = this._sessionCache.get(this._localIdFromchatId(primaryChatId));
-				if (primaryChat) {
-					changedData.push(primaryChat);
+				if (!changedSessionIds.has(sessionId)) {
+					changedSessionIds.add(sessionId);
+					const primaryChatId = this._groupModel.getChatIds(sessionId)[0];
+					const primaryChat = this._sessionCache.get(this._localIdFromchatId(primaryChatId));
+					if (primaryChat) {
+						changedData.push(primaryChat);
+					}
 				}
 			} else {
-				if (sessionId) {
-					this._sessionGroupCache.delete(sessionId);
-				}
-				trulyRemovedSessions.push(removed);
+				const groupId = sessionId ?? removed.id;
+				this._sessionGroupCache.delete(groupId);
+				trulyRemovedSessions.push({ chat: removed, groupId });
+			}
+		}
+
+		// Seed ungrouped chats into the group model
+		for (const added of addedData) {
+			if (!this._groupModel.getSessionIdForChat(added.id)) {
+				this._groupModel.addChat(added.id, added.id);
 			}
 		}
 
@@ -1702,21 +1720,34 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const existingGroupId = this._groupModel.getSessionIdForChat(added.id);
 			if (existingGroupId && existingGroupId !== added.id) {
 				// This chat belongs to an existing session group — treat as changed
-				changedData.push(added);
+				if (!changedSessionIds.has(existingGroupId)) {
+					changedSessionIds.add(existingGroupId);
+					changedData.push(added);
+				}
 			} else {
 				newSessions.push(added);
 			}
 		}
 
+		// Deduplicate changed sessions by group ID
+		const seenChanged = new Set<string>();
+		const deduplicatedChanged: ICopilotChatSession[] = [];
+		for (const d of changedData) {
+			const groupId = this._groupModel.getSessionIdForChat(d.id) ?? d.id;
+			if (!seenChanged.has(groupId)) {
+				seenChanged.add(groupId);
+				deduplicatedChanged.push(d);
+			}
+		}
+
 		this._onDidChangeSessions.fire({
 			added: newSessions.map(d => this._chatToSession(d)),
-			removed: trulyRemovedSessions.map(d => {
-				const groupId = d.id;
+			removed: trulyRemovedSessions.map(({ chat, groupId }) => {
 				const session = this._sessionGroupCache.get(groupId);
 				this._sessionGroupCache.delete(groupId);
-				return session ?? this._chatToSession(d);
+				return session ?? this._chatToSession(chat);
 			}),
-			changed: changedData.map(d => this._chatToSession(d)),
+			changed: deduplicatedChanged.map(d => this._chatToSession(d)),
 		});
 	}
 
