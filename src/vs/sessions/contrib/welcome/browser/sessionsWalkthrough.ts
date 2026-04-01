@@ -417,6 +417,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			className: 'sessions-walkthrough-disclaimer-link',
 			href,
 		}, label) as HTMLAnchorElement;
+		link.style.setProperty('color', 'var(--vscode-textLink-foreground)', 'important');
+		link.style.setProperty('-webkit-text-fill-color', 'var(--vscode-textLink-foreground)');
+		link.style.textDecoration = 'none';
 		this._register(addDisposableListener(link, EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
