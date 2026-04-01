@@ -41,7 +41,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptDiscoveryInfo, IPromptDiscoveryLogEntry, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -3791,7 +3791,7 @@ suite('PromptsService', () => {
 			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				hooks: [{ command: 'echo from-plugin' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
@@ -3801,7 +3801,6 @@ suite('PromptsService', () => {
 			assert.ok(result, 'Expected hooks result');
 
 			assert.deepStrictEqual(result.hooks[HookType.PreToolUse], [{
-				type: 'command',
 				command: 'echo from-plugin',
 			}], 'Expected plugin hooks to be included in computed hooks');
 		});
@@ -3813,7 +3812,7 @@ suite('PromptsService', () => {
 			const { plugin, hooks } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo before' }],
+				hooks: [{ command: 'echo before' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
@@ -3821,18 +3820,18 @@ suite('PromptsService', () => {
 
 			const before = await service.getHooks(CancellationToken.None);
 			assert.ok(before, 'Expected hooks result before plugin update');
-			assert.deepStrictEqual(before.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo before' }]);
+			assert.deepStrictEqual(before.hooks[HookType.PreToolUse], [{ command: 'echo before' }]);
 
 			hooks.set([{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo after' }],
+				hooks: [{ command: 'echo after' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}], undefined);
 
 			const after = await service.getHooks(CancellationToken.None);
 			assert.ok(after, 'Expected hooks result after plugin update');
-			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo after' }]);
+			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ command: 'echo after' }]);
 		});
 
 		test('returns undefined when workspace is untrusted', async function () {
@@ -3879,7 +3878,7 @@ suite('PromptsService', () => {
 			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
 				type: HookType.PreToolUse,
 				originalId: 'plugin-pre-tool-use',
-				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+				hooks: [{ command: 'echo from-plugin' }],
 				uri: URI.file('/plugins/test-plugin/hooks.json'),
 			}]);
 
@@ -3888,6 +3887,75 @@ suite('PromptsService', () => {
 			await workspaceTrustService.setWorkspaceTrust(false);
 			const result = await service.getHooks(CancellationToken.None);
 			assert.strictEqual(result, undefined, 'Expected undefined hooks when workspace is untrusted, even with plugin hooks');
+		});
+
+		test('Claude hooks with disableAllHooks should not report hasDisabledClaudeHooks when Claude hooks setting is off', async function () {
+			// A Claude settings file that has disableAllHooks: true but defines hooks.
+			// When USE_CLAUDE_HOOKS is false, the old code skipped this file due to
+			// disabledAllHooks before reaching the Claude check, so hasDisabledClaudeHooks was false.
+			const workspaceUri = URI.file('/test-workspace');
+			workspaceContextService.setWorkspace(testWorkspace(workspaceUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_HOOKS, false);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			await mockFiles(fileService, [
+				{
+					path: '/test-workspace/.claude/settings.json',
+					contents: [
+						JSON.stringify({
+							disableAllHooks: true,
+							hooks: {
+								PreToolUse: [{ type: 'command', command: 'echo disabled-claude-hook' }],
+							},
+						}),
+					],
+				},
+			]);
+
+			const result = await service.getHooks(CancellationToken.None);
+			// No hooks should be collected (the only file has disableAllHooks)
+			assert.strictEqual(result, undefined, 'Expected no hooks result');
+		});
+
+		test('plugin hooks appear in hook discovery info files', async function () {
+			// Plugin hooks should be reported in the discovery info files array
+			// so that diagnostic views can display them.
+			const workspaceUri = URI.file('/test-workspace');
+			workspaceContextService.setWorkspace(testWorkspace(workspaceUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			const pluginHookUri = URI.file('/plugins/test-plugin/hooks.json');
+			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-pre-tool-use',
+				hooks: [{ command: 'echo from-plugin' }],
+				uri: pluginHookUri,
+			}]);
+
+			testPluginsObservable.set([plugin], undefined);
+
+			// Use a sessionResource to trigger discovery logging
+			const sessionResource = URI.file('/session');
+			let capturedDiscoveryInfo: IPromptDiscoveryInfo | undefined;
+			const logDisposable = service.onDidLogDiscovery((entry: IPromptDiscoveryLogEntry) => {
+				if (entry.discoveryInfo?.type === PromptsType.hook) {
+					capturedDiscoveryInfo = entry.discoveryInfo;
+				}
+			});
+
+			const result = await service.getHooks(CancellationToken.None, sessionResource);
+			logDisposable.dispose();
+
+			assert.ok(result, 'Expected hooks result with plugin hooks');
+			assert.ok(capturedDiscoveryInfo, 'Expected discovery info to be logged');
+
+			// Plugin hook file should appear in discovery files
+			const pluginFile = capturedDiscoveryInfo!.files.find(
+				f => f.promptPath.storage === PromptsStorage.plugin
+			);
+			assert.ok(pluginFile, 'Plugin hook file should be present in discovery info files');
 		});
 	});
 

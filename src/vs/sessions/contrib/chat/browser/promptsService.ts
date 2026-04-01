@@ -25,7 +25,7 @@ import { IUserDataProfileService } from '../../../../workbench/services/userData
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
-/** URI root for built-in skills bundled with the Sessions app. */
+/** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
 
 export class AgenticPromptsService extends PromptsService {
