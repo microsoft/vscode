@@ -111,9 +111,14 @@ function generateMarkdown(result: CompareResult, baseSha: string, currentSha: st
 }
 
 async function fetchCompare(serviceUrl: string, owner: string, repo: string, baseSha: string, currentSha: string): Promise<CompareResult> {
+	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+	const token = process.env.SCREENSHOT_SERVICE_TOKEN;
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
 	const response = await fetch(`${serviceUrl}/compare`, {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
+		headers,
 		body: JSON.stringify({ owner, repo, baseCommitSha: baseSha, currentCommitSha: currentSha }),
 	});
 
