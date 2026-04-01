@@ -305,6 +305,7 @@
 	color: var(--vscode-textLink-foreground) !important;
 	-webkit-text-fill-color: var(--vscode-textLink-foreground);
 	text-decoration: none;
+	outline: none;
 }
 
 .sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:hover,
@@ -314,11 +315,8 @@
 	text-decoration: underline;
 }
 
-.sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:focus,
 .sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:focus-visible {
-	outline-color: var(--vscode-focusBorder);
-	box-shadow: none;
-	-webkit-appearance: none;
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+	outline: none;
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+	border-radius: 2px;
 }
