@@ -63,7 +63,7 @@ export async function main(argv: string[]): Promise<void> {
 			// on the following variable. For the server we need to unset
 			// it to prevent importing any electron specific modules.
 			// Refs https://github.com/microsoft/vscode/issues/221883
-			delete env['ELECTRON_RUN_AS_NODE'];
+			delete env['ELECTRON_RUN_AS_NODE']; 
 
 			const tunnelArgs = argv.slice(argv.indexOf(subcommand) + 1); // all arguments behind `tunnel`
 			return new Promise((resolve, reject) => {
