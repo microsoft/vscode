@@ -315,6 +315,9 @@
 }
 
 .sessions-walkthrough-disclaimer a.sessions-walkthrough-disclaimer-link:focus-visible {
+	outline-color: var(--vscode-focusBorder);
+	box-shadow: none;
+	-webkit-appearance: none;
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
