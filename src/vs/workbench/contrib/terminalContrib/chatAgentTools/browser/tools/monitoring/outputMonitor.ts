@@ -269,14 +269,22 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				resolve();
 				return;
 			}
-			const dataListener = this._execution.instance.onData(() => {
+			const cleanup = () => {
 				dataListener.dispose();
 				tokenListener.dispose();
+				disposedListener.dispose();
+			};
+			const dataListener = this._execution.instance.onData(() => {
+				cleanup();
 				resolve();
 			});
 			const tokenListener = token.onCancellationRequested(() => {
-				dataListener.dispose();
-				tokenListener.dispose();
+				cleanup();
+				resolve();
+			});
+			// Resolve when the terminal instance is disposed to avoid waiting forever
+			const disposedListener = this._execution.instance.onDisposed(() => {
+				cleanup();
 				resolve();
 			});
 		});

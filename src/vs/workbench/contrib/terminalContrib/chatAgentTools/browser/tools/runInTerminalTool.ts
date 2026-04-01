@@ -1796,6 +1796,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				return;
 			}
 
+			// Dispose after first notification to avoid chatty repeated messages
+			// if the user runs additional commands via send_to_terminal.
+			listener.dispose();
+
 			// Clean up background monitoring on command finish
 			if (bgCts) {
 				bgCts.cancel();
