@@ -4412,8 +4412,7 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.ignore')
-	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+	private async runIgnoreRuleCommand(resourceStates: SourceControlResourceState[], fn: (repository: Repository, resources: Uri[]) => Promise<void>): Promise<void> {
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
@@ -4434,7 +4433,17 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
+		await this.runByRepository(resources, async (repository, resources) => fn(repository, resources));
+	}
+
+	@command('git.ignore')
+	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		await this.runIgnoreRuleCommand(resourceStates, (repository, resources) => repository.ignore(resources));
+	}
+
+	@command('git.exclude')
+	async exclude(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		await this.runIgnoreRuleCommand(resourceStates, (repository, resources) => repository.exclude(resources));
 	}
 
 	@command('git.revealInExplorer')
