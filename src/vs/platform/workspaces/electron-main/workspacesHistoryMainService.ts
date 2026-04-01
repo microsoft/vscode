@@ -10,7 +10,7 @@ import { Emitter, Event as CommonEvent } from '../../../base/common/event.js';
 import { normalizeDriveLetter, splitRecentLabel } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isMacintosh, INodeProcess, isWindows } from '../../../base/common/platform.js';
 import { basename, extUriBiasedIgnorePathCase, originalFSPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
@@ -107,7 +107,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 					// Add to recent documents (Windows only, macOS later)
 					// Skip in portable mode to avoid leaving traces on the machine
-					if (isWindows && recent.fileUri.scheme === Schemas.file && !this.environmentMainService.isPortable) {
+					// Skip in the sessions app to avoid polluting the jump list
+					if (isWindows && recent.fileUri.scheme === Schemas.file && !this.environmentMainService.isPortable && !(process as INodeProcess).isEmbeddedApp) {
 						app.addRecentDocument(recent.fileUri.fsPath);
 					}
 				}
@@ -325,6 +326,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			return;
 		}
 
+		// Skip in the sessions app to avoid polluting the jump list
+		if ((process as INodeProcess).isEmbeddedApp) {
+			return;
+		}
+
 		await this.updateWindowsJumpList();
 		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
 	}
@@ -452,6 +458,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private async updateMacOSRecentDocuments(): Promise<void> {
 		if (!isMacintosh) {
+			return;
+		}
+
+		// Skip in the sessions app to avoid polluting the dock
+		if ((process as INodeProcess).isEmbeddedApp) {
 			return;
 		}
 

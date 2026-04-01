@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { ISessionAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
@@ -278,7 +280,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via refresh -------
 
-	test('getSessions populates from connection.listSessions', async () => {
+	test('getSessions populates from connection.listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('list-1', { summary: 'First' }));
 		connection.addSession(createSession('list-2', { summary: 'Second' }));
 
@@ -287,12 +289,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		assert.ok(changes.length > 0);
 		const sessions = provider.getSessions();
 		assert.strictEqual(sessions.length, 2);
-	});
+	}));
 
 	// ---- Session lifecycle -------
 
@@ -406,11 +408,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(connection.dispatchedActions.length, 0);
 	});
 
-	test('renameSession increments clientSeq on successive calls', async () => {
+	test('renameSession increments clientSeq on successive calls', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('seq-sess', { summary: 'Seq Test' }));
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		const sessions = provider.getSessions();
 		const target = sessions.find((s) => s.title.get() === 'Seq Test');
@@ -422,7 +424,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(connection.dispatchedActions.length, 2);
 		assert.strictEqual(connection.dispatchedActions[0].clientSeq, 0);
 		assert.strictEqual(connection.dispatchedActions[1].clientSeq, 1);
-	});
+	}));
 
 	test('server-echoed SessionTitleChanged updates cached title', () => {
 		const provider = createProvider(disposables, connection);
@@ -451,13 +453,13 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes[0].changed.length, 1);
 	});
 
-	test('renamed title survives session refresh from listSessions', async () => {
+	test('renamed title survives session refresh from listSessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Simulate server persisting the renamed title: after rename, listSessions
 		// returns the updated summary
 		connection.addSession(createSession('persist-sess', { summary: 'Original Title' }));
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		// Verify initial title
 		let sessions = provider.getSessions();
@@ -477,12 +479,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			origin: undefined,
 		} as IActionEnvelope);
 
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		sessions = provider.getSessions();
 		target = sessions.find((s) => s.title.get() === 'Renamed Title');
 		assert.ok(target, 'Session should have renamed title after refresh');
-	});
+	}));
 
 	// ---- Send -------
 
@@ -496,12 +498,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session data adapter -------
 
-	test('session adapter has correct workspace from working directory', async () => {
+	test('session adapter has correct workspace from working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo') }));
 
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		const sessions = provider.getSessions();
 		const wsSession = sessions.find((s) => s.title.get() === 'WS Test');
@@ -510,42 +512,42 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace, 'Workspace should be populated');
 		assert.strictEqual(workspace!.label, 'myrepo [Test Host]');
-	});
+	}));
 
-	test('session adapter without working directory has no workspace', async () => {
+	test('session adapter without working directory has no workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('no-ws-sess', { summary: 'No WS' }));
 
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		const sessions = provider.getSessions();
 		const session = sessions.find((s) => s.title.get() === 'No WS');
 		assert.ok(session, 'Session should exist');
 		assert.strictEqual(session!.workspace.get(), undefined);
-	});
+	}));
 
-	test('session adapter uses raw ID as fallback title', async () => {
+	test('session adapter uses raw ID as fallback title', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('abcdef1234567890'));
 
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		const sessions = provider.getSessions();
 		const session = sessions[0];
 		assert.ok(session);
 		assert.strictEqual(session.title.get(), 'Session abcdef12');
-	});
+	}));
 
 	// ---- Refresh on turnComplete -------
 
-	test('turnComplete action triggers session refresh for matching provider', async () => {
+	test('turnComplete action triggers session refresh for matching provider', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('turn-sess', { summary: 'Before', modifiedTime: 1000 }));
 
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		// Update on connection side
 		connection.addSession(createSession('turn-sess', { summary: 'After', modifiedTime: 5000 }));
@@ -562,12 +564,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			origin: undefined,
 		} as IActionEnvelope);
 
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		assert.ok(changes.length > 0);
 		const updatedSession = provider.getSessions().find((s) => s.title.get() === 'After');
 		assert.ok(updatedSession, 'Session should have updated title');
-	});
+	}));
 
 	// ---- getSessionTypes -------
 
@@ -587,17 +589,17 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- sessionType on adapters -------
 
-	test('session adapter uses logical session type, not resource scheme', async () => {
+	test('session adapter uses logical session type, not resource scheme', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('type-sess', { summary: 'Type Test' }));
 
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
-		await new Promise(resolve => setTimeout(resolve, 50));
+		await timeout(0);
 
 		const sessions = provider.getSessions();
 		const session = sessions.find((s) => s.title.get() === 'Type Test');
 		assert.ok(session, 'Session should exist');
 		// sessionType should be the logical type (agent-host-copilot), not the resource scheme
 		assert.strictEqual(session!.sessionType, provider.sessionTypes[0].id);
-	});
+	}));
 });

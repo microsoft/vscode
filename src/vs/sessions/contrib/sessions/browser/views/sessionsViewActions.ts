@@ -626,6 +626,10 @@ registerAction2(class OpenSessionInNewWindowAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+		sessionsManagementService.openNewSessionView(); // running this first to address focus issues
+
 		for (const session of sessions) {
 			await chatWidgetService.openSession(session.resource, AUX_WINDOW_GROUP, {
 				auxiliary: { compact: true, bounds: { width: 800, height: 640 } },

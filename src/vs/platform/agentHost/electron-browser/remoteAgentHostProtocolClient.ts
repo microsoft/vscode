@@ -14,14 +14,17 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { IFileService } from '../../files/common/files.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { ContentEncoding } from '../common/state/protocol/commands.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
-import { WebSocketClientTransport } from './webSocketClientTransport.js';
+import { encodeBase64 } from '../../../base/common/buffer.js';
 
 /**
  * A protocol-level client for a single remote agent host connection.
@@ -36,7 +39,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _clientId = generateUuid();
-	private readonly _transport: WebSocketClientTransport;
+	private readonly _address: string;
+	private readonly _transport: IProtocolTransport;
 	private readonly _connectionAuthority: string;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
@@ -60,7 +64,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	get address(): string {
-		return this._transport['_address'];
+		return this._address;
 	}
 
 	get defaultDirectory(): string | undefined {
@@ -69,12 +73,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	constructor(
 		address: string,
-		connectionToken: string | undefined,
+		transport: IProtocolTransport,
 		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		this._address = address;
 		this._connectionAuthority = agentHostAuthority(address);
-		this._transport = this._register(new WebSocketClientTransport(address, connectionToken));
+		this._transport = transport;
+		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._onDidClose.fire()));
 	}
@@ -83,7 +90,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Connect to the remote agent host and perform the protocol handshake.
 	 */
 	async connect(): Promise<void> {
-		await this._transport.connect();
+		if (isClientTransport(this._transport)) {
+			await this._transport.connect();
+		}
 
 		const result = await this._sendRequest('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
@@ -215,7 +224,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	private _handleMessage(msg: IProtocolMessage): void {
-		if (isJsonRpcResponse(msg)) {
+		if (isJsonRpcRequest(msg)) {
+			this._handleReverseRequest(msg.id, msg.method, msg.params);
+		} else if (isJsonRpcResponse(msg)) {
 			const pending = this._pendingRequests.get(msg.id);
 			if (pending) {
 				this._pendingRequests.delete(msg.id);
@@ -249,6 +260,49 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 		} else {
 			this._logService.warn(`[RemoteAgentHostProtocol] Unrecognized message:`, JSON.stringify(msg));
+		}
+	}
+
+	/**
+	 * Handles reverse RPC requests from the server (e.g. browseDirectory,
+	 * fetchContent). Reads from the local file service and sends a response.
+	 */
+	private _handleReverseRequest(id: number, method: string, params: unknown): void {
+		const sendResult = (result: unknown) => {
+			const response: IJsonRpcResponse = { jsonrpc: '2.0', id, result };
+			this._transport.send(response);
+		};
+		const sendError = (message: string) => {
+			const response: IJsonRpcResponse = { jsonrpc: '2.0', id, error: { code: -32000, message } };
+			this._transport.send(response);
+		};
+
+		const p = params as { uri?: string };
+		switch (method) {
+			case 'browseDirectory': {
+				if (!p.uri) { sendError('Missing uri'); return; }
+				this._fileService.resolve(URI.parse(p.uri)).then(stat => {
+					const entries = (stat.children ?? []).map(c => ({
+						name: c.name,
+						type: c.isDirectory ? 'directory' as const : 'file' as const,
+					}));
+					sendResult({ entries });
+				}).catch(err => sendError(err instanceof Error ? err.message : String(err)));
+				return;
+			}
+			case 'fetchContent': {
+				if (!p.uri) { sendError('Missing uri'); return; }
+				this._fileService.readFile(URI.parse(p.uri)).then(content => {
+					sendResult({
+						data: encodeBase64(content.value),
+						encoding: ContentEncoding.Base64,
+					});
+				}).catch(err => sendError(err instanceof Error ? err.message : String(err)));
+				return;
+			}
+			default:
+				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
+				sendError(`Unknown method: ${method}`);
 		}
 	}
 

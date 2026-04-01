@@ -1307,6 +1307,7 @@ export type NewChatSessionOpenOptions = {
 async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
+	const chatSessionService = accessor.get(IChatSessionsService);
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
@@ -1362,14 +1363,9 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 			// Set initial session options on the model before sending the request,
 			// so that the contributed session provider can read them.
 			if (chatSendOptions.initialSessionOptions) {
-				const model = chatService.getSession(resource);
-				if (model?.contributedChatSession) {
-					model.setContributedChatSession({
-						...model.contributedChatSession,
-						initialSessionOptions: chatSendOptions.initialSessionOptions,
-					});
-				}
+				chatSessionService.updateSessionOptions(resource, chatSendOptions.initialSessionOptions);
 			}
+
 			let attachedContext = chatSendOptions.attachedContext;
 			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, promptsService, toolsService);
 			if (promptFile) {
