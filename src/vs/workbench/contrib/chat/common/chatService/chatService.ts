@@ -815,6 +815,16 @@ export namespace IChatToolInvocation {
 		return state.type === StateKind.Completed || state.type === StateKind.Cancelled;
 	}
 
+	export function isEffectivelyHidden(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
+		if (invocation.presentation === 'hidden') {
+			return true;
+		}
+		if (invocation.presentation === 'hiddenAfterComplete' && isComplete(invocation, reader)) {
+			return true;
+		}
+		return false;
+	}
+
 	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			return false;
