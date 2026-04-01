@@ -20,7 +20,9 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { ISession } from '../../sessions/common/sessionData.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -319,6 +321,9 @@ class OpenSessionInTerminalAction extends Action2 {
 	}
 
 	override async run(_accessor: ServicesAccessor): Promise<void> {
+		const telemetryService = _accessor.get(ITelemetryService);
+		logSessionsInteraction(telemetryService, 'openTerminal');
+
 		const layoutService = _accessor.get(IWorkbenchLayoutService);
 		const viewsService = _accessor.get(IViewsService);
 
