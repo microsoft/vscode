@@ -101,6 +101,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	reconnect(address: string): void {
 		const normalized = normalizeRemoteAgentHostAddress(address);
+
+		// SSH entries are reconnected by the SSH service, not via WebSocket
+		const configuredEntry = this._getConfiguredEntries().find(
+			e => normalizeRemoteAgentHostAddress(e.address) === normalized
+		);
+		if (configuredEntry?.sshConfigHost) {
+			return;
+		}
+
 		const token = this._tokens.get(normalized);
 
 		// Cancel any pending reconnect
@@ -152,6 +161,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 	async addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo> {
 		const address = entry.address;
+
+		// Dispose any existing entry for this address to avoid leaking
+		// old protocol clients and relay transports on reconnect.
+		const existingEntry = this._entries.get(address);
+		if (existingEntry) {
+			this._entries.delete(address);
+			existingEntry.store.dispose();
+		}
+
 		const store = new DisposableStore();
 
 		// Create a connection entry wrapping the pre-connected client
