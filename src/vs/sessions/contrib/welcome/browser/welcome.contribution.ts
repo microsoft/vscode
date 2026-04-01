@@ -124,6 +124,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 
 		this.watcherRef.clear();
 		this.overlayRef.value = new DisposableStore();
+		let welcomeCompletionStored = false;
 
 		// Mark the welcome overlay as visible for titlebar disabling
 		const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(this.contextKeyService);
@@ -141,7 +142,8 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
-			if (!this._needsChatSetup()) {
+			if (!welcomeCompletionStored && !this._needsChatSetup()) {
+				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 		}));
@@ -149,7 +151,8 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		// Handle the walkthrough outcome
 		walkthrough.outcome.then(outcome => {
 			this.logService.info(`[sessions welcome] Walkthrough finished with outcome: ${outcome}`);
-			if (shouldPersistWelcomeCompletion(outcome, this.chatEntitlementService)) {
+			if (!welcomeCompletionStored && shouldPersistWelcomeCompletion(outcome, this.chatEntitlementService)) {
+				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 			this.overlayRef.clear();

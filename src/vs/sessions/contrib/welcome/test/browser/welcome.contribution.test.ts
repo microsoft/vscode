@@ -257,12 +257,6 @@ suite('SessionsWelcomeContribution', () => {
 		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
 
 		let commandArgs: unknown[] | undefined;
-		instantiationService.stub(ICommandService, {
-			executeCommand: (...args: unknown[]) => {
-				commandArgs = args;
-				return Promise.resolve(false);
-			}
-		} as unknown as ICommandService);
 		instantiationService.stub(IExtensionService, {
 			stopExtensionHosts: () => Promise.resolve(false),
 			startExtensionHosts: () => Promise.resolve()
@@ -278,6 +272,18 @@ suite('SessionsWelcomeContribution', () => {
 		try {
 			const assertButtonStrategy = async (selector: string, expectedStrategy: ChatSetupStrategy) => {
 				commandArgs = undefined;
+				let resolveExecuteCommandCalled!: () => void;
+				const executeCommandCalled = new Promise<void>(resolve => {
+					resolveExecuteCommandCalled = resolve;
+				});
+				instantiationService.stub(ICommandService, {
+					executeCommand: (...args: unknown[]) => {
+						commandArgs = args;
+						resolveExecuteCommandCalled();
+						return Promise.resolve(false);
+					}
+				} as unknown as ICommandService);
+
 				const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
 				const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
 				const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
@@ -289,7 +295,7 @@ suite('SessionsWelcomeContribution', () => {
 				const button = container.querySelector<HTMLButtonElement>(selector);
 				assert.ok(button);
 				button.click();
-				await new Promise(resolve => setTimeout(resolve, 250));
+				await executeCommandCalled;
 
 				assert.ok(commandArgs);
 				assert.deepStrictEqual(commandArgs?.[1], {

@@ -420,7 +420,7 @@ class DeviceCodeFlow implements IFlow {
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
 
-		const button = l10n.t('Copy & Continue to browser');
+		const button = l10n.t('Copy & Continue to Browser');
 		const modalResult = await window.showInformationMessage(
 			l10n.t({ message: 'Your Code: {0}', args: [json.user_code], comment: ['The {0} will be a code, e.g. 123-456'] }),
 			{
