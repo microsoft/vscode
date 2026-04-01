@@ -8,7 +8,7 @@
 	align-items: center;
 	border-radius: var(--vscode-cornerRadius-medium);
 	white-space: nowrap;
-	padding: 0px 3px;
+	padding: 0px 8px;
 	height: 22px;
 	box-sizing: border-box;
 	background-color: transparent;
@@ -17,14 +17,6 @@
 
 .monaco-action-bar .update-indicator:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.monaco-action-bar .update-indicator .indicator-icon {
-	font-size: 14px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--vscode-button-foreground);
 }
 
 .monaco-action-bar .update-indicator .indicator-label {
@@ -64,21 +56,6 @@
 .monaco-action-bar .update-indicator.prominent:hover {
 	background-color: var(--vscode-button-hoverBackground);
 	border-color: var(--vscode-button-hoverBackground);
-}
-
-/* Prominent collapsed: hide label, show only icon */
-.monaco-action-bar .update-indicator.prominent .indicator-label {
-	max-width: 0;
-	opacity: 0;
-	margin-left: 0;
-}
-
-/* Prominent expanded on hover or hint-visible: show label */
-.monaco-action-bar .update-indicator.prominent:hover .indicator-label,
-.monaco-action-bar .update-indicator.prominent.hint-visible .indicator-label {
-	max-width: 100px;
-	opacity: 1;
-	margin-left: 3px;
 }
 
 /* Disabled state */
@@ -130,6 +107,7 @@
 .monaco-action-bar .update-indicator:hover .indicator-hint {
 	max-width: 180px;
 	opacity: 1;
+	margin-left: 3px;
 }
 
 /* Reduced motion */

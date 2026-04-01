@@ -8,14 +8,12 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -117,18 +115,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			}
 		));
 
-		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
-
 		void this.onStateChange(true);
-	}
-
-	private async showUpdateInfo(markdown?: string) {
-		const rendered = await this.tooltip.renderPostInstall(markdown);
-		if (rendered) {
-			this.tooltipVisible = true;
-			this.context.set(true);
-			this.entry?.showTooltip(true);
-		}
 	}
 
 	private async onStateChange(startup = false) {
@@ -221,10 +208,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 
 /**
  * Custom action view item for the update indicator in the title bar.
- *
- * Actionable states (AvailableForDownload, Downloaded, Ready) show
- * "Update" prominently, then collapse to a blue dot with icon after
- * a few seconds and re-expand on hover.
  */
 export class UpdateTitleBarEntry extends BaseActionViewItem {
 	private content: HTMLElement | undefined;
@@ -391,9 +374,6 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Ready: {
-				const icon = dom.append(this.content, dom.$('.indicator-icon'));
-				icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowCircleDown));
-				this.content.insertBefore(icon, label);
 				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
 				if (this.configurationService.getValue<string>('update.mode') === 'manual') {
