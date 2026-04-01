@@ -304,8 +304,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openSessionsWindow(windowId: number | undefined): Promise<void> {
-		await this.windowsMainService.openSessionsWindow({
+	async openAgentsWindow(windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
 		});
