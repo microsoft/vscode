@@ -159,7 +159,7 @@ jobs:
         continueOnError: true
 
       - script: |
-          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --outDir .oss-build-out build/azure-pipelines/oss/generate-notices.ts
+          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/generate-notices.ts build/azure-pipelines/oss/validate-notices.ts
           node .oss-build-out/generate-notices.js \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
             --static "build/azure-pipelines/oss/static-notices.json" \
@@ -172,7 +172,6 @@ jobs:
         continueOnError: true
 
       - script: |
-          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --outDir .oss-build-out build/azure-pipelines/oss/validate-notices.ts
           node .oss-build-out/validate-notices.js \
             --notices "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt" \
             --static "build/azure-pipelines/oss/static-notices.json" \

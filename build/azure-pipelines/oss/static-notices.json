@@ -2,13 +2,6 @@
 	"version": 1,
 	"packages": [
 		{
-			"name": "ffmpeg",
-			"version": "6.0",
-			"license": "LGPL-2.1-or-later",
-			"url": "https://ffmpeg.org/",
-			"licenseText": "ffmpeg is released under the GNU Lesser General Public License version 2.1 or later (LGPL v2.1+). See https://ffmpeg.org/legal.html for full license text. FFmpeg includes code under various licenses including LGPL, GPL, and permissive licenses. VS Code uses FFmpeg through Electron for media codec support."
-		},
-		{
 			"name": "lib-oniguruma",
 			"version": "6.9.8",
 			"license": "BSD-2-Clause",
