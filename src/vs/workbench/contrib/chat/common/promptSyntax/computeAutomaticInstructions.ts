@@ -109,10 +109,19 @@ export class ComputeAutomaticInstructions {
 		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, token);
 
 		// referenced instructions (depends on applying instructions above) and agent instructions are independent
+		// Collect into local sets and merge to ensure deterministic variable ordering
+		const referencedVars = new ChatRequestVariableSet(variables.asArray());
+		const agentVars = new ChatRequestVariableSet();
 		await Promise.all([
-			this._addReferencedInstructions(variables, telemetryEvent, token),
-			this._addAgentInstructions(variables, telemetryEvent, token),
+			this._addReferencedInstructions(referencedVars, telemetryEvent, token),
+			this._addAgentInstructions(agentVars, telemetryEvent, token),
 		]);
+		for (const v of referencedVars.asArray()) {
+			variables.add(v);
+		}
+		for (const v of agentVars.asArray()) {
+			variables.add(v);
+		}
 
 		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
 		if (customizationsIndexVariable) {
@@ -129,27 +138,25 @@ export class ComputeAutomaticInstructions {
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
 	}
 
-	private _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): void {
-		type SkillsLoadedIntoContextEvent = {
-			skillCount: number;
-			skillNameHashes: string;
-			skillStorages: string;
-			extensionIdHashes: string;
-			extensionVersions: string;
-			pluginNameHashes: string;
-			pluginVersions: string;
+	private async _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): Promise<void> {
+		type SkillLoadedIntoContextEvent = {
+			skillNameHash: string;
+			skillStorage: string;
+			extensionIdHash: string;
+			extensionVersion: string;
+			pluginNameHash: string;
+			pluginVersion: string;
 		};
 
-		type SkillsLoadedIntoContextClassification = {
-			skillCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills loaded into context.' };
-			skillNameHashes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated hashes of skill names loaded into the agent context.' };
-			skillStorages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated storage sources of skills (local, user, extension, plugin, internal).' };
-			extensionIdHashes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated hashes of contributing extension identifiers, empty if none.' };
-			extensionVersions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated semver versions of contributing extensions, empty if none.' };
-			pluginNameHashes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated hashes of plugin display names, empty if not from a plugin.' };
-			pluginVersions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma-separated semver versions of plugins, empty if unavailable.' };
+		type SkillLoadedIntoContextClassification = {
+			skillNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hash of the skill name loaded into the agent context.' };
+			skillStorage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage source of the skill (local, user, extension, plugin, internal).' };
+			extensionIdHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hash of the contributing extension identifier, empty if none.' };
+			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the contributing extension, empty if none.' };
+			pluginNameHash: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hash of the plugin display name, empty if not from a plugin.' };
+			pluginVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Semver version of the plugin, empty if unavailable.' };
 			owner: 'manishj, dbreshears';
-			comment: 'Tracks batch of skills loaded into agent context with provenance metadata.';
+			comment: 'Tracks individual skill loading into agent context with provenance metadata.';
 		};
 
 		try {
@@ -164,32 +171,17 @@ export class ComputeAutomaticInstructions {
 				return value !== undefined ? String(hash(value)) : '';
 			};
 
-			const nameHashes: string[] = [];
-			const storages: string[] = [];
-			const extIdHashes: string[] = [];
-			const extVersions: string[] = [];
-			const pluginNameHashes: string[] = [];
-			const pluginVersions: string[] = [];
-
 			for (const skill of skills) {
 				const skillPlugin = skill.pluginUri ? pluginByUri.get(skill.pluginUri) : undefined;
-				nameHashes.push(hashOrEmpty(skill.name));
-				storages.push(skill.storage);
-				extIdHashes.push(hashOrEmpty(skill.extension?.identifier.value));
-				extVersions.push(skill.extension?.version ?? '');
-				pluginNameHashes.push(hashOrEmpty(skillPlugin?.label));
-				pluginVersions.push(skillPlugin?.fromMarketplace?.version ?? '');
+				this._telemetryService.publicLog2<SkillLoadedIntoContextEvent, SkillLoadedIntoContextClassification>('skillLoadedIntoContext', {
+					skillNameHash: hashOrEmpty(skill.name),
+					skillStorage: skill.storage,
+					extensionIdHash: hashOrEmpty(skill.extension?.identifier.value),
+					extensionVersion: skill.extension?.version ?? '',
+					pluginNameHash: hashOrEmpty(skillPlugin?.label),
+					pluginVersion: skillPlugin?.fromMarketplace?.version ?? '',
+				});
 			}
-
-			this._telemetryService.publicLog2<SkillsLoadedIntoContextEvent, SkillsLoadedIntoContextClassification>('skillsLoadedIntoContext', {
-				skillCount: skills.length,
-				skillNameHashes: nameHashes.join(','),
-				skillStorages: storages.join(','),
-				extensionIdHashes: extIdHashes.join(','),
-				extensionVersions: extVersions.join(','),
-				pluginNameHashes: pluginNameHashes.join(','),
-				pluginVersions: pluginVersions.join(','),
-			});
 		} catch (err) {
 			this._logService.error('[InstructionsContextComputer] Failed to log skill telemetry', err);
 		}
@@ -348,9 +340,10 @@ export class ComputeAutomaticInstructions {
 		// Start all independent async operations concurrently
 		const remoteEnvPromise = this._remoteAgentService.getEnvironment();
 		const agentSkillsPromise = readTool ? this._promptsService.findAgentSkills(token) : Promise.resolve(undefined);
-		const customAgentsPromise = (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents))
+		const shouldFetchCustomAgents = !!(runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents));
+		const customAgentsPromise = shouldFetchCustomAgents
 			? this._promptsService.getCustomAgents(token)
-			: Promise.resolve(undefined);
+			: undefined;
 
 		const remoteEnv = await remoteEnvPromise;
 		const remoteOS = remoteEnv?.os;
@@ -419,7 +412,7 @@ export class ComputeAutomaticInstructions {
 				return true;
 			});
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
-				// Log batched skill telemetry
+				// Log per-skill telemetry for each skill loaded into context
 				this._logSkillLoadedTelemetry(modelInvocableSkills);
 
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
