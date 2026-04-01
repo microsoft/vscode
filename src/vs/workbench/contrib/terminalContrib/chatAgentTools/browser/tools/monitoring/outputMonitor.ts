@@ -6,7 +6,7 @@
 import type { IMarker as XtermMarker } from '@xterm/xterm';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import { timeout, type MaybePromise } from '../../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -114,6 +114,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _asyncMode = false;
 	private _command = '';
 	private _invocationContext: IToolInvocationContext | undefined;
+	private _currentMonitoringCts: CancellationTokenSource | undefined;
 
 	constructor(
 		private readonly _execution: IExecution,
@@ -137,7 +138,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		// Start async to ensure listeners are set up
 		timeout(0).then(() => {
-			this._startMonitoring(command, invocationContext, token);
+			this._currentMonitoringCts = new CancellationTokenSource(token);
+			this._startMonitoring(command, invocationContext, this._currentMonitoringCts.token);
 		});
 	}
 
@@ -255,8 +257,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	continueMonitoringAsync(token: CancellationToken): void {
 		this._asyncMode = true;
+		// Cancel any in-progress monitoring run to avoid two concurrent loops
+		this._currentMonitoringCts?.cancel();
+		this._currentMonitoringCts = new CancellationTokenSource(token);
 		this._state = OutputMonitorState.PollingForIdle;
-		this._startMonitoring(this._command, this._invocationContext, token);
+		this._startMonitoring(this._command, this._invocationContext, this._currentMonitoringCts.token);
 	}
 
 	/**
