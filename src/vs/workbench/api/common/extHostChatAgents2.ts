@@ -671,7 +671,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const metadataDto: IChatSessionCustomizationProviderMetadataDto = {
 			label: metadata.label,
 			iconId: metadata.iconId,
-			unsupportedTypes: metadata.unsupportedTypes?.map(t => typeConvert.ChatSessionCustomizationType.from(t)),
+			supportedTypes: metadata.supportedTypes?.map(t => typeConvert.ChatSessionCustomizationType.from(t)),
 		};
 
 		this._proxy.$registerChatSessionCustomizationProvider(handle, chatSessionType, metadataDto, extension.identifier);

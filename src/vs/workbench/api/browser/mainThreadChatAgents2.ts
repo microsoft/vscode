@@ -634,18 +634,22 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			},
 		};
 
-		// Convert metadata to a harness descriptor
-		const hiddenSections = metadata.unsupportedTypes?.map(type => {
-			switch (type) {
-				case 'agent': return AICustomizationManagementSection.Agents;
-				case 'skill': return AICustomizationManagementSection.Skills;
-				case 'instructions': return AICustomizationManagementSection.Instructions;
-				case 'prompt': return AICustomizationManagementSection.Prompts;
-				case 'hook': return AICustomizationManagementSection.Hooks;
-				case 'plugins': return AICustomizationManagementSection.Plugins;
-				default: return type;
-			}
-		});
+		// Convert supportedTypes whitelist to hiddenSections blacklist.
+		// Sections not in the supported list are hidden. When supportedTypes
+		// is omitted, all sections are shown.
+		const typeToSection: Record<string, string> = {
+			'agent': AICustomizationManagementSection.Agents,
+			'skill': AICustomizationManagementSection.Skills,
+			'instructions': AICustomizationManagementSection.Instructions,
+			'prompt': AICustomizationManagementSection.Prompts,
+			'hook': AICustomizationManagementSection.Hooks,
+			'plugins': AICustomizationManagementSection.Plugins,
+		};
+		let hiddenSections: string[] | undefined;
+		if (metadata.supportedTypes) {
+			const supportedSections = new Set(metadata.supportedTypes.map(t => typeToSection[t]).filter(Boolean));
+			hiddenSections = Object.values(typeToSection).filter(section => !supportedSections.has(section));
+		}
 
 		const descriptor: IHarnessDescriptor = {
 			id: chatSessionType,

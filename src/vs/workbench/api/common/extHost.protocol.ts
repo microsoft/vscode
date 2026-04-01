@@ -1681,7 +1681,7 @@ export interface ISkillDto {
 export interface IChatSessionCustomizationProviderMetadataDto {
 	readonly label: string;
 	readonly iconId?: string;
-	readonly unsupportedTypes?: readonly string[];
+	readonly supportedTypes?: readonly string[];
 }
 
 export interface IChatSessionCustomizationItemDto {
