@@ -35,8 +35,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private readonly contentContainer: HTMLElement;
 	private readonly footerContainer: HTMLElement;
 	private readonly disclaimerElement: HTMLElement;
+	private readonly disclaimerLinks: readonly HTMLAnchorElement[];
 	private readonly stepDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly previouslyFocusedElement: HTMLElement | undefined;
+	private currentFocusableElements: readonly HTMLElement[] = [];
 	private _resolveOutcome!: (outcome: WalkthroughOutcome) => void;
 	private _outcomeResolved = false;
 
@@ -88,7 +90,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Fixed footer
 		this.footerContainer = append(this.card, $('.sessions-walkthrough-footer'));
-		this.disclaimerElement = this._createDisclaimer();
+		const disclaimer = this._createDisclaimer();
+		this.disclaimerElement = disclaimer.element;
+		this.disclaimerLinks = disclaimer.links;
 
 		this._renderSignIn();
 	}
@@ -147,6 +151,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}, 0, stepDisposables);
 
 		const providerButtons = [githubBtn, googleBtn, appleBtn];
+		this.currentFocusableElements = [...providerButtons, ...this.disclaimerLinks];
 		const providerStrategies = [
 			ChatSetupStrategy.SetupWithoutEnterpriseProvider,
 			ChatSetupStrategy.SetupWithGoogleProvider,
@@ -180,6 +185,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		for (const btn of providerButtons) {
 			btn.disabled = true;
 		}
+		this.currentFocusableElements = [];
 
 		error.style.display = 'none';
 
@@ -315,6 +321,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		const getStartedBtn = stepDisposables.add(new Button(actions, { ...defaultButtonStyles }));
 		getStartedBtn.label = localize('walkthrough.getStarted', "Get Started");
+		this.currentFocusableElements = [getStartedBtn.element];
 		getStartedBtn.focus();
 		stepDisposables.add(getStartedBtn.onDidClick(() => {
 			this._finish('completed');
@@ -383,15 +390,14 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	}
 
 	private _getFocusableElements(): HTMLElement[] {
-		return Array.from(this.overlay.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
-			.filter(element => element.getClientRects().length > 0);
+		return this.currentFocusableElements.filter(element => element.isConnected);
 	}
 
 	private _shouldAbortUpdate(...elements: HTMLElement[]): boolean {
 		return !this.overlay.isConnected || elements.some(element => !element.isConnected);
 	}
 
-	private _createDisclaimer(): HTMLElement {
+	private _createDisclaimer(): { element: HTMLElement; links: readonly HTMLAnchorElement[] } {
 		const defaultChatAgent = this.productService.defaultChatAgent;
 		const disclaimer = append(this.overlay, $('p.sessions-walkthrough-disclaimer.hidden'));
 		const termsLink = this._appendDisclaimerLink(defaultChatAgent?.termsStatementUrl ?? '', localize('walkthrough.disclaimer.terms', "Terms"));
@@ -409,7 +415,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		disclaimer.appendChild(settingsLink);
 		append(disclaimer, document.createTextNode(localize('walkthrough.disclaimer.end', " anytime.")));
 
-		return disclaimer;
+		return {
+			element: disclaimer,
+			links: [termsLink, privacyLink, publicCodeLink, settingsLink]
+		};
 	}
 
 	private _appendDisclaimerLink(href: string, label: string): HTMLAnchorElement {
