@@ -246,9 +246,12 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.updateTooltip();
 		this.onStateChange(this.updateService.state);
 
-		// Show tooltip on hover (using showTooltip to track hint-visible)
+		// Show tooltip on hover (using showTooltip to track hint-visible).
+		// Guard against re-showing while already visible to avoid flicker.
 		this._register(dom.addDisposableListener(this.content, 'mouseenter', () => {
-			this.showTooltip();
+			if (!this.hoverVisible) {
+				this.showTooltip();
+			}
 		}));
 
 		if (this.showTooltipOnRender) {

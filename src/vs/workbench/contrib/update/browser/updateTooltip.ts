@@ -389,7 +389,7 @@ export class UpdateTooltip extends Disposable {
 			localize('updateTooltip.installedDefaultMessage', "See release notes for details on what's new in this release."),
 			Codicon.info);
 
-		let text = null;
+		let text: string | null = null;
 		try {
 			const url = getUpdateInfoUrl(this.productService.version);
 			const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
