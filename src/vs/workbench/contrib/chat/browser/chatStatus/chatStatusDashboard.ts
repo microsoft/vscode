@@ -213,7 +213,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// Anonymous Indicator
-		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
+		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
 			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
@@ -277,7 +277,7 @@ export class ChatStatusDashboard extends DomWidget {
 		// Settings
 		{
 			const chatSentiment = this.chatEntitlementService.sentiment;
-			addSeparator(localize('inlineSuggestions', "Inline Suggestions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
+			addSeparator(localize('inlineSuggestions', "Inline Suggestions"), !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
@@ -419,8 +419,8 @@ export class ChatStatusDashboard extends DomWidget {
 	}
 
 	private canUseChat(): boolean {
-		if (!this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
-			return false; // chat not installed or not enabled
+		if (!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
+			return false; // chat not completed or not enabled
 		}
 
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown || this.chatEntitlementService.entitlement === ChatEntitlement.Available) {
