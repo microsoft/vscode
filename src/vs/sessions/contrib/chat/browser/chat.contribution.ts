@@ -51,9 +51,9 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			icon: Codicon.vscodeInsiders,
 			precondition: IsActiveSessionBackgroundProviderContext,
 			menu: [{
-				id: Menus.TitleBarRightLayout,
+				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 0,
+				order: 100,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext),
 			}]
 		});
