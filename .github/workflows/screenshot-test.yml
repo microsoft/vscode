@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   statuses: write
+  pull-requests: write
 
 concurrency:
   group: screenshots-${{ github.event.pull_request.number || github.sha }}
@@ -71,6 +72,58 @@ jobs:
               "runId": ${{ github.run_id }},
               "artifactName": "screenshots"
             }'
+
+      - name: Diff screenshots against merge base
+        id: diff
+        if: github.event_name == 'pull_request'
+        run: |
+          BODY=$(node build/lib/screenshotDiffReport.ts \
+            https://hediet-screenshots.azurewebsites.net \
+            ${{ github.repository_owner }} \
+            ${{ github.event.repository.name }} \
+            ${{ github.event.pull_request.base.sha }} \
+            ${{ github.sha }})
+          if [ -n "$BODY" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+            echo "$BODY" >> "$GITHUB_OUTPUT"
+            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && steps.diff.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- screenshot-diff-report -->';
+            const body = process.env.COMMENT_BODY;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body?.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+        env:
+          COMMENT_BODY: ${{ steps.diff.outputs.body }}
 
       # - name: Compare screenshots
       #   id: compare
