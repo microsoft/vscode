@@ -259,6 +259,8 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
+	readonly activeSessionAllChangesObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
+	readonly activeSessionLastTurnChangesObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
@@ -406,6 +408,33 @@ class ChangesViewModel extends Disposable {
 			this.sessionsChangedSignal.read(reader);
 			const model = this.agentSessionsService.getSession(sessionResource);
 			return model?.metadata?.lastCheckpointRef as string | undefined;
+		});
+
+		// Active session all changes
+		this.activeSessionAllChangesObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(reader);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
+
+			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
+				return constObservable([]);
+			}
+
+			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+			return new ObservablePromise(diffPromise).resolvedValue;
+		});
+
+		// Active session last turn changes
+		this.activeSessionLastTurnChangesObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
+
+			if (!repository || !lastCheckpointRef) {
+				return constObservable([]);
+			}
+
+			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
+			return new ObservablePromise(diffPromise).resolvedValue;
 		});
 
 		this.activeSessionReviewCommentCountByFileObs = derived(reader => {
@@ -746,45 +775,23 @@ export class ChangesViewPane extends ViewPane {
 			});
 		});
 
-		const allChangesObs = derived(reader => {
-			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(reader);
-			const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
-
-			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
-				return constObservable(undefined);
-			}
-
-			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
-			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		const lastTurnChangesObs = derived(reader => {
-			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
-
-			if (!repository || !lastCheckpointRef) {
-				return constObservable(undefined);
-			}
-
-			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
-			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
 		const isLoadingChangesObs = derived(reader => {
 			const versionMode = this.viewModel.versionModeObs.read(reader);
-			if (versionMode !== ChangesVersionMode.AllChanges && versionMode !== ChangesVersionMode.LastTurn) {
+			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return false;
 			}
 
-			const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-			if (!repository) {
-				return false;
+			if (versionMode === ChangesVersionMode.AllChanges) {
+				const allChangesResult = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader);
+				return allChangesResult === undefined;
 			}
 
-			const allChangesResult = allChangesObs.read(reader).read(reader);
-			const lastTurnChangesResult = lastTurnChangesObs.read(reader).read(reader);
-			return allChangesResult === undefined || lastTurnChangesResult === undefined;
+			if (versionMode === ChangesVersionMode.LastTurn) {
+				const lastTurnChangesResult = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader);
+				return lastTurnChangesResult === undefined;
+			}
+
+			return false;
 		});
 
 		this.renderDisposables.add(autorun(reader => {
@@ -809,12 +816,12 @@ export class ChangesViewPane extends ViewPane {
 				const sessionFiles = sessionFilesObs.read(reader);
 				sourceEntries.push(...sessionFiles);
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
-				const allChanges = allChangesObs.read(reader).read(reader) ?? [];
-				const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(reader);
-				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(reader);
+				const allChanges = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader) ?? [];
+				const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(undefined);
+				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(undefined);
 				sourceEntries.push(...toChangesFileItem(allChanges, lastCheckpointRef, firstCheckpointRef));
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
-				const diffChanges = lastTurnChangesObs.read(reader).read(reader) ?? [];
+				const diffChanges = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader) ?? [];
 				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(undefined);
 				sourceEntries.push(...toChangesFileItem(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined));
 			}
