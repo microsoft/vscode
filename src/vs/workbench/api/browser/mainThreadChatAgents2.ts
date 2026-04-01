@@ -266,7 +266,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					const contributedSession = chatSession?.contributedChatSession;
 					let chatSessionContext: IChatSessionContextDto | undefined;
 					if (contributedSession) {
-						const chatSessionResource = contributedSession.chatSessionResource;
+						const chatSessionResource = request.sessionResource;
 						const isUntitled = isUntitledChatSession(chatSessionResource);
 
 						chatSessionContext = {
