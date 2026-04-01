@@ -918,9 +918,9 @@ export class ChatService extends Disposable implements IChatService {
 
 				// Update the new model's contributed session with initialSessionOptions
 				// so that the agent receives them when invoked.
-				model.setContributedChatSession({
-					initialSessionOptions: initialSessionOptions,
-				});
+				if (initialSessionOptions) {
+					this.chatSessionService.updateSessionOptions(model.sessionResource, initialSessionOptions);
+				}
 
 				sessionResource = newItem.resource;
 				newSessionResource = newItem.resource;
