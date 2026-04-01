@@ -1519,8 +1519,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label {
 	height: 16px;
 	padding: 3px 1px 3px 7px;
 	display: flex;
@@ -1536,8 +1535,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)) {
+.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)) {
 	width: 22px;
 	min-width: 22px;
 	height: 22px;
@@ -1564,8 +1562,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 14px;
 }
 
-.monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
-.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down {
 	font-size: 10px;
 	margin-left: 4px;
 	opacity: 0.75;
@@ -1577,10 +1574,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 }
 
-.interactive-session .chat-input-toolbars .chat-sessionPicker-container {
-	display: flex;
-	max-width: 100%;
-}
+
 
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,
 .monaco-workbench .interactive-session .chat-input-toolbars .action-label .codicon {

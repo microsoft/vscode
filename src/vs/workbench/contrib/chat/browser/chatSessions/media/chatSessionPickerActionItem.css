@@ -14,11 +14,7 @@
 
 .chat-session-option-picker */
 
-.monaco-action-bar .action-item.chat-sessionPicker-item {
-	overflow: hidden;
-}
-
-.monaco-action-bar .action-item .chat-session-option-picker {
+.monaco-action-bar .action-item.chat-input-picker-item .chat-session-option-picker {
 	align-items: center;
 	overflow: hidden;
 
