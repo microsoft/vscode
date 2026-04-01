@@ -10,14 +10,14 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { SessionsCategories } from '../../../common/categories.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.remoteAgentHost.add',
 			title: localize2('addRemoteAgentHost', "Add Remote Agent Host..."),
-			category: CHAT_CATEGORY,
+			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
 		});
