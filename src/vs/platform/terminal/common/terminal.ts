@@ -106,6 +106,7 @@ export const enum TerminalSettingId {
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
+	LinkActivationModifier = 'terminal.integrated.linkActivationModifier',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
