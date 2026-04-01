@@ -855,7 +855,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const sessionResource = this.getCurrentSessionResource();
 		const visibleOptionGroups = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
-		if (!visibleOptionGroups) {
+		if (!visibleOptionGroups.length) {
 			return [];
 		}
 
@@ -1598,20 +1598,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 *
 	 * This method also updates the `chatSessionHasOptions` context key, which controls
 	 * whether the picker action is shown in the toolbar via its `when` clause.
-	 *
-	 * @returns The result containing visible group IDs and related context, or undefined
-	 *          if there are no visible option groups
 	 */
-	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] | undefined {
+	private getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] {
 		if (sessionResource) {
 			this.updateStateAndChatModeForSessionCustomAgentTarget(sessionResource);
 		}
 
 		const visibleOptionGroups = this.getVisibleOptionGroups(sessionResource);
-		if (!visibleOptionGroups) {
+		if (!visibleOptionGroups.length) {
 			this.chatSessionHasOptions.set(false);
 			this.chatSessionOptionsValid.set(true);
-			return undefined;
+			return [];
 		}
 
 		const allOptionsValid = sessionResource ? this.areAllOptionsValid(sessionResource, visibleOptionGroups) : true;
@@ -1640,27 +1637,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return true;
 	}
 
-	private getAllOptionsGroups(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] | undefined {
+	private getAllOptionsGroups(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] {
 		// - Panel/Editor: Use actual session's type (ctx available)
 		// - Welcome view: Use delegate's type (ctx may not exist yet)
 		const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
 		const effectiveSessionType = delegateSessionType ?? (sessionResource ? getChatSessionType(sessionResource) : undefined);
 		if (!effectiveSessionType) {
-			return undefined;
+			return [];
 		}
 
 		// Step 2: Get option groups for this session type
 		const allOptionGroups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
-		if (!allOptionGroups || allOptionGroups.length === 0) {
-			return undefined;
-		}
-		return allOptionGroups;
+		return allOptionGroups ?? [];
 	}
 
-	private getVisibleOptionGroups(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] | undefined {
+	private getVisibleOptionGroups(sessionResource: URI | undefined): IChatSessionProviderOptionGroup[] {
 		const allOptionGroups = this.getAllOptionsGroups(sessionResource);
-		if (!allOptionGroups) {
-			return undefined;
+		if (!allOptionGroups.length) {
+			return [];
 		}
 
 		// Update context keys with current option values before evaluating `when` clauses.
@@ -1688,10 +1682,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (hasItems && passesWhenClause && sessionHasOption) {
 				visibleGroups.set(optionGroup.id, optionGroup);
 			}
-		}
-
-		if (visibleGroups.size === 0) {
-			return undefined;
 		}
 
 		return Array.from(visibleGroups.values());
@@ -1733,12 +1723,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const sessionResource = this.getCurrentSessionResource();
 		const allOptionsGroups = this.getAllOptionsGroups(sessionResource);
 		const visibleOptionGroups = this.getVisibleOptionGroupsAndSetChatModeAndUpdateContextKeys(sessionResource);
-		if (!allOptionsGroups || !visibleOptionGroups) {
+		if (!allOptionsGroups.length || !visibleOptionGroups.length) {
 			// No visible options - helper already updated context keys
 			this.hideAllSessionPickerWidgets();
 			return;
 		}
-
 
 		// Check if widgets need recreation (different set of visible groups)
 		const currentWidgetGroupIds = new Set(this.chatSessionPickerWidgets.keys());
