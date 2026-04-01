@@ -53,6 +53,7 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 		required: [
 			'command',
 			'explanation',
+			'mode',
 		]
 	}
 };
