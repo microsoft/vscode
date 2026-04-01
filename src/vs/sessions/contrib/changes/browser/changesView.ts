@@ -189,10 +189,14 @@ function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTre
 					incompressible: true,
 				});
 			} else {
-				// Folder node
+				// Folder node. Ensure that the first level of folders under
+				// the root folder are not being collapsed with the root folder
+				// as that is a special node showing the workspace folder and
+				// branch information.
 				result.push({
 					element: child,
 					children: convertChildren(child),
+					incompressible: child.parent?.parent === undefined,
 					collapsible: true,
 					collapsed: false,
 				});
@@ -1706,6 +1710,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	private renderFolderElement(node: IResourceNode<IChangesFileItem, undefined>, templateData: IChangesTreeTemplate): void {
 		templateData.label.setFile(node.uri, {
 			fileKind: FileKind.FOLDER,
+			hidePath: true,
 		});
 
 		// Hide file-specific decorations for folders
