@@ -286,19 +286,17 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	private _renderSuggestion(comment: ISessionEditorComment): HTMLElement {
 		const suggestionNode = $('div.agent-feedback-widget-suggestion');
-		const title = $('div.agent-feedback-widget-suggestion-title');
-		title.textContent = nls.localize('suggestedChange', "Suggested Change");
-		suggestionNode.appendChild(title);
 
 		for (const edit of comment.suggestion?.edits ?? []) {
 			const editNode = $('div.agent-feedback-widget-suggestion-edit');
-			const rangeLabel = $('div.agent-feedback-widget-suggestion-range');
+
+			const header = $('div.agent-feedback-widget-suggestion-header');
 			if (edit.range.startLineNumber === edit.range.endLineNumber) {
-				rangeLabel.textContent = nls.localize('suggestionLineNumber', "Line {0}", edit.range.startLineNumber);
+				header.textContent = nls.localize('suggestedChangeLine', "Suggested Change \u2022 Line {0}", edit.range.startLineNumber);
 			} else {
-				rangeLabel.textContent = nls.localize('suggestionLineRange', "Lines {0}-{1}", edit.range.startLineNumber, edit.range.endLineNumber);
+				header.textContent = nls.localize('suggestedChangeLines', "Suggested Change \u2022 Lines {0}-{1}", edit.range.startLineNumber, edit.range.endLineNumber);
 			}
-			editNode.appendChild(rangeLabel);
+			editNode.appendChild(header);
 
 			const newText = $('pre.agent-feedback-widget-suggestion-text');
 			newText.textContent = edit.newText;

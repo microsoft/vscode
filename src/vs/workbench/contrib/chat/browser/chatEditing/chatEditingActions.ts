@@ -351,7 +351,10 @@ export class ViewAllSessionChangesAction extends Action2 {
 			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
 			icon: Codicon.diffMultiple,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.hasAgentSessionChanges,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('sessions.hasGitRepository', true),
+				ChatContextKeys.hasAgentSessionChanges,
+			),
 			menu: [
 				{
 					id: MenuId.ChatEditingSessionChangesToolbar,
@@ -491,6 +494,8 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 	if (confirmation.checkboxChecked) {
 		await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
 	}
+
+	await chatService.cancelCurrentRequestForSession(sessionResource, 'restoreCheckpoint');
 
 	// Restore the snapshot to what it was before the request(s) that we deleted
 	const snapshotRequestId = chatRequests[itemIndex].id;

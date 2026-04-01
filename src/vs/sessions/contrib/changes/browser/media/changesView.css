@@ -7,7 +7,7 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	padding: 8px;
+	padding: 4px 8px;
 	box-sizing: border-box;
 }
 
@@ -136,7 +136,7 @@
 	display: flex;
 	flex-direction: row;
 	flex-wrap: nowrap;
-	gap: 6px;
+	gap: 4px;
 	align-items: center;
 }
 
@@ -149,7 +149,7 @@
 /* Larger action buttons matching SCM ActionButton style */
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button {
 	height: 26px;
-	padding: 4px 14px;
+	padding: 4px;
 	font-size: 12px;
 	line-height: 18px;
 }
@@ -157,17 +157,32 @@
 /* Primary button grows to fill available space */
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button:not(.secondary) {
 	flex: 1;
+	min-width: 0;
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button:not(.secondary) > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* ButtonWithDropdown container grows to fill available space */
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown {
 	flex: 1;
+	min-width: 0;
 	display: flex;
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button {
 	flex: 1;
+	min-width: 0;
 	box-sizing: border-box;
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button > span:not(.codicon) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button-dropdown-separator {
@@ -290,6 +305,7 @@
 .changes-file-list .working-set-line-counts {
 	margin: 0 6px;
 	display: inline-flex;
+	align-items: center;
 	gap: 4px;
 	font-size: 11px;
 }
@@ -310,9 +326,9 @@
 .changes-file-list .changes-agent-feedback-badge {
 	display: inline-flex;
 	align-items: center;
+	vertical-align: middle;
 	gap: 4px;
 	font-size: 11px;
-	margin-right: 6px;
 	color: var(--vscode-descriptionForeground);
 }
 
