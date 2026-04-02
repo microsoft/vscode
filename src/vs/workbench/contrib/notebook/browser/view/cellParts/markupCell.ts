@@ -412,7 +412,7 @@ export class MarkupCell extends Disposable {
 			}
 		}
 
-		this.notebookEditor.createMarkupPreview(this.viewCell);
+		this.notebookEditor.createMarkupPreview(this.viewCell, true);
 	}
 
 	private focusEditorIfNeeded() {

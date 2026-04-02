@@ -2778,7 +2778,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		};
 	}
 
-	async createMarkupPreview(cell: MarkupCellViewModel) {
+	async createMarkupPreview(cell: MarkupCellViewModel, forceRender?: boolean) {
 		if (!this._webview) {
 			return;
 		}
@@ -2815,6 +2815,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			offset: cellTop + top,
 			visible: true,
 			metadata: cell.metadata,
+			forceRender,
 		});
 	}
 
