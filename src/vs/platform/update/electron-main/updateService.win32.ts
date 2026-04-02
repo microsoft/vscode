@@ -170,8 +170,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
 				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
+				const exeName = basename(exePath);
+				const siblingExeName = this.productService.win32SiblingExeBasename ? `${this.productService.win32SiblingExeBasename}.exe` : '';
 				await new Promise<void>(resolve => {
-					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder], {
+					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName, siblingExeName], {
 						stdio: ['ignore', 'ignore', 'ignore'],
 						windowsHide: true,
 						timeout: 2 * 60 * 1000
@@ -354,7 +356,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const update = this.state.update;
 		const explicit = this.state.explicit;
-		this.setState(State.Updating(update));
+		this.setState(State.Updating(update, explicit));
 
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
@@ -417,7 +419,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						const maxProgress = parseInt(maxStr, 10);
 						if (!isNaN(currentProgress) && !isNaN(maxProgress) && this.state.type === StateType.Updating) {
 							if (this.state.currentProgress !== currentProgress || this.state.maxProgress !== maxProgress) {
-								this.setState(State.Updating(update, currentProgress, maxProgress));
+								this.setState(State.Updating(update, explicit, currentProgress, maxProgress));
 							}
 						}
 					}
@@ -490,7 +492,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override doQuitAndInstall(): void {
-		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
+		if ((this.state.type !== StateType.Ready && this.state.type !== StateType.Restarting) || !this.availableUpdate) {
 			return;
 		}
 

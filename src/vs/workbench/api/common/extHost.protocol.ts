@@ -1587,6 +1587,9 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$registerPromptFileProvider(handle: number, type: string, extension: ExtensionIdentifier): void;
 	$unregisterPromptFileProvider(handle: number): void;
 	$onDidChangePromptFiles(handle: number): void;
+	$registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extension: ExtensionIdentifier): void;
+	$unregisterChatSessionCustomizationProvider(handle: number): void;
+	$onDidChangeCustomizations(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1654,6 +1657,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionResource: UriComponents): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
+	$provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
@@ -1673,6 +1677,22 @@ export interface IInstructionDto {
 export interface ISkillDto {
 	uri: UriComponents;
 }
+
+export interface IChatSessionCustomizationProviderMetadataDto {
+	readonly label: string;
+	readonly iconId?: string;
+	readonly unsupportedTypes?: readonly string[];
+}
+
+export interface IChatSessionCustomizationItemDto {
+	readonly uri: UriComponents;
+	readonly type: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly groupKey?: string;
+	readonly badge?: string;
+	readonly badgeTooltip?: string;
+}
 export interface IChatParticipantMetadata {
 	participant: string;
 	command?: string;
@@ -1688,6 +1708,7 @@ export interface IToolDataDto {
 	id: string;
 	toolReferenceName?: string;
 	legacyToolReferenceFullNames?: readonly string[];
+	fullReferenceName?: string;
 	tags?: readonly string[];
 	displayName: string;
 	userDescription?: string;
@@ -3638,6 +3659,8 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem>): void;
 	$onDidChangeChatSessionProviderOptions(handle: number): void;
 
+	$updateChatSessionInputState(controllerHandle: number, optionGroups: readonly IChatSessionProviderOptionGroup[]): void;
+
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
 	$handleProgressComplete(handle: number, sessionResource: UriComponents, requestId: string): void;
@@ -3653,9 +3676,9 @@ export interface ExtHostChatSessionsShape {
 	$disposeChatSessionContent(providerHandle: number, sessionResource: UriComponents): Promise<void>;
 	$invokeChatSessionRequestHandler(providerHandle: number, sessionResource: UriComponents, request: IChatAgentRequest, history: any[], token: CancellationToken): Promise<IChatAgentResult>;
 	$provideChatSessionProviderOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
-	$invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, query: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]>;
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem | undefined>, token: CancellationToken): Promise<void>;
 	$forkChatSession(providerHandle: number, sessionResource: UriComponents, request: IChatSessionRequestHistoryItemDto | undefined, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
+	$provideChatSessionInputState(controllerHandle: number, sessionResource: UriComponents | undefined, token: CancellationToken): Promise<IChatSessionProviderOptionGroup[] | undefined>;
 }
 
 export interface GitRefQueryDto {

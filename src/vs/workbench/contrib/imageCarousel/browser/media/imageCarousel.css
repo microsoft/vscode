@@ -84,6 +84,13 @@
 	margin: auto;
 }
 
+.image-carousel-editor .video-container {
+	width: 100%;
+	height: 100%;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
 .image-carousel-editor .main-image.scale-to-fit {
 	max-width: 100%;
 	max-height: 100%;
@@ -234,13 +241,58 @@
 	border-color: var(--vscode-focusBorder);
 }
 
+.image-carousel-editor .thumbnail:focus-visible {
+	opacity: 1;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
 .image-carousel-editor .thumbnail.active {
 	opacity: 1;
 	border-color: var(--vscode-focusBorder);
+}
+
+.image-carousel-editor .thumbnail.broken {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+}
+
+.image-carousel-editor .thumbnail-broken-icon {
+	font-size: 20px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .image-carousel-editor .thumbnail-image {
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
+	pointer-events: none;
+}
+
+/* Video thumbnail: play icon centered in a dark background */
+.image-carousel-editor .thumbnail.video-thumbnail {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+}
+
+.image-carousel-editor .thumbnail-play-icon {
+	font-size: 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Visually hidden but available to screen readers */
+.image-carousel-editor .sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }

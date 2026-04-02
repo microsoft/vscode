@@ -23,7 +23,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
@@ -219,6 +218,19 @@ export function isAgentSessionShowMore(obj: unknown): obj is IAgentSessionShowMo
 	return (obj as IAgentSessionShowMore)?.showMore === true;
 }
 
+/**
+ * A "Show less" item that appears as the last child
+ * of an expanded repository group section to allow collapsing back.
+ */
+export interface IAgentSessionShowLess {
+	readonly showLess: true;
+	readonly sectionLabel: string;
+}
+
+export function isAgentSessionShowLess(obj: unknown): obj is IAgentSessionShowLess {
+	return (obj as IAgentSessionShowLess)?.showLess === true;
+}
+
 export interface IMarshalledAgentSessionContext {
 	readonly $mid: MarshalledId.AgentSessionContext;
 
@@ -358,6 +370,15 @@ class AgentSessionsLogger extends Disposable {
 				}
 			}
 
+			// Metadata
+			if (session.metadata && Object.keys(session.metadata).length > 0) {
+				lines.push(`  Metadata:`);
+				for (const [key, value] of Object.entries(session.metadata)) {
+					const renderedValue = typeof value === 'string' ? value : safeStringify(value);
+					lines.push(`    ${key}: ${renderedValue}`);
+				}
+			}
+
 			// Our state (read/unread, archived)
 			lines.push(`  State:`);
 			lines.push(`    Archived (provider): ${session.archived ?? 'N/A'}`);
@@ -429,14 +450,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	get resolved(): boolean { return this._resolved; }
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
-	get sessions(): IAgentSession[] {
-		const sessions = Array.from(this._sessions.values());
-		if (this.environmentService.isSessionsWindow) {
-			return sessions.filter(session => session.providerType !== AgentSessionProviders.Claude && session.providerType !== AgentSessionProviders.Codex); // filter out sessions that can currently not be triggered in the sessions app (TODO@bpasero revisit later)
-		}
-
-		return sessions;
-	}
+	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
 
@@ -453,7 +467,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -788,9 +801,6 @@ interface ISerializedAgentSession {
 		readonly created: number;
 		readonly lastRequestStarted?: number;
 		readonly lastRequestEnded?: number;
-		// Old format for backward compatibility when reading (TODO@bpasero remove eventually)
-		readonly startTime?: number;
-		readonly endTime?: number;
 	};
 
 	readonly changes?: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
@@ -864,10 +874,9 @@ class AgentSessionsCache {
 				archived: session.archived,
 
 				timing: {
-					// Support loading both new and old cache formats (TODO@bpasero remove old format support after some time)
-					created: session.timing.created ?? session.timing.startTime ?? 0,
-					lastRequestStarted: session.timing.lastRequestStarted ?? session.timing.startTime,
-					lastRequestEnded: session.timing.lastRequestEnded ?? session.timing.endTime,
+					created: session.timing.created ?? 0,
+					lastRequestStarted: session.timing.lastRequestStarted,
+					lastRequestEnded: session.timing.lastRequestEnded,
 				},
 
 				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({

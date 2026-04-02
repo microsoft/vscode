@@ -81,7 +81,6 @@ export namespace PromptHeaderAttributes {
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
 	export const agents = 'agents';
-	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const hooks = 'hooks';
@@ -310,8 +309,7 @@ export class PromptHeader {
 	}
 
 	public get userInvocable(): boolean | undefined {
-		// TODO: user-invokable is deprecated, remove later and only keep user-invocable
-		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable) ?? this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable);
 	}
 
 	public get disableModelInvocation(): boolean | undefined {
@@ -506,7 +504,7 @@ export class PromptBody {
 					if (match.groups?.['filePath']) {
 						fileReferences.push({ content: match.groups?.['filePath'], range, isMarkdownLink: false });
 					} else if (match.groups?.['toolName']) {
-						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index });
+						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index, fullLength: fullMatch.length });
 					}
 				}
 				lineStartOffset += line.length;
@@ -546,6 +544,7 @@ export interface IBodyVariableReference {
 	readonly name: string;
 	readonly range: Range;
 	readonly offset: number;
+	readonly fullLength: number;
 }
 
 /**
@@ -621,4 +620,13 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 	return { type: 'sequence', items: result, range: stringValue.range };
 }
 
-
+/**
+ * Returns the effective `applyTo` pattern for an instruction file.
+ * Claude rules use `paths` (defaulting to `**`), while regular instructions use `applyTo`.
+ */
+export function evaluateApplyToPattern(header: PromptHeader | undefined, isClaudeRules: boolean): string | undefined {
+	if (isClaudeRules) {
+		return header?.paths?.join(', ') ?? '**';
+	}
+	return header?.applyTo;
+}

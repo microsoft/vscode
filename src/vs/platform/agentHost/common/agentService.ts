@@ -7,9 +7,10 @@ import { Event } from '../../../base/common/event.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, PermissionKind, type IToolCallResult, type PolicyState } from './state/sessionState.js';
+import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
+import { AttachmentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -37,7 +38,7 @@ export interface IAgentSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
 }
 
 export type AgentProvider = string;
@@ -100,7 +101,9 @@ export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: string;
 	readonly session?: URI;
-	readonly workingDirectory?: string;
+	readonly workingDirectory?: URI;
+	/** Fork from an existing session at a specific turn index. */
+	readonly fork?: { readonly session: URI; readonly turnIndex: number };
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
@@ -226,27 +229,23 @@ export interface IAgentUsageEvent extends IAgentProgressEventBase {
 	readonly cacheReadTokens?: number;
 }
 
-/** A tool permission request from the SDK requiring a renderer-side decision. */
-export interface IAgentPermissionRequestEvent extends IAgentProgressEventBase {
-	readonly type: 'permission_request';
-	/** Unique ID for correlating the response. */
-	readonly requestId: string;
-	/** The kind of permission being requested. */
-	readonly permissionKind: PermissionKind;
-	/** The tool call ID that triggered this permission request. */
-	readonly toolCallId?: string;
-	/** File path involved (for read/write). */
-	readonly path?: string;
-	/** For shell: the full command text. */
-	readonly fullCommandText?: string;
-	/** For shell: the intention description. */
-	readonly intention?: string;
-	/** For MCP: the server name. */
-	readonly serverName?: string;
-	/** For MCP: the tool name. */
-	readonly toolName?: string;
-	/** Serialized JSON of the full permission request for fallback display. */
-	readonly rawRequest: string;
+/**
+ * A running tool requires re-confirmation (e.g. a mid-execution permission check).
+ * Maps to `SessionToolCallReady` without `confirmed` to transition Running → PendingConfirmation.
+ */
+export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
+	readonly type: 'tool_ready';
+	readonly toolCallId: string;
+	/** Message describing what confirmation is needed. */
+	readonly invocationMessage: StringOrMarkdown;
+	/** Raw tool input to display. */
+	readonly toolInput?: string;
+	/** Short title for the confirmation prompt. */
+	readonly confirmationTitle?: StringOrMarkdown;
+	/** Kind of permission being requested (e.g. `'write'`, `'read'`). */
+	readonly permissionKind?: string;
+	/** File path associated with the permission request. */
+	readonly permissionPath?: string;
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
@@ -255,17 +254,24 @@ export interface IAgentReasoningEvent extends IAgentProgressEventBase {
 	readonly content: string;
 }
 
+/** A steering message was consumed (sent to the model). */
+export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
+	readonly type: 'steering_consumed';
+	readonly id: string;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
 	| IAgentIdleEvent
 	| IAgentToolStartEvent
+	| IAgentToolReadyEvent
 	| IAgentToolCompleteEvent
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
 	| IAgentUsageEvent
-	| IAgentPermissionRequestEvent
-	| IAgentReasoningEvent;
+	| IAgentReasoningEvent
+	| IAgentSteeringConsumedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -318,6 +324,16 @@ export interface IAgent {
 	/** Send a user message into an existing session. */
 	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void>;
 
+	/**
+	 * Called when the session's pending (steering) message changes.
+	 * The agent harness decides how to react — e.g. inject steering
+	 * mid-turn via `mode: 'immediate'`.
+	 *
+	 * Queued messages are consumed on the server side and are not
+	 * forwarded to the agent; `queuedMessages` will always be empty.
+	 */
+	setPendingMessages?(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void;
+
 	/** Retrieve all session events/messages for reconstruction. */
 	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
 
@@ -350,6 +366,38 @@ export interface IAgent {
 	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
+
+	/**
+	 * Truncate a session's history. If `turnIndex` is provided (0-based), keeps
+	 * turns up to and including that turn. If omitted, all turns are removed.
+	 * Optional — not all providers support truncation.
+	 */
+	truncateSession?(session: URI, turnIndex?: number): Promise<void>;
+
+	/**
+	 * Fork a session at a specific turn, creating a new session on disk
+	 * with the source session's history up to and including the specified turn.
+	 * Optional — not all providers support forking.
+	 *
+	 * @param turnIndex 0-based turn index to fork at.
+	 * @returns The new session's raw ID.
+	 */
+	forkSession?(sourceSession: URI, newSessionId: string, turnIndex: number): Promise<void>;
+
+	/**
+	 * Receives client-provided customization refs and syncs them (e.g. copies
+	 * plugin files to local storage). Returns per-customization status with
+	 * local plugin directories.
+	 *
+	 * The agent MAY defer a client restart until all active sessions are idle.
+	 */
+	setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]>;
+
+	/**
+	 * Notifies the agent that a customization has been toggled on or off.
+	 * The agent MAY restart its client before the next message is sent.
+	 */
+	setCustomizationEnabled(uri: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
@@ -450,6 +498,12 @@ export interface IAgentService {
 	 * or reading files from the remote filesystem).
 	 */
 	fetchContent(uri: URI): Promise<IFetchContentResult>;
+
+	/**
+	 * Write content to a file on the agent host's filesystem.
+	 * Used for undo/redo operations on file edits.
+	 */
+	writeFile(params: IWriteFileParams): Promise<IWriteFileResult>;
 }
 
 /**
@@ -462,6 +516,9 @@ export interface IAgentService {
 export interface IAgentConnection extends IAgentService {
 	/** Unique identifier for this client connection, used as the origin in action envelopes. */
 	readonly clientId: string;
+
+	/** Allocate the next client sequence number for action dispatch on this connection. */
+	nextClientSeq(): number;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');

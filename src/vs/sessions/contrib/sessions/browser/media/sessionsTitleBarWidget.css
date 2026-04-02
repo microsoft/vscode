@@ -4,6 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Container - button style hover */
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+}
+
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item {
+	position: relative;
+	margin-left: 8px;
+	padding-left: 12px;
+}
+
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 50%;
+	width: 1px;
+	height: 16px;
+	transform: translateY(-50%);
+	background-color: var(--vscode-commandCenter-border);
+	pointer-events: none;
+}
+
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
 	width: 100%;
@@ -11,7 +34,7 @@
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding: 0 16px;
+	padding-left: 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -19,6 +42,10 @@
 	color: var(--vscode-commandCenter-foreground);
 	gap: 6px;
 	cursor: default;
+}
+
+.agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
+	padding-left: 0;
 }
 
 /* Session pill - clickable area for session picker */
@@ -56,11 +83,16 @@
 	font-size: 14px;
 }
 
+.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
+	color: var(--vscode-icon-foreground);
+}
+
 /* Label (title) */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	font-weight: 500;
 }
 
 /* Repository/folder label */
@@ -77,33 +109,34 @@
 	flex-shrink: 0;
 }
 
-/* Session count widget (tasklist icon + unread count, left of pill) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count {
+/* Provider label (shown for untitled sessions) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
 	display: flex;
 	align-items: center;
-	gap: 3px;
 	flex-shrink: 0;
-	cursor: pointer;
-	padding: 0 4px;
-	height: 22px;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: inherit;
-	font: inherit;
-	outline: none;
+	opacity: 0.7;
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+/* Sidebar toggle unread badge */
+.agent-sessions-workbench .action-item.sidebar-toggle-action {
+	position: relative;
 }
 
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count .codicon {
-	font-size: 16px;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-count-label {
-	font-size: 12px;
+.agent-sessions-workbench .action-item.sidebar-toggle-action .sidebar-toggle-badge {
+	position: absolute;
+	top: 0;
+	right: -4px;
+	min-width: 14px;
+	height: 14px;
+	line-height: 14px;
+	padding: 0 3px;
+	box-sizing: border-box;
+	font-size: 9px;
+	font-weight: 600;
 	font-variant-numeric: tabular-nums;
-	line-height: 16px;
+	text-align: center;
+	border-radius: 4px;
+	background-color: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+	pointer-events: none;
 }

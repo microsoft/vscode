@@ -1063,6 +1063,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
+			iconPath: URI.isUri(icon) ? { dark: icon } : undefined,
 			get iconClasses() { return iconClassesValue.value; },
 			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
@@ -1086,11 +1087,18 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				return TriggerAction.NO_ACTION;
 			},
 			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
-			attach: () => {
-				const widget = this.chatWidgetService.lastFocusedWidget;
-				if (widget && resource) {
-					widget.attachmentModel.addContext(widget.attachmentModel.asFileVariableEntry(resource));
+			attach: (keyMods, event) => {
+				// Only support adding context to chat when shift is pressed
+				if (keyMods.shift) {
+					const widget = this.chatWidgetService.lastFocusedWidget;
+					if (widget && resource) {
+						widget.attachmentModel.addContext(widget.attachmentModel.asFileVariableEntry(resource));
+					}
+					return;
 				}
+
+				// Fallback to accept behavior.
+				this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground });
 			}
 		};
 	}

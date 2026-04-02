@@ -183,7 +183,7 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async install(entitlement: ChatEntitlement, watch: StopWatch, options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
-		const wasRunning = this.context.state.installed && !this.context.state.disabled;
+		const wasRunning = this.context.state.completed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
 		let provider: string;

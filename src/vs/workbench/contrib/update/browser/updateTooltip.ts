@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -15,13 +13,14 @@ import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
-import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, Overwriting, Ready, State, StateType, Updating } from '../../../../platform/update/common/update.js';
+import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, Overwriting, Ready, Restarting, State, StateType, Updating } from '../../../../platform/update/common/update.js';
+import { ShowCurrentReleaseNotesActionId } from '../common/update.js';
 import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, tryParseDate } from '../common/updateUtils.js';
 import './media/updateTooltip.css';
 
@@ -42,7 +41,6 @@ export class UpdateTooltip extends Disposable {
 	private readonly latestVersionNode: HTMLElement;
 	private readonly latestVersionCopyValue: { value: string };
 	private readonly releaseDateNode: HTMLElement;
-	private readonly releaseNotesLink: HTMLAnchorElement;
 
 	// Progress section
 	private readonly progressContainer: HTMLElement;
@@ -62,10 +60,14 @@ export class UpdateTooltip extends Disposable {
 	// State-specific message
 	private readonly messageNode: HTMLElement;
 
+	// Button bar
+	private readonly buttonBar: HTMLElement;
+	private readonly releaseNotesButton: HTMLButtonElement;
+	private readonly actionButton: HTMLButtonElement;
+
 	private releaseNotesVersion: string | undefined;
 
 	constructor(
-		private readonly hostedByTitleBar: boolean,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -83,14 +85,6 @@ export class UpdateTooltip extends Disposable {
 		// Header section
 		const header = dom.append(this.domNode, dom.$('.header'));
 		this.titleNode = dom.append(header, dom.$('.title'));
-
-		const actionBar = this._register(new ActionBar(header, { hoverDelegate: nativeHoverDelegate }));
-		actionBar.push(toAction({
-			id: 'update.openSettings',
-			label: localize('updateTooltip.settingsTooltip', "Update Settings"),
-			class: ThemeIcon.asClassName(Codicon.gear),
-			run: () => this.runCommandAndClose('workbench.action.openSettings', '@id:update*'),
-		}), { icon: true, label: false });
 
 		// Product info section
 		this.productInfoNode = dom.append(this.domNode, dom.$('.product-info'));
@@ -114,16 +108,6 @@ export class UpdateTooltip extends Disposable {
 
 		this.releaseDateNode = dom.append(details, dom.$('.product-release-date'));
 
-		this.releaseNotesLink = dom.append(details, dom.$('a.release-notes-link')) as HTMLAnchorElement;
-		this.releaseNotesLink.textContent = localize('updateTooltip.releaseNotesLink', "Release Notes");
-		this.releaseNotesLink.href = '#';
-		this._register(dom.addDisposableListener(this.releaseNotesLink, 'click', (e) => {
-			e.preventDefault();
-			if (this.releaseNotesVersion) {
-				this.runCommandAndClose('update.showCurrentReleaseNotes', this.releaseNotesVersion);
-			}
-		}));
-
 		// Progress section
 		this.progressContainer = dom.append(this.domNode, dom.$('.progress-container'));
 		const progressBar = dom.append(this.progressContainer, dom.$('.progress-bar'));
@@ -143,6 +127,25 @@ export class UpdateTooltip extends Disposable {
 
 		// State-specific message
 		this.messageNode = dom.append(this.domNode, dom.$('.state-message'));
+
+		// Button bar
+		this.buttonBar = dom.append(this.domNode, dom.$('.button-bar'));
+
+		this.releaseNotesButton = dom.append(this.buttonBar, dom.$('button.release-notes-button')) as HTMLButtonElement;
+		this.releaseNotesButton.textContent = localize('updateTooltip.viewReleaseNotes', "Release Notes");
+		this._register(dom.addDisposableListener(this.releaseNotesButton, 'click', () => {
+			if (this.releaseNotesVersion) {
+				this.runCommandAndClose(ShowCurrentReleaseNotesActionId, this.releaseNotesVersion);
+			}
+		}));
+
+		this.actionButton = dom.append(this.buttonBar, dom.$('button.action-button')) as HTMLButtonElement;
+		this._register(dom.addDisposableListener(this.actionButton, 'click', () => {
+			const commandId = this.actionButton.dataset.commandId;
+			if (commandId) {
+				this.runCommandAndClose(commandId);
+			}
+		}));
 
 		// Populate static product info
 		this.updateCurrentVersion();
@@ -170,6 +173,9 @@ export class UpdateTooltip extends Disposable {
 		this.messageNode.style.display = 'none';
 		this.markdownContainer.style.display = 'none';
 		this.markdown.clear();
+		this.actionButton.style.display = 'none';
+		this.actionButton.dataset.commandId = '';
+		this.releaseNotesButton.style.marginRight = '';
 	}
 
 	public renderState(state: State) {
@@ -204,6 +210,9 @@ export class UpdateTooltip extends Disposable {
 				break;
 			case StateType.Overwriting:
 				this.renderOverwriting(state);
+				break;
+			case StateType.Restarting:
+				this.renderRestarting(state);
 				break;
 		}
 	}
@@ -305,9 +314,7 @@ export class UpdateTooltip extends Disposable {
 
 	private renderAvailableForDownload({ update }: AvailableForDownload) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateAvailableTitle', "Update Available"), update);
-		if (this.hostedByTitleBar) {
-			this.renderMessage(localize('updateTooltip.clickToDownload', "Click the Update button to download."));
-		}
+		this.renderActionButton(localize('updateTooltip.downloadButton', "Download"), 'update.downloadNow');
 	}
 
 	private renderDownloading(state: Downloading) {
@@ -339,9 +346,7 @@ export class UpdateTooltip extends Disposable {
 
 	private renderDownloaded({ update }: Downloaded) {
 		this.renderTitleAndInfo(localize('updateTooltip.updateReadyTitle', "Update is Ready to Install"), update);
-		if (this.hostedByTitleBar) {
-			this.renderMessage(localize('updateTooltip.clickToInstall', "Click the Update button to install."));
-		}
+		this.renderActionButton(localize('updateTooltip.installButton', "Install"), 'update.install');
 	}
 
 	private renderUpdating({ update, currentProgress, maxProgress }: Updating) {
@@ -359,9 +364,11 @@ export class UpdateTooltip extends Disposable {
 	}
 
 	private renderReady({ update }: Ready) {
-		this.renderTitleAndInfo(localize('updateTooltip.updateInstalledTitle', "Update Installed"), update);
-		if (this.hostedByTitleBar) {
-			this.renderMessage(localize('updateTooltip.clickToRestart', "Click the Update button to restart and apply."));
+		if (this.configurationService.getValue<string>('update.mode') === 'manual') {
+			this.renderTitleAndInfo(localize('updateTooltip.updateInstalledTitle', "Update Installed"), update);
+			this.renderActionButton(localize('updateTooltip.restartButton', "Restart"), 'update.restart');
+		} else {
+			this.renderTitleAndInfo(localize('updateTooltip.restartToUpdateTitle', "Restart to Update"), update);
 		}
 	}
 
@@ -370,22 +377,29 @@ export class UpdateTooltip extends Disposable {
 		this.renderMessage(localize('updateTooltip.downloadingNewerPleaseWait', "A newer update was released. Downloading, please wait..."));
 	}
 
-	public async renderPostInstall() {
+	private renderRestarting({ update }: Restarting) {
+		this.renderTitleAndInfo(localize('updateTooltip.restartingTitle', "Restarting {0}", this.productService.nameShort), update);
+		this.renderMessage(localize('updateTooltip.restartingPleaseWait', "Restarting to update, please wait..."));
+	}
+
+	public async renderPostInstall(markdown?: string): Promise<boolean> {
 		this.hideAll();
 		this.renderTitleAndInfo(localize('updateTooltip.installedDefaultTitle', "New Update Installed"));
 		this.renderMessage(
 			localize('updateTooltip.installedDefaultMessage', "See release notes for details on what's new in this release."),
 			Codicon.info);
 
-		let text = null;
-		try {
-			const url = getUpdateInfoUrl(this.productService.version);
-			const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
-			text = await asTextOrError(context);
-		} catch { }
+		let text: string | null = markdown ?? null;
+		if (!text) {
+			try {
+				const url = getUpdateInfoUrl(this.productService.version);
+				const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
+				text = await asTextOrError(context);
+			} catch { }
+		}
 
 		if (!text) {
-			return;
+			return false;
 		}
 
 		this.titleNode.textContent = localize('updateTooltip.installedTitle', "New in {0}", this.productService.version);
@@ -409,6 +423,8 @@ export class UpdateTooltip extends Disposable {
 		dom.clearNode(this.markdownContainer);
 		this.markdownContainer.appendChild(rendered.element);
 		this.markdownContainer.style.display = '';
+
+		return true;
 	}
 
 	private renderTitleAndInfo(title: string, update?: IUpdate) {
@@ -436,9 +452,17 @@ export class UpdateTooltip extends Disposable {
 			this.releaseDateNode.style.display = 'none';
 		}
 
-		// Release notes link
+		// Release notes button
 		this.releaseNotesVersion = version ?? this.productService.version;
-		this.releaseNotesLink.style.display = this.releaseNotesVersion ? '' : 'none';
+		this.releaseNotesButton.style.display = this.releaseNotesVersion ? '' : 'none';
+		this.releaseNotesButton.style.marginRight = this.releaseNotesVersion ? 'auto' : '';
+		this.buttonBar.style.display = this.releaseNotesVersion ? '' : 'none';
+	}
+
+	private renderActionButton(label: string, commandId: string) {
+		this.actionButton.textContent = label;
+		this.actionButton.dataset.commandId = commandId;
+		this.actionButton.style.display = '';
 	}
 
 	private renderMessage(message: string, icon?: ThemeIcon) {

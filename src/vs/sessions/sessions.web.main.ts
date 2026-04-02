@@ -71,6 +71,7 @@ import '../platform/extensionResourceLoader/browser/extensionResourceLoaderServi
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../workbench/services/browserElements/browser/webBrowserElementsService.js';
 import '../workbench/services/power/browser/powerService.js';
+import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -144,27 +145,5 @@ import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
 import '../workbench/contrib/browserView/browser/browserView.contribution.js';
-
-//#endregion
-
-
-//#region --- sessions contributions (same as desktop — these are all browser-safe)
-
-import './browser/paneCompositePartService.js';
-import './browser/layoutActions.js';
-
-import './contrib/accountMenu/browser/account.contribution.js';
-import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
-import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/terminal/browser/sessionsTerminalContribution.js';
-import './contrib/sessions/browser/sessions.contribution.js';
-import './contrib/sessions/browser/customizationsToolbar.contribution.js';
-import './contrib/changes/browser/changesView.contribution.js';
-import './contrib/codeReview/browser/codeReview.contributions.js';
-import './contrib/github/browser/github.contribution.js';
-import './contrib/fileTreeView/browser/fileTreeView.contribution.js';
-import './contrib/configuration/browser/configuration.contribution.js';
-import './contrib/welcome/browser/welcome.contribution.js';
 
 //#endregion

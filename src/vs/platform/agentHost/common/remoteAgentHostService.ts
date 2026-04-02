@@ -8,17 +8,26 @@ import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
 
+/** Connection status for a remote agent host. */
+export const enum RemoteAgentHostConnectionStatus {
+	Connected = 'connected',
+	Connecting = 'connecting',
+	Disconnected = 'disconnected',
+}
+
 /** Configuration key for the list of remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 
 /** Configuration key to enable remote agent host connections. */
-export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHosts.enabled';
+export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
 /** An entry in the {@link RemoteAgentHostsSettingId} setting. */
 export interface IRemoteAgentHostEntry {
 	readonly address: string;
 	readonly name: string;
 	readonly connectionToken?: string;
+	/** SSH config host alias — if set, the tunnel is re-established on startup. */
+	readonly sshConfigHost?: string;
 }
 
 export const enum RemoteAgentHostInputValidationError {
@@ -69,6 +78,26 @@ export interface IRemoteAgentHostService {
 	 * to that host is available.
 	 */
 	addRemoteAgentHost(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostConnectionInfo>;
+
+	/**
+	 * Removes a configured remote host entry by address.
+	 * Disconnects any active connection and removes the entry from settings.
+	 */
+	removeRemoteAgentHost(address: string): Promise<void>;
+
+	/**
+	 * Forcefully reconnect to a configured remote host.
+	 * Tears down any existing connection and starts a fresh connect attempt
+	 * with reset backoff.
+	 */
+	reconnect(address: string): void;
+
+	/**
+	 * Register a pre-connected SSH agent connection.
+	 * Used by the SSH service to inject relay-backed connections
+	 * without going through the WebSocket connect flow.
+	 */
+	addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo>;
 }
 
 /** Metadata about a single remote connection. */
@@ -77,6 +106,7 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly name: string;
 	readonly clientId: string;
 	readonly defaultDirectory?: string;
+	readonly status: RemoteAgentHostConnectionStatus;
 }
 
 export class NullRemoteAgentHostService implements IRemoteAgentHostService {
@@ -86,6 +116,11 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	getConnection(): IAgentConnection | undefined { return undefined; }
 	async addRemoteAgentHost(): Promise<IRemoteAgentHostConnectionInfo> {
+		throw new Error('Remote agent host connections are not supported in this environment.');
+	}
+	async removeRemoteAgentHost(_address: string): Promise<void> { }
+	reconnect(_address: string): void { }
+	async addSSHConnection(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
 }

@@ -69,11 +69,11 @@ export const enum WindowVisibility {
 	 */
 	Editor = 1,
 	/**
-	 * Visible only in sessions window
+	 * Visible only in agent sessions window
 	 */
 	Sessions = 2,
 	/**
-	 * Visible in both editor and sessions windows
+	 * Visible in both editor and agent sessions windows
 	 */
 	Both = 3,
 }
