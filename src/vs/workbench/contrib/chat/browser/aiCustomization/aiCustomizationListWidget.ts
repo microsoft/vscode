@@ -1231,25 +1231,38 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Fetches and filters items for a given section.
-	 * Shared between `loadItems` (active section) and `computeItemCountForSection` (any section).
+	 * Delegates to the provider path or core path based on the active harness.
 	 */
 	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
 		const promptType = sectionToPromptType(section);
-
-		// When the active harness has an external item provider, delegate to it
-		// instead of querying promptsService and applying filters.
-		// When the harness also has a syncProvider, include local items with
-		// sync toggles alongside the remote items.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
+
 		if (activeDescriptor.itemProvider && promptType) {
-			const remoteItems = await this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
-			if (!activeDescriptor.syncProvider) {
-				return remoteItems;
-			}
-			const localItems = await this.fetchLocalSyncableItems(promptType, activeDescriptor.syncProvider);
-			return [...remoteItems, ...localItems];
+			return this.fetchProviderItemsForSection(activeDescriptor, promptType);
 		}
 
+		return this.fetchCoreItemsForSection(promptType);
+	}
+
+	/**
+	 * Fetches items from an external customization provider.
+	 * When a syncProvider is present, blends remote items with local sync items.
+	 */
+	private async fetchProviderItemsForSection(descriptor: ReturnType<ICustomizationHarnessService['getActiveDescriptor']>, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const remoteItems = await this.fetchItemsFromProvider(descriptor.itemProvider!, promptType);
+		if (!descriptor.syncProvider) {
+			return remoteItems;
+		}
+		const localItems = await this.fetchLocalSyncableItems(promptType, descriptor.syncProvider);
+		return [...remoteItems, ...localItems];
+	}
+
+	/**
+	 * Fetches items from the core promptsService with full filtering pipeline.
+	 * This is the legacy path used when no external provider is active.
+	 * TODO: Remove when provider API is the sole code path.
+	 */
+	private async fetchCoreItemsForSection(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
 		const extensionInfoByUri = new ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>();
