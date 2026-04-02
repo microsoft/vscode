@@ -285,7 +285,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private registerNewWindowAction(profile: IUserDataProfile): IDisposable {
 		const disposables = new DisposableStore();
 
-		const id = `workbench.action.openProfile.${profile.name.replace('/\s+/', '_')}`;
+		const id = `workbench.action.openProfile.${profile.name.replace(/\s+/g, '_')}`;
 		const precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
 
 		disposables.add(registerAction2(class NewWindowAction extends Action2 {
