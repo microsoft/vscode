@@ -35,7 +35,7 @@ function sectionToPromptType(section: AICustomizationManagementSection): Prompts
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly storage?: PromptsStorage }[];
+	readonly allItems: readonly { readonly name?: string; readonly storage?: PromptsStorage; readonly groupKey?: string }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -238,6 +238,11 @@ function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push(`    user:      ${state.allItems.filter(i => i.storage === PromptsStorage.user).length}`);
 	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
 	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
+
+	// Show each item with its groupKey and storage
+	for (const item of state.allItems) {
+		lines.push(`    - ${item.name} [storage=${item.storage ?? '?'}, groupKey=${item.groupKey ?? '(none)'}]`);
+	}
 
 	lines.push(`  displayEntries (after filterItems): ${state.displayEntries.length}`);
 	const fileEntries = state.displayEntries.filter(e => e.type === 'file-item');
