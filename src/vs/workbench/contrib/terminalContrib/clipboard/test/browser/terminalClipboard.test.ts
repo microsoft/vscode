@@ -147,6 +147,12 @@ suite('TerminalClipboard', function () {
 			await contribution.paste();
 			strictEqual(pasted, URI.file('/foo/bar.png').fsPath);
 		});
+		test('Clipboard resource fallback ignores non-file URIs', async () => {
+			await clipboardService.writeResources([URI.parse('https://example.com/foo/bar')]);
+
+			await contribution.paste();
+			strictEqual(pasted, '');
+		});
 		test('Empty clipboard', async () => {
 			await contribution.paste();
 			strictEqual(pasted, '');

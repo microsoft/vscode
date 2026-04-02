@@ -5,6 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Disposable, toDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
@@ -85,9 +86,11 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 
 		// If no text was copied (e.g. user copied a file in the explorer), fall
 		// back to clipboard resources and paste the first one's path as text.
+		// Restricted to file URIs since fsPath drops the scheme/authority for
+		// other schemes (e.g. http/https), which would paste a broken path.
 		if (text.length === 0) {
 			const resources = await this._clipboardService.readResources();
-			if (resources.length > 0) {
+			if (resources.length > 0 && resources[0].scheme === Schemas.file) {
 				text = resources[0].fsPath;
 			}
 		}
