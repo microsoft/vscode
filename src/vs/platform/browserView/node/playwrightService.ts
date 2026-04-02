@@ -178,30 +178,20 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	async invokeFunction(pageId: string, fnDef: string, args: unknown[] = [], timeoutMs?: number): Promise<IInvokeFunctionResult> {
 		this.logService.info(`[PlaywrightService] Invoking function on view ${pageId}`);
 
-		try {
-			if (timeoutMs !== undefined) {
-				return this.invokeFunctionWithDeferral(pageId, fnDef, args, timeoutMs);
-			}
-
-			let result;
-			try {
-				result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
-			} catch (err: unknown) {
-				result = err instanceof Error ? err.message : String(err);
-			}
-
-			let summary;
-			try {
-				summary = await this._pages.getSummary(pageId);
-			} catch (err: unknown) {
-				summary = err instanceof Error ? err.message : String(err);
-			}
-			return { result, summary };
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			this.logService.error('[PlaywrightService] Script execution failed:', errorMessage);
-			throw err;
+		if (timeoutMs !== undefined) {
+			return this.invokeFunctionWithDeferral(pageId, fnDef, args, timeoutMs);
 		}
+
+		let result, error;
+		try {
+			result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
+		} catch (err: unknown) {
+			error = err instanceof Error ? err.message : String(err);
+		}
+
+		const summary = await this._pages.getSummary(pageId);
+
+		return { result, error, summary };
 	}
 
 	async waitForDeferredResult(deferredResultId: string, timeoutMs: number): Promise<IInvokeFunctionResult> {
@@ -226,13 +216,15 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 		// Start execution via safeRunAgainstPage, but capture the raw promise
 		// independently so it can be deferred if a dialog or timeout interrupts.
-		let rawPromise: Promise<unknown> | undefined;
+		const deferred = new DeferredPromise();
 		const wrappedPromise = this._pages.runAgainstPage(pageId, async (page) => {
-			rawPromise = callback(page);
-			return rawPromise;
+			const promise = callback(page);
+			promise.catch(() => { /* prevent unhandled rejection if deferred */ });
+			deferred.settleWith(promise);
+			return promise;
 		});
 
-		let result: unknown;
+		let result, error;
 		let interrupted = false;
 
 		try {
@@ -241,27 +233,20 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			if (err instanceof DialogInterruptedError) {
 				interrupted = true;
 			}
-			result = err instanceof Error ? err.message : String(err);
+			error = err instanceof Error ? err.message : String(err);
 		}
 
 		let deferredResultId: string | undefined;
 		if (interrupted) {
 			deferredResultId = existingDeferredId ?? generateUuid();
-			// Prevent unhandled rejection if the deferred result is abandoned
-			rawPromise!.catch(() => { });
 			const cleanup = disposableTimeout(() => this._deferredResults.deleteAndDispose(deferredResultId!), DEFERRED_RESULT_CLEANUP_MS);
-			this._deferredResults.set(deferredResultId, { pageId, promise: rawPromise!, dispose: () => cleanup.dispose() });
+			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, dispose: () => cleanup.dispose() });
 
 			this.logService.info(`[PlaywrightService] Execution interrupted, deferred as ${deferredResultId}`);
 		}
 
-		let summary: string;
-		try {
-			summary = await this._pages.getSummary(pageId);
-		} catch (err: unknown) {
-			summary = err instanceof Error ? err.message : String(err);
-		}
-		return { result, summary, deferredResultId };
+		const summary = await this._pages.getSummary(pageId);
+		return { result, error, summary, deferredResultId };
 	}
 
 	async replyToFileChooser(pageId: string, files: string[]): Promise<{ summary: string }> {

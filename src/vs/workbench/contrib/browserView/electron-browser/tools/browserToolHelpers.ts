@@ -66,8 +66,11 @@ export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
  */
 export function invokeFunctionResultToToolResult(result: IInvokeFunctionResult, code?: string): IToolResult {
 	const content: IToolResult['content'] = [];
-	if (result.result) {
-		content.push({ kind: 'text', value: JSON.stringify(result.result) });
+	if (result.result !== undefined) {
+		content.push({ kind: 'text', value: `Result: ${JSON.stringify(result.result)}` });
+	}
+	if (result.error) {
+		content.push({ kind: 'text', value: result.error });
 	}
 	if (result.deferredResultId) {
 		content.push({ kind: 'text', value: `[deferredResultId=${result.deferredResultId}] The code has not finished executing yet. Call run_playwright_code again with this deferredResultId and the same pageId (no code) to continue waiting.` });
@@ -79,10 +82,10 @@ export function invokeFunctionResultToToolResult(result: IInvokeFunctionResult, 
 			toolResultDetails: {
 				input: code,
 				inputLanguage: 'javascript',
-				output: result.result
-					? [{ type: 'embed' as const, isText: true, value: JSON.stringify(result.result, null, 2) }]
+				output: result.result || result.error
+					? [{ type: 'embed' as const, isText: true, value: JSON.stringify(result.result ?? result.error, null, 2) }]
 					: [],
-				isError: false,
+				isError: !!result.error,
 			},
 		} : {}),
 	};
