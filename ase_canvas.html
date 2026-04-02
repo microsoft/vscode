@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>ASE A1 Engine Repair — Canvas Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html,body { height:100%; margin:0; background:#f3f4f6; font-family: Inter, Roboto, Arial, sans-serif; }
+    #container { display:flex; align-items:center; justify-content:center; height:100%; padding:20px; box-sizing:border-box; }
+    canvas { background: #ffffff; box-shadow: 0 6px 18px rgba(0,0,0,0.12); border-radius:12px; }
+    .hint { position:fixed; left:20px; bottom:20px; font-size:13px; color:#444; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <canvas id="c" width="1200" height="720"></canvas>
+  </div>
+  <div class="hint">Haz clic en las opciones, usa <b>Anterior / Siguiente</b>, cambia Test con &lt; &gt;. Progreso guardado automáticamente.</div>
+
+<script>
+/* ASE A1 — Canvas Interactive Simulator
+   - 100 selectable tests
+   - 10-question test each
+   - timer 15 min
+   - localStorage persistence: ase_canvas_test_{n}
+   - deterministic shuffle per test (seeded), so each test number yields same set unless saved state exists
+*/
+
+/* ---------- Preguntas (tomadas del banco del usuario) ---------- */
+const QUESTION_BANK = [
+  { id: 1, q: "Technician A says that excessive crankshaft end play can be caused by worn thrust bearings. Technician B says that it can be caused by worn main bearings. Who is correct?", choices: ["A only", "B only", "Both A and B", "Neither A nor B"], correct: 2, explanation: "Both are correct — the thrust bearing is part of the main bearing assembly and wear can cause excessive end play." },
+  { id: 2, q: "Technician A says that blue exhaust smoke usually indicates oil burning. Technician B says it indicates unburned fuel. Who is correct?", choices: ["A only", "B only", "Both A and B", "Neither A nor B"], correct: 0, explanation: "Blue smoke typically means engine oil is entering the combustion chamber and burning." },
+  { id: 3, q: "A compression test shows all cylinders within 10% of each other but low overall pressure. What is the most likely cause?", choices: ["Worn piston rings on one cylinder", "Incorrect valve timing", "Blown head gasket", "Cracked block"], correct: 1, explanation: "Uniformly low compression across all cylinders often points to incorrect valve or ignition timing rather than individual cylinder issues." },
+  { id: 4, q: "A rough idle is noted. Technician A says it could be caused by a leaking intake valve. Technician B says it could be caused by a vacuum leak. Who is correct?", choices: ["A only", "B only", "Both A and B", "Neither"], correct: 2, explanation: "Both intake valve leaks and vacuum leaks can cause rough idle." },
+  { id: 5, q: "Which of the following is LEAST likely to cause low engine oil pressure?", choices: ["Worn main bearings", "Faulty oil pressure relief valve stuck open", "Clogged oil pickup screen", "Faulty thermostat"], correct: 3, explanation: "The thermostat affects coolant temperature, not oil pressure." },
+  { id: 6, q: "A knocking noise that gets louder under load usually indicates:", choices: ["Rod bearing wear", "Loose rocker arm", "Timing chain noise", "Broken valve spring"], correct: 0, explanation: "A deep knock under load commonly indicates worn or damaged rod bearings." },
+  { id: 7, q: "When replacing a cylinder head gasket, the technician should:", choices: ["Reuse the old head bolts", "Clean the bolt holes and check for debris", "Torque bolts in any order", "Omit sealant if not specified"], correct: 1, explanation: "Cleaning bolt holes ensures accurate torque and prevents gasket failure." },
+  { id: 8, q: "A wet compression test shows little or no increase over the dry test. What does this indicate?", choices: ["Bad piston rings", "Leaking valves", "Blown head gasket", "Incorrect timing"], correct: 1, explanation: "If adding oil doesn’t raise compression, the issue is likely in the valves, not rings." },
+  { id: 9, q: "A spark plug removed from one cylinder is black and sooty. The other plugs are normal. What’s the likely cause?", choices: ["Coolant leak in that cylinder", "Rich fuel mixture in that cylinder", "Faulty oxygen sensor", "Vacuum leak"], correct: 1, explanation: "A single black, sooty plug indicates that cylinder is running rich — likely an injector or ignition issue." },
+  { id: 10, q: "The crankshaft pulley shows excessive wobble when running. What should the technician inspect first?", choices: ["Pulley bolt torque and harmonic balancer condition", "Alternator alignment", "Timing marks", "Serpentine belt tension"], correct: 0, explanation: "A loose or damaged harmonic balancer or pulley bolt commonly causes visible wobble." }
+];
+
+/* ---------- Canvas & UI Setup ---------- */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let DPR = window.devicePixelRatio || 1;
+function resizeCanvas() {
+  DPR = window.devicePixelRatio || 1;
+  canvas.width = 1200 * DPR;
+  canvas.height = 720 * DPR;
+  canvas.style.width = '1200px';
+  canvas.style.height = '720px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+resizeCanvas();
+window.addEventListener('resize', () => {
+  // keep fixed size for simplicity; you can adapt to container if you want
+  // resizeCanvas();
+});
+
+/* ---------- State ---------- */
+const TOTAL_TESTS = 100;
+let state = {
+  selectedTest: 1,
+  questions: [],        // array of 10 question objects for current test
+  currentIndex: 0,
+  answers: {},          // { questionId: selectedIndex }
+  timeLeft: 900,        // seconds (15 min)
+  saved: false
+};
+
+/* ---------- Utilities: seeded RNG + shuffle ---------- */
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+function seededShuffle(array, seed) {
+  const arr = array.slice();
+  const rand = mulberry32(seed);
+  for (let i = arr.length -1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* ---------- Persistence ---------- */
+function storageKey(n) { return ase_canvas_test_${n}; }
+
+function saveState() {
+  const payload = {
+    questions: state.questions,
+    currentIndex: state.currentIndex,
+    answers: state.answers,
+    timeLeft: state.timeLeft,
+    savedAt: Date.now()
+  };
+  localStorage.setItem(storageKey(state.selectedTest), JSON.stringify(payload));
+  state.saved = true;
+}
+
+function loadStateForTest(n) {
+  const raw = localStorage.getItem(storageKey(n));
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      state.questions = parsed.questions;
+      state.answers = parsed.answers || {};
+      state.currentIndex = parsed.currentIndex || 0;
+      state.timeLeft = typeof parsed.timeLeft === 'number' ? parsed.timeLeft : 900;
+      return true;
+    } catch (e) {
+      console.error('load parse error', e);
+      return false;
+    }
+  } else {
+    // build new deterministic test using seeded shuffle
+    const seed = n; // deterministic per test number
+    const shuffled = seededShuffle(QUESTION_BANK, seed).slice(0, 10);
+    state.questions = shuffled;
+    state.answers = {};
+    state.currentIndex = 0;
+    state.timeLeft = 900;
+    return false;
+  }
+}
+
+/* ---------- Initialize ---------- */
+function setSelectedTest(n) {
+  if (n < 1) n = 1;
+  if (n > TOTAL_TESTS) n = TOTAL_TESTS;
+  state.selectedTest = n;
+  loadStateForTest(n);
+  saveState(); // ensure saved so subsequent loads get this state
+  render(); 
+}
+
+/* start with test 1 */
+setSelectedTest(1);
+
+/* ---------- Timer ---------- */
+let timerInterval = null;
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    if (state.timeLeft > 0) {
+      state.timeLeft--;
+      saveState();
+      render();
+    } else {
+      clearInterval(timerInterval);
+      render();
+    }
+  }, 1000);
+}
+startTimer();
+
+/* ---------- Layout helpers ---------- */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawButton(x,y,w,h, text, options={fill:'#fff', stroke:'#d1d5db', textColor:'#111'}) {
+  ctx.fillStyle = options.fill;
+  ctx.strokeStyle = options.stroke;
+  roundRect(ctx, x, y, w, h, 8);
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = options.textColor;
+  ctx.font = '16px system-ui, Arial';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + 12, y + h/2);
+}
+
+/* ---------- Interaction / hit areas ---------- */
+let hitAreas = []; // {id, x,y,w,h, onClick}
+
+canvas.addEventListener('click', (ev) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = (ev.clientX - rect.left) * (canvas.width / rect.width) / DPR;
+  const y = (ev.clientY - rect.top) * (canvas.height / rect.height) / DPR;
+  for (let area of hitAreas) {
+    if (x >= area.x && x <= area.x + area.w && y >= area.y && y <= area.y + area.h) {
+      area.onClick();
+      return;
+    }
+  }
+});
+
+/* ---------- Logic: answer, navigate ---------- */
+function answerCurrent(choiceIndex) {
+  const q = state.questions[state.currentIndex];
+  if (!q) return;
+  if (state.answers[q.id] !== undefined) return; // prevent changing
+  state.answers[q.id] = choiceIndex;
+  saveState();
+  render();
+}
+function goNext() {
+  state.currentIndex = Math.min(state.currentIndex + 1, state.questions.length - 1);
+  saveState();
+  render();
+}
+function goPrev() {
+  state.currentIndex = Math.max(state.currentIndex - 1, 0);
+  saveState();
+  render();
+}
+function changeTest(delta) {
+  const newTest = state.selectedTest + delta;
+  if (newTest < 1 || newTest > TOTAL_TESTS) return;
+  setSelectedTest(newTest);
+}
+
+/* ---------- Scoring helper ---------- */
+function computeScore() {
+  let correct = 0;
+  for (const q of state.questions) {
+    const ans = state.answers[q.id];
+    if (ans !== undefined && ans === q.correct) correct++;
+  }
+  return { correct, total: state.questions.length };
+}
+
+/* ---------- Render ---------- */
+function render() {
+  hitAreas = [];
+  // background
+  ctx.clearRect(0,0,1200,720);
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, 0,0,1200,720,12);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  // Header bar
+  ctx.fillStyle = '#0f172a'; // dark slate
+  roundRect(ctx, 0,0,1200,68,12);
+  ctx.fillStyle = '#0f172a';
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '22px system-ui, Arial';
+  ctx.fillText('ASE A1 Engine Repair Practice (Canvas)', 26, 42);
+
+  // Test select and timer
+  ctx.font = '16px system-ui, Arial';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText(Test ${state.selectedTest} / ${TOTAL_TESTS}, 920, 28);
+
+  // Timer box
+  const minutes = Math.floor(state.timeLeft / 60).toString().padStart(2,'0');
+  const seconds = (state.timeLeft % 60).toString().padStart(2,'0');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(1040, 16, 120, 36);
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.strokeRect(1040, 16, 120, 36);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '16px system-ui, Arial';
+  ctx.fillText(Time: ${minutes}:${seconds}, 1050, 38);
+
+  // Test change buttons (< >)
+  drawButton(840,14,28,40,'<',{fill:'#111827', stroke:'#111827', textColor:'#fff'});
+  hitAreas.push({ x:840, y:14, w:28, h:40, onClick: ()=> changeTest(-1) });
+  drawButton(882,14,28,40,'>',{fill:'#111827', stroke:'#111827', textColor:'#fff'});
+  hitAreas.push({ x:882, y:14, w:28, h:40, onClick: ()=> changeTest(1) });
+
+  // Main content area
+  const panelX = 26, panelY = 88, panelW = 1148, panelH = 560;
+  ctx.fillStyle = '#f8fafc';
+  roundRect(ctx, panelX, panelY, panelW, panelH, 10);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fill();
+
+  // left: question area (approx 75% width)
+  const leftX = panelX + 16, leftY = panelY + 16, leftW = 800 - 32;
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '18px system-ui, Arial';
+  const q = state.questions[state.currentIndex];
+
+  // Question header
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '18px system-ui, Arial';
+  ctx.fillText(Question ${state.currentIndex + 1} of ${state.questions.length}, leftX, leftY + 4);
+
+  // Question text box
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, leftX, leftY + 24, leftW, 120, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#e6eef5';
+  ctx.stroke();
+
+  // question text
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '16px system-ui, Arial';
+  wrapText(ctx, q ? q.q : 'Cargando...', leftX + 12, leftY + 24 + 28, leftW - 24, 20);
+
+  // choices
+  const choicesStartY = leftY + 160;
+  if (q) {
+    for (let i = 0; i < q.choices.length; i++) {
+      const y = choicesStartY + i * 56;
+      const h = 48;
+      // decide style depending on answered state
+      const answered = state.answers[q.id];
+      let fill = '#ffffff';
+      let stroke = '#d1d5db';
+      let textColor = '#0f172a';
+      if (answered !== undefined) {
+        if (i === q.correct) {
+          fill = '#ecfdf5'; stroke = '#34d399'; // green-ish
+        } else if (i === answered && i !== q.correct) {
+          fill = '#fff1f2'; stroke = '#fb7185'; // red-ish
+        } else {
+          fill = '#ffffff'; stroke = '#e6eef5';
+        }
+      } else {
+        fill = '#ffffff';
+      }
+      ctx.fillStyle = fill;
+      roundRect(ctx, leftX, y, leftW, h, 8);
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+
+      ctx.fillStyle = textColor;
+      ctx.font = '16px system-ui, Arial';
+      ctx.fillText(${String.fromCharCode(65+i)}. ${q.choices[i]}, leftX + 12, y + 30);
+
+      // register hit area
+      hitAreas.push({
+        x: leftX, y, w: leftW, h,
+        onClick: (() => {
+          const idx = i;
+          return () => { answerCurrent(idx); };
+        })()
+      });
+    }
+  }
+
+  // Explanation area (shows after answered)
+  const explX = leftX, explY = leftY + 420, explW = leftW, explH = 110;
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, explX, explY, explW, explH, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#e6eef5';
+  ctx.stroke();
+  if (q) {
+    const answered = state.answers[q.id];
+    if (answered !== undefined) {
+      ctx.fillStyle = answered === q.correct ? '#065f46' : '#991b1b';
+      ctx.font = '16px system-ui, Arial';
+      ctx.fillText(answered === q.correct ? 'Correct ✅' : 'Incorrect ❌', explX + 12, explY + 26);
+      if (answered !== q.correct) {
+        ctx.fillStyle = '#0f172a';
+        ctx.font = '14px system-ui, Arial';
+        ctx.fillText(Correct Answer: ${String.fromCharCode(65+q.correct)}. ${q.choices[q.correct]}, explX + 12, explY + 48);
+      }
+      ctx.fillStyle = '#374151';
+      ctx.font = '13px system-ui, Arial';
+      wrapText(ctx, Explanation: ${q.explanation}, explX + 12, explY + 70, explW - 24, 16);
+    } else {
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '14px system-ui, Arial';
+      ctx.fillText('Selecciona una respuesta para ver si es correcta y la explicación.', explX + 12, explY + 36);
+    }
+  }
+
+  // Right panel: progress, nav, score
+  const rightX = panelX + 840, rightY = panelY + 18, rightW = 280;
+  ctx.fillStyle = '#fff';
+  roundRect(ctx, rightX, rightY, rightW, 520, 8);
+  ctx.fill();
+  ctx.strokeStyle = '#e6eef5';
+  ctx.stroke();
+
+  // Score
+  const sc = computeScore();
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '18px system-ui, Arial';
+  ctx.fillText(Score: ${sc.correct} / ${sc.total}, rightX + 18, rightY + 34);
+
+  // Navigation buttons
+  drawButton(rightX + 18, rightY + 64, 120, 40, 'Anterior');
+  hitAreas.push({ x: rightX + 18, y: rightY + 64, w:120, h:40, onClick: ()=> goPrev() });
+  drawButton(rightX + 150, rightY + 64, 112, 40, 'Siguiente');
+  hitAreas.push({ x: rightX + 150, y: rightY + 64, w:112, h:40, onClick: ()=> goNext() });
+
+  // Test selector numeric + reset
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '13px system-ui, Arial';
+  ctx.fillText('Cambiar Test', rightX + 18, rightY + 124);
+  drawButton(rightX + 18, rightY + 136, 36, 36, '<');
+  hitAreas.push({ x: rightX + 18, y: rightY + 136, w:36, h:36, onClick: ()=> changeTest(-1) });
+  drawButton(rightX + 64, rightY + 136, 150, 36, Test ${state.selectedTest}, {fill:'#f3f4f6'});
+  // clicking center opens prompt to enter test number
+  hitAreas.push({ x: rightX + 64, y: rightY + 136, w:150, h:36, onClick: ()=> {
+    const val = prompt('Ir a Test número (1-100):', String(state.selectedTest));
+    if (!val) return;
+    const n = parseInt(val);
+    if (!isNaN(n)) setSelectedTest(Math.min(Math.max(1,n), TOTAL_TESTS));
+  }});
+  drawButton(rightX + 220, rightY + 136, 36, 36, '>');
+  hitAreas.push({ x: rightX + 220, y: rightY + 136, w:36, h:36, onClick: ()=> changeTest(1) });
+
+  // Reset test progress
+  drawButton(rightX + 18, rightY + 188, 260, 40, 'Reset Test (regenerar y borrar progreso)', {fill:'#fff'});
+  hitAreas.push({ x: rightX + 18, y: rightY + 188, w:260, h:40, onClick: ()=> {
+    if (confirm('Borrar progreso de este Test y regenerar preguntas?')) {
+      localStorage.removeItem(storageKey(state.selectedTest));
+      loadStateForTest(state.selectedTest);
+      saveState();
+      render();
+    }
+  }});
+
+  // Saved timestamp if present
+  const raw = localStorage.getItem(storageKey(state.selectedTest));
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.savedAt) {
+        const d = new Date(parsed.savedAt);
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '12px system-ui, Arial';
+        ctx.fillText(Guardado: ${d.toLocaleString()}, rightX + 18, rightY + 244);
+      }
+    } catch(e){}
+  }
+
+  // Question list / quick nav (numbers)
+  ctx.fillStyle = '#0f172a';
+  ctx.font = '14px system-ui, Arial';
+  ctx.fillText('Preguntas:', rightX + 18, rightY + 272);
+  const numbersStartY = rightY + 292;
+  const perRow = 5;
+  for (let i=0;i<state.questions.length;i++) {
+    const col = i % perRow;
+    const row = Math.floor(i/perRow);
+    const bx = rightX + 18 + col*52;
+    const by = numbersStartY + row*42;
+    const w = 44, h = 36;
+    // color: answered (green if correct, red if wrong), current highlighted
+    const qid = state.questions[i].id;
+    const ans = state.answers[qid];
+    let fill = '#f8fafc', stroke = '#e6eef5', textColor = '#111827';
+    if (i === state.currentIndex) { stroke = '#111827'; }
+    if (ans !== undefined) {
+      if (ans === state.questions[i].correct) { fill = '#ecfdf5'; stroke = '#34d399'; }
+      else { fill = '#fff1f2'; stroke = '#fb7185'; }
+    }
+    ctx.fillStyle = fill;
+    roundRect(ctx, bx, by, w, h, 8);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+    ctx.fillStyle = textColor;
+    ctx.font = '14px system-ui, Arial';
+    ctx.fillText(String(i+1), bx + w/2 - 6, by + h/2 + 5);
+
+    hitAreas.push({ x: bx, y: by, w, h, onClick: (()=>{ const idx=i; return ()=> { state.currentIndex = idx; saveState(); render(); }; })() });
+  }
+
+  // footer / instructions
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '12px system-ui, Arial';
+  ctx.fillText('Este simulador imita la interfaz del examen ASE A1. Progreso guardado automáticamente en localStorage.', panelX + 12, panelY + panelH - 8);
+}
+
+/* ---------- small helper: wrapText ---------- */
+function wrapText(context, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '';
+  for(let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = context.measureText(testLine);
+    const testWidth = metrics.width;
+    if (testWidth > maxWidth && n > 0) {
+      context.fillText(line, x, y);
+      line = words[n] + ' ';
+      y += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  context.fillText(line, x, y);
+}
+
+/* initial render */
+render();
+
+</script>
+</body>
+</html>
