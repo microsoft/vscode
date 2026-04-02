@@ -5,10 +5,14 @@
 
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { URI } from '../../../../base/common/uri.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
+import { URI } from '../../../../base/common/uri.js';
+import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { ToolResultContentType, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationStatus, ToolResultContentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
+
+/** Well-known auto-generated title used by the 'with-title' prompt. */
+export const MOCK_AUTO_TITLE = 'Automatically generated title';
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -29,6 +33,11 @@ export class MockAgent implements IAgent {
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: string }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
+	readonly setClientCustomizationsCalls: { clientId: string; customizations: ICustomizationRef[] }[] = [];
+	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
+
+	/** Configurable return value for getCustomizations. */
+	customizations: ICustomizationRef[] = [];
 
 	/** Configurable return value for getSessionMessages. */
 	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
@@ -96,6 +105,27 @@ export class MockAgent implements IAgent {
 	async authenticate(resource: string, token: string): Promise<boolean> {
 		this.authenticateCalls.push({ resource, token });
 		return true;
+	}
+
+	getCustomizations(): ICustomizationRef[] {
+		return this.customizations;
+	}
+
+	async setClientCustomizations(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+		this.setClientCustomizationsCalls.push({ clientId, customizations });
+		const results: ISyncedCustomization[] = customizations.map(c => ({
+			customization: {
+				customization: c,
+				enabled: true,
+				status: CustomizationStatus.Loaded,
+			},
+		}));
+		progress?.(results);
+		return results;
+	}
+
+	setCustomizationEnabled(uri: string, enabled: boolean): void {
+		this.setCustomizationEnabledCalls.push({ uri, enabled });
 	}
 
 	async shutdown(): Promise<void> { }
@@ -266,10 +296,63 @@ export class ScriptedMockAgent implements IAgent {
 				break;
 			}
 
+			case 'run-safe-command': {
+				// Fire tool_start + tool_ready with shell permission for an allowed command (should be auto-approved)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-shell-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-shell-1', invocationMessage: 'ls -la', permissionKind: 'shell', toolInput: 'ls -la' });
+					// Auto-approved shell commands resolve immediately
+					await timeout(10);
+					this._fireSequence(session, [
+						{ type: 'tool_complete', session, toolCallId: 'tc-shell-1', result: { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: 'file1.ts\nfile2.ts' }], success: true } },
+						{ type: 'idle', session },
+					]);
+				})();
+				break;
+			}
+
+			case 'run-dangerous-command': {
+				// Fire tool_start + tool_ready with shell permission for a denied command (should require confirmation)
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-shell-deny-1', toolName: 'bash', displayName: 'Run Command', invocationMessage: 'Run command' });
+					await timeout(5);
+					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-shell-deny-1', invocationMessage: 'rm -rf /', permissionKind: 'shell', toolInput: 'rm -rf /', confirmationTitle: 'Run in terminal' });
+				})();
+				this._pendingPermissions.set('tc-shell-deny-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-shell-deny-1', result: { pastTenseMessage: 'Ran command', content: [{ type: ToolResultContentType.Text, text: '' }], success: true } },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
 			case 'with-usage':
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Usage response.' },
 					{ type: 'usage', session, inputTokens: 100, outputTokens: 50, model: 'mock-model' },
+					{ type: 'idle', session },
+				]);
+				break;
+
+			case 'with-reasoning':
+				this._fireSequence(session, [
+					{ type: 'reasoning', session, content: 'Let me think' },
+					{ type: 'reasoning', session, content: ' about this...' },
+					{ type: 'delta', session, messageId: 'msg-1', content: 'Reasoned response.' },
+					{ type: 'idle', session },
+				]);
+				break;
+
+			case 'with-title':
+				this._fireSequence(session, [
+					{ type: 'delta', session, messageId: 'msg-1', content: 'Title response.' },
+					{ type: 'title_changed', session, title: MOCK_AUTO_TITLE },
 					{ type: 'idle', session },
 				]);
 				break;
@@ -295,6 +378,23 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
+	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, _queuedMessages: readonly IPendingMessage[]): void {
+		// When steering is set, consume it on the next tick
+		if (steeringMessage) {
+			timeout(20).then(() => {
+				this._onDidSessionProgress.fire({ type: 'steering_consumed', session, id: steeringMessage.id });
+			});
+		}
+	}
+
+	async setClientCustomizations() {
+		return [];
+	}
+
+	setCustomizationEnabled() {
+
+	}
+
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return this._preExistingMessages;
@@ -316,6 +416,16 @@ export class ScriptedMockAgent implements IAgent {
 
 	async changeModel(_session: URI, _model: string): Promise<void> {
 		// Mock agent doesn't track model state
+	}
+
+	async truncateSession(_session: URI, _turnIndex?: number): Promise<void> {
+		// Mock agent accepts truncation without side effects
+	}
+
+	async forkSession(_sourceSession: URI, newSessionId: string, _turnIndex: number): Promise<void> {
+		// Create the forked session so it can be resumed
+		const session = AgentSession.uri('mock', newSessionId);
+		this._sessions.set(newSessionId, session);
 	}
 
 	respondToPermissionRequest(toolCallId: string, approved: boolean): void {

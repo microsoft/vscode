@@ -32,7 +32,7 @@ src/vs/workbench/contrib/chat/common/
 └── customizationHarnessService.ts              # ICustomizationHarnessService + ISectionOverride + helpers
 ```
 
-The tree view and overview live in `vs/sessions` (sessions window only):
+The tree view and overview live in `vs/sessions` (agent sessions window only):
 
 ```
 src/vs/sessions/contrib/aiCustomizationTreeView/browser/
@@ -61,7 +61,7 @@ src/vs/sessions/contrib/sessions/browser/
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 
-| Property / Method | Core VS Code | Sessions Window |
+| Property / Method | Core VS Code | Agent Sessions Window |
 |----------|-------------|----------|
 | `managementSections` | All sections except Models | All sections except Models |
 | `getStorageSourceFilter(type)` | Delegates to `ICustomizationHarnessService` | Delegates to `ICustomizationHarnessService` |

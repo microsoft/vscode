@@ -127,8 +127,30 @@ export class AgentService extends Disposable implements IAgentService {
 			[...this._providers.values()].map(p => p.listSessions())
 		);
 		const flat = results.flat();
-		this._logService.trace(`[AgentService] listSessions returned ${flat.length} sessions`);
-		return flat;
+
+		// Overlay persisted custom titles from per-session databases.
+		const result = await Promise.all(flat.map(async s => {
+			try {
+				const ref = await this._sessionDataService.tryOpenDatabase(s.session);
+				if (!ref) {
+					return s;
+				}
+				try {
+					const customTitle = await ref.object.getMetadata('customTitle');
+					if (customTitle) {
+						return { ...s, summary: customTitle };
+					}
+				} finally {
+					ref.dispose();
+				}
+			} catch {
+				// ignore — title overlay is best-effort
+			}
+			return s;
+		}));
+
+		this._logService.trace(`[AgentService] listSessions returned ${result.length} sessions`);
+		return result;
 	}
 
 	/**
@@ -146,22 +168,56 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
+
+		// Ensure the command auto-approver is ready before any session events
+		// can arrive. This makes shell command auto-approval fully synchronous.
+		// Safe to run in parallel with createSession since no events flow until
+		// sendMessage() is called.
+		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
+		const [, session] = await Promise.all([
+			this._sideEffects.initialize(),
+			provider.createSession(config),
+		]);
+		this._logService.trace(`[AgentService] createSession: initialization complete`);
+
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model ?? '(default)'}`);
-		const session = await provider.createSession(config);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
-		// Create state in the state manager
-		const summary: ISessionSummary = {
-			resource: session.toString(),
-			provider: provider.id,
-			title: 'New Session',
-			status: SessionStatus.Idle,
-			createdAt: Date.now(),
-			modifiedAt: Date.now(),
-			workingDirectory: config?.workingDirectory?.toString(),
-		};
-		this._stateManager.createSession(summary);
+		// When forking, populate the new session's protocol state with
+		// the source session's turns so the client sees the forked history.
+		if (config?.fork) {
+			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
+			let sourceTurns: ITurn[] = [];
+			if (sourceState) {
+				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1)
+					.map(t => ({ ...t, id: generateUuid() }));
+			}
+
+			const summary: ISessionSummary = {
+				resource: session.toString(),
+				provider: provider.id,
+				title: sourceState?.summary.title ?? 'Forked Session',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: config.workingDirectory?.toString(),
+			};
+			const state = this._stateManager.createSession(summary);
+			state.turns = sourceTurns;
+		} else {
+			// Create empty state for new sessions
+			const summary: ISessionSummary = {
+				resource: session.toString(),
+				provider: provider.id,
+				title: 'New Session',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: config?.workingDirectory?.toString(),
+			};
+			this._stateManager.createSession(summary);
+		}
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;
@@ -269,10 +325,31 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const turns = this._buildTurnsFromMessages(messages);
 
+		// Check for a persisted custom title in the session database
+		let title = meta.summary ?? 'Session';
+		const ref = this._sessionDataService.tryOpenDatabase?.(session);
+		if (ref) {
+			try {
+				const db = await ref;
+				if (db) {
+					try {
+						const customTitle = await db.object.getMetadata('customTitle');
+						if (customTitle) {
+							title = customTitle;
+						}
+					} finally {
+						db.dispose();
+					}
+				}
+			} catch {
+				// Best-effort: fall back to agent-provided title
+			}
+		}
+
 		const summary: ISessionSummary = {
 			resource: sessionStr,
 			provider: agent.id,
-			title: meta.summary ?? 'Session',
+			title,
 			status: SessionStatus.Idle,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,

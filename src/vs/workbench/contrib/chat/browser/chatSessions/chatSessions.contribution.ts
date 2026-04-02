@@ -556,7 +556,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						let attachedContext = chatOptions.attachedContext;
 
 						const resource = URI.revive(chatOptions.resource);
-						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatSessionsContribution#sendPrompt');
 						try {
 							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
 							if (promptFile) {
@@ -580,7 +580,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				constructor() {
 					super({
 						id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
-						title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
+						title: localize2('interactiveSession.openNewSessionEditor', "New {0} Session", contribution.displayName),
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
 						f1: true,
@@ -598,7 +598,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				constructor() {
 					super({
 						id: `workbench.action.chat.openNewSessionSidebar.${contribution.type}`,
-						title: localize2('interactiveSession.openNewSessionSidebar', "New {0}", contribution.displayName),
+						title: localize2('interactiveSession.openNewSessionSidebar', "New {0} Session", contribution.displayName),
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
 						f1: false, // Hide from Command Palette
@@ -1245,7 +1245,7 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 		constructor() {
 			super({
 				id: `workbench.action.chat.openNewChatSessionInPlace.${type}`,
-				title: localize2('interactiveSession.openNewChatSessionInPlace', "New {0}", displayName),
+				title: localize2('interactiveSession.openNewChatSessionInPlace', "New {0} Session", displayName),
 				category: CHAT_CATEGORY,
 				f1: false,
 				precondition: ChatContextKeys.enabled,
@@ -1273,7 +1273,7 @@ function registerNewSessionExternalAction(type: string, displayName: string, com
 		constructor() {
 			super({
 				id: `workbench.action.chat.openNewChatSessionExternal.${type}`,
-				title: localize2('interactiveSession.openNewChatSessionExternal', "New {0}", displayName),
+				title: localize2('interactiveSession.openNewChatSessionExternal', "New {0} Session", displayName),
 				category: CHAT_CATEGORY,
 				f1: false,
 				precondition: ChatContextKeys.enabled,
@@ -1307,6 +1307,7 @@ export type NewChatSessionOpenOptions = {
 async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
+	const chatSessionService = accessor.get(IChatSessionsService);
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
@@ -1362,14 +1363,9 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 			// Set initial session options on the model before sending the request,
 			// so that the contributed session provider can read them.
 			if (chatSendOptions.initialSessionOptions) {
-				const model = chatService.getSession(resource);
-				if (model?.contributedChatSession) {
-					model.setContributedChatSession({
-						...model.contributedChatSession,
-						initialSessionOptions: chatSendOptions.initialSessionOptions,
-					});
-				}
+				chatSessionService.updateSessionOptions(resource, normalizeSessionOptions(chatSendOptions.initialSessionOptions));
 			}
+
 			let attachedContext = chatSendOptions.attachedContext;
 			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, promptsService, toolsService);
 			if (promptFile) {
@@ -1380,6 +1376,28 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
 	}
+}
+
+/**
+ * Normalizes session options that may arrive in one of three runtime shapes
+ * into a proper `ReadonlyChatSessionOptionsMap`:
+ *
+ * - **Map** — returned as-is.
+ * - **Array** of `{optionId, value}` objects — e.g. from command arguments
+ *   that bypass static type checking.
+ * - **Plain record** (`Record<string, string | IChatSessionProviderOptionItem>`)
+ *   — e.g. from JSON deserialization across process boundaries where a Map
+ *   loses its prototype.
+ */
+function normalizeSessionOptions(options: ReadonlyChatSessionOptionsMap | ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): ReadonlyChatSessionOptionsMap {
+	if (options instanceof Map) {
+		return options;
+	}
+	if (Array.isArray(options)) {
+		return new Map(options.map(o => [o.optionId, o.value]));
+	}
+	// Plain object fallback (e.g. from JSON deserialization)
+	return ChatSessionOptionsMap.fromRecord(options as unknown as Record<string, string | IChatSessionProviderOptionItem>);
 }
 
 /**
@@ -1394,7 +1412,7 @@ async function resolvePromptSlashCommand(prompt: string, promptsService: IPrompt
 		if (slashCommand) {
 			const parseResult = slashCommand.parsedPromptFile;
 			// add the prompt file to the context
-			const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+			const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
 			const toolReferences = toolsService.toToolReferences(refs);
 			return toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences);
 		}

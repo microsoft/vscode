@@ -316,7 +316,7 @@
 				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
 				"--disable-features=CalculateNativeWinOcclusion",
 				"--disable-extension=vscode.vscode-api-tests",
-				"--sessions"
+				"--agents"
 			],
 			"userDataDir": "${userHome}/.vscode-oss-sessions-dev",
 			"webRoot": "${workspaceFolder}",
@@ -389,6 +389,21 @@
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
 			},
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "0_vscode",
+				"order": 2
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "VS Code Agent Host",
+			"outputCapture": "std",
+			"program": "./scripts/code-agent-host.js",
+			"args": ["--port", "7777", "--without-connection-token"],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -660,8 +675,8 @@
 			"name": "Component Explorer (Edge)",
 			"type": "msedge",
 			"request": "launch",
-			"url": "${taskVar:componentExplorerUrl}",
-			"preLaunchTask": "Launch Component Explorer",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Component Explorer Server",
 			"presentation": {
 				"group": "1_component_explorer",
 				"order": 4
@@ -671,8 +686,8 @@
 			"name": "Component Explorer (Chrome)",
 			"type": "chrome",
 			"request": "launch",
-			"url": "${taskVar:componentExplorerUrl}",
-			"preLaunchTask": "Launch Component Explorer",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Component Explorer Server",
 			"presentation": {
 				"group": "1_component_explorer",
 				"order": 4

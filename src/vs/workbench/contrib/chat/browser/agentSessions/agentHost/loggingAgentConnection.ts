@@ -147,6 +147,10 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		this._inner.dispatchAction(action, clientId, clientSeq);
 	}
 
+	nextClientSeq(): number {
+		return this._inner.nextClientSeq();
+	}
+
 	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
 		return this._logCall('browseDirectory', uri, () => this._inner.browseDirectory(uri));
 	}

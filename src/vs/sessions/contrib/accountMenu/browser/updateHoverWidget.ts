@@ -16,6 +16,7 @@ export class UpdateHoverWidget {
 		private readonly updateService: IUpdateService,
 		private readonly productService: IProductService,
 		private readonly hoverService: IHoverService,
+		private readonly stateProvider?: () => State,
 	) { }
 
 	attachTo(target: HTMLElement) {
@@ -30,7 +31,7 @@ export class UpdateHoverWidget {
 		);
 	}
 
-	createHoverContent(state: State = this.updateService.state): HTMLElement {
+	createHoverContent(state: State = this.stateProvider?.() ?? this.updateService.state): HTMLElement {
 		const update = this.getUpdateFromState(state);
 		const currentVersion = this.productService.version ?? localize('unknownVersion', "Unknown");
 		const targetVersion = update?.productVersion ?? update?.version ?? localize('unknownVersion', "Unknown");

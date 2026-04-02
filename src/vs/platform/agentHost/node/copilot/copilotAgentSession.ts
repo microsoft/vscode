@@ -194,14 +194,21 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
 	}
 
-	sendSteering(steeringMessage: IPendingMessage): void {
+	async sendSteering(steeringMessage: IPendingMessage): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
-		this._wrapper.session.send({
-			prompt: steeringMessage.userMessage.text,
-			mode: 'immediate',
-		}).catch(err => {
+		try {
+			await this._wrapper.session.send({
+				prompt: steeringMessage.userMessage.text,
+				mode: 'immediate',
+			});
+			this._onDidSessionProgress.fire({
+				session: this.sessionUri,
+				type: 'steering_consumed',
+				id: steeringMessage.id,
+			});
+		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
-		});
+		}
 	}
 
 	async getMessages(): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
@@ -219,6 +226,16 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		this._denyPendingPermissions();
 		await this._wrapper.session.abort();
+	}
+
+	/**
+	 * Explicitly destroys the underlying SDK session and waits for cleanup
+	 * to complete. Call this before {@link dispose} when you need to ensure
+	 * the session's on-disk data is no longer locked (e.g. before
+	 * truncation or fork operations that modify the session files).
+	 */
+	async destroySession(): Promise<void> {
+		await this._wrapper.session.destroy();
 	}
 
 	async setModel(model: string): Promise<void> {

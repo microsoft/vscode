@@ -77,8 +77,8 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (!chat) {
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!session) {
 			return;
 		}
 
@@ -93,7 +93,7 @@ export class SessionTypePicker extends Disposable {
 		const delegate: IActionListDelegate<ISessionType> = {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
-				this.sessionsManagementService.setSessionType(chat, type);
+				this.sessionsManagementService.setSessionType(session, type);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};

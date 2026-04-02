@@ -12,6 +12,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -51,15 +53,18 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			icon: Codicon.vscodeInsiders,
 			precondition: IsActiveSessionBackgroundProviderContext,
 			menu: [{
-				id: Menus.TitleBarRightLayout,
+				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 0,
+				order: 100,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext),
 			}]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const telemetryService = accessor.get(ITelemetryService);
+		logSessionsInteraction(telemetryService, 'openInVSCode');
+
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
