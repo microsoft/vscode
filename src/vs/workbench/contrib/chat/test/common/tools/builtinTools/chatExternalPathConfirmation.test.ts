@@ -108,7 +108,7 @@ suite('ChatExternalPathConfirmationContribution', () => {
 		const actions2 = contribution.getPreConfirmActions(ref);
 		assert.strictEqual(actions2.length, 2);
 		const repoAction2 = actions2[1];
-		assert.ok(repoAction2.detail!.includes('/external/repo'));
+		assert.ok(repoAction2.detail!.includes(gitRootUri.fsPath));
 
 		const shouldConfirm = await repoAction2.select();
 		assert.strictEqual(shouldConfirm, true);
