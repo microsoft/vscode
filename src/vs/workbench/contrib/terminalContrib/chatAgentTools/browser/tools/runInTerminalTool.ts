@@ -1844,9 +1844,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			cleanup();
 		});
 
+		// When a checkpoint is restored, requests are removed from the model.
+		// Cancel the background notification and dispose the terminal so that
+		// background processes don't outlive the rolled-back session state.
+		const modelChangeListener = sessionRef.object.onDidChange(e => {
+			if (e.kind === 'removeRequest') {
+				this._logService.debug(`RunInTerminalTool: Request removed from session, cleaning up background terminal ${termId}`);
+				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
+				RunInTerminalTool._activeExecutions.delete(termId);
+				cleanup();
+				terminalInstance.dispose();
+			}
+		});
+
 		const cleanup = () => {
 			listener.dispose();
 			disposedListener.dispose();
+			modelChangeListener.dispose();
 			bgCts?.dispose();
 			outputMonitor?.dispose();
 			sessionRef.dispose();
@@ -1854,6 +1868,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		this._register(listener);
 		this._register(disposedListener);
+		this._register(modelChangeListener);
 	}
 	// #endregion
 }
