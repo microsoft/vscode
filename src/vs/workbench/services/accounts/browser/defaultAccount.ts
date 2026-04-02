@@ -589,6 +589,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			for (const scopes of allScopes) {
 				if (this.scopesMatch(session.scopes, scopes)) {
 					matchingSessions.push(session);
+					break;
 				}
 			}
 		}
