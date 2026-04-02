@@ -453,30 +453,29 @@ class ChatTokenDeleter extends Disposable {
 	) {
 		super();
 
-		let lastInsertRange: Range | undefined;
+		let prevInsertTokenRange: Range | undefined;
 
 		// A simple heuristic to delete the previous insert token when the user presses backspace.
 		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
-			const prevInsertRange = lastInsertRange;
-			lastInsertRange = undefined;
-
 			// Don't try to handle multi-cursor edits right now
 			if (e.changes.length !== 1) {
 				return;
 			}
+			let insertedTokenRange: Range | undefined;
 			const change = e.changes[0];
 			if (change.text.length > 0 && change.rangeLength === 1) {
 				// A full slash command or agent reference was just inserted - store it so that if the user immediately deletes it, we can delete the whole thing instead of just one character
 				if (slashReg.test(change.text) || agentReg.test(change.text) || variableReg.test(change.text)) {
-					lastInsertRange = new Range(change.range.startLineNumber, change.range.startColumn, change.range.endLineNumber, change.range.startColumn + change.text.length);
+					insertedTokenRange = new Range(change.range.startLineNumber, change.range.startColumn, change.range.endLineNumber, change.range.startColumn + change.text.length);
 				}
-			} else if (change.text.length === 0 && prevInsertRange && change.range.endColumn === prevInsertRange.endColumn) {
+			} else if (change.text.length === 0 && prevInsertTokenRange && change.range.endColumn === prevInsertTokenRange.endColumn) {
 				this.widget.inputEditor.executeEdits(this.id, [{
-					range: prevInsertRange,
+					range: prevInsertTokenRange,
 					text: '',
 				}]);
 				this.widget.refreshParsedInput();
 			}
+			prevInsertTokenRange = insertedTokenRange;
 		}));
 	}
 }
