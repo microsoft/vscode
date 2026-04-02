@@ -84,12 +84,10 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatVie
 // section of the Activity Bar. Clicking it toggles Chat in its configured location rather
 // than opening a sidebar panel — the open is intercepted by ActivityBarCompositeBar.
 
-const chatShortcutIcon = registerIcon('chat-shortcut-icon', Codicon.copilot, localize('chatShortcutIcon', 'Icon for the Chat shortcut in the Activity Bar.'));
-
 const chatShortcutViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: ChatShortcutViewContainerId,
 	title: localize2('chat.viewContainer.label', "Chat"),
-	icon: chatShortcutIcon,
+	icon: chatViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ChatShortcutViewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: `${ChatShortcutViewContainerId}.state`,
 	hideIfEmpty: true,
