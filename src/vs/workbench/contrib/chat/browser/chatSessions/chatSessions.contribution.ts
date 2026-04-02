@@ -1379,9 +1379,15 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 }
 
 /**
- * Normalizes session options that may arrive as either a Map or an array of
- * `{optionId, value}` objects (e.g. from command arguments that bypass static
- * type checking) into a proper Map.
+ * Normalizes session options that may arrive in one of three runtime shapes
+ * into a proper `ReadonlyChatSessionOptionsMap`:
+ *
+ * - **Map** — returned as-is.
+ * - **Array** of `{optionId, value}` objects — e.g. from command arguments
+ *   that bypass static type checking.
+ * - **Plain record** (`Record<string, string | IChatSessionProviderOptionItem>`)
+ *   — e.g. from JSON deserialization across process boundaries where a Map
+ *   loses its prototype.
  */
 function normalizeSessionOptions(options: ReadonlyChatSessionOptionsMap | ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): ReadonlyChatSessionOptionsMap {
 	if (options instanceof Map) {
