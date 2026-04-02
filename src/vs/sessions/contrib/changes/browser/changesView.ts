@@ -620,6 +620,7 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		this.filesCountBadge = dom.append(this.filesHeaderNode, $('.changes-files-count'));
+		this.filesCountBadge.style.display = 'none';
 
 		// Overview section (header with summary only - actions moved outside card)
 		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
@@ -1057,6 +1058,7 @@ export class ChangesViewPane extends ViewPane {
 
 			if (this.filesCountBadge) {
 				this.filesCountBadge.textContent = `${files}`;
+				this.filesCountBadge.style.display = '';
 			}
 		}));
 
