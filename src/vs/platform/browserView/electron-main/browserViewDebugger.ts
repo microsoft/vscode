@@ -168,6 +168,14 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 		}
 
 		this._electronDebugger.removeListener('message', this._messageHandler);
+
+		// When the WebContents is already destroyed (e.g. disposal triggered
+		// by the 'destroyed' event), calling detach() throws "target closed
+		// while handling command". There is nothing left to detach from.
+		if (this.view.webContents.isDestroyed()) {
+			return;
+		}
+
 		try {
 			this._electronDebugger.detach();
 		} catch (error) {
