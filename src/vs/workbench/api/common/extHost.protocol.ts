@@ -1648,6 +1648,8 @@ export interface IChatSessionContextDto {
 export interface IChatAgentInvokeResult extends IChatAgentResult {
 	/** Error callstack for telemetry only. Stripped at the RPC boundary — never persisted or sent to the model. */
 	errorCallstack?: string;
+	/** Error name (e.g. 'ChatQuotaExceeded', 'TypeError') for telemetry only. */
+	errorName?: string;
 }
 
 export interface ExtHostChatAgentsShape2 {

@@ -278,18 +278,20 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					}, token);
 
 					if (rpcResult?.errorCallstack) {
-						type ChatAgentErrorEvent = { callstack: string; msg: string; agent: string; agentExtensionId: string };
+						type ChatAgentErrorEvent = { callstack: string; msg: string; errorName: string; agent: string; agentExtensionId: string };
 						type ChatAgentErrorClassification = {
 							owner: 'bryanchen-d';
 							comment: 'Logged when a chat agent handler throws an error with a callstack.';
 							callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
 							msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+							errorName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error name (e.g. TypeError, ChatQuotaExceeded).' };
 							agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent that threw the error.' };
 							agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
 						};
 						this._telemetryService.publicLogError2<ChatAgentErrorEvent, ChatAgentErrorClassification>('chatAgentError', {
 							callstack: rpcResult.errorCallstack,
 							msg: rpcResult.errorDetails?.message ?? '',
+							errorName: rpcResult.errorName ?? '',
 							agent: id,
 							agentExtensionId: extension.value,
 						});
@@ -297,7 +299,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 					// Strip telemetry-only field before returning to the model layer
 					if (rpcResult) {
-						const { errorCallstack: _, ...result } = rpcResult;
+						const { errorCallstack: _, errorName: _2, ...result } = rpcResult;
 						return result;
 					}
 					return {};
