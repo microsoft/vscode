@@ -11,6 +11,7 @@ import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
 import { FindInput } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
+import { MatchLocationInput } from '../../../../base/browser/ui/findinput/matchLocationInput.js';
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
@@ -136,6 +137,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
+
+	private _matchLocationInput!: MatchLocationInput;
 
 	private _toggleReplaceBtn!: SimpleButton;
 	private _matchesCount!: HTMLElement;
@@ -429,12 +432,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label = NLS_NO_RESULTS;
 		}
 
-		const matchesLocationInput = this.createMatchesLocationInput();
-		matchesLocationInput.value = `${this._state.matchesPosition}`;
+		this._matchLocationInput = this.getMatchLocationInput();
 
-		this._matchesCount.appendChild(matchesLocationInput);
+
+		this._matchesCount.appendChild(this._matchLocationInput.domNode);
 		this._matchesCount.appendChild(document.createTextNode(' of '));
 		this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
+
+		// const matchesLocationInput = this.getMatchLocationInput();
+		// matchesLocationInput.value = `${this._state.matchesPosition}`;
+
+		// this._matchesCount.appendChild(matchesLocationInput);
+		// this._matchesCount.appendChild(document.createTextNode(' of '));
+		// this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
@@ -443,35 +453,153 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	// ----- actions
 
 
-	private createMatchesLocationInput(): HTMLInputElement {
-		const inputEl = document.createElement('input');
+	// private getMatchLocationInput(): HTMLInputElement {
+	// 	let inputEl = document.querySelector('.editable-match-location') as HTMLInputElement;
 
-		// Set input type and upper/lower bounds
-		inputEl.type = 'number';
-		inputEl.max = `${this._state.matchesCount}`;
-		inputEl.min = '1';
+	// 	if (!inputEl) {
+	// 		inputEl = document.createElement('input');
+	// 		// Set input type and upper/lower bounds
+	// 		inputEl.type = 'number';
+	// 		inputEl.max = `${this._state.matchesCount}`;
+	// 		inputEl.min = '1';
 
-		inputEl.classList.add(...['monaco-inputbox', 'editable-match-location']);
+	// 		// Keep styling consistent with the surrounding UI.
+	// 		inputEl.classList.add(...['monaco-inputbox', 'editable-match-location']);
 
-		inputEl.onfocus = () => {
-			inputEl.classList.add(...['synthetic-focus']);
-		};
+	// 		inputEl.addEventListener('focus', () => {
+	// 			inputEl.classList.add(...['synthetic-focus']);
+	// 		});
 
-		inputEl.onblur = () => {
-			inputEl.classList.remove(...['synthetic-focus']);
-		};
+	// 		inputEl.addEventListener('blur', () => {
+	// 			inputEl.classList.remove(...['synthetic-focus']);
+	// 		});
 
-		inputEl.oninput = (event) => {
+	// 		inputEl.addEventListener('input', (event: Event) => {
+	// 			console.log('findWidget.ts ---> getMatchLocationInput() ---> input INPUT event', event);
+	// 			const currentValue = validateInput((event?.target as HTMLInputElement).value);
+	// 		});
 
-		};
+	// 		inputEl.addEventListener('change', (event: Event) => {
+	// 			console.log('findWidget.ts ---> getMatchLocationInput() ---> input CHANGE event', event);
+	// 			const currentValue = validateInput((event?.target as HTMLInputElement).value);
 
-		inputEl.onchange = (event) => {
+	// 		});
 
-		};
 
-		return inputEl;
+	// 		// inputEl.onfocus = () => {
+	// 		// 	inputEl.classList.add(...['synthetic-focus']);
+	// 		// };
 
+	// 		// inputEl.onblur = () => {
+	// 		// 	inputEl.classList.remove(...['synthetic-focus']);
+	// 		// };
+
+	// 		// inputEl.oninput = (event: InputEvent) => {
+	// 		// 	const currentValue = validateInput(event?.target?);
+	// 		// };
+
+	// 		// inputEl.onchange = (event) => {
+
+	// 		// };
+
+	// 		const validateInput = (inputVal: any) => {
+	// 			// return Math.min(input)
+	// 		}
+	// 	}
+
+	// 	return inputEl;
+	// }
+
+	private getMatchLocationInput(): MatchLocationInput {
+		// let inputEl = document.querySelector('.editable-match-location') as HTMLInputElement;
+
+		// if (!inputEl) {
+		// 	inputEl = document.createElement('input');
+		// 	// Set input type and upper/lower bounds
+		// 	inputEl.type = 'number';
+		// 	inputEl.max = `${this._state.matchesCount}`;
+		// 	inputEl.min = '1';
+
+		// 	// Keep styling consistent with the surrounding UI.
+		// 	inputEl.classList.add(...['monaco-inputbox', 'editable-match-location']);
+
+		// 	inputEl.addEventListener('focus', () => {
+		// 		inputEl.classList.add(...['synthetic-focus']);
+		// 	});
+
+		// 	inputEl.addEventListener('blur', () => {
+		// 		inputEl.classList.remove(...['synthetic-focus']);
+		// 	});
+
+		// 	inputEl.addEventListener('input', (event: Event) => {
+		// 		console.log('findWidget.ts ---> getMatchLocationInput() ---> input INPUT event', event);
+		// 		const currentValue = validateInput((event?.target as HTMLInputElement).value);
+		// 	});
+
+		// 	inputEl.addEventListener('change', (event: Event) => {
+		// 		console.log('findWidget.ts ---> getMatchLocationInput() ---> input CHANGE event', event);
+		// 		const currentValue = validateInput((event?.target as HTMLInputElement).value);
+
+		// 	});
+
+
+		// 	// inputEl.onfocus = () => {
+		// 	// 	inputEl.classList.add(...['synthetic-focus']);
+		// 	// };
+
+		// 	// inputEl.onblur = () => {
+		// 	// 	inputEl.classList.remove(...['synthetic-focus']);
+		// 	// };
+
+		// 	// inputEl.oninput = (event: InputEvent) => {
+		// 	// 	const currentValue = validateInput(event?.target?);
+		// 	// };
+
+		// 	// inputEl.onchange = (event) => {
+
+		// 	// };
+
+		// 	const validateInput = (inputVal: any) => {
+		// 		// return Math.min(input)
+		// 	}
+		// }
+
+		// Match Location Edit Input
+		// Created above during this._updateMatchesCount();
+		const input = new MatchLocationInput(this._domNode, this._contextViewProvider, {
+			placeholder: '',
+			width: 20,
+			validation: undefined,
+			label: '',
+			type: 'number',
+			min: 0,
+			max: this._state.matchesCount,
+			flexibleHeight: undefined,
+			flexibleWidth: undefined,
+			flexibleMaxHeight: undefined,
+			toggleStyles: defaultToggleStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+		});
+
+		this._register(input.onStep((e) => {
+			if (e.direction === 'up') {
+				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
+			}
+			else {
+				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
+			}
+		}));
+
+		this._register(input.onJump((e) => {
+			assertIsDefined(this._codeEditor.getAction(FIND_IDS.GoToMatchFindAction)).run().then(undefined, onUnexpectedError);
+		}));
+
+		input.domNode.classList.add(...['monaco-inputbox', 'editable-match-location']);
+		input.setValue(`${this._state.matchesPosition}`);
+
+		return input;
 	}
+
 	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
 		if (label === NLS_NO_RESULTS) {
 			return searchString === ''
@@ -1047,7 +1175,79 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
+
 		this._updateMatchesCount();
+
+
+		// this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
+		// 	width: FIND_INPUT_AREA_WIDTH,
+		// 	label: NLS_FIND_INPUT_LABEL,
+		// 	placeholder: NLS_FIND_INPUT_PLACEHOLDER,
+		// 	appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
+		// 	appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
+		// 	appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
+		// 	validation: (value: string): InputBoxMessage | null => {
+		// 		if (value.length === 0 || !this._findInput.getRegex()) {
+		// 			return null;
+		// 		}
+		// 		try {
+		// 			// use `g` and `u` which are also used by the TextModel search
+		// 			new RegExp(value, 'gu');
+		// 			return null;
+		// 		} catch (e) {
+		// 			return { content: e.message };
+		// 		}
+		// 	},
+		// 	flexibleHeight,
+		// 	flexibleWidth,
+		// 	flexibleMaxHeight: 118,
+		// 	showCommonFindToggles: true,
+		// 	showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
+		// 	inputBoxStyles: defaultInputBoxStyles,
+		// 	toggleStyles: defaultToggleStyles
+		// }, this._contextKeyService));
+		// this._findInput.setRegex(!!this._state.isRegex);
+		// this._findInput.setCaseSensitive(!!this._state.matchCase);
+		// this._findInput.setWholeWords(!!this._state.wholeWord);
+		// this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		// this._register(this._findInput.inputBox.onDidChange(() => {
+		// 	if (this._ignoreChangeEvent) {
+		// 		return;
+		// 	}
+		// 	this._state.change({ searchString: this._findInput.getValue() }, true);
+		// }));
+		// this._register(this._findInput.onDidOptionChange(() => {
+		// 	this._state.change({
+		// 		isRegex: this._findInput.getRegex(),
+		// 		wholeWord: this._findInput.getWholeWords(),
+		// 		matchCase: this._findInput.getCaseSensitive()
+		// 	}, true);
+		// }));
+		// this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
+		// 	if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
+		// 		if (this._isReplaceVisible) {
+		// 			this._replaceInput.focus();
+		// 			e.preventDefault();
+		// 		}
+		// 	}
+		// }));
+		// this._register(this._findInput.onRegexKeyDown((e) => {
+		// 	if (e.equals(KeyCode.Tab)) {
+		// 		if (this._isReplaceVisible) {
+		// 			this._replaceInput.focusOnPreserve();
+		// 			e.preventDefault();
+		// 		}
+		// 	}
+		// }));
+		// this._register(this._findInput.inputBox.onDidHeightChange((e) => {
+		// 	if (this._tryUpdateHeight()) {
+		// 		this._showViewZone();
+		// 	}
+		// }));
+		// if (platform.isLinux) {
+		// 	this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
+		// }
+
 
 		// Create a scoped hover delegate for all find related buttons
 		const hoverDelegate = this._register(createInstantHoverDelegate());
