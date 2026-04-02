@@ -135,6 +135,7 @@
 	font-weight: 500;
 	cursor: pointer;
 	transition: background 100ms, border-color 100ms;
+	white-space: nowrap;
 }
 
 .sessions-walkthrough-provider-label {
@@ -191,34 +192,39 @@
 .sessions-walkthrough-sign-in-actions {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
-	gap: 10px;
+	align-items: stretch;
+	gap: 0;
 	width: min(100%, 320px);
 	margin-top: 16px;
-}
-
-.sessions-walkthrough-sign-in-actions > .sessions-walkthrough-provider-btn.provider-github {
-	width: 100%;
 }
 
 .sessions-walkthrough-providers-row {
 	display: flex;
 	gap: 8px;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 	width: 100%;
+	flex-wrap: nowrap;
 }
 
 .sessions-walkthrough-providers-row > .sessions-walkthrough-provider-btn {
-	flex: 1 1 0;
+	flex: 0 0 auto;
+}
+
+.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary {
+	flex: 1 1 auto;
 	min-width: 0;
+	padding: 10px 12px;
+	gap: 8px;
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only {
+	width: 40px;
 	height: 40px;
 	padding: 0;
 	border-radius: 8px;
 	justify-content: center;
+	flex: 0 0 40px;
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only::before {
@@ -228,11 +234,12 @@
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact {
 	min-height: 40px;
-	padding: 0 8px;
+	padding: 0;
 	border-radius: 8px;
 	font-size: 11px;
 	gap: 0;
 	justify-content: center;
+	flex: 0 0 auto;
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact::before {
