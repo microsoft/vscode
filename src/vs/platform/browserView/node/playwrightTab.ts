@@ -9,6 +9,17 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createCancelablePromise, raceCancellablePromises } from '../../../base/common/async.js';
 
+type IAiAriaSnapshotOptions = {
+	mode?: 'ai' | 'default';
+	depth?: number;
+	timeout?: number;
+	_track?: string;
+};
+
+type IPageWithAiAriaSnapshot = playwright.Page & {
+	ariaSnapshot(options?: IAiAriaSnapshotOptions): Promise<string>;
+};
+
 /**
  * Wrapper around a Playwright page that tracks additional state like active dialogs and recent console messages,
  * and can produce a summary of the page's current state for use in tools.
@@ -158,7 +169,7 @@ export class PlaywrightTab {
 			this._needsFullSnapshot = false;
 		}
 
-		const snapshotFromPage = await this.safeRunAgainstPage((page) => page.ariaSnapshot({ mode: 'ai' })).catch(() => {
+		const snapshotFromPage = await this.safeRunAgainstPage((page) => this.getAiSnapshot(page, full)).catch(() => {
 			this._needsFullSnapshot = true;
 			return undefined;
 		});
@@ -180,6 +191,14 @@ export class PlaywrightTab {
 			] : []),
 			...(snapshot ? ['Snapshot:', snapshot] : [])
 		].join('\n');
+	}
+
+	private getAiSnapshot(page: playwright.Page, full: boolean): Promise<string> {
+		const options: IAiAriaSnapshotOptions = { mode: 'ai' };
+		if (!full) {
+			options._track = 'response';
+		}
+		return (page as IPageWithAiAriaSnapshot).ariaSnapshot(options);
 	}
 
 	private async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
