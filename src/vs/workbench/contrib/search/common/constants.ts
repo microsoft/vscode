@@ -41,6 +41,7 @@ export const enum SearchCommandIds {
 	ExpandRecursivelyCommandId = 'search.action.expandRecursively',
 	ClearSearchResultsActionId = 'search.action.clearSearchResults',
 	GetSearchResultsActionId = 'search.action.getSearchResults',
+	ExportSearchResultsActionId = 'search.action.export',
 	ViewAsTreeActionId = 'search.action.viewAsTree',
 	ViewAsListActionId = 'search.action.viewAsList',
 	ShowAIResultsActionId = 'search.action.showAIResults',
