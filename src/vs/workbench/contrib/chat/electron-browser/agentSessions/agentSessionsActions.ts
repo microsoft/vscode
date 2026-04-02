@@ -18,11 +18,11 @@ import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../base/common/network.js';
 
-export class OpenSessionsWindowAction extends Action2 {
+export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.openSessionsWindow',
-			title: localize2('openSessionsWindow', "Open Sessions Window"),
+			id: 'workbench.action.openAgentsWindow',
+			title: localize2('openAgentsWindow', "Open Agents Application"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate()),
 			f1: true,
@@ -42,15 +42,15 @@ export class OpenSessionsWindowAction extends Action2 {
 
 		if (environmentService.isBuilt && (isMacintosh || isWindows)) {
 			const scheme = productService.quality === 'stable'
-				? 'vscode-sessions'
+				? 'vscode-agents'
 				: productService.quality === 'exploration'
-					? 'vscode-sessions-exploration'
-					: 'vscode-sessions-insiders';
+					? 'vscode-agents-exploration'
+					: 'vscode-agents-insiders';
 
 			await openerService.open(URI.from({ scheme, authority: Schemas.file }), { openExternal: true });
 		} else {
 			const nativeHostService = accessor.get(INativeHostService);
-			await nativeHostService.openSessionsWindow();
+			await nativeHostService.openAgentsWindow();
 		}
 	}
 }

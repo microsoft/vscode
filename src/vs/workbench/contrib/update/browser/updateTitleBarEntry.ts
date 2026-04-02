@@ -13,11 +13,12 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
@@ -74,6 +75,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -113,7 +115,18 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			}
 		));
 
+		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
+
 		void this.onStateChange(true);
+	}
+
+	private async showUpdateInfo(markdown?: string) {
+		const rendered = await this.tooltip.renderPostInstall(markdown);
+		if (rendered) {
+			this.tooltipVisible = true;
+			this.context.set(true);
+			this.entry?.showTooltip(true);
+		}
 	}
 
 	private async onStateChange(startup = false) {
@@ -130,7 +143,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 
 		let showTooltip = startup && this.detectVersionChange();
-		if (showTooltip) {
+		if (showTooltip && this.configurationService.getValue<boolean>('update.showPostInstallInfo') !== false) {
 			showTooltip = await this.tooltip.renderPostInstall();
 		} else {
 			this.tooltip.renderState(this.state);
@@ -296,35 +309,46 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = localize('updateIndicator.update', "Update");
-
 		switch (state.type) {
 			case StateType.Disabled:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('update-disabled');
 				break;
 
 			case StateType.CheckingForUpdates:
-			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.checking', "Checking...");
 				this.renderProgressState(this.content);
 				break;
 
-			case StateType.Restarting:
-				label.textContent = localize('updateIndicator.restarting', "Restarting");
+			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.overwriting', "Updating...");
 				this.renderProgressState(this.content);
 				break;
 
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Ready:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
 				break;
 
 			case StateType.Downloading:
+				label.textContent = localize('updateIndicator.downloading', "Downloading...");
 				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
+				label.textContent = localize('updateIndicator.installing', "Installing...");
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
+				break;
+
+			case StateType.Restarting:
+				label.textContent = localize('updateIndicator.restarting', "Restarting...");
+				this.renderProgressState(this.content);
+				break;
+
+			default:
+				label.textContent = localize('updateIndicator.update', "Update");
 				break;
 		}
 	}

@@ -26,6 +26,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -121,6 +122,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -194,6 +196,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					return;
 				}
 
+				logSessionsInteraction(that._telemetryService, 'runPrimaryTask');
+
 				const { tasks, session } = activeState;
 				if (tasks.length === 0) {
 					const task = await that._showConfigureQuickPick(session);
@@ -238,6 +242,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
+					logSessionsInteraction(that._telemetryService, 'addTask');
 					const task = await that._showConfigureQuickPick(session);
 					if (task) {
 						await that._sessionsConfigService.runTask(task, session);
@@ -261,7 +266,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					await that._sessionManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
+					logSessionsInteraction(that._telemetryService, 'generateNewTask');
+					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 				}
 			}));
 		}));
@@ -698,7 +704,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: addCategory,
 			run: async () => {
-				await this._sessionsManagementService.sendAndCreateChat({ query: '/generate-run-commands' }, session);
+				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 			},
 		});
 

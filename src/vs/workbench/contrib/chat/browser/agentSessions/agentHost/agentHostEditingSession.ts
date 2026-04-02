@@ -46,7 +46,8 @@ interface IAgentHostFileEdit {
 
 interface IAgentHostCheckpoint {
 	readonly requestId: string;
-	readonly undoStopId: string;
+	/** Tool-call ID, or `undefined` for the sentinel checkpoint at request start. */
+	readonly undoStopId: string | undefined;
 	readonly edits: IAgentHostFileEdit[];
 }
 
@@ -120,7 +121,26 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 	private readonly _entriesObs = observableValue<readonly AgentHostModifiedFileEntry[]>(this, []);
 	readonly entries: IObservable<readonly IModifiedFileEntry[]> = this._entriesObs;
 
-	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = constObservable([]);
+	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = derivedOpts(
+		{ equalsFn: (a, b) => a.length === b.length && a.every((v, i) => v.requestId === b[i].requestId && v.afterUndoStop === b[i].afterUndoStop) },
+		reader => {
+			const currentIdx = this._currentCheckpointIndex.read(reader);
+			if (currentIdx >= this._checkpoints.length - 1) {
+				return [];
+			}
+			// Collect unique request IDs from checkpoints after the current
+			// index. Keep the first entry per request — if that's the sentinel
+			// (undoStopId === undefined) the entire request is disabled.
+			const disabled = new Map<string, string | undefined>();
+			for (let i = currentIdx + 1; i < this._checkpoints.length; i++) {
+				const cp = this._checkpoints[i];
+				if (!disabled.has(cp.requestId)) {
+					disabled.set(cp.requestId, cp.undoStopId);
+				}
+			}
+			return [...disabled].map(([requestId, afterUndoStop]): IChatRequestDisablement => ({ requestId, afterUndoStop }));
+		},
+	);
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
@@ -154,6 +174,27 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 
 	// ---- Hydration from protocol state --------------------------------------
 
+	/**
+	 * Ensures a sentinel checkpoint exists for the given request. Called at the
+	 * start of every turn so that `requestDisablement` and `restoreSnapshot`
+	 * can reference requests that may not produce any file edits.
+	 *
+	 * Also splices away stale checkpoints after the current index (undo branch
+	 * semantics) when a new request arrives after a checkpoint restore.
+	 */
+	ensureRequestCheckpoint(requestId: string): void {
+		// Splice stale checkpoints if the user restored a checkpoint
+		const currentIdx = this._currentCheckpointIndex.get();
+		if (currentIdx < this._checkpoints.length - 1) {
+			this._checkpoints.splice(currentIdx + 1);
+		}
+
+		// Insert sentinel for this request if it doesn't exist yet
+		if (!this._checkpoints.some(cp => cp.requestId === requestId)) {
+			this._checkpoints.push({ requestId, undoStopId: undefined, edits: [] });
+		}
+	}
+
 	addToolCallEdits(requestId: string, tc: IToolCallState): IChatProgress[] {
 		if (tc.status !== ToolCallStatus.Completed) {
 			return [];
@@ -163,6 +204,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		if (this._checkpoints.some(cp => cp.undoStopId === tc.toolCallId)) {
 			return [];
 		}
+
+		// Ensure the sentinel and undo-branch splice are handled
+		this.ensureRequestCheckpoint(requestId);
 
 		const fileEdits = fileEditsToExternalEdits(tc);
 		if (fileEdits.length === 0) {
@@ -250,43 +294,54 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		if (stopId !== undefined) {
 			return this._checkpoints.findIndex(cp => cp.requestId === requestId && cp.undoStopId === stopId);
 		}
-		// No specific stop: use the last checkpoint for this request
-		for (let i = this._checkpoints.length - 1; i >= 0; i--) {
-			if (this._checkpoints[i].requestId === requestId) {
-				return i;
-			}
-		}
-		return -1;
+		// No specific stop: find the sentinel checkpoint (undoStopId === undefined)
+		// for this request, which marks the request boundary.
+		return this._checkpoints.findIndex(cp => cp.requestId === requestId && cp.undoStopId === undefined);
 	}
 
 	private _findCheckpoint(requestId: string, stopId: string | undefined): IAgentHostCheckpoint | undefined {
-		const idx = this._findCheckpointIndex(requestId, stopId);
-		return idx >= 0 ? this._checkpoints[idx] : undefined;
+		if (stopId !== undefined) {
+			const idx = this._findCheckpointIndex(requestId, stopId);
+			return idx >= 0 ? this._checkpoints[idx] : undefined;
+		}
+		// No specific stop: find the last non-sentinel checkpoint for this
+		// request (the one with actual edits).
+		for (let i = this._checkpoints.length - 1; i >= 0; i--) {
+			const cp = this._checkpoints[i];
+			if (cp.requestId === requestId && cp.undoStopId !== undefined) {
+				return cp;
+			}
+		}
+		return undefined;
 	}
 
 	async restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
-		const idx = this._findCheckpointIndex(requestId, stopId);
-		if (idx < 0) {
+		const cpIdx = this._findCheckpointIndex(requestId, stopId);
+		if (cpIdx < 0) {
 			this._logService.warn(`[AgentHostEditingSession] No checkpoint found for requestId=${requestId}${stopId ? `, stopId=${stopId}` : ''}`);
 			return;
 		}
 
+		// When stopId is undefined we found the sentinel (request boundary).
+		// Navigate to one before it so the request's edits are fully undone.
+		const targetIdx = stopId === undefined ? cpIdx - 1 : cpIdx;
+
 		// Navigate to the target checkpoint
 		const currentIdx = this._currentCheckpointIndex.get();
-		if (idx < currentIdx) {
+		if (targetIdx < currentIdx) {
 			// Undo forward checkpoints
-			for (let i = currentIdx; i > idx; i--) {
+			for (let i = currentIdx; i > targetIdx; i--) {
 				await this._writeCheckpointContent(this._checkpoints[i], 'before');
 			}
-		} else if (idx > currentIdx) {
+		} else if (targetIdx > currentIdx) {
 			// Redo to reach the target
-			for (let i = currentIdx + 1; i <= idx; i++) {
+			for (let i = currentIdx + 1; i <= targetIdx; i++) {
 				await this._writeCheckpointContent(this._checkpoints[i], 'after');
 			}
 		}
 
 		transaction(tx => {
-			this._currentCheckpointIndex.set(idx, tx);
+			this._currentCheckpointIndex.set(targetIdx, tx);
 		});
 		this._rebuildEntries();
 	}
@@ -558,8 +613,14 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 
 		await this._writeCheckpointContent(this._checkpoints[idx], 'before');
 
+		// Skip past any sentinel checkpoints (they have no edits)
+		let newIdx = idx - 1;
+		while (newIdx >= 0 && this._checkpoints[newIdx].undoStopId === undefined) {
+			newIdx--;
+		}
+
 		transaction(tx => {
-			this._currentCheckpointIndex.set(idx - 1, tx);
+			this._currentCheckpointIndex.set(newIdx, tx);
 		});
 		this._rebuildEntries();
 	}
@@ -570,7 +631,15 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			return;
 		}
 
-		const nextIdx = idx + 1;
+		// Skip past sentinel checkpoints to the next tool-call checkpoint
+		let nextIdx = idx + 1;
+		while (nextIdx < this._checkpoints.length && this._checkpoints[nextIdx].undoStopId === undefined) {
+			nextIdx++;
+		}
+		if (nextIdx >= this._checkpoints.length) {
+			return;
+		}
+
 		await this._writeCheckpointContent(this._checkpoints[nextIdx], 'after');
 
 		transaction(tx => {

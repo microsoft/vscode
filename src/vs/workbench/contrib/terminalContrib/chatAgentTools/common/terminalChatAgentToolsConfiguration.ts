@@ -20,11 +20,11 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
-	AgentSandboxEnabled = 'chat.agent.sandbox',
-	AgentSandboxNetworkAllowedDomains = 'chat.agent.sandboxNetwork.allowedDomains',
-	AgentSandboxNetworkDeniedDomains = 'chat.agent.sandboxNetwork.deniedDomains',
-	AgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
-	AgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
+	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
+	AgentSandboxNetworkAllowedDomains = 'chat.agent.sandbox.allowedNetworkDomains',
+	AgentSandboxNetworkDeniedDomains = 'chat.agent.sandbox.deniedNetworkDomains',
+	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
+	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
 	DetachBackgroundProcesses = 'chat.tools.terminal.detachBackgroundProcesses',
@@ -34,17 +34,21 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
 	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
 
-	DeprecatedTerminalSandboxEnabled = 'chat.tools.terminal.sandbox.enabled',
-	DeprecatedTerminalSandboxNetwork = 'chat.tools.terminal.sandbox.network',
-	DeprecatedTerminalSandboxNetworkAllowedDomains = 'chat.tools.terminal.sandbox.network.allowedDomains',
-	DeprecatedTerminalSandboxNetworkDeniedDomains = 'chat.tools.terminal.sandbox.network.deniedDomains',
-	DeprecatedTerminalSandboxLinuxFileSystem = 'chat.tools.terminal.sandbox.linuxFileSystem',
-	DeprecatedTerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
+	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
+	DeprecatedAgentSandboxNetworkAllowedDomains = 'chat.agent.sandboxNetwork.allowedDomains',
+	DeprecatedAgentSandboxNetworkDeniedDomains = 'chat.agent.sandboxNetwork.deniedDomains',
+	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
+	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
 	DeprecatedAutoApprove3 = 'github.copilot.chat.agent.terminal.allowList',
 	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
+}
+
+export const enum TerminalChatAgentToolsSandboxEnabledValue {
+	Off = 'off',
+	On = 'on',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
@@ -531,8 +535,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxEnabled]: {
 		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
-		type: 'boolean',
-		default: false,
+		type: 'string',
+		enum: [TerminalChatAgentToolsSandboxEnabledValue.Off, TerminalChatAgentToolsSandboxEnabledValue.On],
+		enumDescriptions: [
+			localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
+			localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
+		],
+		default: TerminalChatAgentToolsSandboxEnabledValue.Off,
 		tags: ['preview'],
 		restricted: true,
 		experiment: {
@@ -644,7 +653,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
-		markdownDescription: localize('detachBackgroundProcesses.description', "Whether to detach background terminal processes so they survive when VS Code exits. When enabled, commands started with `isBackground: true` are wrapped with `nohup` (POSIX) or `Start-Process` (Windows) so the process continues running after the terminal is disposed."),
+		markdownDescription: localize('detachBackgroundProcesses.description', "Whether to detach persistent terminal processes so they survive when VS Code exits. When enabled, commands started with `mode: \"async\"` (legacy: `isBackground: true`) are wrapped with `nohup` (POSIX) or `Start-Process` (Windows) so the process continues running after the terminal is disposed."),
 	}
 };
 
@@ -661,45 +670,35 @@ for (const id of [
 	};
 }
 
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetwork] = {
-	type: 'object',
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkAllowedDomains] = {
+	type: 'array',
+	items: { type: 'string' },
 	deprecated: true,
-	markdownDeprecationMessage: localize(
-		'agentSandboxNetwork.deprecated',
-		'This setting has been split into {0} and {1}.',
-		`\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains}#\``,
-		`\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains}#\``,
-	),
+	markdownDeprecationMessage: localize('agentSandbox.allowedNetworkDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains}#\``),
 };
 
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled] = {
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkDeniedDomains] = {
+	type: 'array',
+	items: { type: 'string' },
+	deprecated: true,
+	markdownDeprecationMessage: localize('agentSandbox.deniedNetworkDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains}#\``),
+};
+
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem] = {
+	type: 'object',
+	deprecated: true,
+	markdownDeprecationMessage: localize('agentSandbox.fileSystemLinux.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem}#\``),
+};
+
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem] = {
+	type: 'object',
+	deprecated: true,
+	markdownDeprecationMessage: localize('agentSandbox.fileSystemMac.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem}#\``),
+};
+
+terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled] = {
 	type: 'boolean',
 	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandboxEnabled.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains] = {
-	type: 'array',
-	items: { type: 'string' },
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandboxNetworkAllowedDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains] = {
-	type: 'array',
-	items: { type: 'string' },
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandboxNetworkDeniedDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxLinuxFileSystem] = {
-	type: 'object',
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandboxLinuxFileSystem.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxMacFileSystem] = {
-	type: 'object',
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandboxMacFileSystem.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem}#\``),
+	included: false,
+	markdownDeprecationMessage: localize('agentSandbox.enabled.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
 };

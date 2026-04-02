@@ -412,11 +412,7 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				if ((process as INodeProcess).isEmbeddedApp || (this.environmentMainService.args['sessions'] && this.productService.quality !== 'stable')) {
-					await this.windowsMainService?.openSessionsWindow({ context: OpenContext.DOCK });
-				} else {
-					await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
-				}
+				await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
 			}
 		});
 
@@ -753,10 +749,9 @@ export class CodeApplication extends Disposable {
 
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
 			if (windowOpenable) {
-				// Sessions app: skip all window openables (file/folder/workspace)
 				if ((process as INodeProcess).isEmbeddedApp) {
-					this.logService.trace('app#resolveInitialProtocolUrls() sessions app skipping window openable:', protocolUrl.uri.toString(true));
-					continue;
+					this.logService.trace('app#resolveInitialProtocolUrls() agents app skipping window openable:', protocolUrl.uri.toString(true));
+					continue; // Agents app: skip all window openables (file/folder/workspace)
 				}
 
 				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
@@ -904,19 +899,19 @@ export class CodeApplication extends Disposable {
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
-		// Sessions app: ensure the sessions window is open, then let other handlers process the URL.
+		// Agents app: ensure the agents window is open, then let other handlers process the URL.
 		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.trace('app#handleProtocolUrl() sessions app handling protocol URL:', uri.toString(true));
+			this.logService.trace('app#handleProtocolUrl() agents app handling protocol URL:', uri.toString(true));
 
 			// Skip window openables (file/folder/workspace) for security
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(uri);
 			if (windowOpenable) {
-				this.logService.trace('app#handleProtocolUrl() sessions app skipping window openable:', uri.toString(true));
+				this.logService.trace('app#handleProtocolUrl() agents app skipping window openable:', uri.toString(true));
 				return true;
 			}
 
-			// Ensure sessions window is open to receive the URL
-			const windows = await windowsMainService.openSessionsWindow({ context: OpenContext.LINK, contextWindowId: undefined });
+			// Ensure agents window is open to receive the URL
+			const windows = await windowsMainService.openAgentsWindow({ context: OpenContext.LINK, cli: this.environmentMainService.args });
 			const window = windows.at(0);
 			window?.focus();
 			await window?.ready();
@@ -1195,7 +1190,6 @@ export class CodeApplication extends Disposable {
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
-
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
@@ -1358,9 +1352,13 @@ export class CodeApplication extends Disposable {
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// Handle sessions window first based on context
-		if ((process as INodeProcess).isEmbeddedApp || (args['sessions'] && this.productService.quality !== 'stable')) {
-			return windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
+		// Handle agents window first based on context
+		if ((process as INodeProcess).isEmbeddedApp || (args['agents'] && this.productService.quality !== 'stable')) {
+			return windowsMainService.openAgentsWindow({
+				context,
+				cli: args,
+				initialStartup: true
+			});
 		}
 
 		// Then check for windows from protocol links to open

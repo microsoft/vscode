@@ -257,7 +257,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService, defaultAccountService: IDefaultAccountService): Promise<IChatAgentResult> {
 		if (
-			!this.context.state.installed ||									// Extension not installed: run setup to install
+			!this.context.state.completed ||									// Setup not completed
 			this.context.state.disabled ||										// Extension disabled: run setup to enable
 			this.context.state.untrusted ||										// Workspace untrusted: run setup to ask for trust
 			this.context.state.entitlement === ChatEntitlement.Available ||		// Entitlement available: run setup to sign up

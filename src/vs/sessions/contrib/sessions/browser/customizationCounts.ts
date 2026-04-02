@@ -72,10 +72,10 @@ export async function getSourceCounts(
 		// Must match loadItems: uses getPromptSlashCommands() filtering out skills
 		const commands = await promptsService.getPromptSlashCommands(CancellationToken.None);
 		for (const c of commands) {
-			if (c.promptPath.type === PromptsType.skill) {
+			if (c.type === PromptsType.skill) {
 				continue;
 			}
-			items.push({ storage: c.promptPath.storage, uri: c.promptPath.uri });
+			items.push({ storage: c.storage, uri: c.uri });
 		}
 	} else if (promptType === PromptsType.instructions) {
 		// Must match loadItems: uses listPromptFiles + listAgentInstructions

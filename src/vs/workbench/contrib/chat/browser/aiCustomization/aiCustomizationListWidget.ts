@@ -6,6 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -13,7 +14,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -25,7 +26,7 @@ import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon,
 import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY } from './aiCustomizationManagement.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
@@ -53,14 +54,10 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter } from '../../common/customizationHarnessService.js';
-import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
-import { isInClaudeRulesFolder, getCleanPromptName, AGENT_MD_FILENAME, CLAUDE_MD_FILENAME, CLAUDE_LOCAL_MD_FILENAME, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
+import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter, ICustomizationSyncProvider } from '../../common/customizationHarnessService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -115,6 +112,14 @@ export interface IAICustomizationListItem {
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
 	readonly extensionLabel?: string;
+	/** Server-reported loading/sync status for remote customizations. */
+	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
+	/** Human-readable status detail (e.g. error message or warning). */
+	readonly statusMessage?: string;
+	/** When true, this item can be selected for syncing to a remote harness. */
+	readonly syncable?: boolean;
+	/** When true, this syncable item is currently selected for syncing. */
+	readonly synced?: boolean;
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -164,9 +169,11 @@ interface IAICustomizationItemTemplateData {
 	readonly container: HTMLElement;
 	readonly actionsContainer: HTMLElement;
 	readonly actionBar: ActionBar;
+	readonly syncCheckboxContainer: HTMLElement;
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
+	readonly statusIcon: HTMLElement;
 	readonly description: HighlightedLabel;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -282,21 +289,6 @@ export function formatDisplayName(name: string): string {
 }
 
 /**
- * Well-known agent instruction filenames that are always loaded and
- * grouped under "Agent Instructions" rather than classified by `applyTo`.
- */
-const AGENT_INSTRUCTION_FILENAMES = new Set([
-	AGENT_MD_FILENAME.toLowerCase(),
-	CLAUDE_MD_FILENAME.toLowerCase(),
-	CLAUDE_LOCAL_MD_FILENAME.toLowerCase(),
-	COPILOT_CUSTOM_INSTRUCTIONS_FILENAME.toLowerCase(),
-]);
-
-function isAgentInstructionFile(uri: URI): boolean {
-	return AGENT_INSTRUCTION_FILENAMES.has(basename(uri).toLowerCase());
-}
-
-/**
  * Renderer for AI customization list items.
  */
 class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICustomizationItemTemplateData> {
@@ -309,6 +301,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAICustomizationItemTemplateData {
@@ -318,11 +311,14 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
+		const syncCheckboxContainer = DOM.append(leftSection, $('.item-sync-checkbox'));
+		syncCheckboxContainer.style.display = 'none';
 		const typeIcon = DOM.append(leftSection, $('.item-type-icon'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameRow = DOM.append(textContainer, $('.item-name-row'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
+		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
 
 		// Right section for actions (hover-visible)
@@ -335,9 +331,11 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			container,
 			actionsContainer,
 			actionBar,
+			syncCheckboxContainer,
 			typeIcon,
 			nameLabel,
 			badge,
+			statusIcon,
 			description,
 			disposables,
 			elementDisposables,
@@ -347,6 +345,25 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 	renderElement(entry: IFileItemEntry, index: number, templateData: IAICustomizationItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const element = entry.item;
+
+		// Sync checkbox: shown for syncable local items
+		if (element.syncable) {
+			templateData.syncCheckboxContainer.style.display = '';
+			const title = element.synced
+				? localize('unsyncItem', "Remove {0} from sync", element.name)
+				: localize('syncItem', "Add {0} to sync", element.name);
+			const checkbox = templateData.elementDisposables.add(
+				new Checkbox(title, !!element.synced, defaultCheckboxStyles)
+			);
+			templateData.syncCheckboxContainer.replaceChildren(checkbox.domNode);
+			templateData.elementDisposables.add(checkbox.onChange(() => {
+				const syncProvider = this.harnessService.getActiveDescriptor().syncProvider;
+				syncProvider?.toggleUri(element.uri, element.promptType);
+			}));
+		} else {
+			templateData.syncCheckboxContainer.style.display = 'none';
+			templateData.syncCheckboxContainer.replaceChildren();
+		}
 
 		// Type icon: use per-item override or fall back to prompt type
 		templateData.typeIcon.className = 'item-type-icon';
@@ -401,6 +418,36 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		} else {
 			templateData.badge.textContent = '';
 			templateData.badge.style.display = 'none';
+		}
+
+		// Status icon for external items with sync/loading status
+		if (element.status) {
+			templateData.statusIcon.style.display = '';
+			templateData.statusIcon.className = 'item-status-icon';
+			switch (element.status) {
+				case 'loading':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+					break;
+				case 'loaded':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+					break;
+				case 'degraded':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+					break;
+				case 'error':
+					templateData.statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+					break;
+			}
+			if (element.statusMessage) {
+				templateData.elementDisposables.add(this.hoverService.setupManagedHover(
+					getDefaultHoverDelegate('mouse'),
+					templateData.statusIcon,
+					element.statusMessage,
+				));
+			}
+		} else {
+			templateData.statusIcon.style.display = 'none';
+			templateData.statusIcon.className = 'item-status-icon';
 		}
 
 		// Hooks show shell commands here, so keep the full text instead of truncating to the first sentence.
@@ -573,7 +620,6 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -601,6 +647,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Subscribe to the active provider's onDidChange event
 		const providerChangeDisposable = this._register(new MutableDisposable());
+		const syncChangeDisposable = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
 			const activeDescriptor = this.harnessService.getActiveDescriptor();
@@ -608,6 +655,11 @@ export class AICustomizationListWidget extends Disposable {
 				providerChangeDisposable.value = activeDescriptor.itemProvider.onDidChange(() => this.refresh());
 			} else {
 				providerChangeDisposable.clear();
+			}
+			if (activeDescriptor.syncProvider) {
+				syncChangeDisposable.value = activeDescriptor.syncProvider.onDidChange(() => this.refresh());
+			} else {
+				syncChangeDisposable.clear();
 			}
 		}));
 
@@ -914,6 +966,35 @@ export class AICustomizationListWidget extends Disposable {
 			}];
 		}
 
+		// Check for menu-contributed create actions from extensions.
+		// Extensions contribute to AICustomizationManagementCreateMenuId with
+		// when-clauses targeting chatCustomizationSessionType and
+		// chatCustomizationSection context keys.
+		// When a harness contributes create actions, they REPLACE the built-in ones
+		// for all section types, including hooks.
+		const menuActions = this.menuService.getMenuActions(
+			AICustomizationManagementCreateMenuId,
+			this.contextKeyService,
+			{ shouldForwardArgs: true },
+		);
+		const extensionCreateActions: ICreateAction[] = [];
+		for (const [, group] of menuActions) {
+			for (const menuItem of group) {
+				if (menuItem instanceof MenuItemAction) {
+					const icon = ThemeIcon.isThemeIcon(menuItem.item.icon) ? menuItem.item.icon.id : Codicon.add.id;
+					extensionCreateActions.push({
+						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
+						enabled: menuItem.enabled,
+						run: () => { menuItem.run(); },
+					});
+				}
+			}
+		}
+
+		if (extensionCreateActions.length > 0) {
+			return extensionCreateActions;
+		}
+
 		const createTypeLabel = override?.typeLabel ?? typeLabel;
 		const actions: ICreateAction[] = [];
 		const addedTargets = new Set<string>();
@@ -1013,34 +1094,6 @@ export class AICustomizationListWidget extends Disposable {
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', rootFileName: fileName }); },
 				});
 			}
-		}
-
-		// Check for menu-contributed create actions from extensions.
-		// Extensions contribute to AICustomizationManagementCreateMenuId with
-		// when-clauses targeting aiCustomizationManagementHarness and
-		// aiCustomizationManagementSection context keys.
-		// When a harness contributes create actions, they REPLACE the built-in ones.
-		const menuActions = this.menuService.getMenuActions(
-			AICustomizationManagementCreateMenuId,
-			this.contextKeyService,
-			{ shouldForwardArgs: true },
-		);
-		const extensionCreateActions: ICreateAction[] = [];
-		for (const [, group] of menuActions) {
-			for (const menuItem of group) {
-				if (menuItem instanceof MenuItemAction) {
-					const icon = ThemeIcon.isThemeIcon(menuItem.item.icon) ? menuItem.item.icon.id : Codicon.add.id;
-					extensionCreateActions.push({
-						label: `$(${icon}) ${typeof menuItem.item.title === 'string' ? menuItem.item.title : menuItem.item.title.value}`,
-						enabled: menuItem.enabled,
-						run: () => { menuItem.run(); },
-					});
-				}
-			}
-		}
-
-		if (extensionCreateActions.length > 0) {
-			return extensionCreateActions;
 		}
 
 		return actions;
@@ -1147,12 +1200,12 @@ export class AICustomizationListWidget extends Disposable {
 	 * agent hooks) are left untouched — groupKey overrides are only applied to
 	 * items whose current groupKey is `undefined`.
 	 */
-	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ReadonlyMap<string, { id: ExtensionIdentifier; displayName?: string }>): IAICustomizationListItem[] {
+	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>): IAICustomizationListItem[] {
 		return items.map(item => {
 			if (item.storage !== PromptsStorage.extension) {
 				return item;
 			}
-			const extInfo = extensionInfoByUri.get(item.uri.toString());
+			const extInfo = extensionInfoByUri.get(item.uri);
 			if (!extInfo) {
 				return item;
 			}
@@ -1180,19 +1233,21 @@ export class AICustomizationListWidget extends Disposable {
 
 		// When the active harness has an external item provider, delegate to it
 		// instead of querying promptsService and applying filters.
+		// When the harness also has a syncProvider, include local items with
+		// sync toggles alongside the remote items.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider && promptType) {
-			const items = await this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
-			// Enrich instruction items that lack groupKey/badge with parsed frontmatter
-			if (promptType === PromptsType.instructions) {
-				return this.enrichProviderInstructionItems(items);
+			const remoteItems = await this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
+			if (!activeDescriptor.syncProvider) {
+				return remoteItems;
 			}
-			return items;
+			const localItems = await this.fetchLocalSyncableItems(promptType, activeDescriptor.syncProvider);
+			return [...remoteItems, ...localItems];
 		}
 
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
-		const extensionInfoByUri = new Map<string, { id: ExtensionIdentifier; displayName?: string }>();
+		const extensionInfoByUri = new ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>();
 
 
 		if (promptType === PromptsType.agent) {
@@ -1202,7 +1257,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allAgentFiles = await this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None);
 			for (const file of allAgentFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			for (const agent of agents) {
@@ -1219,8 +1274,8 @@ export class AICustomizationListWidget extends Disposable {
 					disabled: disabledUris.has(agent.uri),
 				});
 				// Track extension ID for built-in grouping (if not already set from file list)
-				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri.toString())) {
-					extensionInfoByUri.set(agent.uri.toString(), { id: agent.source.extensionId });
+				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri)) {
+					extensionInfoByUri.set(agent.uri, { id: agent.source.extensionId });
 				}
 			}
 		} else if (promptType === PromptsType.skill) {
@@ -1230,7 +1285,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
 			for (const file of allSkillFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
@@ -1283,23 +1338,23 @@ export class AICustomizationListWidget extends Disposable {
 			// Filter out skills since they have their own section
 			const commands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
 			for (const command of commands) {
-				if (command.promptPath.type === PromptsType.skill) {
+				if (command.type === PromptsType.skill) {
 					continue;
 				}
-				const filename = basename(command.promptPath.uri);
+				const filename = basename(command.uri);
 				items.push({
-					id: command.promptPath.uri.toString(),
-					uri: command.promptPath.uri,
+					id: command.uri.toString(),
+					uri: command.uri,
 					name: command.name,
 					filename,
 					description: command.description,
-					storage: command.promptPath.storage,
+					storage: command.storage,
 					promptType,
-					pluginUri: command.promptPath.storage === PromptsStorage.plugin ? command.promptPath.pluginUri : undefined,
-					disabled: disabledUris.has(command.promptPath.uri),
+					pluginUri: command.storage === PromptsStorage.plugin ? command.pluginUri : undefined,
+					disabled: disabledUris.has(command.uri),
 				});
-				if (command.promptPath.extension) {
-					extensionInfoByUri.set(command.promptPath.uri.toString(), { id: command.promptPath.extension.identifier, displayName: command.promptPath.extension.displayName });
+				if (command.extension) {
+					extensionInfoByUri.set(command.uri, { id: command.extension.identifier, displayName: command.extension.displayName });
 				}
 			}
 		} else if (promptType === PromptsType.hook) {
@@ -1406,10 +1461,10 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		} else {
 			// For instructions, group by category: agent instructions, context instructions, on-demand instructions
-			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
-			for (const file of promptFiles) {
+			const instructionFiles = await this.promptsService.getInstructionFiles(CancellationToken.None);
+			for (const file of instructionFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const agentInstructionFiles = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
@@ -1439,27 +1494,55 @@ export class AICustomizationListWidget extends Disposable {
 			}
 
 			// Parse prompt files to separate into context vs on-demand
-			const promptFilesToParse = promptFiles.filter(item => !agentInstructionUris.has(item.uri));
-			const parseResults = await Promise.all(promptFilesToParse.map(async item => {
-				try {
-					const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
-					return { item, parsed };
-				} catch {
-					// Parse failed — treat as on-demand
-					return { item, parsed: undefined };
-				}
-			}));
 
-			for (const { item, parsed } of parseResults) {
-				items.push(this.buildInstructionListItem(
-					item.uri,
-					item.name || getCleanPromptName(item.uri),
-					item.description,
-					item.storage,
-					parsed?.header,
-					disabledUris.has(item.uri),
-					item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
-				));
+			for (const { uri, pattern, name, description, storage, pluginUri } of instructionFiles) {
+				if (agentInstructionUris.has(uri)) {
+					continue; // already added as agent instruction
+				}
+
+				const friendlyName = this.getFriendlyName(name);
+
+				if (pattern !== undefined) {
+					// Context instruction
+					const badge = pattern === '**'
+						? localize('alwaysAdded', "always added")
+						: pattern;
+					const badgeTooltip = pattern === '**'
+						? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
+						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", pattern);
+					items.push({
+						id: uri.toString(),
+						uri,
+						name: friendlyName,
+						filename: this.labelService.getUriLabel(uri, { relative: true }),
+						displayName: friendlyName,
+						badge,
+						badgeTooltip,
+						description,
+						storage,
+						promptType,
+						typeIcon: storageToIcon(storage),
+						groupKey: 'context-instructions',
+						pluginUri,
+						disabled: disabledUris.has(uri),
+					});
+				} else {
+					// On-demand instruction
+					items.push({
+						id: uri.toString(),
+						uri,
+						name: friendlyName,
+						filename: basename(uri),
+						displayName: friendlyName,
+						description,
+						storage,
+						promptType,
+						typeIcon: storageToIcon(storage),
+						groupKey: 'on-demand-instructions',
+						pluginUri,
+						disabled: disabledUris.has(uri),
+					});
+				}
 			}
 		}
 
@@ -1531,170 +1614,46 @@ export class AICustomizationListWidget extends Disposable {
 
 		return allItems
 			.filter(item => item.type === promptType)
-			.map((item: IExternalCustomizationItem) => {
-				const pluginUri = this.findPluginUri(item.uri);
-				const storage = pluginUri ? PromptsStorage.plugin : this.inferStorageFromUri(item.uri);
-
-				return {
-					id: item.uri.toString(),
-					uri: item.uri,
-					name: item.name,
-					filename: basename(item.uri),
-					description: item.description,
-					promptType,
-					disabled: false,
-					groupKey: item.groupKey,
-					badge: item.badge,
-					badgeTooltip: item.badgeTooltip,
-					storage,
-					pluginUri,
-				};
-			})
+			.map((item: IExternalCustomizationItem) => ({
+				id: item.uri.toString(),
+				uri: item.uri,
+				name: item.name,
+				filename: basename(item.uri),
+				description: item.description,
+				promptType,
+				disabled: item.enabled === false,
+				status: item.status,
+				statusMessage: item.statusMessage,
+			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/**
-	 * Post-processes instruction items from an external provider by parsing
-	 * each file's frontmatter to compute `groupKey`, `badge`, and `badgeTooltip`
-	 * when the provider didn't supply them. Items that already have a `groupKey`
-	 * (i.e. the extension set them explicitly) are left untouched.
+	 * Fetches local customization items and marks them as syncable, using
+	 * the sync provider to determine their current selection state.
+	 * These items appear alongside remote items with sync checkboxes.
 	 */
-	private async enrichProviderInstructionItems(items: IAICustomizationListItem[]): Promise<IAICustomizationListItem[]> {
-		const result: IAICustomizationListItem[] = [];
-		const toParse = items.filter(item => !item.groupKey);
-		const passThrough = items.filter(item => !!item.groupKey);
-
-		const parseResults = await Promise.all(toParse.map(async item => {
-			try {
-				const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
-				return { item, parsed };
-			} catch {
-				return { item, parsed: undefined };
-			}
-		}));
-
-		for (const { item, parsed } of parseResults) {
-			result.push(this.buildInstructionListItem(
-				item.uri,
-				item.name,
-				item.description,
-				item.storage ?? PromptsStorage.local,
-				parsed?.header,
-				item.disabled,
-				item.pluginUri,
-			));
+	private async fetchLocalSyncableItems(promptType: PromptsType, syncProvider: ICustomizationSyncProvider): Promise<IAICustomizationListItem[]> {
+		const files = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+		if (!files.length) {
+			return [];
 		}
 
-		result.push(...passThrough);
-		result.sort((a, b) => a.name.localeCompare(b.name));
-		return result;
-	}
-
-	/**
-	 * Builds an instruction list item with proper groupKey and badge based on
-	 * parsed frontmatter. Shared between the built-in and provider item paths.
-	 */
-	private buildInstructionListItem(
-		uri: URI,
-		rawName: string,
-		rawDescription: string | undefined,
-		storage: PromptsStorage,
-		header: PromptHeader | undefined,
-		disabled: boolean,
-		pluginUri?: URI,
-	): IAICustomizationListItem {
-		const name = header?.name;
-		const description = header?.description ?? rawDescription;
-		const friendlyName = this.getFriendlyName(name || rawName || getCleanPromptName(uri));
-		const filename = basename(uri);
-
-		// Agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md)
-		// are always-loaded and get their own group without applyTo badges.
-		if (isAgentInstructionFile(uri)) {
-			return {
-				id: uri.toString(),
-				uri,
-				name: friendlyName,
-				filename: this.labelService.getUriLabel(uri, { relative: true }),
-				displayName: friendlyName,
-				description,
-				storage,
-				promptType: PromptsType.instructions,
-				typeIcon: storageToIcon(storage),
-				groupKey: 'agent-instructions',
-				pluginUri,
-				disabled,
-			};
-		}
-
-		const applyTo = evaluateApplyToPattern(header, isInClaudeRulesFolder(uri));
-		if (applyTo !== undefined) {
-			const badge = applyTo === '**'
-				? localize('alwaysAdded', "always added")
-				: applyTo;
-			const badgeTooltip = applyTo === '**'
-				? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
-				: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
-			return {
-				id: uri.toString(),
-				uri,
-				name: friendlyName,
-				filename: this.labelService.getUriLabel(uri, { relative: true }),
-				displayName: friendlyName,
-				badge,
-				badgeTooltip,
-				description,
-				storage,
-				promptType: PromptsType.instructions,
-				typeIcon: storageToIcon(storage),
-				groupKey: 'context-instructions',
-				pluginUri,
-				disabled,
-			};
-		}
-
-		return {
-			id: uri.toString(),
-			uri,
-			name: friendlyName,
-			filename,
-			displayName: friendlyName,
-			description,
-			storage,
-			promptType: PromptsType.instructions,
-			typeIcon: storageToIcon(storage),
-			groupKey: 'on-demand-instructions',
-			pluginUri,
-			disabled,
-		};
-	}
-
-	/**
-	 * Infers the storage source of a URI by checking workspace folders,
-	 * user data paths, and plugin locations.
-	 */
-	private inferStorageFromUri(uri: URI): PromptsStorage {
-		// Check if under a workspace folder
-		if (this.workspaceContextService.getWorkspaceFolder(uri)) {
-			return PromptsStorage.local;
-		}
-
-		// Check if under the active project root (Sessions window may use
-		// an active root that is not a workspace folder, e.g. worktree/repo)
-		const activeProjectRoot = this.workspaceService.getActiveProjectRoot();
-		if (activeProjectRoot && isEqualOrParent(uri, activeProjectRoot)) {
-			return PromptsStorage.local;
-		}
-
-		// Check if under user data prompts home
-		const promptsHome = this.userDataProfileService.currentProfile.promptsHome;
-		if (isEqualOrParent(uri, promptsHome)) {
-			return PromptsStorage.user;
-		}
-
-		// Default to user for remaining files (e.g. user-scoped files
-		// outside the recognized prompts home)
-		return PromptsStorage.user;
+		return files
+			.filter(f => f.storage === PromptsStorage.local || f.storage === PromptsStorage.user)
+			.map(f => ({
+				id: `sync-${f.uri.toString()}`,
+				uri: f.uri,
+				name: this.getFriendlyName(basename(f.uri)),
+				filename: basename(f.uri),
+				promptType,
+				disabled: false,
+				storage: f.storage,
+				groupKey: 'sync-local',
+				syncable: true,
+				synced: syncProvider.isSelected(f.uri),
+			}))
+			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/**
@@ -1747,78 +1706,57 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		// When items come from an external provider, group by groupKey if
-		// any items define one; otherwise fall through to standard
-		// storage-based grouping (storage is auto-inferred from URI).
+		// When items come from an external provider, skip storage-based grouping
+		// and render a flat list. When a syncProvider is also present, show
+		// remote items first, then local items below with sync checkboxes.
+		// Synced local items sort to the top of the local group; unsynced
+		// items appear greyed out below them.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 		if (activeDescriptor.itemProvider) {
-			const hasExplicitGroups = matchedItems.some(item => item.groupKey !== undefined);
-			if (hasExplicitGroups) {
-				// Auto-build group definitions from the items' groupKey values,
-				// preserving insertion order. Items without a groupKey are
-				// placed into a fallback "Other" group. Uses a Map for O(1)
-				// lookups instead of repeated array scans.
-				const ungroupedKey = '__ungrouped__';
-				const groupsMap = new Map<string, { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }>();
+			if (activeDescriptor.syncProvider) {
+				const remoteItems = matchedItems.filter(i => !i.syncable);
+				const localItems = matchedItems.filter(i => i.syncable);
+				const entries: IListEntry[] = [];
 
-				for (const item of matchedItems) {
-					const key = item.groupKey ?? ungroupedKey;
-					let group = groupsMap.get(key);
-					if (!group) {
-						group = {
-							groupKey: key,
-							label: key === ungroupedKey ? localize('otherGroup', "Other") : key,
-							icon: this.getSectionIcon(),
-							description: '',
-							items: [],
-						};
-						groupsMap.set(key, group);
-					}
-					group.items.push(item);
+				// Remote items first (flat, no group header)
+				for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
+					entries.push({ type: 'file-item' as const, item });
 				}
 
-				const groups = Array.from(groupsMap.values());
-
-				// Sort items within each group
-				for (const group of groups) {
-					group.items.sort((a, b) => a.name.localeCompare(b.name));
-				}
-
-				// Build display entries with group headers
-				this.displayEntries = [];
-				let isFirstGroup = true;
-				for (const group of groups) {
-					if (group.items.length === 0) {
-						continue;
-					}
-
-					const collapsed = this.collapsedGroups.has(group.groupKey);
-
-					this.displayEntries.push({
-						type: 'group-header',
-						id: `group-${group.groupKey}`,
-						groupKey: group.groupKey,
-						label: group.label,
-						icon: group.icon,
-						count: group.items.length,
-						isFirst: isFirstGroup,
-						description: group.description,
-						collapsed,
+				// Local items below with a group header, synced items first
+				if (localItems.length > 0) {
+					const syncedCount = localItems.filter(i => i.synced).length;
+					entries.push({
+						type: 'group-header' as const,
+						id: 'group-sync-local',
+						groupKey: 'sync-local',
+						label: localize('localGroup', "Local"),
+						icon: Codicon.folder,
+						count: syncedCount,
+						isFirst: remoteItems.length === 0,
+						description: localize('localGroupDescription', "Local customizations available to sync to the remote agent."),
+						collapsed: false,
 					});
-					isFirstGroup = false;
-
-					if (!collapsed) {
-						for (const item of group.items) {
-							this.displayEntries.push({ type: 'file-item', item });
+					// Sort: synced items first, then alphabetical within each group
+					const sorted = localItems.sort((a, b) => {
+						if (a.synced !== b.synced) {
+							return a.synced ? -1 : 1;
 						}
+						return a.name.localeCompare(b.name);
+					});
+					for (const item of sorted) {
+						entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });
 					}
 				}
 
-				this.list.splice(0, this.list.length, this.displayEntries);
-				this.updateEmptyState();
-				return matchedItems.length;
+				this.displayEntries = entries;
+			} else {
+				matchedItems.sort((a, b) => a.name.localeCompare(b.name));
+				this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
 			}
-			// No explicit groupKey — fall through to standard storage-based grouping below.
+			this.list.splice(0, this.list.length, this.displayEntries);
+			this.updateEmptyState();
+			return matchedItems.length;
 		}
 
 		// Group items by storage

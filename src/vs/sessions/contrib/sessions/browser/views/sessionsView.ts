@@ -30,7 +30,9 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -70,6 +72,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -133,7 +136,10 @@ export class SessionsView extends ViewPane {
 			supportIcons: true,
 		}));
 		newSessionButton.label = `$(${Codicon.plus.id}) ${localize('sessionLabel', "Session")}`;
-		this._register(newSessionButton.onDidClick(() => this.sessionsManagementService.openNewSessionView()));
+		this._register(newSessionButton.onDidClick(() => {
+			logSessionsInteraction(this.telemetryService, 'newSession');
+			this.sessionsManagementService.openNewSessionView();
+		}));
 
 		const buttonLabel = $('.new-session-button-label');
 		const keybindingHint = $('span.new-session-keybinding-hint');
@@ -241,7 +247,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+		const activeSession = this.sessionsManagementService.activeSession.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}
