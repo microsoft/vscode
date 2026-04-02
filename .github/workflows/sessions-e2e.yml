@@ -1,5 +1,8 @@
 name: Sessions E2E Tests
 
+on:
+  workflow_dispatch:
+
 # on:
 #   pull_request:
 #     branches:
