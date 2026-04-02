@@ -150,6 +150,10 @@ export const enum WindowsShellType {
 }
 
 export const enum GeneralShellType {
+	Codex = 'codex',
+	Copilot = 'copilot',
+	Claude = 'claude',
+	Gemini = 'gemini',
 	PowerShell = 'pwsh',
 	Python = 'python',
 	Julia = 'julia',
