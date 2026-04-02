@@ -221,6 +221,8 @@ export class MenuId {
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
 	static readonly NotebookOutlineFilter = new MenuId('NotebookOutlineFilter');
 	static readonly NotebookOutlineActionMenu = new MenuId('NotebookOutlineActionMenu');
+	static readonly CustomEditorOutlineActionMenu = new MenuId('CustomEditorOutlineActionMenu');
+	static readonly CustomEditorOutlineContext = new MenuId('CustomEditorOutlineContext');
 	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
 	static readonly NotebookKernelSource = new MenuId('NotebookKernelSource');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
