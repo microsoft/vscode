@@ -934,7 +934,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const folderUris = cli['folder-uri'];
 		if (folderUris) {
 			const resolvedFolderUris = await Promise.all(folderUris.map(rawFolderUri => {
-				const folderUri = this.cliArgToUri(rawFolderUri);
+
+				const normalizedUri = decodeURI(rawFolderUri);
+				const folderUri = this.cliArgToUri(normalizedUri);
+
 				if (!folderUri) {
 					return undefined;
 				}
