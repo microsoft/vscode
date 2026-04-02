@@ -879,7 +879,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Add archived section at the bottom
 		if (archived.length > 0) {
-			sections.push({ id: 'archived', label: localize('archived', "Archived"), sessions: archived });
+			sections.push({ id: 'archived', label: localize('archived', "Done"), sessions: archived });
 		}
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
