@@ -141,6 +141,30 @@
 	line-height: 1;
 }
 
+.sessions-walkthrough-provider-primary {
+	width: 100%;
+	min-height: 40px;
+	justify-content: center;
+	border-color: var(--vscode-button-background);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.sessions-walkthrough-provider-primary:hover {
+	border-color: var(--vscode-button-hoverBackground);
+	background: var(--vscode-button-hoverBackground);
+}
+
+.sessions-walkthrough-provider-option {
+	width: 100%;
+	min-height: 36px;
+	justify-content: flex-start;
+}
+
+.sessions-walkthrough-provider-text-only::before {
+	display: none;
+}
+
 .sessions-walkthrough-provider-btn:hover {
 	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	border-color: color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
@@ -188,57 +212,29 @@
 
 /* ---- Provider button row ---- */
 
-.sessions-walkthrough-providers-row {
-	display: flex;
-	gap: 8px;
-	align-items: center;
-	margin-top: 16px;
-}
-
 .sessions-walkthrough-sign-in-actions {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
+	align-items: stretch;
+	gap: 12px;
+	width: min(100%, 320px);
+	margin-top: 16px;
 }
 
-/* Icon-only provider buttons (Google, Apple) */
-.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only {
-	width: 40px;
-	height: 40px;
-	padding: 0;
-	border-radius: 8px;
-	justify-content: center;
-}
-
-.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only::before {
-	width: 18px;
-	height: 18px;
-}
-
-.sessions-walkthrough-provider-secondary {
-	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
-	background: color-mix(in srgb, var(--vscode-foreground) 3%, transparent);
+.sessions-walkthrough-provider-group-label {
 	color: var(--vscode-descriptionForeground);
-	min-height: 24px;
-	width: fit-content;
-	margin: 10px auto 0;
-	padding: 0 10px;
-	border-radius: 999px;
-	font-size: 12px;
-	font-weight: 500;
-	cursor: pointer;
-	transition: background 100ms, border-color 100ms, color 100ms;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	line-height: 1.3;
+	text-align: left;
+	text-transform: uppercase;
 }
 
-.sessions-walkthrough-provider-secondary:hover {
-	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
-	border-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
-	color: var(--vscode-foreground);
-}
-
-.sessions-walkthrough-provider-secondary:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
+.sessions-walkthrough-provider-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 }
 
 /* ---- Hero layout (icon left, text right) ---- */

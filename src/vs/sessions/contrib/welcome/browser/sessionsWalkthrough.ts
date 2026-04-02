@@ -128,24 +128,22 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 
 		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
-		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
 
-		// Primary sign-in button
-		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.provider-github')) as HTMLButtonElement;
-		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.githubCopilot', "Continue with GitHub Copilot")));
+		const githubBtn = append(signInActions, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary.provider-github')) as HTMLButtonElement;
+		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.githubPrimary', "Continue with GitHub Copilot")));
 
-		// Google: icon-only
-		const googleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-google')) as HTMLButtonElement;
-		googleBtn.setAttribute('aria-label', localize('walkthrough.signin.google', "Continue with Google"));
-		googleBtn.title = localize('walkthrough.signin.google', "Continue with Google");
+		append(signInActions, $('div.sessions-walkthrough-provider-group-label', undefined, localize('walkthrough.signin.alternatives', "Other sign-in options")));
+		const providerStack = append(signInActions, $('.sessions-walkthrough-provider-stack'));
 
-		// Apple: icon-only
-		const appleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-apple')) as HTMLButtonElement;
-		appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
-		appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
+		const googleBtn = append(providerStack, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-option.provider-google')) as HTMLButtonElement;
+		append(googleBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.google', "Continue with Google")));
+
+		const appleBtn = append(providerStack, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-option.provider-apple')) as HTMLButtonElement;
+		append(appleBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.apple', "Continue with Apple")));
 
 		const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE.com';
-		const enterpriseBtn = append(signInActions, $('button.sessions-walkthrough-provider-secondary', undefined, localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName))) as HTMLButtonElement;
+		const enterpriseBtn = append(providerStack, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-option.sessions-walkthrough-provider-text-only.provider-enterprise')) as HTMLButtonElement;
+		append(enterpriseBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName)));
 
 		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
