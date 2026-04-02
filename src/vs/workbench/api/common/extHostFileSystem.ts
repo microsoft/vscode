@@ -18,6 +18,10 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
+import { match } from '../../../base/common/glob.js';
+import { relativePath } from '../../../base/common/resources.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 class FsLinkProvider {
 
@@ -121,8 +125,46 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private _linkProviderRegistration?: IDisposable;
 	private _handlePool: number = 0;
 
-	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
+	constructor(
+		mainContext: IMainContext,
+		private _extHostLanguageFeatures: ExtHostLanguageFeatures,
+		private readonly _configurationService?: IConfigurationService,
+		private readonly _workspaceContextService?: IWorkspaceContextService,
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+	}
+
+	private isReadAllowed(resource: URI): boolean {
+		if (!this._configurationService) {
+			return true;
+		}
+
+		const rules = this._configurationService.getValue<Record<string, any>>('workspace.protectedFiles');
+		if (!rules) {
+			return true;
+		}
+
+		const fsPath = resource.fsPath;
+
+		for (const pattern of Object.keys(rules)) {
+			let matches = match(pattern, fsPath);
+
+			if (!matches && this._workspaceContextService) {
+				const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(resource);
+				if (workspaceFolder) {
+					const relative = relativePath(workspaceFolder.uri, resource);
+					if (relative && match(pattern, relative)) {
+						matches = true;
+					}
+				}
+			}
+
+			if (matches) {
+				return rules[pattern]?.read !== false;
+			}
+		}
+
+		return true;
 	}
 
 	dispose(): void {
@@ -262,7 +304,13 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	$readFile(handle: number, resource: UriComponents): Promise<VSBuffer> {
-		return Promise.resolve(this._getFsProvider(handle).readFile(URI.revive(resource))).then(data => VSBuffer.wrap(data));
+		const revivedResource = URI.revive(resource);
+		if (!this.isReadAllowed(revivedResource)) {
+			throw new Error(
+				`Programmatic read access to '${revivedResource.fsPath}' is blocked by workspace.protectedFiles`
+			);
+		}
+		return Promise.resolve(this._getFsProvider(handle).readFile(revivedResource)).then(data => VSBuffer.wrap(data));
 	}
 
 	$writeFile(handle: number, resource: UriComponents, content: VSBuffer, opts: files.IFileWriteOptions): Promise<void> {
