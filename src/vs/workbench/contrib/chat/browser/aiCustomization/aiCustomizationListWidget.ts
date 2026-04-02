@@ -1161,7 +1161,12 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private async loadItems(): Promise<void> {
 		const section = this.currentSection;
-		const items = await this.fetchItemsForSection(section);
+		let items: IAICustomizationListItem[];
+		try {
+			items = await this.fetchItemsForSection(section);
+		} catch (err) {
+			items = [];
+		}
 
 		if (this.currentSection !== section) {
 			return; // section changed while loading
@@ -1616,37 +1621,56 @@ export class AICustomizationListWidget extends Disposable {
 
 		return allItems
 			.filter(item => item.type === promptType)
-			.map((item: IExternalCustomizationItem) => ({
-				id: item.uri.toString(),
-				uri: item.uri,
-				name: item.name,
-				filename: basename(item.uri),
-				description: item.description,
-				promptType,
-				disabled: item.enabled === false,
-				status: item.status,
-				statusMessage: item.statusMessage,
-				groupKey: item.groupKey,
-				badge: item.badge,
-				badgeTooltip: item.badgeTooltip,
-				// Infer storage from URI when provider doesn't set groupKey,
-				// so the list widget can auto-group into Workspace vs User.
-				storage: item.groupKey ? undefined : this._inferStorageFromUri(item.uri, workspaceFolders),
-			}))
+			.map((item: IExternalCustomizationItem) => {
+				const { storage, groupKey } = item.groupKey
+					? { storage: undefined, groupKey: item.groupKey }
+					: this._inferStorageAndGroup(item.uri, workspaceFolders);
+				return {
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: item.name,
+					filename: basename(item.uri),
+					description: item.description,
+					promptType,
+					disabled: item.enabled === false,
+					status: item.status,
+					statusMessage: item.statusMessage,
+					groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
+					storage,
+				};
+			})
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
 	/**
-	 * Infers the storage source from a URI by checking whether it falls
-	 * under a workspace folder (local) or not (user).
+	 * Infers storage and groupKey from a URI for auto-grouping.
+	 *
+	 * - `file:` URIs under a workspace folder → storage `local` (Workspace group)
+	 * - `file:` URIs elsewhere (e.g. `~/.copilot/`) → storage `user` (User group)
+	 * - `vscode-userdata:` URIs (extension globalStorage) → storage `extension` (read-only, Extensions group)
+	 * - Non-file schemes (synthetic URIs like `copilotcli:`) → groupKey `builtin` (Built-in group)
 	 */
-	private _inferStorageFromUri(uri: URI, workspaceFolders: readonly { uri: URI }[]): PromptsStorage {
+	private _inferStorageAndGroup(uri: URI, workspaceFolders: readonly { uri: URI }[]): { storage?: PromptsStorage; groupKey?: string } {
+		// Non-file schemes are synthetic/built-in
+		if (uri.scheme !== Schemas.file) {
+			// vscode-userdata: = extension-contributed (read-only)
+			if (uri.scheme === Schemas.vscodeUserData) {
+				return { storage: PromptsStorage.extension };
+			}
+			return { groupKey: BUILTIN_STORAGE };
+		}
+
+		// file: URI under a workspace folder = workspace (local)
 		for (const folder of workspaceFolders) {
 			if (isEqualOrParent(uri, folder.uri)) {
-				return PromptsStorage.local;
+				return { storage: PromptsStorage.local };
 			}
 		}
-		return PromptsStorage.user;
+
+		// file: URI elsewhere = user directory
+		return { storage: PromptsStorage.user };
 	}
 
 	/**
@@ -1727,54 +1751,46 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		// When items come from an external provider, skip storage-based grouping
-		// and render a flat list. When a syncProvider is also present, show
-		// remote items first, then local items below with sync checkboxes.
-		// Synced local items sort to the top of the local group; unsynced
-		// items appear greyed out below them.
+		// When items come from an external provider WITH a syncProvider,
+		// show remote items first, then local items with sync checkboxes.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
-		if (activeDescriptor.itemProvider) {
-			if (activeDescriptor.syncProvider) {
-				const remoteItems = matchedItems.filter(i => !i.syncable);
-				const localItems = matchedItems.filter(i => i.syncable);
-				const entries: IListEntry[] = [];
+		if (activeDescriptor.itemProvider && activeDescriptor.syncProvider) {
+			const remoteItems = matchedItems.filter(i => !i.syncable);
+			const localItems = matchedItems.filter(i => i.syncable);
+			const entries: IListEntry[] = [];
 
-				// Remote items first (flat, no group header)
-				for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
-					entries.push({ type: 'file-item' as const, item });
-				}
-
-				// Local items below with a group header, synced items first
-				if (localItems.length > 0) {
-					const syncedCount = localItems.filter(i => i.synced).length;
-					entries.push({
-						type: 'group-header' as const,
-						id: 'group-sync-local',
-						groupKey: 'sync-local',
-						label: localize('localGroup', "Local"),
-						icon: Codicon.folder,
-						count: syncedCount,
-						isFirst: remoteItems.length === 0,
-						description: localize('localGroupDescription', "Local customizations available to sync to the remote agent."),
-						collapsed: false,
-					});
-					// Sort: synced items first, then alphabetical within each group
-					const sorted = localItems.sort((a, b) => {
-						if (a.synced !== b.synced) {
-							return a.synced ? -1 : 1;
-						}
-						return a.name.localeCompare(b.name);
-					});
-					for (const item of sorted) {
-						entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });
-					}
-				}
-
-				this.displayEntries = entries;
-			} else {
-				matchedItems.sort((a, b) => a.name.localeCompare(b.name));
-				this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
+			// Remote items first (flat, no group header)
+			for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
+				entries.push({ type: 'file-item' as const, item });
 			}
+
+			// Local items below with a group header, synced items first
+			if (localItems.length > 0) {
+				const syncedCount = localItems.filter(i => i.synced).length;
+				entries.push({
+					type: 'group-header' as const,
+					id: 'group-sync-local',
+					groupKey: 'sync-local',
+					label: localize('localGroup', "Local"),
+					icon: Codicon.folder,
+					count: syncedCount,
+					isFirst: remoteItems.length === 0,
+					description: localize('localGroupDescription', "Local customizations available to sync to the remote agent."),
+					collapsed: false,
+				});
+				// Sort: synced items first, then alphabetical within each group
+				const sorted = localItems.sort((a, b) => {
+					if (a.synced !== b.synced) {
+						return a.synced ? -1 : 1;
+					}
+					return a.name.localeCompare(b.name);
+				});
+				for (const item of sorted) {
+					entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });
+				}
+			}
+
+			this.displayEntries = entries;
 			this.list.splice(0, this.list.length, this.displayEntries);
 			this.updateEmptyState();
 			return matchedItems.length;
@@ -1797,7 +1813,7 @@ export class AICustomizationListWidget extends Disposable {
 					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 					{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
-				].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents');
+				].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents' || g.groupKey === BUILTIN_STORAGE);
 
 		for (const item of matchedItems) {
 			const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
