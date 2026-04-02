@@ -84,14 +84,10 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 	async paste(): Promise<void> {
 		let text = await this._clipboardService.readText();
 
-		// If no text was copied (e.g. user copied a file in the explorer), fall
-		// back to clipboard resources and paste the first one's path as text.
-		// Restricted to file URIs since fsPath drops the scheme/authority for
-		// other schemes (e.g. http/https), which would paste a broken path.
-		if (text.length === 0) {
-			const resources = await this._clipboardService.readResources();
-			if (resources.length > 0 && resources[0].scheme === Schemas.file) {
-				text = resources[0].fsPath;
+		if (!text) {
+			const [resource] = await this._clipboardService.readResources();
+			if (resource?.scheme === Schemas.file) {
+				text = resource.fsPath;
 			}
 		}
 
