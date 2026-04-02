@@ -889,11 +889,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'window.openFoldersInNewWindow': {
 				'type': 'string',
-				'enum': ['on', 'off', 'default'],
+				'enum': ['on', 'off', 'default', 'ask'],
 				'enumDescriptions': [
 					localize('window.openFoldersInNewWindow.on', "Folders will open in a new window."),
 					localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window."),
-					localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu).")
+					localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)."),
+					localize('window.openFoldersInNewWindow.ask', "A prompt will appear asking whether to open the folder in a new window or the current window.")
 				],
 				'default': 'default',
 				'scope': ConfigurationScope.APPLICATION,
