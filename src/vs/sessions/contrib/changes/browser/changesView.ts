@@ -115,6 +115,7 @@ const hasPullRequestContextKey = new RawContextKey<boolean>('sessions.hasPullReq
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
 const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
+const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', false);
 
 // --- List Item
 
@@ -918,6 +919,14 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(hasOutgoingChangesContextKey, this.scopedContextKeyService, reader => {
 				const outgoingChanges = outgoingChangesObs.read(reader);
 				return outgoingChanges > 0;
+			}));
+
+			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+				return (repositoryState?.indexChanges.length ?? 0) > 0 ||
+					(repositoryState?.workingTreeChanges.length ?? 0) > 0 ||
+					(repositoryState?.untrackedChanges.length ?? 0) > 0;
 			}));
 
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
