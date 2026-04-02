@@ -1748,10 +1748,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const key = chatSession.resource.toString();
 		this._sessionCache.delete(key);
+		this._sessionGroupCache.delete(chatSession.id);
 		if (this._currentNewSession?.id === chatSession.id) {
 			this._currentNewSession = undefined;
 		}
-		this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(chatSession)], changed: [] });
+		const removedSession = this._chatToSession(chatSession);
+		this._sessionGroupCache.delete(chatSession.id);
+		this._onDidChangeSessions.fire({ added: [], removed: [removedSession], changed: [] });
 		if (chatSession instanceof CopilotCLISession || chatSession instanceof RemoteNewSession) {
 			chatSession.dispose();
 		}
