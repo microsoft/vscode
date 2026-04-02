@@ -130,8 +130,6 @@ interface IChangesFileItem {
 	readonly changeType: ChangeType;
 	readonly linesAdded: number;
 	readonly linesRemoved: number;
-	readonly reviewCommentCount: number;
-	readonly agentFeedbackCount: number;
 }
 
 interface IChangesRootItem {
@@ -244,9 +242,7 @@ function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undef
 			isDeletion,
 			changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
 			linesAdded: change.insertions,
-			linesRemoved: change.deletions,
-			reviewCommentCount: 0,
-			agentFeedbackCount: 0,
+			linesRemoved: change.deletions
 		} satisfies IChangesFileItem;
 	});
 }
@@ -753,8 +749,6 @@ export class ChangesViewPane extends ViewPane {
 
 		// Convert session file changes to list items (cloud/background sessions)
 		const sessionFilesObs = derived(reader => {
-			const reviewCommentCountByFile = this.viewModel.activeSessionReviewCommentCountByFileObs.read(reader);
-			const agentFeedbackCountByFile = this.viewModel.activeSessionAgentFeedbackCountByFileObs.read(reader);
 			const changes = [...this.viewModel.activeSessionChangesObs.read(reader)];
 
 			return changes.map((entry): IChangesFileItem => {
@@ -771,9 +765,7 @@ export class ChangesViewPane extends ViewPane {
 					isDeletion,
 					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
 					linesAdded: entry.insertions,
-					linesRemoved: entry.deletions,
-					reviewCommentCount: reviewCommentCountByFile.get(uri.fsPath) ?? 0,
-					agentFeedbackCount: agentFeedbackCountByFile.get(uri.fsPath) ?? 0,
+					linesRemoved: entry.deletions
 				};
 			});
 		});
@@ -1517,7 +1509,6 @@ class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
 
 interface IChangesTreeTemplate {
 	readonly label: IResourceLabel;
-	readonly templateDisposables: DisposableStore;
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 	readonly contextKeyService: IContextKeyService | undefined;
 	readonly reviewCommentsBadge: HTMLElement;
@@ -1526,6 +1517,8 @@ interface IChangesTreeTemplate {
 	readonly addedSpan: HTMLElement;
 	readonly removedSpan: HTMLElement;
 	readonly lineCountsContainer: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElement, void, IChangesTreeTemplate> {
@@ -1582,7 +1575,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		const decorationBadge = dom.$('.changes-decoration-badge');
 		label.element.appendChild(decorationBadge);
 
-		return { templateDisposables, label, toolbar, contextKeyService, reviewCommentsBadge, agentFeedbackBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer };
+		return { label, toolbar, contextKeyService, reviewCommentsBadge, agentFeedbackBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
@@ -1651,29 +1644,41 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateData.lineCountsContainer.style.display = showChangeDecorations ? '' : 'none';
 		templateData.decorationBadge.style.display = showChangeDecorations ? '' : 'none';
 
-		if (data.reviewCommentCount > 0) {
-			templateData.reviewCommentsBadge.style.display = '';
-			templateData.reviewCommentsBadge.className = 'changes-review-comments-badge';
-			templateData.reviewCommentsBadge.replaceChildren(
-				dom.$('.codicon.codicon-comment-unresolved'),
-				dom.$('span', undefined, `${data.reviewCommentCount}`)
-			);
-		} else {
-			templateData.reviewCommentsBadge.style.display = 'none';
-			templateData.reviewCommentsBadge.replaceChildren();
-		}
+		// Review comments
+		templateData.elementDisposables.add(autorun(reader => {
+			const reviewCommentByFile = this.viewModel.activeSessionReviewCommentCountByFileObs.read(reader);
+			const reviewCommentCount = reviewCommentByFile?.get(data.uri.fsPath) ?? 0;
 
-		if (data.agentFeedbackCount > 0) {
-			templateData.agentFeedbackBadge.style.display = '';
-			templateData.agentFeedbackBadge.className = 'changes-agent-feedback-badge';
-			templateData.agentFeedbackBadge.replaceChildren(
-				dom.$('.codicon.codicon-comment'),
-				dom.$('span', undefined, `${data.agentFeedbackCount}`)
-			);
-		} else {
-			templateData.agentFeedbackBadge.style.display = 'none';
-			templateData.agentFeedbackBadge.replaceChildren();
-		}
+			if (reviewCommentCount > 0) {
+				templateData.reviewCommentsBadge.style.display = '';
+				templateData.reviewCommentsBadge.className = 'changes-review-comments-badge';
+				templateData.reviewCommentsBadge.replaceChildren(
+					dom.$('.codicon.codicon-comment-unresolved'),
+					dom.$('span', undefined, `${reviewCommentCount}`)
+				);
+			} else {
+				templateData.reviewCommentsBadge.style.display = 'none';
+				templateData.reviewCommentsBadge.replaceChildren();
+			}
+		}));
+
+		// Agent feedback
+		templateData.elementDisposables.add(autorun(reader => {
+			const agentFeedbackByFile = this.viewModel.activeSessionAgentFeedbackCountByFileObs.read(reader);
+			const agentFeedbackCount = agentFeedbackByFile?.get(data.uri.fsPath) ?? 0;
+
+			if (agentFeedbackCount > 0) {
+				templateData.agentFeedbackBadge.style.display = '';
+				templateData.agentFeedbackBadge.className = 'changes-agent-feedback-badge';
+				templateData.agentFeedbackBadge.replaceChildren(
+					dom.$('.codicon.codicon-comment'),
+					dom.$('span', undefined, `${agentFeedbackCount}`)
+				);
+			} else {
+				templateData.agentFeedbackBadge.style.display = 'none';
+				templateData.agentFeedbackBadge.replaceChildren();
+			}
+		}));
 
 		const badge = templateData.decorationBadge;
 		badge.className = 'changes-decoration-badge';
@@ -1756,7 +1761,16 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		}
 	}
 
+	disposeElement(_element: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(_element: ITreeNode<ICompressedTreeNode<ChangesTreeElement>, void>, _index: number, templateData: IChangesTreeTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: IChangesTreeTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }
