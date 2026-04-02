@@ -565,6 +565,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		const quality = options?.quality ?? 80;
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
+			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
 			const visualViewportScale = await this.getVisualViewportScale();
 			options.screenRect = {
 				x: options.pageRect.x * visualViewportScale * zoomFactor,
