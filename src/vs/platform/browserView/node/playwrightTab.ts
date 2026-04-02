@@ -9,12 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createCancelablePromise, raceCancellablePromises } from '../../../base/common/async.js';
 
-type IAiAriaSnapshotOptions = {
-	mode?: 'ai' | 'default';
-	depth?: number;
-	timeout?: number;
-	_track?: string;
-};
+type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
 declare module 'playwright-core' {
 	interface Page {
