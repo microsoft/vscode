@@ -42,10 +42,10 @@ export class OpenAgentsWindowAction extends Action2 {
 
 		if (environmentService.isBuilt && (isMacintosh || isWindows)) {
 			const scheme = productService.quality === 'stable'
-				? 'vscode-sessions'
+				? 'vscode-agents'
 				: productService.quality === 'exploration'
-					? 'vscode-sessions-exploration'
-					: 'vscode-sessions-insiders';
+					? 'vscode-agents-exploration'
+					: 'vscode-agents-insiders';
 
 			await openerService.open(URI.from({ scheme, authority: Schemas.file }), { openExternal: true });
 		} else {

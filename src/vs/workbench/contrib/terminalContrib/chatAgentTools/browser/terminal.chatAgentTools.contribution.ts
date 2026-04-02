@@ -140,11 +140,15 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkAllowedDomains) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains)
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkDeniedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem)
 			) {
 				this._registerRunInTerminalTool();
 			}

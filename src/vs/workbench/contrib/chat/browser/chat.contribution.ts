@@ -1359,6 +1359,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.GeneralPurposeAgentEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.generalPurposeAgent.enabled', "Controls whether the built-in General Purpose agent is available as a subagent."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: {
 			type: 'boolean',
 			description: nls.localize('chat.subagents.allowInvocationsFromSubagents', "Allow subagents to invoke subagents."),
