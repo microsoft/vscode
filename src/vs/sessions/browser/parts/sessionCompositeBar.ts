@@ -73,9 +73,9 @@ export class SessionCompositeBar extends Disposable {
 			}
 
 			const chats = activeSession.chats.read(reader);
-			const activeChatId = activeSession.activeChat.map(c => c.chatId).read(reader);
-			const mainChatId = activeSession.mainChat.chatId;
-			this._rebuildTabs(chats, activeChatId, mainChatId);
+			const activeChatUri = activeSession.activeChat.read(reader)?.resource.toString() ?? '';
+			const mainChatUri = activeSession.mainChat.resource.toString();
+			this._rebuildTabs(chats, activeChatUri, mainChatUri);
 		}));
 
 
@@ -89,7 +89,7 @@ export class SessionCompositeBar extends Disposable {
 		reset(this._tabsContainer);
 
 		for (const chat of chats) {
-			this._createTab(chat, chat.chatId === mainChatId);
+			this._createTab(chat, chat.resource.toString() === mainChatId);
 		}
 
 		this._updateActiveTab(activeChatId);
@@ -130,11 +130,19 @@ export class SessionCompositeBar extends Disposable {
 				prompt: localize('renameChat.prompt', "Rename Chat"),
 			});
 			if (newTitle) {
-				await this._sessionsManagementService.renameChat(chat, newTitle);
+				const session = this._sessionsManagementService.activeSession.get();
+				if (session) {
+					await this._sessionsManagementService.renameChat(session, chat.resource, newTitle);
+				}
 			}
 		}));
 
-		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete"), undefined, !isMainChat, () => this._sessionsManagementService.deleteChat(chat)));
+		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete"), undefined, !isMainChat, async () => {
+			const session = this._sessionsManagementService.activeSession.get();
+			if (session) {
+				await this._sessionsManagementService.deleteChat(session, chat.resource);
+			}
+		}));
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			e.preventDefault();
@@ -153,12 +161,15 @@ export class SessionCompositeBar extends Disposable {
 	}
 
 	private _onTabClicked(chat: IChat): void {
-		this._sessionsManagementService.openChat(chat.resource);
+		const session = this._sessionsManagementService.activeSession.get();
+		if (session) {
+			this._sessionsManagementService.openChat(session, chat.resource);
+		}
 	}
 
 	private _updateActiveTab(activeChatId: string): void {
 		for (const tab of this._tabs) {
-			const isActive = tab.chat.chatId === activeChatId;
+			const isActive = tab.chat.resource.toString() === activeChatId;
 			tab.element.classList.toggle('active', isActive);
 			tab.element.setAttribute('aria-selected', String(isActive));
 		}

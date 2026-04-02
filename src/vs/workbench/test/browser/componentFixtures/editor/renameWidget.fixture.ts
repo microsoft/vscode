@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { RenameWidget } from '../../../../editor/contrib/rename/browser/renameWidget.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { RenameWidget } from '../../../../../editor/contrib/rename/browser/renameWidget.js';
 
-import '../../../../editor/contrib/rename/browser/renameWidget.css';
-import '../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../editor/contrib/rename/browser/renameWidget.css';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 
 const SAMPLE_CODE = `class UserService {
 	private _users: Map<string, User> = new Map();

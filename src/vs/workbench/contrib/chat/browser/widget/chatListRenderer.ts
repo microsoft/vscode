@@ -1057,7 +1057,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			!lastPart ||
 			lastPart.kind === 'references' ||
 			(lastPart.kind === 'markdownContent' && !moreContentAvailable && this.hasBeenCaughtUpLongEnough(element)) ||
-			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || lastPart.presentation === 'hidden')) ||
+			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || IChatToolInvocation.isEffectivelyHidden(lastPart))) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
 			lastPart.kind === 'mcpServersStarting' ||
@@ -1969,7 +1969,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 
 			// create thinking part if it doesn't exist yet
-			if (!lastThinking && toolInvocation.presentation !== 'hidden' && this.shouldPinPart(toolInvocation, context.element) && collapsedToolsMode === CollapsedToolsDisplayMode.Always) {
+			if (!lastThinking && !IChatToolInvocation.isEffectivelyHidden(toolInvocation) && this.shouldPinPart(toolInvocation, context.element) && collapsedToolsMode === CollapsedToolsDisplayMode.Always) {
 				const thinkingPart = this.renderThinkingPart({
 					kind: 'thinking',
 				}, context, templateData);
@@ -1985,7 +1985,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			if (this.shouldPinPart(toolInvocation, context.element)) {
-				if (lastThinking && toolInvocation.presentation !== 'hidden') {
+				if (lastThinking && !IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
 					// Append using factory - thinking part decides whether to render lazily
 					toolInvocation.isAttachedToThinking = true;
 					lastThinking.appendItem(createToolPart, toolInvocation.toolId, toolInvocation, templateData.value);
@@ -2001,7 +2001,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Check for subagent grouping before creating tool part - subagent part handles lazy creation
 		const subagentId = getSubagentId(toolInvocation);
-		if (subagentId && isResponseVM(context.element) && toolInvocation.presentation !== 'hidden') {
+		if (subagentId && isResponseVM(context.element) && !IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
 			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex);
 		}
 
@@ -2142,6 +2142,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!isResponseVM(context.element)) {
 			return;
 		}
+
+		this.finalizeCurrentThinkingPart(context, templateData);
 
 		const taskPart = this.instantiationService.createInstance(ChatTaskContentPart, task, this._contentReferencesListPool, this.chatContentMarkdownRenderer, context);
 		return taskPart;

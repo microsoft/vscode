@@ -256,9 +256,13 @@ class SlashCommandCompletions extends Disposable {
 				const userInvocableCommands = promptCommands
 					.filter(c => {
 						if (widget.lockedAgentId) {
+							// Exclude extension-provided prompt files for locked agents.
+							if (c.extension) {
+								return false;
+							}
 							// Exclude hooks as those don't work in locked agent scenarios.
 							try {
-								const promptType = getPromptFileType(c.promptPath.uri);
+								const promptType = getPromptFileType(c.uri);
 								if (promptType && promptType === PromptsType.hook) {
 									return false;
 								}
@@ -268,7 +272,7 @@ class SlashCommandCompletions extends Disposable {
 						}
 						return true;
 					})
-					.filter(c => c.parsedPromptFile?.header?.userInvocable !== false)
+					.filter(c => c.userInvocable)
 					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
 				if (userInvocableCommands.length === 0) {
 					return null;

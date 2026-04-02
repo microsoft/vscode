@@ -42,7 +42,7 @@ import { ITerminalProfileResolverService } from '../../../../terminal/common/ter
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
 import { createRunInTerminalToolData, RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
-import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
@@ -642,7 +642,7 @@ suite('RunInTerminalTool', () => {
 			if (!confirmationMessage || typeof confirmationMessage === 'string') {
 				throw new Error('Expected markdown confirmation message');
 			}
-			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandboxNetwork.deniedDomains.'));
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandbox.deniedNetworkDomains.'));
 		});
 
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {
@@ -2166,7 +2166,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Enable sandbox and fire config change
 		sandboxEnabled = true;
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
 			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxEnabled]),

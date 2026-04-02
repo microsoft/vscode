@@ -339,7 +339,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'To Delete');
 		assert.ok(target, 'Session should exist');
 
-		await provider.deleteSession(target!.id);
+		await provider.deleteSession(target!.sessionId);
 
 		assert.strictEqual(connection.disposedSessions.length, 1);
 		// The disposed URI must be a backend agent session URI (copilot://del-sess),
@@ -361,7 +361,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(target, 'Session should exist');
 
 		assert.strictEqual(target!.isRead.get(), true);
-		provider.setRead(target!.id, false);
+		provider.setRead(target!.sessionId, false);
 		assert.strictEqual(target!.isRead.get(), false);
 	});
 
@@ -375,7 +375,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Old Title');
 		assert.ok(target, 'Session should exist');
 
-		await provider.renameSession(target!.id, 'New Title');
+		await provider.renameChat(target!.sessionId, target!.resource, 'New Title');
 
 		assert.strictEqual(connection.dispatchedActions.length, 1);
 		const dispatched = connection.dispatchedActions[0];
@@ -396,14 +396,14 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Before');
 		assert.ok(target);
 
-		await provider.renameSession(target!.id, 'After');
+		await provider.renameChat(target!.sessionId, target!.resource, 'After');
 
 		assert.strictEqual(target!.title.get(), 'After');
 	});
 
 	test('renameSession is no-op for unknown chatId', async () => {
 		const provider = createProvider(disposables, connection);
-		await provider.renameSession('nonexistent-id', 'Ignored');
+		await provider.renameChat('nonexistent-id', URI.parse('test://nonexistent'), 'Ignored');
 
 		assert.strictEqual(connection.dispatchedActions.length, 0);
 	});
@@ -418,9 +418,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const target = sessions.find((s) => s.title.get() === 'Seq Test');
 		assert.ok(target);
 
-		const chatId = target!.id;
-		await provider.renameSession(chatId, 'Title 1');
-		await provider.renameSession(chatId, 'Title 2');
+		await provider.renameChat(target!.sessionId, target!.resource, 'Title 1');
+		await provider.renameChat(target!.sessionId, target!.resource, 'Title 2');
 
 		assert.strictEqual(connection.dispatchedActions.length, 2);
 		assert.strictEqual(connection.dispatchedActions[0].clientSeq, 0);
@@ -489,10 +488,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Send -------
 
-	test('sendRequest throws for unknown session', async () => {
+	test('sendAndCreateChat throws for unknown session', async () => {
 		const provider = createProvider(disposables, connection);
 		await assert.rejects(
-			() => provider.sendRequest('nonexistent', { query: 'test' }),
+			() => provider.sendAndCreateChat('nonexistent', { query: 'test' }),
 			/not found or not a new session/,
 		);
 	});
@@ -583,7 +582,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			requiresWorkspaceTrust: false,
 		};
 		const session = provider.createNewSession(workspace);
-		const types = provider.getSessionTypes(session.id);
+		const types = provider.getSessionTypes(session.sessionId);
 
 		assert.strictEqual(types.length, 1);
 	});

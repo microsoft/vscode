@@ -14,7 +14,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -55,8 +55,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter, ICustomizationSyncProvider } from '../../common/customizationHarnessService.js';
-import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
-import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -970,8 +968,8 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Check for menu-contributed create actions from extensions.
 		// Extensions contribute to AICustomizationManagementCreateMenuId with
-		// when-clauses targeting aiCustomizationManagementHarness and
-		// aiCustomizationManagementSection context keys.
+		// when-clauses targeting chatCustomizationSessionType and
+		// chatCustomizationSection context keys.
 		// When a harness contributes create actions, they REPLACE the built-in ones
 		// for all section types, including hooks.
 		const menuActions = this.menuService.getMenuActions(
@@ -1202,12 +1200,12 @@ export class AICustomizationListWidget extends Disposable {
 	 * agent hooks) are left untouched — groupKey overrides are only applied to
 	 * items whose current groupKey is `undefined`.
 	 */
-	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ReadonlyMap<string, { id: ExtensionIdentifier; displayName?: string }>): IAICustomizationListItem[] {
+	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>): IAICustomizationListItem[] {
 		return items.map(item => {
 			if (item.storage !== PromptsStorage.extension) {
 				return item;
 			}
-			const extInfo = extensionInfoByUri.get(item.uri.toString());
+			const extInfo = extensionInfoByUri.get(item.uri);
 			if (!extInfo) {
 				return item;
 			}
@@ -1249,7 +1247,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
-		const extensionInfoByUri = new Map<string, { id: ExtensionIdentifier; displayName?: string }>();
+		const extensionInfoByUri = new ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>();
 
 
 		if (promptType === PromptsType.agent) {
@@ -1259,7 +1257,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allAgentFiles = await this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None);
 			for (const file of allAgentFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			for (const agent of agents) {
@@ -1276,8 +1274,8 @@ export class AICustomizationListWidget extends Disposable {
 					disabled: disabledUris.has(agent.uri),
 				});
 				// Track extension ID for built-in grouping (if not already set from file list)
-				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri.toString())) {
-					extensionInfoByUri.set(agent.uri.toString(), { id: agent.source.extensionId });
+				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri)) {
+					extensionInfoByUri.set(agent.uri, { id: agent.source.extensionId });
 				}
 			}
 		} else if (promptType === PromptsType.skill) {
@@ -1287,7 +1285,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
 			for (const file of allSkillFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
@@ -1340,23 +1338,23 @@ export class AICustomizationListWidget extends Disposable {
 			// Filter out skills since they have their own section
 			const commands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
 			for (const command of commands) {
-				if (command.promptPath.type === PromptsType.skill) {
+				if (command.type === PromptsType.skill) {
 					continue;
 				}
-				const filename = basename(command.promptPath.uri);
+				const filename = basename(command.uri);
 				items.push({
-					id: command.promptPath.uri.toString(),
-					uri: command.promptPath.uri,
+					id: command.uri.toString(),
+					uri: command.uri,
 					name: command.name,
 					filename,
 					description: command.description,
-					storage: command.promptPath.storage,
+					storage: command.storage,
 					promptType,
-					pluginUri: command.promptPath.storage === PromptsStorage.plugin ? command.promptPath.pluginUri : undefined,
-					disabled: disabledUris.has(command.promptPath.uri),
+					pluginUri: command.storage === PromptsStorage.plugin ? command.pluginUri : undefined,
+					disabled: disabledUris.has(command.uri),
 				});
-				if (command.promptPath.extension) {
-					extensionInfoByUri.set(command.promptPath.uri.toString(), { id: command.promptPath.extension.identifier, displayName: command.promptPath.extension.displayName });
+				if (command.extension) {
+					extensionInfoByUri.set(command.uri, { id: command.extension.identifier, displayName: command.extension.displayName });
 				}
 			}
 		} else if (promptType === PromptsType.hook) {
@@ -1463,10 +1461,10 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		} else {
 			// For instructions, group by category: agent instructions, context instructions, on-demand instructions
-			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
-			for (const file of promptFiles) {
+			const instructionFiles = await this.promptsService.getInstructionFiles(CancellationToken.None);
+			for (const file of instructionFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const agentInstructionFiles = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
@@ -1496,63 +1494,53 @@ export class AICustomizationListWidget extends Disposable {
 			}
 
 			// Parse prompt files to separate into context vs on-demand
-			const promptFilesToParse = promptFiles.filter(item => !agentInstructionUris.has(item.uri));
-			const parseResults = await Promise.all(promptFilesToParse.map(async item => {
-				try {
-					const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
-					return { item, parsed };
-				} catch {
-					// Parse failed — treat as on-demand
-					return { item, parsed: undefined };
+
+			for (const { uri, pattern, name, description, storage, pluginUri } of instructionFiles) {
+				if (agentInstructionUris.has(uri)) {
+					continue; // already added as agent instruction
 				}
-			}));
 
-			for (const { item, parsed } of parseResults) {
-				const applyTo = evaluateApplyToPattern(parsed?.header, isInClaudeRulesFolder(item.uri));
-				const name = parsed?.header?.name;
-				let description = parsed?.header?.description;
-				const friendlyName = this.getFriendlyName(name || item.name || getCleanPromptName(item.uri));
-				description = description || item.description;
+				const friendlyName = this.getFriendlyName(name);
 
-				if (applyTo !== undefined) {
+				if (pattern !== undefined) {
 					// Context instruction
-					const badge = applyTo === '**'
+					const badge = pattern === '**'
 						? localize('alwaysAdded', "always added")
-						: applyTo;
-					const badgeTooltip = applyTo === '**'
+						: pattern;
+					const badgeTooltip = pattern === '**'
 						? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
-						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
+						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", pattern);
 					items.push({
-						id: item.uri.toString(),
-						uri: item.uri,
+						id: uri.toString(),
+						uri,
 						name: friendlyName,
-						filename: this.labelService.getUriLabel(item.uri, { relative: true }),
+						filename: this.labelService.getUriLabel(uri, { relative: true }),
 						displayName: friendlyName,
 						badge,
 						badgeTooltip,
-						description: description,
-						storage: item.storage,
+						description,
+						storage,
 						promptType,
-						typeIcon: storageToIcon(item.storage),
+						typeIcon: storageToIcon(storage),
 						groupKey: 'context-instructions',
-						pluginUri: item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
-						disabled: disabledUris.has(item.uri),
+						pluginUri,
+						disabled: disabledUris.has(uri),
 					});
 				} else {
 					// On-demand instruction
 					items.push({
-						id: item.uri.toString(),
-						uri: item.uri,
+						id: uri.toString(),
+						uri,
 						name: friendlyName,
-						filename: basename(item.uri),
+						filename: basename(uri),
 						displayName: friendlyName,
-						description: description,
-						storage: item.storage,
+						description,
+						storage,
 						promptType,
-						typeIcon: storageToIcon(item.storage),
+						typeIcon: storageToIcon(storage),
 						groupKey: 'on-demand-instructions',
-						pluginUri: item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
-						disabled: disabledUris.has(item.uri),
+						pluginUri,
+						disabled: disabledUris.has(uri),
 					});
 				}
 			}

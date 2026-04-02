@@ -252,6 +252,8 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const fileService = accessor.get(IFileService);
 		const dialogService = accessor.get(IDialogService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const workspaceService = accessor.get(IAICustomizationWorkspaceService);
 
 		const uri = extractURI(context);
 		const storage = extractStorage(context);
@@ -300,7 +302,6 @@ registerAction2(class extends Action2 {
 
 		if (confirmation.confirmed) {
 			try {
-				const telemetryService = accessor.get(ITelemetryService);
 				telemetryService.publicLog2<CustomizationEditorDeleteItemEvent, CustomizationEditorDeleteItemClassification>('chatCustomizationEditor.deleteItem', {
 					promptType: promptType ?? '',
 					storage: storage ?? '',
@@ -317,7 +318,6 @@ registerAction2(class extends Action2 {
 
 			// Commit the deletion to git (sessions: main repo + worktree)
 			if (storage === PromptsStorage.local) {
-				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
 				const projectRoot = workspaceService.getActiveProjectRoot();
 				if (projectRoot) {
 					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);

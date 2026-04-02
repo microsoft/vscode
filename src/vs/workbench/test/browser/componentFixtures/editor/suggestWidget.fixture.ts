@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
-import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { CompletionItemKind, CompletionList } from '../../../../editor/common/languages.js';
-import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
-import { ISuggestMemoryService } from '../../../../editor/contrib/suggest/browser/suggestMemory.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { IMenuChangeEvent, IMenuService } from '../../../../platform/actions/common/actions.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { CompletionModel, LineContext } from '../../../../editor/contrib/suggest/browser/completionModel.js';
-import { CompletionItem } from '../../../../editor/contrib/suggest/browser/suggest.js';
-import { WordDistance } from '../../../../editor/contrib/suggest/browser/wordDistance.js';
-import { FuzzyScoreOptions } from '../../../../base/common/filters.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOption, IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { CompletionItemKind, CompletionList } from '../../../../../editor/common/languages.js';
+import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
+import { ISuggestMemoryService } from '../../../../../editor/contrib/suggest/browser/suggestMemory.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IMenuChangeEvent, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { CompletionModel, LineContext } from '../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem } from '../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { FuzzyScoreOptions } from '../../../../../base/common/filters.js';
 
 // CSS imports for the suggest widget
-import '../../../../editor/contrib/suggest/browser/media/suggest.css';
-import '../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
-import '../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../editor/contrib/suggest/browser/media/suggest.css';
+import '../../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 
 interface SuggestFixtureOptions extends ComponentFixtureContext {
 	code: string;

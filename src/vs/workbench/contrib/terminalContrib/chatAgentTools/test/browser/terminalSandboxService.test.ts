@@ -16,7 +16,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -174,7 +174,7 @@ suite('TerminalSandboxService - network domains', () => {
 		workspaceContextService.setWorkspaceFolders([URI.file('/workspace-one')]);
 
 		// Setup default configuration
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
 
@@ -406,7 +406,7 @@ suite('TerminalSandboxService - network domains', () => {
 			if (key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled) {
 				return {
 					value: undefined,
-					defaultValue: false,
+					defaultValue: TerminalChatAgentToolsSandboxEnabledValue.Off,
 					userValue: undefined,
 					userLocalValue: undefined,
 					userRemoteValue: undefined,
@@ -416,7 +416,7 @@ suite('TerminalSandboxService - network domains', () => {
 					policyValue: undefined,
 				} as ReturnType<typeof originalInspect<T>>;
 			}
-			if (key === TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) {
+			if (key === TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled) {
 				return {
 					value: true,
 					defaultValue: false,
@@ -437,13 +437,13 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
 	});
 
-	test('should fall back to deprecated settings in user scope', async () => {
+	test('should fall back to deprecated chat.agent.sandbox setting in user scope', async () => {
 		const originalInspect = configurationService.inspect.bind(configurationService);
 		configurationService.inspect = <T>(key: string) => {
 			if (key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled) {
 				return {
 					value: undefined,
-					defaultValue: false,
+					defaultValue: TerminalChatAgentToolsSandboxEnabledValue.Off,
 					userValue: undefined,
 					userLocalValue: undefined,
 					userRemoteValue: undefined,
@@ -453,7 +453,7 @@ suite('TerminalSandboxService - network domains', () => {
 					policyValue: undefined,
 				} as ReturnType<typeof originalInspect<T>>;
 			}
-			if (key === TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) {
+			if (key === TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled) {
 				return {
 					value: true,
 					defaultValue: false,
@@ -471,7 +471,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated settings should still be respected when only the user scope is set');
+		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated chat.agent.sandbox should still be respected when only the user scope is set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {

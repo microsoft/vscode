@@ -244,6 +244,11 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 		// Check against all precomputed overlay rectangles
 		for (const overlay of this.overlays()) {
+			// Skip overlays that are ancestors of the target element,
+			// e.g., the modal editor backdrop when the browser is inside the modal
+			if (overlay.element.contains(element)) {
+				continue;
+			}
 			const overlayRect = this.getRect(overlay.element);
 			if (overlayRect && this.isRectanglesOverlapping(elementRect, overlayRect)) {
 				overlappingOverlays.push({

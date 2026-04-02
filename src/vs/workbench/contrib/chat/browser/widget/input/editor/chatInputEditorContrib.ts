@@ -349,13 +349,13 @@ class InputEditorDecorations extends Disposable {
 		if (slashPromptPart && promptSlashCommand) {
 			this.clickablePromptSlashCommand = {
 				range: Range.lift(slashPromptPart.editorRange),
-				uri: promptSlashCommand.promptPath.uri,
+				uri: promptSlashCommand.uri,
 			};
 			const promptHoverMessage = new MarkdownString();
 			promptHoverMessage.appendText(localize(
 				'chatInput.promptSlashCommand.open',
 				"Click to open {0}",
-				this.labelService.getUriLabel(promptSlashCommand.promptPath.uri, { relative: true })
+				this.labelService.getUriLabel(promptSlashCommand.uri, { relative: true })
 			));
 			const promptDecoration = {
 				range: slashPromptPart.editorRange,

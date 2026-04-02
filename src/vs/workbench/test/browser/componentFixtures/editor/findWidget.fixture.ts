@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
-import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { FindReplaceState } from '../../../../editor/contrib/find/browser/findState.js';
-import { FindWidget, IFindController } from '../../../../editor/contrib/find/browser/findWidget.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IContextViewProvider } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { FindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
+import { FindWidget, IFindController } from '../../../../../editor/contrib/find/browser/findWidget.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
-import '../../../../editor/contrib/find/browser/findWidget.css';
-import '../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../editor/contrib/find/browser/findWidget.css';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 
 const SAMPLE_CODE = `import { useState } from 'react';
 

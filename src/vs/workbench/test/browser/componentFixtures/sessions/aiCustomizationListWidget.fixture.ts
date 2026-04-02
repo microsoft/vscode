@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
-import { ResourceSet } from '../../../../base/common/map.js';
-import { observableValue } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
-import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../contrib/chat/common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../../contrib/chat/common/plugins/agentPluginService.js';
-import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { AICustomizationManagementSection } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { AICustomizationListWidget } from '../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IPathService } from '../../../services/path/common/pathService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
-import { ParsedPromptFile, PromptHeader } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
+import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
+import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IPromptsService, AgentInstructionFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationListWidget } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ParsedPromptFile, PromptHeader } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 // Ensure color registrations are loaded
-import '../../../../platform/theme/common/colors/inputColors.js';
-import '../../../../platform/theme/common/colors/listColors.js';
+import '../../../../../platform/theme/common/colors/inputColors.js';
+import '../../../../../platform/theme/common/colors/listColors.js';
 
 // ============================================================================
 // Mock helpers
@@ -46,7 +46,7 @@ interface IFixtureInstructionFile {
 	readonly applyTo?: string; /** If set, this instruction file has an applyTo pattern that controls automatic inclusion when the context matches (or `**` for always). */
 }
 
-function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): IPromptsService {
+function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IAgentInstructionFile[] = []): IPromptsService {
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
@@ -121,7 +121,7 @@ function createMockWorkspaceContextService(): IWorkspaceContextService {
 // Render helper
 // ============================================================================
 
-async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): Promise<void> {
+async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IAgentInstructionFile[] = []): Promise<void> {
 	const width = 500;
 	const height = 400;
 	ctx.container.style.width = `${width}px`;
@@ -201,8 +201,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, extension: undefined!, source: undefined! }, name: 'TypeScript Rules', description: 'TypeScript conventions', applyTo: '**/*.ts' },
 		], [
 			// Agent instruction files (AGENTS.md, copilot-instructions.md)
-			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-			{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+			{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 		]),
 	}),
 

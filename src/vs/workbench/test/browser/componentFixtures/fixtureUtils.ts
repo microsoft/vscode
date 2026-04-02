@@ -84,6 +84,16 @@ import { IUserDataProfile } from '../../../../platform/userDataProfile/common/us
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { TestMenuService } from '../workbenchTestServices.js';
+import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsManagementService } from '../../../../sessions/contrib/sessions/browser/sessionsManagementService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { constObservable } from '../../../../base/common/observable.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -308,6 +318,8 @@ function getPlatformClass(): string {
 export interface ServiceRegistration {
 	define<T>(id: ServiceIdentifier<T>, ctor: new (...args: never[]) => T): void;
 	defineInstance<T>(id: ServiceIdentifier<T>, instance: T): void;
+	/** Like defineInstance but accepts a partial mock - provides type checking on provided properties */
+	definePartialInstance<T>(id: ServiceIdentifier<T>, instance: Partial<T>): void;
 }
 
 export interface CreateServicesOptions {
@@ -343,6 +355,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 			services.set(id, instance);
 		}
 		serviceIdentifiers.push(id);
+	};
+
+	const definePartialInstance = <T>(id: ServiceIdentifier<T>, instance: Partial<T>) => {
+		defineInstance(id, instance as T);
 	};
 
 	// Base editor services
@@ -416,8 +432,72 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	// User interaction service with focus simulation enabled (all elements appear focused in fixtures)
 	defineInstance(IUserInteractionService, new MockUserInteractionService(true, false));
 
+	defineInstance(IAccessibilitySignalService, {
+		_serviceBrand: undefined,
+		playSignal: async () => { },
+		playSignals: async () => { },
+		playSignalLoop: () => ({ dispose: () => { } }),
+		getEnabledState: () => ({ value: false, onDidChange: Event.None, onChange: () => ({ dispose: () => { } }) }),
+		getDelayMs: () => 0,
+		playSound: async () => { },
+		isSoundEnabled: () => false,
+		isAnnouncementEnabled: () => false,
+		onSoundEnabledChanged: () => Event.None,
+	});
+
+	definePartialInstance(ITextModelService, {
+		_serviceBrand: undefined,
+		registerTextModelContentProvider: () => ({ dispose: () => { } }),
+		canHandleResource: () => false,
+	});
+
+	defineInstance(IAgentFeedbackService, {
+		_serviceBrand: undefined,
+		onDidChangeFeedback: Event.None,
+		onDidChangeNavigation: Event.None,
+		addFeedback: () => undefined!,
+		removeFeedback: () => { },
+		updateFeedback: () => { },
+		getFeedback: () => [],
+		getMostRecentSessionForResource: () => undefined,
+		revealFeedback: async () => { },
+		revealSessionComment: async () => { },
+		getNextFeedback: () => undefined,
+		getNextNavigableItem: () => undefined,
+		setNavigationAnchor: () => { },
+		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
+		clearFeedback: () => { },
+		addFeedbackAndSubmit: async () => { },
+	});
+
+	definePartialInstance(IChatEditingService, {
+		_serviceBrand: undefined,
+		editingSessionsObs: constObservable([]),
+		startOrContinueGlobalEditingSession: () => undefined!,
+		getEditingSession: () => undefined,
+	});
+
+	definePartialInstance(ISessionsManagementService, {
+		_serviceBrand: undefined,
+		getSession: () => undefined,
+		getSessions: () => [],
+	});
+
+	definePartialInstance(ICodeReviewService, {
+		_serviceBrand: undefined,
+		getReviewState: () => constObservable({ kind: CodeReviewStateKind.Idle }),
+		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
+		hasReview: () => false,
+		requestReview: () => { },
+		removeComment: () => { },
+		updateComment: () => { },
+		dismissReview: () => { },
+		resolvePRReviewThread: async () => { },
+		markPRReviewCommentConverted: () => { },
+	});
+
 	// Allow additional services to be registered
-	options?.additionalServices?.({ define, defineInstance });
+	options?.additionalServices?.({ define, defineInstance, definePartialInstance });
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 
@@ -499,6 +579,7 @@ export function createTextModel(
 export interface ThemedFixtureGroupLabels {
 	readonly kind?: 'screenshot' | 'animated';
 	readonly blocksCi?: true;
+	readonly flaky?: true;
 }
 
 function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
@@ -510,6 +591,9 @@ function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
 	}
 	if (labels?.blocksCi) {
 		result.push('blocks-ci');
+	}
+	if (labels?.flaky) {
+		result.push('flaky');
 	}
 	return result;
 }

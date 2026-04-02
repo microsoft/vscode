@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from '../../../../base/browser/window.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
-import { ResourceSet } from '../../../../base/common/map.js';
-import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IListService, ListService } from '../../../../platform/list/browser/listService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { QuickInputService } from '../../../../platform/quickinput/browser/quickInputService.js';
-import { PromptFilePickers } from '../../../contrib/chat/browser/promptSyntax/pickers/promptFilePickers.js';
-import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { AgentFileType, IExtensionPromptPath, IResolvedAgentFile, IPromptPath, IPromptsService, PromptsStorage } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
-import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { QuickInputService } from '../../../../../platform/quickinput/browser/quickInputService.js';
+import { PromptFilePickers } from '../../../../contrib/chat/browser/promptSyntax/pickers/promptFilePickers.js';
+import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { AgentInstructionFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 
 interface IFixturePromptsState {
 	localPromptFiles: IPromptPath[];
 	userPromptFiles: IPromptPath[];
 	extensionPromptFiles: IExtensionPromptPath[];
-	agentInstructionFiles: IResolvedAgentFile[];
+	agentInstructionFiles: IAgentInstructionFile[];
 	disabled: ResourceSet;
 }
 
@@ -80,8 +80,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 					{ uri: URI.file('/workspace/.github/instructions/repo.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions, name: 'Repo Rules', description: 'Repository-wide coding rules' },
 				];
 				promptsService.agentInstructionFiles = [
-					{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-					{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+					{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+					{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 				];
 			},
 		}),
@@ -124,7 +124,7 @@ async function renderPromptFilePickerFixture({ container, disposableStore, theme
 			}
 		}
 
-		override async listAgentInstructions(_token: CancellationToken): Promise<IResolvedAgentFile[]> {
+		override async listAgentInstructions(_token: CancellationToken): Promise<IAgentInstructionFile[]> {
 			return promptsState.agentInstructionFiles;
 		}
 

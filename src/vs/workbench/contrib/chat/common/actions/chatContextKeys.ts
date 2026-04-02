@@ -160,4 +160,21 @@ export namespace ChatContextKeyExprs {
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 	);
+
+	/**
+	 * True when the locked coding agent is an agent host session (agent-host-* or remote-*).
+	 * These sessions use AgentHostEditingSession which supports checkpoint-based undo/redo.
+	 */
+	export const isAgentHostSession = ContextKeyExpr.or(
+		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^agent-host-/),
+		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^remote-/),
+	);
+
+	/**
+	 * Context expression that indicates when the welcome/setup view should be shown
+	 */
+	export const chatSetupTriggerContext = ContextKeyExpr.or(
+		ChatContextKeys.Setup.installed.negate(),
+		ChatContextKeys.Entitlement.canSignUp
+	);
 }
