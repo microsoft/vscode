@@ -184,3 +184,26 @@
 	background: rgba(0, 0, 0, 0.3);
 	z-index: 2549;
 }
+
+.agent-sessions-workbench .monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label.run-script-dropdown-label-container {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: auto;
+	white-space: nowrap;
+	gap: 6px;
+	padding: 0 4px;
+	height: 22px;
+}
+
+.agent-sessions-workbench .run-script-dropdown-label {
+	font-size: 11px;
+	line-height: 16px;
+	white-space: nowrap;
+}
+
+.agent-sessions-workbench .run-script-dropdown-icon {
+	font-size: 14px;
+	line-height: 16px;
+	margin-left: 0;
+}

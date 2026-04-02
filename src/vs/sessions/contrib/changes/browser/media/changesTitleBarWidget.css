@@ -5,6 +5,10 @@
 
 /* ---- Changes Titlebar Indicator (in right toolbar) ---- */
 
+/* .agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item + .action-item.changes-titlebar-indicator {
+	margin-left: 48px;
+} */
+
 .agent-sessions-workbench .changes-titlebar-indicator {
 	display: flex;
 	align-items: center;

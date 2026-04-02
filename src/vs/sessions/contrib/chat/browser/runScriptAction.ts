@@ -511,7 +511,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		}));
 
 		// Dropdown with categorized actions and per-item toolbars
-		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Tasks...")));
+		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "Actions")));
 		this._dropdown = this._register(new ChevronActionWidgetDropdown(
 			dropdownAction,
 			{
@@ -602,8 +602,10 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		const defaultCategory = { label: '', order: 0, showHeader: false };
 		// Category for worktree-creation tasks
 		const worktreeCategory = { label: localize('worktreeCreationCategory', "Run on Worktree Creation"), order: 1, showHeader: true };
-		// Category for add actions
-		const addCategory = { label: localize('addActionsCategory', "Add"), order: 2, showHeader: true };
+		// Category for task creation and management
+		const tasksCategory = { label: localize('tasksActionsCategory', "Tasks"), order: 2, showHeader: true };
+		// Category for session entry points
+		const openCategory = { label: localize('openActionsCategory', "Open"), order: 3, showHeader: true };
 
 		for (let i = 0; i < tasks.length; i++) {
 			const entry = tasks[i];
@@ -666,6 +668,40 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			});
 		}
 
+		actions.push({
+			id: 'runScript.openTerminal',
+			label: localize('openTerminal', "Open Terminal"),
+			tooltip: '',
+			hover: {
+				content: localize('openTerminalTooltip', "Open the session terminal"),
+				position: { hoverPosition: HoverPosition.LEFT }
+			},
+			icon: Codicon.terminal,
+			enabled: true,
+			class: undefined,
+			category: openCategory,
+			run: async () => {
+				await this._commandService.executeCommand('agentSession.openInTerminal');
+			},
+		});
+
+		actions.push({
+			id: 'runScript.openInVSCode',
+			label: localize('openInVSCode', "Open in VS Code"),
+			tooltip: '',
+			hover: {
+				content: localize('openInVSCodeTooltip', "Open the session worktree in VS Code"),
+				position: { hoverPosition: HoverPosition.LEFT }
+			},
+			icon: Codicon.vscodeInsiders,
+			enabled: true,
+			class: undefined,
+			category: openCategory,
+			run: async () => {
+				await this._commandService.executeCommand('chat.openSessionWorktreeInVSCode');
+			},
+		});
+
 		// "Add Task..." action
 		const canConfigure = !!(repo?.workingDirectory ?? repo?.uri);
 		actions.push({
@@ -681,7 +717,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			icon: Codicon.add,
 			enabled: canConfigure,
 			class: undefined,
-			category: addCategory,
+			category: tasksCategory,
 			run: async () => {
 				const task = await this._showConfigureQuickPick(session);
 				if (task) {
@@ -702,7 +738,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			icon: Codicon.sparkle,
 			enabled: true,
 			class: undefined,
-			category: addCategory,
+			category: tasksCategory,
 			run: async () => {
 				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 			},
@@ -713,12 +749,14 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * {@link ActionWidgetDropdownActionViewItem} that renders a chevron-down icon
- * as its label, used as the dropdown arrow in the split button.
+ * {@link ActionWidgetDropdownActionViewItem} that renders a text label and
+ * chevron-down icon for the split button dropdown in the titlebar.
  */
 class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		element.classList.add('codicon', 'codicon-chevron-down');
+		element.classList.add('run-script-dropdown-label-container');
+		append(element, $('span.run-script-dropdown-label', undefined, this._action.label));
+		append(element, $('span.codicon.codicon-chevron-down.run-script-dropdown-icon'));
 		return null;
 	}
 }

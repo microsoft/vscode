@@ -310,13 +310,7 @@ class OpenSessionInTerminalAction extends Action2 {
 			toggled: {
 				condition: SessionsTerminalViewVisibleContext,
 				title: localize('hideTerminal', "Hide Terminal"),
-			},
-			menu: [{
-				id: Menus.TitleBarSessionMenu,
-				group: 'navigation',
-				order: 9,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-			}]
+			}
 		});
 	}
 
