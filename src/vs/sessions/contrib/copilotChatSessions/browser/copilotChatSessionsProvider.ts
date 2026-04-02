@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -1171,7 +1172,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const agentSession = this._findAgentSession(sessionId);
 		if (agentSession) {
 			agentSession.setArchived(true);
+			return;
 		}
+
+		// Temp session that hasn't been committed — remove it directly
+		this._cleanupTempSession(sessionId);
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
@@ -1195,30 +1200,34 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			} else {
 				await this.chatService.removeHistoryEntry(agentSession.resource);
 			}
-		}
 
-		// Delete all other chats in the group
-		for (const chatId of chatIds) {
-			if (chatId === sessionId) {
-				continue; // Already deleted above
-			}
-			const chatSession = this._findAgentSession(chatId);
-			if (chatSession) {
-				if (chatSession.providerType === CopilotCLISessionType.id) {
-					this.commandService.executeCommand('github.copilot.cli.sessions.delete', { resource: chatSession.resource });
-				} else {
-					await this.chatService.removeHistoryEntry(chatSession.resource);
+			// Delete all other chats in the group
+			for (const chatId of chatIds) {
+				if (chatId === sessionId) {
+					continue; // Already deleted above
+				}
+				const chatSession = this._findAgentSession(chatId);
+				if (chatSession) {
+					if (chatSession.providerType === CopilotCLISessionType.id) {
+						this.commandService.executeCommand('github.copilot.cli.sessions.delete', { resource: chatSession.resource });
+					} else {
+						await this.chatService.removeHistoryEntry(chatSession.resource);
+					}
 				}
 			}
+
+			// Clean up group model
+			if (this._isMultiChatEnabled()) {
+				this._groupModel.deleteSession(sessionId);
+				this._sessionGroupCache.delete(sessionId);
+			}
+
+			this._refreshSessionCache();
+			return;
 		}
 
-		// Clean up group model
-		if (this._isMultiChatEnabled()) {
-			this._groupModel.deleteSession(sessionId);
-			this._sessionGroupCache.delete(sessionId);
-		}
-
-		this._refreshSessionCache();
+		// Temp session that hasn't been committed — remove it directly
+		this._cleanupTempSession(sessionId);
 	}
 
 	async renameChat(sessionId: string, _chatUri: URI, title: string): Promise<void> {
@@ -1367,6 +1376,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
+		// Extract the response completion promise to detect cancellation
+		const responseCompletePromise = result.kind === 'sent'
+			? result.data.responseCompletePromise
+			: undefined;
+
 		// Add the new session to the sessions model immediately so it appears in the sessions list
 		session.setTitle(localize('new session', "New Session"));
 		session.setStatus(SessionStatus.InProgress);
@@ -1378,7 +1392,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 
 			// Wait for the session to be committed (URI swapped from untitled to real)
-			const committedResource = await this._waitForCommittedSession(session.resource);
+			const committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise);
 
 			// Wait for _refreshSessionCache to populate the committed adapter
 			const committedChat = await this._waitForSessionInCache(committedResource);
@@ -1465,9 +1479,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
+		// Extract the response completion promise to detect cancellation
+		const responseCompletePromise = result.kind === 'sent'
+			? result.data.responseCompletePromise
+			: undefined;
+
 		try {
 			// Wait for the session to be committed
-			const committedResource = await this._waitForCommittedSession(newChatSession.resource);
+			const committedResource = await this._waitForCommittedSession(newChatSession.resource, responseCompletePromise);
 
 			const committedChat = await this._waitForSessionInCache(committedResource);
 
@@ -1550,37 +1569,89 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/**
 	 * Waits for the committed (real) URI for a session by listening to the
 	 * {@link IChatSessionsService.onDidCommitSession} event.
+	 *
+	 * If {@link responseCompletePromise} is provided, the wait is bounded:
+	 * when the response completes (success, error, or cancellation) without
+	 * a prior commit, the session was never committed and the promise rejects
+	 * so the caller can clean up the temp session. In normal flow the session
+	 * commit fires during request processing (e.g. worktree creation), well
+	 * before the response completes, so the commit promise always wins the race.
 	 */
-	private _waitForCommittedSession(untitledResource: URI): Promise<URI> {
-		return new Promise<URI>(resolve => {
-			const listener = this.chatSessionsService.onDidCommitSession(e => {
-				if (e.original.toString() === untitledResource.toString()) {
-					listener.dispose();
-					resolve(e.committed);
-				}
+	private async _waitForCommittedSession(
+		untitledResource: URI,
+		responseCompletePromise?: Promise<void>,
+	): Promise<URI> {
+		const disposables = new DisposableStore();
+		try {
+			const commitPromise = new Promise<URI>(resolve => {
+				disposables.add(this.chatSessionsService.onDidCommitSession(e => {
+					if (e.original.toString() === untitledResource.toString()) {
+						resolve(e.committed);
+					}
+				}));
 			});
-		});
+
+			if (responseCompletePromise) {
+				// Race the commit event against the response completing.
+				// In normal flow the commit fires during request processing
+				// (before the response finishes), so commitPromise wins.
+				// If the response finishes first (e.g. cancelled before
+				// worktree creation), the commit will never arrive.
+				const committed = await Promise.race([
+					commitPromise.then(uri => ({ committed: true as const, uri })),
+					responseCompletePromise.then(() => ({ committed: false as const })),
+				]);
+
+				if (committed.committed) {
+					return committed.uri;
+				}
+
+				throw new Error('Session was not committed before response completed');
+			}
+
+			// No response promise — use a safety timeout
+			const result = await raceTimeout(commitPromise, 60_000);
+			if (!result) {
+				throw new Error('Timed out waiting for session commit');
+			}
+			return result;
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	/**
 	 * Waits for an {@link AgentSessionAdapter} with the given resource to appear
 	 * in the session cache (populated by {@link _refreshSessionCache}).
 	 */
-	private _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
+	private async _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
 		const key = resource.toString();
 		const existing = this._sessionCache.get(key);
 		if (existing instanceof AgentSessionAdapter) {
-			return Promise.resolve(existing);
+			return existing;
 		}
-		return new Promise<AgentSessionAdapter>(resolve => {
-			const listener = this.onDidChangeSessions(e => {
-				const cached = this._sessionCache.get(key);
-				if (cached instanceof AgentSessionAdapter) {
-					listener.dispose();
-					resolve(cached);
-				}
+
+		const disposables = new DisposableStore();
+		try {
+			const sessionPromise = new Promise<AgentSessionAdapter>(resolve => {
+				disposables.add(this.onDidChangeSessions(e => {
+					const cached = this._sessionCache.get(key);
+					if (cached instanceof AgentSessionAdapter) {
+						resolve(cached);
+					}
+				}));
 			});
-		});
+
+			// The adapter should appear almost immediately after the commit
+			// event via _refreshSessionCache; use a short safety timeout.
+			const result = await raceTimeout(sessionPromise, 10_000);
+			if (!result) {
+				throw new Error('Timed out waiting for committed session in cache');
+			}
+			return result;
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	// -- Private --
@@ -1645,6 +1716,28 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 		this._refreshSessionCache();
+	}
+
+	/**
+	 * Cleans up a temp session (one that hasn't been committed) from the cache.
+	 * Used when delete/archive is invoked on a session that is still pending
+	 * commit (e.g. was stopped before the agent created a worktree).
+	 */
+	private _cleanupTempSession(sessionId: string): void {
+		const chatSession = this._findChatSession(sessionId);
+		if (!chatSession) {
+			return;
+		}
+
+		const key = chatSession.resource.toString();
+		this._sessionCache.delete(key);
+		if (this._currentNewSession?.id === chatSession.id) {
+			this._currentNewSession = undefined;
+		}
+		this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(chatSession)], changed: [] });
+		if (chatSession instanceof CopilotCLISession || chatSession instanceof RemoteNewSession) {
+			chatSession.dispose();
+		}
 	}
 
 	private _refreshSessionCache(): void {
