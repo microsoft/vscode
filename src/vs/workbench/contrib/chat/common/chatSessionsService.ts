@@ -271,7 +271,8 @@ export namespace ChatSessionOptionsMap {
 
 	export function toRecord(map: ReadonlyChatSessionOptionsMap): Record<string, string | IChatSessionProviderOptionItem> {
 		const record: Record<string, string | IChatSessionProviderOptionItem> = Object.create(null);
-		for (const [key, value] of map) {
+		const entries = ensureIterable(map);
+		for (const [key, value] of entries) {
 			record[key] = value;
 		}
 		return record;
@@ -281,7 +282,21 @@ export namespace ChatSessionOptionsMap {
 		if (!map) {
 			return undefined;
 		}
-		return Array.from(map, ([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value.id }));
+		const entries = ensureIterable(map);
+		return Array.from(entries, ([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value.id }));
+	}
+
+	/**
+	 * Ensures the input is iterable. If a plain object is passed (e.g. due to
+	 * serialization across process boundaries losing the Map prototype), it is
+	 * converted to Map entries on the fly.
+	 */
+	function ensureIterable(map: ReadonlyChatSessionOptionsMap): Iterable<[string, string | IChatSessionProviderOptionItem]> {
+		if (map instanceof Map) {
+			return map;
+		}
+		// Fallback: treat as a plain record (e.g. from JSON deserialization)
+		return Object.entries(map as unknown as Record<string, string | IChatSessionProviderOptionItem>);
 	}
 }
 
