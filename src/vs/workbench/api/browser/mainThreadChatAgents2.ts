@@ -498,7 +498,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), model.getValue()).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 				const thisAgentId = this._agents.get(handle)?.id;
-				if (agentPart?.agent.id !== thisAgentId) {
+				if ((agentPart && agentPart.agent.id !== thisAgentId) || (!agentPart && this._chatAgentService.getDefaultAgent(widget.location)?.id !== thisAgentId)) {
 					return;
 				}
 
