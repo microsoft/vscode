@@ -1017,6 +1017,10 @@ export class BaseIssueReporterService extends Disposable {
 		}
 	}
 
+	private shouldPromptToTestOnInsiders(): boolean {
+		return !/insiders/i.test(this.product.nameShort ?? '');
+	}
+
 	public async renderBlocks(): Promise<void> {
 		// Depending on Issue Type, we render different blocks and text
 		const { issueType, fileOnExtension, fileOnMarketplace, selectedExtension } = this.issueReporterModel.getData();
@@ -1138,7 +1142,10 @@ export class BaseIssueReporterService extends Disposable {
 			}
 
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			const bugDescription = this.shouldPromptToTestOnInsiders()
+				? localize('bugDescriptionAndInsidersPrompt', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. If possible, please try reproducing the issue with the latest Insiders build before submitting. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.")
+				: localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionSubtitle, bugDescription);
 		} else if (issueType === IssueType.PerformanceIssue) {
 			if (!fileOnMarketplace) {
 				show(blockContainer);
@@ -1155,7 +1162,10 @@ export class BaseIssueReporterService extends Disposable {
 			}
 
 			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce") + ' ', $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
+			const performanceDescription = this.shouldPromptToTestOnInsiders()
+				? localize('performanceIssueDescriptionAndInsidersPrompt', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? If possible, please try reproducing the issue with the latest Insiders build before submitting. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.")
+				: localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionSubtitle, performanceDescription);
 		} else if (issueType === IssueType.FeatureRequest) {
 			reset(descriptionTitle, localize('description', "Description") + ' ', $('span.required-input', undefined, '*'));
 			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
