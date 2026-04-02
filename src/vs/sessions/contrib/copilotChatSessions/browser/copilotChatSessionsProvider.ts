@@ -1377,8 +1377,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		try {
 
-			// Wait for the session to be committed (URI swapped from untitled to real)
-			const committedResource = await this._waitForCommittedSession(session.resource);
+			// Use the committed URI directly if available, otherwise fall back to waiting for the IPC event
+			const committedResource = (result.kind === 'sent' && result.newSessionResource)
+				? result.newSessionResource
+				: await this._waitForCommittedSession(session.resource);
 
 			// Wait for _refreshSessionCache to populate the committed adapter
 			const committedChat = await this._waitForSessionInCache(committedResource);
@@ -1466,8 +1468,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		try {
-			// Wait for the session to be committed
-			const committedResource = await this._waitForCommittedSession(newChatSession.resource);
+			// Use the committed URI directly if available, otherwise fall back to waiting for the IPC event
+			const committedResource = (result.kind === 'sent' && result.newSessionResource)
+				? result.newSessionResource
+				: await this._waitForCommittedSession(newChatSession.resource);
 
 			const committedChat = await this._waitForSessionInCache(committedResource);
 
