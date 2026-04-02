@@ -5,6 +5,8 @@
 
 /* ---- Changes Titlebar Indicator (in right toolbar) ---- */
 
+/* Separator between local-session actions (Run, VS Code) and fixed toggles (Terminal, Changes).
+ * Targets the action following the VS Code icon (Codicon.vscodeInsiders). */
 .agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item:has(.codicon-vscode-insiders) + .action-item {
 	position: relative;
 	margin-left: 17px;

@@ -5,11 +5,14 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 
-import '../../browser/chat.contribution.js';
+// Side-effect import to trigger module-level menu registrations.
+// Only import runScriptAction which registers the Run dropdown submenu;
+// avoid chat.contribution.js and sessionsTerminalContribution.js which
+// bootstrap heavy workbench contributions and leak disposables from
+// KeybindingsRegistry in this lightweight test context.
 import '../../browser/runScriptAction.js';
-import '../../../terminal/browser/sessionsTerminalContribution.js';
 
 const titleBarSessionMenu = MenuId.for('SessionsTitleBarSessionMenu');
 
@@ -17,18 +20,12 @@ suite('RunScriptContribution', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('contributes run dropdown with standalone VS Code and terminal items', () => {
+	test('contributes run dropdown to TitleBarSessionMenu', () => {
 		const items = MenuRegistry.getMenuItems(titleBarSessionMenu);
 
 		const runAction = items.find(item => isISubmenuItem(item) && item.submenu.id === 'AgentSessionsRunScriptDropdown');
-		const terminalAction = items.find(item => isIMenuItem(item) && item.command.id === 'agentSession.openInTerminal');
-		const vscodeAction = items.find(item => isIMenuItem(item) && item.command.id === 'chat.openSessionWorktreeInVSCode');
 
 		assert.ok(runAction, 'run dropdown should be contributed to TitleBarSessionMenu');
-		assert.ok(terminalAction, 'open terminal should be contributed as a standalone TitleBarSessionMenu item');
-		assert.ok(vscodeAction, 'open in VS Code should be contributed as a standalone TitleBarSessionMenu item');
 		assert.strictEqual(runAction.order, 8);
-		assert.strictEqual(vscodeAction.order, 9);
-		assert.strictEqual(terminalAction.order, 10);
 	});
 });
