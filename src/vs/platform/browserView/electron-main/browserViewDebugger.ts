@@ -163,6 +163,14 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 	 * Detach from the Electron debugger
 	 */
 	private detachElectronDebugger(): void {
+		// When the WebContents is already destroyed (e.g. tab crash, navigation,
+		// or concurrent close), the debugger target is gone. Calling detach()
+		// throws "target closed while handling command" asynchronously through
+		// Electron's native layer, bypassing the try/catch below.
+		if (this.view.webContents.isDestroyed()) {
+			return;
+		}
+
 		if (!this._electronDebugger.isAttached()) {
 			return;
 		}
