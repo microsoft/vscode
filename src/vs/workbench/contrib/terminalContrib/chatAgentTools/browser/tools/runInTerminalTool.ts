@@ -28,6 +28,9 @@ import { ITerminalLogService, ITerminalProfile } from '../../../../../../platfor
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, ChatRequestQueueKind, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { constObservable, type IObservable } from '../../../../../../base/common/observable.js';
+import type { IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
+import type { UserSelectedTools } from '../../../../chat/common/participants/chatAgents.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -1787,6 +1790,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
+		// Capture model/mode/tools from the last request so the steering message
+		// uses the same settings as the original conversation (not defaults).
+		const lastRequest = sessionRef.object.lastRequest;
+		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
+		if (lastRequest) {
+			sendOptions.userSelectedModelId = lastRequest.modelId;
+			sendOptions.modeInfo = lastRequest.modeInfo;
+			if (lastRequest.userSelectedTools) {
+				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
+			}
+		}
+
 		// Continue the output monitor in background mode for prompt-for-input detection.
 		// The monitor wakes only on new terminal data (not on a fixed interval), so
 		// resource cost is proportional to actual terminal activity.
@@ -1817,6 +1832,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._chatService.sendRequest(chatSessionResource, message, {
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
+				...sendOptions,
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});
