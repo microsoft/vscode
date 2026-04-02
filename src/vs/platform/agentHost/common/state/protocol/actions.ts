@@ -282,6 +282,8 @@ export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
 	approved: true;
 	/** How the tool was confirmed */
 	confirmed: ToolCallConfirmationReason;
+	/** If the user edited the tool input before approving, this is the new input */
+	userEditedInput?: string;
 }
 
 /**

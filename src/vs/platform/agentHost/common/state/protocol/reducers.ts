@@ -344,7 +344,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
 						status: ToolCallStatus.Running,
 						...base,
 						invocationMessage: tc.invocationMessage,
-						toolInput: tc.toolInput,
+						toolInput: action.userEditedInput ?? tc.toolInput,
 						confirmed: action.confirmed,
 					};
 				}

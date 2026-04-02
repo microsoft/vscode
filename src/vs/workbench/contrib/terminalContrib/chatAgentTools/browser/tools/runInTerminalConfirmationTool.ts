@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { TerminalToolId } from './toolIds.js';
 
@@ -76,7 +77,17 @@ export class ConfirmTerminalCommandTool extends RunInTerminalTool {
 		return preparedInvocation;
 	}
 	override async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		// This is a confirmation-only tool - just return success
+		// This is a confirmation-only tool - return the user-edited command if they modified it
+		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+		const userEdited = toolSpecificData?.commandLine.userEdited;
+		if (userEdited && userEdited !== toolSpecificData?.commandLine.original) {
+			return {
+				content: [{
+					kind: 'text',
+					value: `The user approved the command but edited it to: \`${userEdited}\`. Use this exact command when executing.`
+				}]
+			};
+		}
 		return {
 			content: [{
 				kind: 'text',
