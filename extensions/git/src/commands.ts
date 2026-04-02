@@ -360,6 +360,29 @@ class StashItem implements QuickPickItem {
 	constructor(readonly stash: Stash) { }
 }
 
+function getArtifacts(artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[] | undefined): SourceControlArtifact[] {
+	if (!artifactOrArtifacts) {
+		return [];
+	}
+
+	return Array.isArray(artifactOrArtifacts) ? artifactOrArtifacts : [artifactOrArtifacts];
+}
+
+function getSingleArtifact(artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[] | undefined): SourceControlArtifact | undefined {
+	const artifacts = getArtifacts(artifactOrArtifacts);
+	return artifacts.length === 1 ? artifacts[0] : undefined;
+}
+
+function getStashIndexFromArtifact(artifact: SourceControlArtifact): number | undefined {
+	const regex = /^stash@\{(\d+)\}$/;
+	const match = regex.exec(artifact.id);
+	if (!match) {
+		return undefined;
+	}
+
+	return parseInt(match[1]);
+}
+
 interface ScmCommandOptions {
 	repository?: boolean;
 	repositoryFilter?: ('repository' | 'submodule' | 'worktree')[];
@@ -5291,52 +5314,61 @@ export class CommandCenter {
 	}
 
 	@command('git.repositories.deleteBranch', { repository: true })
-	async artifactDeleteBranch(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
-		if (!repository || !artifact) {
+	async artifactDeleteBranch(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifacts = getArtifacts(artifactOrArtifacts);
+		if (!repository || artifacts.length === 0) {
 			return;
 		}
 
-		const message = l10n.t('Are you sure you want to delete branch "{0}"? This action will permanently remove the branch reference from the repository.', artifact.name);
+		const message = artifacts.length === 1
+			? l10n.t('Are you sure you want to delete branch "{0}"? This action will permanently remove the branch reference from the repository.', artifacts[0].name)
+			: l10n.t('Are you sure you want to delete these {0} branches? This action will permanently remove the branch references from the repository.', artifacts.length);
 		const yes = l10n.t('Delete Branch');
 		const result = await window.showWarningMessage(message, { modal: true }, yes);
 		if (result !== yes) {
 			return;
 		}
 
-		await this._deleteBranch(repository, undefined, artifact.name, { remote: false });
+		for (const artifact of artifacts) {
+			await this._deleteBranch(repository, undefined, artifact.name, { remote: false });
+		}
 	}
 
 	@command('git.repositories.deleteTag', { repository: true })
-	async artifactDeleteTag(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
-		if (!repository || !artifact) {
+	async artifactDeleteTag(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifacts = getArtifacts(artifactOrArtifacts);
+		if (!repository || artifacts.length === 0) {
 			return;
 		}
 
-		const message = l10n.t('Are you sure you want to delete tag "{0}"? This action will permanently remove the tag reference from the repository.', artifact.name);
+		const message = artifacts.length === 1
+			? l10n.t('Are you sure you want to delete tag "{0}"? This action will permanently remove the tag reference from the repository.', artifacts[0].name)
+			: l10n.t('Are you sure you want to delete these {0} tags? This action will permanently remove the tag references from the repository.', artifacts.length);
 		const yes = l10n.t('Delete Tag');
 		const result = await window.showWarningMessage(message, { modal: true }, yes);
 		if (result !== yes) {
 			return;
 		}
 
-		await repository.deleteTag(artifact.name);
+		for (const artifact of artifacts) {
+			await repository.deleteTag(artifact.name);
+		}
 	}
 
 	@command('git.repositories.stashView', { repository: true })
-	async artifactStashView(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+	async artifactStashView(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifact = getSingleArtifact(artifactOrArtifacts);
 		if (!repository || !artifact) {
 			return;
 		}
 
-		// Extract stash index from artifact id
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
+		const stashIndex = getStashIndexFromArtifact(artifact);
+		if (stashIndex === undefined) {
 			return;
 		}
 
 		const stashes = await repository.getStashes();
-		const stash = stashes.find(s => s.index === parseInt(match[1]));
+		const stash = stashes.find(s => s.index === stashIndex);
 		if (!stash) {
 			return;
 		}
@@ -5345,57 +5377,67 @@ export class CommandCenter {
 	}
 
 	@command('git.repositories.stashApply', { repository: true })
-	async artifactStashApply(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+	async artifactStashApply(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifact = getSingleArtifact(artifactOrArtifacts);
 		if (!repository || !artifact) {
 			return;
 		}
 
-		// Extract stash index from artifact id (format: "stash@{index}")
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
+		const stashIndex = getStashIndexFromArtifact(artifact);
+		if (stashIndex === undefined) {
 			return;
 		}
 
-		const stashIndex = parseInt(match[1]);
 		await repository.applyStash(stashIndex);
 	}
 
 	@command('git.repositories.stashPop', { repository: true })
-	async artifactStashPop(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+	async artifactStashPop(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifact = getSingleArtifact(artifactOrArtifacts);
 		if (!repository || !artifact) {
 			return;
 		}
 
-		// Extract stash index from artifact id (format: "stash@{index}")
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
+		const stashIndex = getStashIndexFromArtifact(artifact);
+		if (stashIndex === undefined) {
 			return;
 		}
 
-		const stashIndex = parseInt(match[1]);
 		await repository.popStash(stashIndex);
 	}
 
 	@command('git.repositories.stashDrop', { repository: true })
-	async artifactStashDrop(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
-		if (!repository || !artifact) {
+	async artifactStashDrop(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifacts = getArtifacts(artifactOrArtifacts);
+		if (!repository || artifacts.length === 0) {
 			return;
 		}
 
-		// Extract stash index from artifact id
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
+		const stashes = artifacts
+			.map(artifact => ({ index: getStashIndexFromArtifact(artifact), description: artifact.name }))
+			.filter((stash): stash is { index: number; description: string } => stash.index !== undefined)
+			.sort((a, b) => b.index - a.index);
+		if (stashes.length !== artifacts.length) {
 			return;
 		}
 
-		await this._stashDrop(repository, parseInt(match[1]), artifact.name);
+		const yes = l10n.t('Drop Stash');
+		const message = stashes.length === 1
+			? l10n.t('Are you sure you want to drop the stash: {0}?', stashes[0].description)
+			: l10n.t('Are you sure you want to drop these {0} stashes?', stashes.length);
+		const result = await window.showWarningMessage(message, { modal: true }, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		for (const stash of stashes) {
+			await repository.dropStash(stash.index);
+		}
 	}
 
 	@command('git.repositories.openWorktree', { repository: true })
-	async artifactOpenWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+	async artifactOpenWorktree(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifact = getSingleArtifact(artifactOrArtifacts);
 		if (!repository || !artifact) {
 			return;
 		}
@@ -5405,7 +5447,8 @@ export class CommandCenter {
 	}
 
 	@command('git.repositories.openWorktreeInNewWindow', { repository: true })
-	async artifactOpenWorktreeInNewWindow(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+	async artifactOpenWorktreeInNewWindow(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifact = getSingleArtifact(artifactOrArtifacts);
 		if (!repository || !artifact) {
 			return;
 		}
@@ -5415,12 +5458,15 @@ export class CommandCenter {
 	}
 
 	@command('git.repositories.deleteWorktree', { repository: true })
-	async artifactDeleteWorktree(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
-		if (!repository || !artifact) {
+	async artifactDeleteWorktree(repository: Repository, artifactOrArtifacts: SourceControlArtifact | SourceControlArtifact[]): Promise<void> {
+		const artifacts = getArtifacts(artifactOrArtifacts);
+		if (!repository || artifacts.length === 0) {
 			return;
 		}
 
-		await repository.deleteWorktree(artifact.id);
+		for (const artifact of artifacts) {
+			await repository.deleteWorktree(artifact.id);
+		}
 	}
 
 	@command('git.repositories.worktreeCopyBranchName', { repository: true })
