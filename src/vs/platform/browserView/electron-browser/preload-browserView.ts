@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { shouldForwardBrowserViewKeydown } from '../common/browserViewKeyRouting.js';
+
 /* eslint-disable no-restricted-globals */
 
 /**
@@ -18,6 +20,11 @@
 (function () {
 
 	const { contextBridge, ipcRenderer } = require('electron');
+
+	function isEditableTarget(target: EventTarget | null): boolean {
+		const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+		return !!element?.closest('input, textarea, [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]');
+	}
 
 	// #######################################################################
 	// ###                                                                 ###
@@ -40,40 +47,9 @@
 			return;
 		}
 
-		const isNonEditingKey =
-			event.key === 'Escape' ||
-			/^F\d+$/.test(event.key) ||
-			event.key.startsWith('Audio') || event.key.startsWith('Media') || event.key.startsWith('Browser');
-
-		// Only forward if there's a command modifier or it's a non-editing key
-		// (most plain key events should just be handled natively by the browser and not forwarded)
-		if (!(event.ctrlKey || event.altKey || event.metaKey) && !isNonEditingKey) {
-			return;
-		}
-
 		const isMac = navigator.platform.indexOf('Mac') >= 0;
-
-		// Alt+Key special character handling (Alt + Numpad keys on Windows/Linux, Alt + any key on Mac)
-		if (event.altKey && !event.ctrlKey && !event.metaKey) {
-			if (isMac || /^Numpad\d+$/.test(event.code)) {
-				return;
-			}
-		}
-
-		// Allow native shortcuts (copy, paste, cut, undo, redo, select all) to be handled by the browser
-		const ctrlCmd = isMac ? event.metaKey : event.ctrlKey;
-		if (ctrlCmd && !event.altKey) {
-			const key = event.key.toLowerCase();
-			if (!event.shiftKey && (key === 'a' || key === 'c' || key === 'v' || key === 'x' || key === 'z')) {
-				return;
-			}
-			if (event.shiftKey && (key === 'v' || key === 'z')) {
-				return;
-			}
-			// Ctrl+Y is redo on Windows/Linux
-			if (!event.shiftKey && key === 'y' && !isMac) {
-				return;
-			}
+		if (!shouldForwardBrowserViewKeydown(event, { isMac, isEditableTarget: isEditableTarget(event.target) })) {
+			return;
 		}
 
 		// Everything else should be forwarded to the workbench for potential shortcut handling.
