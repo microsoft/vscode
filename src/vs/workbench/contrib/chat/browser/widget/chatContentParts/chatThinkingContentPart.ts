@@ -844,6 +844,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	 * and the thinking part was only created to hold that tool.
 	 */
 	public isEffectivelyEmpty(): boolean {
+		this.processPendingRemovals();
 		if (this.toolInvocationCount > 0 || this.lazyItems.length > 0 || this.hookCount > 0) {
 			return false;
 		}
@@ -1562,6 +1563,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Render external image pills for serialized (already-completed) tool invocations
 			if (toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') {
 				this.updateExternalResourceParts(toolInvocationOrMarkdown);
+
+				// Queue hidden serialized tools for removal immediately.
+				if (IChatToolInvocation.isEffectivelyHidden(toolInvocationOrMarkdown)) {
+					this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: toolCallLabel });
+					this.schedulePendingRemovalsFlush();
+				}
 			}
 
 			// track state for live/still streaming tools, excluding serialized tools

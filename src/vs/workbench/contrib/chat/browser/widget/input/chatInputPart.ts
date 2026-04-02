@@ -86,7 +86,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, MAX_IMAGES_PER_REQUEST, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
-import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, validateChatMode } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -688,29 +688,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const models = mode.model?.read(r);
 			if (models) {
 				this.switchModelByQualifiedName(models);
-			}
-		}));
-
-		this._register(autorun(r => {
-			const mode = this._currentModeObservable.read(r);
-			const modeName = mode.name.read(r);
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource) {
-				let needsUpdate = true;
-				const agentOption = this.chatSessionsService.getSessionOption(sessionResource, agentOptionId);
-				if (typeof agentOption !== 'undefined') {
-					const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
-					const isDefaultAgent = agentId === ChatMode.Agent.id;
-					needsUpdate = isDefaultAgent
-						? mode.id !== ChatMode.Agent.id
-						: mode.label.read(undefined) !== agentId; // Extensions use Label (name) as identifier for custom agents.
-				}
-				if (needsUpdate) {
-					this.chatSessionsService.updateSessionOptions(
-						sessionResource,
-						new Map([[agentOptionId, mode.isBuiltin ? '' : modeName]])
-					);
-				}
 			}
 		}));
 

@@ -105,10 +105,6 @@ export interface IChatSessionsExtensionPoint {
 	 * for this session type. Defaults to false when not specified.
 	 */
 	readonly autoAttachReferences?: boolean;
-	/**
-	 * When true, uses the incoming request's mode instructions to populate the built-in pickers such as Agent and Model pickers. When false, the pickers are populated based on the session type as they have been before. This is useful for testing the new ChatRequestTurn2-based flow for populating pickers.
-	 */
-	readonly useRequestToPopulateBuiltInPickers?: boolean;
 }
 
 export interface IChatSessionItem {
@@ -165,11 +161,6 @@ export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { 
  * The session type used for local agent chat sessions.
  */
 export const localChatSessionType = 'local';
-
-/**
- * The option ID used for selecting the agent in chat sessions.
- */
-export const agentOptionId = 'agent';
 
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
@@ -271,7 +262,8 @@ export namespace ChatSessionOptionsMap {
 
 	export function toRecord(map: ReadonlyChatSessionOptionsMap): Record<string, string | IChatSessionProviderOptionItem> {
 		const record: Record<string, string | IChatSessionProviderOptionItem> = Object.create(null);
-		for (const [key, value] of map) {
+		const entries = ensureIterable(map);
+		for (const [key, value] of entries) {
 			record[key] = value;
 		}
 		return record;
@@ -281,7 +273,21 @@ export namespace ChatSessionOptionsMap {
 		if (!map) {
 			return undefined;
 		}
-		return Array.from(map, ([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value.id }));
+		const entries = ensureIterable(map);
+		return Array.from(entries, ([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value.id }));
+	}
+
+	/**
+	 * Ensures the input is iterable. If a plain object is passed (e.g. due to
+	 * serialization across process boundaries losing the Map prototype), it is
+	 * converted to Map entries on the fly.
+	 */
+	function ensureIterable(map: ReadonlyChatSessionOptionsMap): Iterable<[string, string | IChatSessionProviderOptionItem]> {
+		if (map instanceof Map) {
+			return map;
+		}
+		// Fallback: treat as a plain record (e.g. from JSON deserialization)
+		return Object.entries(map as unknown as Record<string, string | IChatSessionProviderOptionItem>);
 	}
 }
 

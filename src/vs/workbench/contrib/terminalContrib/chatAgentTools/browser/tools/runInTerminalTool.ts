@@ -901,20 +901,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _getBlockedDomainReason(blockedDomains: string[], deniedDomains: string[] = []): string {
 		if (deniedDomains.length === blockedDomains.length && deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (blockedDomains.length === 1) {
-			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0]);
+			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0]);
 		}
-		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0], blockedDomains.length - 1);
+		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0], blockedDomains.length - 1);
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -1186,18 +1186,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 								: `Command is running in terminal with ID=${termId}`
 				);
-				const backgroundOutput = pollingResult?.modelOutputEvalResponse ?? pollingResult?.output;
+				const backgroundOutput = pollingResult?.output;
 				const outputAnalyzerMessage = backgroundOutput
 					? await this._getOutputAnalyzerMessage(undefined, backgroundOutput, command, didSandboxWrapCommand)
 					: undefined;
-				if (pollingResult && pollingResult.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n`;
+				if (pollingResult && pollingResult.state === OutputMonitorState.Idle) {
+					resultText += `\n The command became idle with output:\n`;
 					if (outputAnalyzerMessage) {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}
-					resultText += pollingResult.modelOutputEvalResponse;
+					resultText += pollingResult.output;
 				} else if (pollingResult) {
-					resultText += `\n\ The command is still running, with output:\n`;
+					resultText += `\n The command is still running, with output:\n`;
 					if (outputAnalyzerMessage) {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}

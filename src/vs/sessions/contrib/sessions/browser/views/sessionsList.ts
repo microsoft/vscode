@@ -269,11 +269,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
 
+			const isWorkspaceSession = workspace &&
+				workspace.repositories.length > 0 &&
+				workspace?.repositories[0].workingDirectory === undefined;
+
 			// Session type icon in details row
 			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
 			if (element.sessionType !== CopilotCLISessionType.id) {
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
+				parts.push(typeIconEl);
+			} else if (element.sessionType === CopilotCLISessionType.id && isWorkspaceSession) {
+				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(Codicon.folder)}`));
 				parts.push(typeIconEl);
 			}
 

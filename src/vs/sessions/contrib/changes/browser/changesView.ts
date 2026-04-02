@@ -74,6 +74,7 @@ import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/
 import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
+import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 
 const $ = dom.$;
 
@@ -189,10 +190,14 @@ function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTre
 					incompressible: true,
 				});
 			} else {
-				// Folder node
+				// Folder node. Ensure that the first level of folders under
+				// the root folder are not being collapsed with the root folder
+				// as that is a special node showing the workspace folder and
+				// branch information.
 				result.push({
 					element: child,
 					children: convertChildren(child),
+					incompressible: parent === resourceTree.root,
 					collapsible: true,
 					collapsed: false,
 				});
@@ -252,7 +257,6 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionBaseBranchNameObs: IObservable<string | undefined>;
-	readonly activeSessionUpstreamBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
@@ -360,15 +364,14 @@ class ChangesViewModel extends Disposable {
 
 		// Active session base branch name
 		this.activeSessionBaseBranchNameObs = derived(reader => {
-			return activeSessionRepositoryObs.read(reader)?.baseBranchName;
-		});
+			const sessionResource = this.activeSessionResourceObs.read(reader);
+			if (!sessionResource) {
+				return undefined;
+			}
 
-		// Active session upstream branch name
-		this.activeSessionUpstreamBranchNameObs = derived(reader => {
-			const repositoryState = this.activeSessionRepositoryObs.read(reader)?.state.read(reader);
-			return repositoryState?.HEAD?.upstream
-				? `${repositoryState.HEAD.upstream.remote}/${repositoryState.HEAD.upstream.name}`
-				: undefined;
+			this.sessionsChangedSignal.read(reader);
+			const model = this.agentSessionsService.getSession(sessionResource);
+			return model?.metadata?.baseBranchName as string | undefined;
 		});
 
 		// Active session has git repository
@@ -551,7 +554,8 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
-		@IGitHubService private readonly gitHubService: IGitHubService
+		@IGitHubService private readonly gitHubService: IGitHubService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1119,6 +1123,8 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
+				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
+
 				const items = combinedEntriesObs.get();
 				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
 			}));
@@ -1544,6 +1550,10 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			return activeSession?.sessionType ?? '';
 		}));
 
+		templateDisposables.add(bindContextKey(hasGitRepositoryContextKey, contextKeyService, reader => {
+			return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+		}));
+
 		templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
 			return this.viewModel.versionModeObs.read(reader);
 		}));
@@ -1708,6 +1718,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 	private renderFolderElement(node: IResourceNode<IChangesFileItem, undefined>, templateData: IChangesTreeTemplate): void {
 		templateData.label.setFile(node.uri, {
 			fileKind: FileKind.FOLDER,
+			hidePath: true,
 		});
 
 		// Hide file-specific decorations for folders
@@ -1748,7 +1759,8 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+	async runInView(accessor: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.List);
 		view.viewModel.setViewMode(ChangesViewMode.List);
 	}
 }
@@ -1770,7 +1782,8 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+	async runInView(accessor: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.Tree);
 		view.viewModel.setViewMode(ChangesViewMode.Tree);
 	}
 }
@@ -1810,7 +1823,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -1829,6 +1842,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						category: { label: 'changes', order: 1, showHeader: false },
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.BranchChanges);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.BranchChanges);
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -1845,6 +1859,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.AllChanges);
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
@@ -1861,6 +1876,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.LastTurn);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.LastTurn);
 							if (this.element) {
 								this.renderLabel(this.element);
 							}
