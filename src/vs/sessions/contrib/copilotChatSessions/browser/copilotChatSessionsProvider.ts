@@ -19,6 +19,7 @@ import { getRepositoryName } from '../../../../workbench/contrib/chat/browser/ag
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo } from '../../sessions/common/sessionData.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -1376,9 +1377,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
-		// Extract the response completion promise to detect cancellation
+		// Extract promises to detect cancellation vs normal completion
 		const responseCompletePromise = result.kind === 'sent'
 			? result.data.responseCompletePromise
+			: undefined;
+		const responseCreatedPromise = result.kind === 'sent'
+			? result.data.responseCreatedPromise
 			: undefined;
 
 		// Add the new session to the sessions model immediately so it appears in the sessions list
@@ -1392,7 +1396,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 
 			// Wait for the session to be committed (URI swapped from untitled to real)
-			const committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise);
+			const committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise);
 
 			// Wait for _refreshSessionCache to populate the committed adapter
 			const committedChat = await this._waitForSessionInCache(committedResource);
@@ -1479,14 +1483,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
 		}
 
-		// Extract the response completion promise to detect cancellation
+		// Extract promises to detect cancellation vs normal completion
 		const responseCompletePromise = result.kind === 'sent'
 			? result.data.responseCompletePromise
+			: undefined;
+		const responseCreatedPromise = result.kind === 'sent'
+			? result.data.responseCreatedPromise
 			: undefined;
 
 		try {
 			// Wait for the session to be committed
-			const committedResource = await this._waitForCommittedSession(newChatSession.resource, responseCompletePromise);
+			const committedResource = await this._waitForCommittedSession(newChatSession.resource, responseCompletePromise, responseCreatedPromise);
 
 			const committedChat = await this._waitForSessionInCache(committedResource);
 
@@ -1570,16 +1577,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * Waits for the committed (real) URI for a session by listening to the
 	 * {@link IChatSessionsService.onDidCommitSession} event.
 	 *
-	 * If {@link responseCompletePromise} is provided, the wait is bounded:
-	 * when the response completes (success, error, or cancellation) without
-	 * a prior commit, the session was never committed and the promise rejects
-	 * so the caller can clean up the temp session. In normal flow the session
-	 * commit fires during request processing (e.g. worktree creation), well
-	 * before the response completes, so the commit promise always wins the race.
+	 * When {@link responseCompletePromise} is provided, the wait is bounded by
+	 * response completion. If the response finishes before the commit event:
+	 * - If the response was **cancelled**, the session was stopped before the
+	 *   agent created the backing resource → throw immediately.
+	 * - If the response completed **normally**, the commit event is legitimately
+	 *   in-flight (the extension fired it mid-turn but the async IPC chain in
+	 *   {@link MainThreadChatSessions.$onDidCommitChatSessionItem} hasn't finished
+	 *   yet) → keep waiting with the safety timeout.
 	 */
 	private async _waitForCommittedSession(
 		untitledResource: URI,
 		responseCompletePromise?: Promise<void>,
+		responseCreatedPromise?: Promise<IChatResponseModel>,
 	): Promise<URI> {
 		const disposables = new DisposableStore();
 		try {
@@ -1593,10 +1603,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			if (responseCompletePromise) {
 				// Race the commit event against the response completing.
-				// In normal flow the commit fires during request processing
-				// (before the response finishes), so commitPromise wins.
-				// If the response finishes first (e.g. cancelled before
-				// worktree creation), the commit will never arrive.
 				const committed = await Promise.race([
 					commitPromise.then(uri => ({ committed: true as const, uri })),
 					responseCompletePromise.then(() => ({ committed: false as const })),
@@ -1606,10 +1612,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return committed.uri;
 				}
 
-				throw new Error('Session was not committed before response completed');
+				// Response finished before the commit event arrived.
+				// Check whether it was cancelled — if so, the commit will never come.
+				const response = await responseCreatedPromise;
+				if (response?.isCanceled) {
+					throw new Error('Session was cancelled before being committed');
+				}
+
+				// Response completed normally — the commit is in-flight (async IPC),
+				// wait for it with the safety timeout.
 			}
 
-			// No response promise — use a safety timeout
 			const result = await raceTimeout(commitPromise, 60_000);
 			if (!result) {
 				throw new Error('Timed out waiting for session commit');

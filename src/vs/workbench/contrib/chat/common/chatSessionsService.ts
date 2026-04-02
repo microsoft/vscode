@@ -332,8 +332,10 @@ export interface IChatSessionsService {
 	readonly onDidChangeSessionItems: Event<IChatSessionItemsDelta>;
 
 	/**
-	 * Fired when an untitled session is committed (URI swapped to a real resource)
-	 * after the first turn completes.
+	 * Fired when an untitled session is committed (URI swapped to a real resource).
+	 * This typically fires during the first turn (e.g. when the agent creates a
+	 * worktree), but due to async IPC processing may fire shortly after the turn
+	 * completes.
 	 */
 	readonly onDidCommitSession: Event<IChatSessionCommitEvent>;
 
