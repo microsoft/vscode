@@ -78,8 +78,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
-	private static readonly defaultVisualViewport = { scale: 1 };
-
 	constructor(
 		public readonly id: string,
 		public readonly session: BrowserSession,
@@ -565,12 +563,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		const quality = options?.quality ?? 80;
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
-			const visualViewport = await this.getVisualViewportMetrics();
+			const visualViewportScale = await this.getVisualViewportScale();
 			options.screenRect = {
-				x: options.pageRect.x * visualViewport.scale * zoomFactor,
-				y: options.pageRect.y * visualViewport.scale * zoomFactor,
-				width: options.pageRect.width * visualViewport.scale * zoomFactor,
-				height: options.pageRect.height * visualViewport.scale * zoomFactor
+				x: options.pageRect.x * visualViewportScale * zoomFactor,
+				y: options.pageRect.y * visualViewportScale * zoomFactor,
+				width: options.pageRect.width * visualViewportScale * zoomFactor,
+				height: options.pageRect.height * visualViewportScale * zoomFactor
 			};
 		}
 		const image = await this._view.webContents.capturePage(options?.screenRect, {
@@ -585,20 +583,20 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return screenshot;
 	}
 
-	private async getVisualViewportMetrics(): Promise<{ scale: number }> {
+	private async getVisualViewportScale(): Promise<number> {
 		try {
-			const result = await this._view.webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [{ code: '(() => { const viewport = window.visualViewport; return { scale: viewport?.scale ?? 1 }; })();' }]);
-			if (hasKey(result, { scale: true })) {
-				const scale = Number(result.scale);
+			const result = await this._view.webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [{ code: 'window.visualViewport?.scale ?? 1' }]);
+			if (typeof result === 'number') {
+				const scale = Number(result);
 				if (Number.isFinite(scale) && scale > 0) {
-					return { scale };
+					return scale;
 				}
 			}
 		} catch {
 			// Ignore execution errors while loading and use defaults.
 		}
 
-		return BrowserView.defaultVisualViewport;
+		return 1;
 	}
 
 	/**
