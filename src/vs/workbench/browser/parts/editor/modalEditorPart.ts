@@ -40,8 +40,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
 import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar } from '../../../../platform/editor/common/editor.js';
 
-const MODAL_MIN_WIDTH = 400;
-const MODAL_MIN_HEIGHT = 300;
+const MODAL_MIN_WIDTH_DEFAULT = 400;
+const MODAL_MIN_HEIGHT_DEFAULT = 300;
 const MODAL_MAX_DEFAULT_WIDTH = 1400;
 const MODAL_MAX_DEFAULT_HEIGHT = 900;
 const MODAL_BORDER_SIZE = 2; // 1px border on each side
@@ -193,8 +193,14 @@ export class ModalEditorPart {
 		const resizableElement = new ResizableHTMLElement();
 		disposables.add(toDisposable(() => resizableElement.dispose()));
 		resizableElement.domNode.classList.add('modal-editor-resizable');
-		const effectiveMinWidth = MODAL_MIN_WIDTH + (options?.sidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
-		resizableElement.minSize = new Dimension(effectiveMinWidth, MODAL_MIN_HEIGHT);
+		const configuredModalMinWidth = this.configurationService.getValue<number>('workbench.editor.modalMinWidth');
+		const safeModalMinWidth = Number.isFinite(configuredModalMinWidth) ? configuredModalMinWidth : MODAL_MIN_WIDTH_DEFAULT;
+		const modalMinWidth = Math.max(200, safeModalMinWidth);
+		const configuredModalMinHeight = this.configurationService.getValue<number>('workbench.editor.modalMinHeight');
+		const safeModalMinHeight = Number.isFinite(configuredModalMinHeight) ? configuredModalMinHeight : MODAL_MIN_HEIGHT_DEFAULT;
+		const modalMinHeight = Math.max(200, safeModalMinHeight);
+		const effectiveMinWidth = modalMinWidth + (options?.sidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
+		resizableElement.minSize = new Dimension(effectiveMinWidth, modalMinHeight);
 		modalElement.appendChild(resizableElement.domNode);
 
 		const shadowElement = resizableElement.domNode.appendChild($('.modal-editor-shadow'));
@@ -258,7 +264,7 @@ export class ModalEditorPart {
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
 		// Sidebar
-		const sidebarResult = this.createSidebar(editorPartContainer, options?.sidebar, disposables);
+		const sidebarResult = this.createSidebar(editorPartContainer, options?.sidebar, modalMinWidth, disposables);
 		if (sidebarResult) {
 			if (sidebarResult.isVisible()) {
 				editorPartContainer.classList.add('has-sidebar');
@@ -657,7 +663,7 @@ export class ModalEditorPart {
 		};
 	}
 
-	private createSidebar(container: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
+	private createSidebar(container: HTMLElement, content: IModalEditorSidebar | undefined, modalMinWidth: number, disposables: DisposableStore): IModalEditorSidebarController | undefined {
 		if (!content) {
 			return undefined;
 		}
@@ -696,7 +702,7 @@ export class ModalEditorPart {
 			}
 
 			const delta = e.currentX - e.startX;
-			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - modalMinWidth);
 			sidebarWidth = Math.min(maxWidth, Math.max(MODAL_SIDEBAR_MIN_WIDTH, sashStartWidth + delta));
 			customWidth = true;
 			sidebarContainer.style.width = `${sidebarWidth}px`;
@@ -704,7 +710,7 @@ export class ModalEditorPart {
 			onDidResizeEmitter.fire();
 		}));
 		disposables.add(sash.onDidReset(() => {
-			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - modalMinWidth);
 			sidebarWidth = Math.min(maxWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
 			customWidth = false;
 			sidebarContainer.style.width = `${sidebarWidth}px`;
@@ -717,8 +723,8 @@ export class ModalEditorPart {
 			getWidth: () => visible ? sidebarWidth : 0,
 			hasCustomWidth: () => customWidth,
 			clampWidth: (modalWidth: number) => {
-				if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
-					sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
+				if (sidebarWidth + modalMinWidth > modalWidth) {
+					sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - modalMinWidth));
 					customWidth = false;
 					sidebarContainer.style.width = `${sidebarWidth}px`;
 					sash.layout();
