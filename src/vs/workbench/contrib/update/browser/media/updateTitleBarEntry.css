@@ -8,8 +8,9 @@
 	align-items: center;
 	border-radius: var(--vscode-cornerRadius-medium);
 	white-space: nowrap;
-	padding: 0px 12px;
+	padding: 0px 8px;
 	height: 22px;
+	box-sizing: border-box;
 	background-color: transparent;
 	border: 1px solid transparent;
 }
@@ -21,6 +22,28 @@
 .monaco-action-bar .update-indicator .indicator-label {
 	font-size: var(--vscode-bodyFontSize-small);
 	position: relative;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	transition: max-width 0.3s ease, opacity 0.2s ease, margin-left 0.3s ease;
+}
+
+/* Expanded hint — slides out to the right inside the button */
+.monaco-action-bar .update-indicator .indicator-hint {
+	display: inline-block;
+	max-width: 0;
+	opacity: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-size: var(--vscode-bodyFontSize-small);
+	margin-left: 0;
+	transition: max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease 0.15s, margin-left 0.3s ease;
+}
+
+.monaco-action-bar .update-indicator.hint-visible .indicator-hint {
+	max-width: 180px;
+	opacity: 1;
+	margin-left: 3px;
 }
 
 /* Prominent state (action required) — primary button style */
@@ -80,11 +103,26 @@
 	transition: background 0.3s ease;
 }
 
+/* Hover expand — show hint text on hover */
+.monaco-action-bar .update-indicator:hover .indicator-hint {
+	max-width: 180px;
+	opacity: 1;
+	margin-left: 3px;
+}
+
 /* Reduced motion */
 .monaco-workbench.monaco-reduce-motion .update-indicator.progress-indefinite .indicator-label::after {
 	animation: none;
 }
 
 .monaco-workbench.monaco-reduce-motion .update-indicator.progress-percent .indicator-label::after {
+	transition: none;
+}
+
+.monaco-workbench.monaco-reduce-motion .update-indicator .indicator-hint {
+	transition: none;
+}
+
+.monaco-workbench.monaco-reduce-motion .update-indicator .indicator-label {
 	transition: none;
 }
