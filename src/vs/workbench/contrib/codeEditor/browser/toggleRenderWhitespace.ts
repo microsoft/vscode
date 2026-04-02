@@ -23,7 +23,11 @@ class ToggleRenderWhitespaceAction extends Action2 {
 			},
 			category: Categories.View,
 			f1: true,
-			toggled: ContextKeyExpr.notEquals('config.editor.renderWhitespace', 'none'),
+			toggled: ContextKeyExpr.or(
+				ContextKeyExpr.equals('config.editor.renderWhitespace', 'all'),
+				ContextKeyExpr.equals('config.editor.renderWhitespace', 'boundary'),
+				ContextKeyExpr.equals('config.editor.renderWhitespace', 'trailing'),
+			),
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '4_editor',
