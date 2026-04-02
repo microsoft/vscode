@@ -293,9 +293,11 @@ suite('SessionsWelcomeContribution', () => {
 				const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
 				const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
 				const appleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-apple');
+				const enterpriseButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-link');
 				assert.ok(githubButton);
 				assert.ok(googleButton);
 				assert.ok(appleButton);
+				assert.ok(enterpriseButton);
 
 				const button = container.querySelector<HTMLButtonElement>(selector);
 				assert.ok(button);
@@ -313,6 +315,7 @@ suite('SessionsWelcomeContribution', () => {
 
 			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-apple', ChatSetupStrategy.SetupWithAppleProvider);
 			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-google', ChatSetupStrategy.SetupWithGoogleProvider);
+			await assertButtonStrategy('.sessions-walkthrough-provider-link', ChatSetupStrategy.SetupWithEnterpriseProvider);
 		} finally {
 			container.remove();
 		}

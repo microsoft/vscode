@@ -209,6 +209,23 @@
 	height: 18px;
 }
 
+.sessions-walkthrough-provider-link {
+	border: 0;
+	background-color: unset;
+	color: var(--vscode-textLink-foreground);
+	width: fit-content;
+	margin: 12px auto 0;
+	padding: 0;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.sessions-walkthrough-provider-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
 /* ---- Hero layout (icon left, text right) ---- */
 
 .sessions-walkthrough-hero {

@@ -144,6 +144,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
 		appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
 
+		const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE.com';
+		const enterpriseBtn = append(right, $('button.sessions-walkthrough-provider-link', undefined, localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName))) as HTMLButtonElement;
+
 		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
 		errorContainer.style.display = 'none';
@@ -155,12 +158,13 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			}
 		}, 0, stepDisposables);
 
-		const providerButtons = [githubBtn, googleBtn, appleBtn];
+		const providerButtons = [githubBtn, googleBtn, appleBtn, enterpriseBtn];
 		this.currentFocusableElements = [...providerButtons, ...this.disclaimerLinks];
 		const providerStrategies = [
 			ChatSetupStrategy.SetupWithoutEnterpriseProvider,
 			ChatSetupStrategy.SetupWithGoogleProvider,
 			ChatSetupStrategy.SetupWithAppleProvider,
+			ChatSetupStrategy.SetupWithEnterpriseProvider,
 		];
 		for (let i = 0; i < providerButtons.length; i++) {
 			const strategy = providerStrategies[i];
