@@ -59,7 +59,7 @@ export function handleANSIOutput(text: string, linkOptions: LinkOptions): HTMLSp
 				 * Certain ranges that are matched here do not contain real graphics rendition sequences. For
 				 * the sake of having a simpler expression, they have been included anyway.
 				 */
-				if (ansiSequence.match(/^(?:[34][0-8]|9[0-7]|10[0-7]|[0-9]|2[1-5,7-9]|[34]9|5[8,9]|1[0-9])(?:;[349][0-7]|10[0-7]|[013]|[245]|[34]9)?(?:;[012]?[0-9]?[0-9])*;?m$/)) {
+				if (ansiSequence.match(/^(?:[34][0-8]|9[0-7]|10[0-7]|[0-9]|2[1-5,7-9]|[34]9|5[8,9]|1[0-9])(?:;[349][0-7]|10[0-7]|[013]|[245]|[34]9)?(?:;\d{1,3})*;?m$/)) {
 
 					const styleCodes: number[] = ansiSequence.slice(0, -1) // Remove final 'm' character.
 						.split(';')										   // Separate style codes.
