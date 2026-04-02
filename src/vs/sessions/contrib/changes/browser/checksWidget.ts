@@ -11,7 +11,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -24,6 +24,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './checksActions.js';
+import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;
 
@@ -276,9 +277,10 @@ export class CIStatusWidget extends Disposable {
 		this._bodyNode.appendChild(this._list.getHTMLElement());
 	}
 
-	setInput(input: IObservable<GitHubPullRequestCIModel | undefined>): IDisposable {
+	setInput(input: ChecksViewModel): IDisposable {
 		return autorun(reader => {
-			this._model = input.read(reader);
+			this._model = input.checksObs.read(reader);
+			this._sessionResource = input.activeSessionResourceObs.read(reader);
 
 			if (!this._model) {
 				this._checkCount = 0;

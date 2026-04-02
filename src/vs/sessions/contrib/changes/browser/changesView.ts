@@ -1155,7 +1155,7 @@ export class ChangesViewPane extends ViewPane {
 			const checksViewModel = this.instantiationService.createInstance(ChecksViewModel);
 			this.renderDisposables.add(checksViewModel);
 
-			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel.checks));
+			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel));
 		}
 
 		// Update tree data with combined entries

@@ -5,21 +5,28 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 export class ChecksViewModel extends Disposable {
-	readonly checks: IObservable<GitHubPullRequestCIModel | undefined>;
+	readonly activeSessionResourceObs: IObservable<URI | undefined>;
+	readonly checksObs: IObservable<GitHubPullRequestCIModel | undefined>;
 
 	constructor(
-		@IGitHubService private readonly gitHubService: IGitHubService,
-		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
+		@IGitHubService gitHubService: IGitHubService,
+		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
 	) {
 		super();
 
-		this.checks = derived(this, reader => {
-			const session = this.sessionManagementService.activeSession.read(reader);
+		this.activeSessionResourceObs = derived<URI | undefined>(this, reader => {
+			const session = sessionManagementService.activeSession.read(reader);
+			return session?.resource;
+		});
+
+		this.checksObs = derived(this, reader => {
+			const session = sessionManagementService.activeSession.read(reader);
 			if (!session) {
 				return undefined;
 			}
@@ -29,7 +36,7 @@ export class ChecksViewModel extends Disposable {
 				return undefined;
 			}
 
-			const prModel = this.gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
+			const prModel = gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			const pr = prModel.pullRequest.read(reader);
 			if (!pr) {
 				return undefined;
@@ -38,7 +45,7 @@ export class ChecksViewModel extends Disposable {
 			// Use the PR's headSha (commit SHA) rather than the branch
 			// name so CI checks can still be fetched after branch deletion
 			// (e.g. after the PR is merged).
-			const ciModel = this.gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headSha);
+			const ciModel = gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headSha);
 			ciModel.refresh();
 			ciModel.startPolling();
 			reader.store.add({ dispose: () => ciModel.stopPolling() });
