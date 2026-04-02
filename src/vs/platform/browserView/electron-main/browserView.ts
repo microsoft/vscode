@@ -566,7 +566,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
-			const visualViewportScale = await this.getVisualViewportScale();
+			const visualViewportScale = await this._inspector.getVisualViewportScale();
 			options.screenRect = {
 				x: options.pageRect.x * visualViewportScale * zoomFactor,
 				y: options.pageRect.y * visualViewportScale * zoomFactor,
@@ -584,27 +584,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
-	}
-
-	private async getVisualViewportScale(): Promise<number> {
-		let connection: ICDPConnection | undefined;
-		try {
-			// Use CDP instead of executeJavaScript so this still works while script execution is paused in DevTools.
-			connection = await this._debugger.attach();
-			const result = await connection.sendCommand('Page.getLayoutMetrics') as { cssVisualViewport?: { scale?: number } };
-			if (typeof result.cssVisualViewport?.scale === 'number') {
-				const scale = Number(result.cssVisualViewport.scale);
-				if (Number.isFinite(scale) && scale > 0) {
-					return scale;
-				}
-			}
-		} catch {
-			// Ignore execution errors while loading and use defaults.
-		} finally {
-			connection?.dispose();
-		}
-
-		return 1;
 	}
 
 	/**
