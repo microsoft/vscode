@@ -1765,6 +1765,10 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateData.elementDisposables.clear();
 	}
 
+	disposeCompressedElements(_element: ITreeNode<ICompressedTreeNode<ChangesTreeElement>, void>, _index: number, templateData: IChangesTreeTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: IChangesTreeTemplate): void {
 		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
