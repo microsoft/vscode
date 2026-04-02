@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../base/common/resources.js';
@@ -127,6 +127,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		try {
 			const originalUri = this._decodeUri(resource);
 			const result = await connection.resourceRead(originalUri);
+			if (result.encoding === ContentEncoding.Base64) {
+				return decodeBase64(result.data).buffer;
+			}
 			return VSBuffer.fromString(result.data).buffer;
 		} catch (err) {
 			throw createFileSystemProviderError(

@@ -731,9 +731,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		}
 
 		const entries = [...resourceMap.values()]
-			.filter(v => v.beforeContentUri || v.afterContentUri)
+			.filter(v => v.beforeContentUri && v.afterContentUri)
 			.map(v =>
-				new AgentHostModifiedFileEntry(v.resource, v.beforeContentUri ?? v.afterContentUri!, v.requestId, v.added, v.removed)
+				new AgentHostModifiedFileEntry(v.resource, v.beforeContentUri!, v.requestId, v.added, v.removed)
 			);
 
 		this._entriesObs.set(entries, undefined);

@@ -14,7 +14,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { IFileService } from '../../files/common/files.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
@@ -22,9 +22,10 @@ import type { IActionEnvelope, INotification, ISessionAction } from '../common/s
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { AhpErrorCodes } from '../common/state/protocol/errors.js';
 import { ContentEncoding } from '../common/state/protocol/commands.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
-import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 /**
  * A protocol-level client for a single remote agent host connection.
@@ -283,39 +284,57 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const sendResult = (result: unknown) => {
 			this._transport.send({ jsonrpc: '2.0', id, result });
 		};
-		const sendError = (message: string) => {
-			this._transport.send({ jsonrpc: '2.0', id, error: { code: -32000, message } });
+		const sendError = (err: unknown) => {
+			const fsCode = toFileSystemProviderErrorCode(err instanceof Error ? err : undefined);
+			let code = -32000;
+			switch (fsCode) {
+				case FileSystemProviderErrorCode.FileNotFound: code = AhpErrorCodes.NotFound; break;
+				case FileSystemProviderErrorCode.NoPermissions: code = AhpErrorCodes.PermissionDenied; break;
+				case FileSystemProviderErrorCode.FileExists: code = AhpErrorCodes.AlreadyExists; break;
+			}
+			this._transport.send({ jsonrpc: '2.0', id, error: { code, message: err instanceof Error ? err.message : String(err) } });
 		};
 		const handle = (fn: () => Promise<unknown>) => {
-			fn().then(sendResult, err => sendError(err instanceof Error ? err.message : String(err)));
+			fn().then(sendResult, sendError);
 		};
 
 		const p = params as Record<string, unknown>;
 		switch (method) {
 			case 'resourceList':
-				if (!p.uri) { sendError('Missing uri'); return; }
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
 				return handle(async () => {
 					const stat = await this._fileService.resolve(URI.parse(p.uri as string));
 					return { entries: (stat.children ?? []).map(c => ({ name: c.name, type: c.isDirectory ? 'directory' as const : 'file' as const })) };
 				});
 			case 'resourceRead':
-				if (!p.uri) { sendError('Missing uri'); return; }
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
 				return handle(async () => {
 					const content = await this._fileService.readFile(URI.parse(p.uri as string));
 					return { data: encodeBase64(content.value), encoding: ContentEncoding.Base64 };
 				});
 			case 'resourceWrite':
-				if (!p.uri || !p.data) { sendError('Missing uri or data'); return; }
-				return handle(() => this._fileService.writeFile(URI.parse(p.uri as string), VSBuffer.fromString(p.data as string)).then(() => ({})));
+				if (!p.uri || !p.data) { sendError(new Error('Missing uri or data')); return; }
+				return handle(async () => {
+					const writeUri = URI.parse(p.uri as string);
+					const buf = p.encoding === ContentEncoding.Base64
+						? decodeBase64(p.data as string)
+						: VSBuffer.fromString(p.data as string);
+					if (p.createOnly) {
+						await this._fileService.createFile(writeUri, buf, { overwrite: false });
+					} else {
+						await this._fileService.writeFile(writeUri, buf);
+					}
+					return {};
+				});
 			case 'resourceDelete':
-				if (!p.uri) { sendError('Missing uri'); return; }
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
 				return handle(() => this._fileService.del(URI.parse(p.uri as string), { recursive: !!p.recursive }).then(() => ({})));
 			case 'resourceMove':
-				if (!p.source || !p.destination) { sendError('Missing source or destination'); return; }
+				if (!p.source || !p.destination) { sendError(new Error('Missing source or destination')); return; }
 				return handle(() => this._fileService.move(URI.parse(p.source as string), URI.parse(p.destination as string), !p.failIfExists).then(() => ({})));
 			default:
 				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
-				sendError(`Unknown method: ${method}`);
+				sendError(new Error(`Unknown method: ${method}`));
 		}
 	}
 
