@@ -45,7 +45,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatSessionCustomizationItemD
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 
 interface AgentData {
@@ -634,17 +634,28 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			},
 		};
 
-		// Convert metadata to a harness descriptor
-		const hiddenSections = metadata.unsupportedTypes?.map(type => {
-			switch (type) {
-				case 'agent': return AICustomizationManagementSection.Agents;
-				case 'skill': return AICustomizationManagementSection.Skills;
-				case 'instructions': return AICustomizationManagementSection.Instructions;
-				case 'prompt': return AICustomizationManagementSection.Prompts;
-				case 'hook': return AICustomizationManagementSection.Hooks;
-				default: return type;
+		// Convert supportedTypes whitelist to hiddenSections blacklist.
+		// Sections not in the supported list are hidden. When supportedTypes
+		// is omitted, all sections are shown.
+		const typeToSection: Record<string, string> = {
+			'agent': AICustomizationManagementSection.Agents,
+			'skill': AICustomizationManagementSection.Skills,
+			'instructions': AICustomizationManagementSection.Instructions,
+			'prompt': AICustomizationManagementSection.Prompts,
+			'hook': AICustomizationManagementSection.Hooks,
+			'plugins': AICustomizationManagementSection.Plugins,
+		};
+		let hiddenSections: string[] | undefined;
+		if (metadata.supportedTypes) {
+			const supportedSections = new Set<string>();
+			for (const t of metadata.supportedTypes) {
+				const section = typeToSection[t];
+				if (section) {
+					supportedSections.add(section);
+				}
 			}
-		});
+			hiddenSections = Object.values(typeToSection).filter(section => !supportedSections.has(section));
+		}
 
 		const descriptor: IHarnessDescriptor = {
 			id: chatSessionType,
@@ -654,7 +665,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.
-				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension],
+				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension, BUILTIN_STORAGE],
 			}),
 			itemProvider,
 		};

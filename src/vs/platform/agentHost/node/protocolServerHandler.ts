@@ -237,8 +237,11 @@ export class ProtocolServerHandler extends Disposable {
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
 		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
-			browseDirectory: (uri) => this._sendReverseRequest(params.clientId, 'browseDirectory', { uri: uri.toString() }),
-			fetchContent: (uri) => this._sendReverseRequest(params.clientId, 'fetchContent', { uri: uri.toString() }),
+			resourceList: (uri) => this._sendReverseRequest(params.clientId, 'resourceList', { uri: uri.toString() }),
+			resourceRead: (uri) => this._sendReverseRequest(params.clientId, 'resourceRead', { uri: uri.toString() }),
+			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
+			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
+			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
 		}));
 
 
@@ -369,8 +372,8 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeSession(URI.parse(params.session));
 			return null;
 		},
-		writeFile: async (_client, params) => {
-			return this._agentService.writeFile(params);
+		resourceWrite: async (_client, params) => {
+			return this._agentService.resourceWrite(params);
 		},
 		listSessions: async () => {
 			const sessions = await this._agentService.listSessions();
@@ -407,11 +410,20 @@ export class ProtocolServerHandler extends Disposable {
 				hasMore: startIndex > 0,
 			};
 		},
-		browseDirectory: async (_client, params) => {
-			return this._agentService.browseDirectory(URI.parse(params.uri));
+		resourceList: async (_client, params) => {
+			return this._agentService.resourceList(URI.parse(params.uri));
 		},
-		fetchContent: async (_client, params) => {
-			return this._agentService.fetchContent(URI.parse(params.uri));
+		resourceRead: async (_client, params) => {
+			return this._agentService.resourceRead(URI.parse(params.uri));
+		},
+		resourceCopy: async (_client, params) => {
+			return this._agentService.resourceCopy(params);
+		},
+		resourceDelete: async (_client, params) => {
+			return this._agentService.resourceDelete(params);
+		},
+		resourceMove: async (_client, params) => {
+			return this._agentService.resourceMove(params);
 		},
 	};
 

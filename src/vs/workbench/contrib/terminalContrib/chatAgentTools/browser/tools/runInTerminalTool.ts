@@ -1452,15 +1452,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * Returns data content parts for any found images that exist on disk.
 	 */
 	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
-		const normalizedOutput = output.replace(/\r?\n/g, '');
-
-		// Match paths ending with image extensions. A leading / or \ is sufficient
-		// to identify a path segment; the full path up to the extension is captured.
-		const pathPattern = /(?:[^\s]*[\/\\][^\s]*\.(?:png|jpe?g|gif|webp|bmp))/gi;
+		// Match paths containing at least one / or \ and ending with an image
+		// extension. Each atom uses [^\s/\\]* so it cannot consume separators,
+		// which keeps the [/\\] tokens unambiguous and prevents catastrophic
+		// backtracking on long strings.
+		const pathPattern = /[^\s/\\]*(?:[/\\][^\s/\\]*)+\.(?:png|jpe?g|gif|webp|bmp)/gi;
 
 		const matches = new Set<string>();
-		for (const match of normalizedOutput.matchAll(pathPattern)) {
-			matches.add(match[0]);
+		for (const line of output.split(/\r?\n/)) {
+			if (line.length > 10_000) {
+				continue;
+			}
+			for (const match of line.matchAll(pathPattern)) {
+				matches.add(match[0]);
+			}
 		}
 
 		if (matches.size === 0) {

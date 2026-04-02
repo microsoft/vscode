@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from './state/sessionProtocol.js';
+import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { AttachmentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
@@ -491,19 +491,34 @@ export interface IAgentService {
 	 * List the contents of a directory on the agent host's filesystem.
 	 * Used by the client to drive a remote folder picker before session creation.
 	 */
-	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
+	resourceList(uri: URI): Promise<IResourceListResult>;
 
 	/**
-	 * Fetch stored content by URI from the agent host (e.g. file edit snapshots,
+	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
 	 */
-	fetchContent(uri: URI): Promise<IFetchContentResult>;
+	resourceRead(uri: URI): Promise<IResourceReadResult>;
 
 	/**
 	 * Write content to a file on the agent host's filesystem.
 	 * Used for undo/redo operations on file edits.
 	 */
-	writeFile(params: IWriteFileParams): Promise<IWriteFileResult>;
+	resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult>;
+
+	/**
+	 * Copy a resource from one URI to another on the agent host's filesystem.
+	 */
+	resourceCopy(params: IResourceCopyParams): Promise<IResourceCopyResult>;
+
+	/**
+	 * Delete a resource at a URI on the agent host's filesystem.
+	 */
+	resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult>;
+
+	/**
+	 * Move (rename) a resource from one URI to another on the agent host's filesystem.
+	 */
+	resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult>;
 }
 
 /**
