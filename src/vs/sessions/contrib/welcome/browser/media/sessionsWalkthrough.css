@@ -206,10 +206,15 @@
 	gap: 8px;
 	align-items: center;
 	justify-content: center;
+	width: 100%;
+}
+
+.sessions-walkthrough-providers-row > .sessions-walkthrough-provider-btn {
+	flex: 1 1 0;
+	min-width: 0;
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only {
-	width: 40px;
 	height: 40px;
 	padding: 0;
 	border-radius: 8px;
@@ -227,6 +232,7 @@
 	border-radius: 8px;
 	font-size: 12px;
 	gap: 0;
+	justify-content: center;
 }
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact::before {
