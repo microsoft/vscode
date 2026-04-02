@@ -1537,7 +1537,6 @@ suite('ComputeAutomaticInstructions', () => {
 				ChatModeKind.Agent,
 				{ 'vscode_runSubagent': true },
 				['*'],
-				undefined
 			);
 			const variables = new ChatRequestVariableSet();
 
@@ -1571,7 +1570,6 @@ suite('ComputeAutomaticInstructions', () => {
 				ChatModeKind.Agent,
 				{ 'vscode_runSubagent': true },
 				['*'],
-				undefined
 			);
 			const variables = new ChatRequestVariableSet();
 

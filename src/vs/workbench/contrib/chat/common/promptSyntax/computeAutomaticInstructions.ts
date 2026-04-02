@@ -458,7 +458,6 @@ export class ComputeAutomaticInstructions {
 					entries.push(`<description>Full-capability agent for complex multi-step tasks requiring high-quality reasoning. Has access to the same tools and capabilities as the current agent and inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
 					entries.push('</agent>');
 				}
-				}
 
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
