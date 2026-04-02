@@ -27,6 +27,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { packErrorForTelemetry } from '../../../../../platform/telemetry/common/errorTelemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -1352,6 +1353,25 @@ export class ChatService extends Disposable implements IChatService {
 						request,
 					});
 
+					if (rawResult.errorDetails?.callstack) {
+						const errorAgent = detectedAgent ?? agentPart?.agent ?? defaultAgent;
+						type ChatAgentErrorEvent = { callstack: string; msg: string; agent: string; agentExtensionId: string };
+						type ChatAgentErrorClassification = {
+							owner: 'bpasero';
+							comment: 'Logged when a chat agent handler throws an error with a callstack.';
+							callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
+							msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+							agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent that threw the error.' };
+							agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
+						};
+						this.telemetryService.publicLogError2<ChatAgentErrorEvent, ChatAgentErrorClassification>('chatAgentError', {
+							callstack: rawResult.errorDetails.callstack,
+							msg: rawResult.errorDetails.message,
+							agent: errorAgent?.id ?? '',
+							agentExtensionId: errorAgent?.extensionId.value ?? '',
+						});
+					}
+
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
 					this.trace('sendRequest', `Provider returned response for session ${model.sessionResource}`);
@@ -1382,6 +1402,25 @@ export class ChatService extends Disposable implements IChatService {
 						detectedAgent,
 						request,
 					});
+					const { callstack, msg } = packErrorForTelemetry(err);
+					if (callstack) {
+						const errorAgent = agentPart?.agent ?? defaultAgent;
+						type ChatAgentErrorEvent = { callstack: string; msg: string; agent: string; agentExtensionId: string };
+						type ChatAgentErrorClassification = {
+							owner: 'bpasero';
+							comment: 'Logged when a chat agent handler throws an error with a callstack.';
+							callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
+							msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+							agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent that threw the error.' };
+							agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
+						};
+						this.telemetryService.publicLogError2<ChatAgentErrorEvent, ChatAgentErrorClassification>('chatAgentError', {
+							callstack,
+							msg,
+							agent: errorAgent?.id ?? '',
+							agentExtensionId: errorAgent?.extensionId.value ?? '',
+						});
+					}
 					const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
