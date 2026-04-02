@@ -109,9 +109,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
 		this._view.setBackgroundColor('#FFFFFF');
-		void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
-			this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
-		});
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {
@@ -286,11 +283,16 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
-		// Chromium resets the zoom factor to its per-origin default (100%) when
-		// navigating to a new document. Re-apply our stored zoom to override it.
 		webContents.on('did-navigate', () => {
+			// Chromium resets the zoom factor to its per-origin default (100%) when
+			// navigating to a new document. Re-apply our stored zoom to override it.
 			this._consoleLogs.length = 0; // Clear console logs on navigation since they are per-page
 			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+
+			// Enable pinch-to-zoom
+			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+				this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
+			});
 		});
 
 		// Focus events
