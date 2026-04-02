@@ -132,7 +132,7 @@ export const treeIndentGuidesStroke = registerColor('tree.indentGuidesStroke',
 	nls.localize('treeIndentGuidesStroke', "Tree stroke color for the indentation guides."));
 
 export const treeInactiveIndentGuidesStroke = registerColor('tree.inactiveIndentGuidesStroke',
-	transparent(treeIndentGuidesStroke, 0.4),
+	transparent(treeIndentGuidesStroke, 0.6),
 	nls.localize('treeInactiveIndentGuidesStroke', "Tree stroke color for the indentation guides that are not active."));
 
 
