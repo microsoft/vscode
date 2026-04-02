@@ -256,7 +256,7 @@ export class ComputeAutomaticInstructions {
 			if (type === AgentInstructionFileType.claudeMd) {
 				telemetryEvent.claudeMdCount++;
 			}
-			telemetryEvent.debugDetails.push({ category: 'applying', name: basename(uri).toString(), uri, reason: localize('debugDetail.agentInstruction', 'agent instruction file') });
+			telemetryEvent.debugDetails.push({ category: 'applying', name: basename(uri).toString(), uri, reason: localize('debugDetail.agentInstruction', 'always added') });
 			logger.logInfo(`Agent instruction file added: ${uri.toString()}`);
 		}
 
