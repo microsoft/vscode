@@ -16,7 +16,6 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../../constants.js';
@@ -75,9 +74,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	/** Tracks the current subagent nesting depth per session to detect and limit recursion. */
 	private readonly _sessionDepth = new Map<string, number>();
 
-	/** Cached experiment value for whether the General Purpose agent is enabled. */
-	private _generalPurposeAgentEnabled = false;
-
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatService private readonly chatService: IChatService,
@@ -88,29 +84,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e =>
-			e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents)
+			e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents) ||
+			e.affectsConfiguration(ChatConfiguration.GeneralPurposeAgentEnabled)
 		)(() => this._onDidUpdateToolData.fire()));
-
-		// Resolve the experiment value asynchronously and re-resolve on refetch
-		this._resolveExperiment();
-		this._register(this.assignmentService.onDidRefetchAssignments(() => this._resolveExperiment()));
-	}
-
-	private _resolveExperiment(): void {
-		this.assignmentService.getTreatment<boolean>('chat.generalPurposeAgent').then(value => {
-			const changed = this._generalPurposeAgentEnabled !== !!value;
-			this._generalPurposeAgentEnabled = !!value;
-			if (changed) {
-				this._onDidUpdateToolData.fire();
-			}
-		}, (error: unknown) => {
-			this.logService.error(`[RunSubagentTool] Failed to resolve treatment chat.generalPurposeAgent: ${error}`);
-		});
 	}
 
 	getToolData(): IToolData {
@@ -128,12 +108,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				},
 				agentName: {
 					type: 'string',
-					description: this._generalPurposeAgentEnabled
+					description: this.configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled)
 						? 'Name of the agent to invoke.'
 						: 'Optional name of a specific agent to invoke. If not provided, uses the current agent.'
 				}
 			},
-			required: this._generalPurposeAgentEnabled
+			required: this.configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled)
 				? ['prompt', 'description', 'agentName']
 				: ['prompt', 'description']
 		};
@@ -185,7 +165,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 			const subAgentName = args.agentName;
 			// Defensive: model may omit agentName despite schema requiring it
-			const isGeneralPurpose = this._generalPurposeAgentEnabled && (!subAgentName || subAgentName === GeneralPurposeAgentName);
+			const isGeneralPurpose = this.configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled) && (!subAgentName || subAgentName === GeneralPurposeAgentName);
 
 			if (subAgentName && !isGeneralPurpose) {
 				subagent = await this.getSubAgentByName(subAgentName);
@@ -227,7 +207,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					};
 				} else {
 					this._resolvedModels.delete(invocation.callId);
-					throw new Error(`Requested agent '${subAgentName}' not found. Use '${GeneralPurposeAgentName}' for a full-capability agent.`);
+					const gpEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled);
+					const hint = gpEnabled
+						? ` Use '${GeneralPurposeAgentName}' for a full-capability agent.`
+						: '';
+					throw new Error(`Requested agent '${subAgentName}' not found.${hint}`);
 				}
 			} else {
 				// No subagent name - clean up any cached entry and resolve model name from main model
@@ -461,7 +445,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const args = context.parameters as IRunSubagentToolInputParams;
 
 		// Defensive: model may omit agentName despite schema requiring it
-		const isGeneralPurpose = this._generalPurposeAgentEnabled && (!args.agentName || args.agentName === GeneralPurposeAgentName);
+		const isGeneralPurpose = this.configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled) && (!args.agentName || args.agentName === GeneralPurposeAgentName);
 		const subagent = (args.agentName && !isGeneralPurpose) ? await this.getSubAgentByName(args.agentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()

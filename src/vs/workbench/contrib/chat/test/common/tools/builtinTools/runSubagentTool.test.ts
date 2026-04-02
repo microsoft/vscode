@@ -23,9 +23,6 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { IToolInvocation, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { ChatConfiguration, GeneralPurposeAgentName } from '../../../../common/constants.js';
-import { NullWorkbenchAssignmentService } from '../../../../../../services/assignment/test/common/nullAssignmentService.js';
-import { IWorkbenchAssignmentService } from '../../../../../../services/assignment/common/assignmentService.js';
-import { Event } from '../../../../../../../base/common/event.js';
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -77,7 +74,6 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
-				new NullWorkbenchAssignmentService(),
 			));
 
 			const result = await tool.prepareToolInvocation(
@@ -110,15 +106,6 @@ suite('RunSubagentTool', () => {
 			if (opts?.customAgents) {
 				promptsService.setCustomModes(opts.customAgents);
 			}
-			const assignmentService: IWorkbenchAssignmentService = {
-				_serviceBrand: undefined,
-				onDidRefetchAssignments: Event.None,
-				async getCurrentExperiments() { return []; },
-				async getTreatment<T>(name: string): Promise<T | undefined> {
-					return (name === 'chat.generalPurposeAgent' ? true : undefined) as T | undefined;
-				},
-				addTelemetryAssignmentFilter() { },
-			};
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
@@ -126,19 +113,16 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
-				new TestConfigurationService(),
+				new TestConfigurationService({ [ChatConfiguration.GeneralPurposeAgentEnabled]: true }),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
-				assignmentService,
 			));
 			return tool;
 		}
 
 		async function createToolWithGPReady(opts?: { customAgents?: ICustomAgent[] }) {
-			const tool = createToolWithGP(opts);
-			await Event.toPromise(tool.onDidUpdateToolData);
-			return tool;
+			return createToolWithGP(opts);
 		}
 
 		test('treats undefined agentName as General Purpose when experiment is enabled', async () => {
@@ -245,7 +229,6 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
-				new NullWorkbenchAssignmentService(),
 			));
 
 			const toolData = tool.getToolData();
@@ -261,15 +244,6 @@ suite('RunSubagentTool', () => {
 		test('marks agentName as required when GP experiment is enabled', async () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const promptsService = new MockPromptsService();
-			const assignmentService: IWorkbenchAssignmentService = {
-				_serviceBrand: undefined,
-				onDidRefetchAssignments: Event.None,
-				async getCurrentExperiments() { return []; },
-				async getTreatment<T>(name: string): Promise<T | undefined> {
-					return (name === 'chat.generalPurposeAgent' ? true : undefined) as T | undefined;
-				},
-				addTelemetryAssignmentFilter() { },
-			};
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
@@ -277,15 +251,11 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
-				new TestConfigurationService(),
+				new TestConfigurationService({ [ChatConfiguration.GeneralPurposeAgentEnabled]: true }),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
-				assignmentService,
 			));
-
-			// Wait for the constructor's async experiment resolution via onDidUpdateToolData
-			await Event.toPromise(tool.onDidUpdateToolData);
 
 			const toolData = tool.getToolData();
 			assert.ok(toolData.inputSchema?.properties?.agentName);
@@ -404,7 +374,6 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
-				new NullWorkbenchAssignmentService(),
 			));
 
 			return tool;
@@ -681,7 +650,6 @@ suite('RunSubagentTool', () => {
 				promptsService,
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
-				new NullWorkbenchAssignmentService(),
 			));
 
 			return { tool, mockChatAgentService };

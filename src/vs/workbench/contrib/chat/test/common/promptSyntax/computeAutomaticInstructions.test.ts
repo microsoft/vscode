@@ -50,8 +50,6 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
-import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 
 suite('ComputeAutomaticInstructions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -194,8 +192,6 @@ suite('ComputeAutomaticInstructions', () => {
 			plugins: observableValue('testPlugins', []),
 			enablementModel: { readEnabled: () => 2 /* EnabledProfile */, setEnabled: () => { }, remove: () => { } },
 		});
-
-		instaService.stub(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -1518,16 +1514,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
 
-			// Override the assignment service to enable the GP experiment
-			instaService.stub(IWorkbenchAssignmentService, {
-				_serviceBrand: undefined,
-				onDidRefetchAssignments: Event.None,
-				async getCurrentExperiments() { return []; },
-				async getTreatment<T>(name: string): Promise<T | undefined> {
-					return (name === 'chat.generalPurposeAgent' ? true : undefined) as T | undefined;
-				},
-				addTelemetryAssignmentFilter() { },
-			} as IWorkbenchAssignmentService);
+			testConfigService.setUserConfiguration('chat.generalPurposeAgent.enabled', true);
 
 			testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, {
 				[AGENTS_SOURCE_FOLDER]: true,
@@ -1577,16 +1564,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 			// Explicitly do NOT set chat.customAgentInSubagent.enabled
 
-			// Override the assignment service to enable the GP experiment
-			instaService.stub(IWorkbenchAssignmentService, {
-				_serviceBrand: undefined,
-				onDidRefetchAssignments: Event.None,
-				async getCurrentExperiments() { return []; },
-				async getTreatment<T>(name: string): Promise<T | undefined> {
-					return (name === 'chat.generalPurposeAgent' ? true : undefined) as T | undefined;
-				},
-				addTelemetryAssignmentFilter() { },
-			} as IWorkbenchAssignmentService);
+			testConfigService.setUserConfiguration('chat.generalPurposeAgent.enabled', true);
 
 			const contextComputer = instaService.createInstance(
 				ComputeAutomaticInstructions,

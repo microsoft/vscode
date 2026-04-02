@@ -31,7 +31,6 @@ import { ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../con
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
-import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -79,7 +78,6 @@ export class ComputeAutomaticInstructions {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
-		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
 	) {
 	}
 
@@ -434,12 +432,7 @@ export class ComputeAutomaticInstructions {
 			}
 		}
 		if (runSubagentTool) {
-			let generalPurposeAgentEnabled = false;
-			try {
-				generalPurposeAgentEnabled = !!(await this._assignmentService.getTreatment<boolean>('chat.generalPurposeAgent'));
-			} catch (error) {
-				this._logService.error('[AutomaticInstructions] Failed to resolve treatment chat.generalPurposeAgent', error);
-			}
+			const generalPurposeAgentEnabled = !!this._configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled);
 
 			const customAgentsEnabled = !!this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
 			const canUseAgent = (() => {
