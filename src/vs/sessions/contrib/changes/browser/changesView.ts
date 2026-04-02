@@ -115,7 +115,7 @@ const hasPullRequestContextKey = new RawContextKey<boolean>('sessions.hasPullReq
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
 const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
-const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', false);
+const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', true);
 
 // --- List Item
 
@@ -913,6 +913,10 @@ export class ChangesViewPane extends ViewPane {
 			const outgoingChangesObs = derived(reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
+				if (!repositoryState) {
+					return 0;
+				}
+
 				return repositoryState?.HEAD?.ahead ?? 0;
 			});
 
@@ -924,6 +928,10 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
+				if (!repositoryState) {
+					return true;
+				}
+
 				return (repositoryState?.mergeChanges.length ?? 0) > 0 ||
 					(repositoryState?.indexChanges.length ?? 0) > 0 ||
 					(repositoryState?.workingTreeChanges.length ?? 0) > 0 ||
@@ -975,7 +983,10 @@ export class ChangesViewPane extends ViewPane {
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
-							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
+							if (
+								action.id === 'github.copilot.sessions.sync' ||
+								action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR'
+							) {
 								const customLabel = outgoingChanges > 0
 									? `${action.label} ${outgoingChanges}↑`
 									: action.label;
@@ -1005,7 +1016,7 @@ export class ChangesViewPane extends ViewPane {
 								action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
 								action.id === 'pr.checkoutFromChat' ||
 								action.id === 'github.copilot.sessions.initializeRepository' ||
-								action.id === 'github.copilot.sessions.commitChanges' ||
+								action.id === 'github.copilot.sessions.commit' ||
 								action.id === 'agentSession.markAsDone'
 							) {
 								return { showIcon: true, showLabel: true, isSecondary: false };
