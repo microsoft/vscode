@@ -141,7 +141,7 @@ jobs:
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Download component details of built-in extensions
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+        continueOnError: true
 
       - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
         displayName: "Component Detection"
@@ -149,7 +149,45 @@ jobs:
           sourceScanPath: $(Build.SourcesDirectory)
           alertWarningLevel: Medium
         continueOnError: true
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
+      - task: notice@0
+        displayName: "Generate ThirdPartyNotices (CG)"
+        inputs:
+          outputfile: $(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt
+        continueOnError: true
+
+      - script: |
+          echo "=== CG NOTICE artifact ==="
+          if [ -f "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" ]; then
+            SIZE=$(wc -c < "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt")
+            echo "Generated file size: $SIZE bytes"
+            cp "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
+            echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.generated.txt"
+          else
+            echo "ERROR: ThirdPartyNotices.generated.txt not found"
+          fi
+        displayName: "Upload CG NOTICE artifact"
+        continueOnError: true
+
+      - script: |
+          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
+          node .oss-build-out/scan-licenses.js \
+            --repo "$(Build.SourcesDirectory)" \
+            --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
+        displayName: "Scan extension-bundled licenses"
+        continueOnError: true
+
+      - script: |
+          node .oss-build-out/merge-notices.js \
+            --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
+            --extensions "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt" \
+            --output "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
+
+          # Upload all artifacts
+          echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.extensions.txt"
+          echo "##vso[artifact.upload containerfolder=notice_output;artifactname=notice_output]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
+        displayName: "Merge CG + extension notices into .new.txt"
+        continueOnError: true
 
       - task: AzureCLI@2
         displayName: Fetch secrets
