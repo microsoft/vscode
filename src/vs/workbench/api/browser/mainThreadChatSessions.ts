@@ -644,13 +644,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	private _applyOptionGroups(handle: number, chatSessionType: string, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
-		const groupsWithCallbacks = optionGroups.map(group => ({
-			...group,
-			onSearch: group.searchable ? async (query: string, token: CancellationToken) => {
-				return await this._proxy.$invokeOptionGroupSearch(handle, group.id, query, token);
-			} : undefined,
-		}));
-		this._chatSessionsService.setOptionGroupsForSessionType(chatSessionType, handle, groupsWithCallbacks);
+		this._chatSessionsService.setOptionGroupsForSessionType(chatSessionType, handle, optionGroups);
 	}
 
 	private getController(handle: number): MainThreadChatSessionItemController {
@@ -929,13 +923,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
 		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
 			if (options?.optionGroups && options.optionGroups.length) {
-				const groupsWithCallbacks = options.optionGroups.map(group => ({
-					...group,
-					onSearch: group.searchable ? async (query: string, token: CancellationToken) => {
-						return await this._proxy.$invokeOptionGroupSearch(handle, group.id, query, token);
-					} : undefined,
-				}));
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, groupsWithCallbacks);
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, [...options.optionGroups]);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}

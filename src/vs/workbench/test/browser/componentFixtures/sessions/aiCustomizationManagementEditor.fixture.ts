@@ -32,7 +32,7 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection } fr
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
@@ -96,7 +96,7 @@ function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier;
 	};
 }
 
-function createMockPromptsService(files: IFixtureFile[], agentInstructions: IResolvedAgentFile[]): IPromptsService {
+function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[]): IPromptsService {
 	const applyToMap = new ResourceMap<string | undefined>();
 	const descriptionMap = new ResourceMap<string | undefined>();
 	for (const f of files) { applyToMap.set(f.uri, f.applyTo); descriptionMap.set(f.uri, f.description); }
@@ -148,16 +148,18 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
 			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
 			const commands = await Promise.all(promptFiles.map(async f => {
-				const promptPath = { uri: f.uri, storage: f.storage, type: f.type, extension: toExtensionInfo(f) as never };
-				const parsedPromptFile = await this.parseNew(f.uri, CancellationToken.None);
 				return {
+					uri: f.uri,
+					userInvocable: true,
 					name: f.name ?? 'prompt',
 					description: f.description,
 					argumentHint: undefined,
-					promptPath: promptPath as IChatPromptSlashCommand['promptPath'],
-					parsedPromptFile,
+					type: f.type,
+					storage: f.storage,
+					source: undefined,
+					extension: toExtensionInfo(f) as never,
 					when: undefined,
-				};
+				} satisfies IChatPromptSlashCommand;
 			}));
 			return commands;
 		}
@@ -301,10 +303,10 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/home/dev/.copilot/hooks/backup-changes.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Backup Changes', description: 'Auto-stash uncommitted changes' },
 ];
 
-const agentInstructions: IResolvedAgentFile[] = [
-	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentFileType.claudeMd },
-	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+const agentInstructions: IAgentInstructionFile[] = [
+	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentInstructionFileType.claudeMd },
+	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 ];
 
 const mcpWorkspaceServers = [

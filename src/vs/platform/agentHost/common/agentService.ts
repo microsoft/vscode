@@ -102,6 +102,8 @@ export interface IAgentCreateSessionConfig {
 	readonly model?: string;
 	readonly session?: URI;
 	readonly workingDirectory?: URI;
+	/** Fork from an existing session at a specific turn index. */
+	readonly fork?: { readonly session: URI; readonly turnIndex: number };
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
@@ -364,6 +366,23 @@ export interface IAgent {
 	 * The `resource` matches {@link IAuthorizationProtectedResourceMetadata.resource}.
 	 */
 	authenticate(resource: string, token: string): Promise<boolean>;
+
+	/**
+	 * Truncate a session's history. If `turnIndex` is provided (0-based), keeps
+	 * turns up to and including that turn. If omitted, all turns are removed.
+	 * Optional — not all providers support truncation.
+	 */
+	truncateSession?(session: URI, turnIndex?: number): Promise<void>;
+
+	/**
+	 * Fork a session at a specific turn, creating a new session on disk
+	 * with the source session's history up to and including the specified turn.
+	 * Optional — not all providers support forking.
+	 *
+	 * @param turnIndex 0-based turn index to fork at.
+	 * @returns The new session's raw ID.
+	 */
+	forkSession?(sourceSession: URI, newSessionId: string, turnIndex: number): Promise<void>;
 
 	/**
 	 * Receives client-provided customization refs and syncs them (e.g. copies
