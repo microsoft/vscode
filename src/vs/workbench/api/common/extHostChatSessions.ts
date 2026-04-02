@@ -406,7 +406,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				throw new Error('Not implemented for providers');
 			},
 			createChatSessionInputState: (_options: vscode.ChatSessionProviderOptionGroup[]) => {
-				throw new Error('Not implemented for providers');
+				return new ChatSessionInputStateImpl([]);
 			},
 			onDidChangeChatSessionItemState: onDidChangeChatSessionItemStateEmitter.event,
 			newChatSessionItemHandler: undefined,
