@@ -925,14 +925,42 @@ function main(): void {
 
 	console.log('');
 	console.log('=== Summary ===');
-	console.log(`  CG (ClearlyDefined):     ${cgEntryCount} packages`);
-	console.log(`  Dynamic (LICENSE files):  ${dynamicCoverageList.length} packages`);
-	console.log(`  Static (manual entries):  ${staticEntriesAdded} packages`);
+
+	// Count unique names vs total entries (multi-version packages)
+	const uniqueNames = new Set(sorted.map(e => e.name.toLowerCase()));
+	const multiVersionCount = sorted.length - uniqueNames.size;
+	const multiVersionPct = ((multiVersionCount / sorted.length) * 100).toFixed(1);
+
+	// Source breakdown
+	const sourceCounts: Record<string, number> = {};
+	for (const entry of sorted) {
+		const src = entry.source || 'unknown';
+		sourceCounts[src] = (sourceCounts[src] || 0) + 1;
+	}
+
+	console.log(`  Total entries:            ${sorted.length}`);
+	console.log(`  Unique package names:     ${uniqueNames.size}`);
+	console.log(`  Multi-version duplicates: ${multiVersionCount} (${multiVersionPct}% of entries)`);
 	console.log(`  Dev deps removed:         ${filteredDevDeps.length} (${filteredDevDeps.join(', ') || 'none'})`);
-	console.log(`  --------------------------------`);
-	console.log(`  Total in NOTICE file:     ${sorted.length} packages`);
 	console.log(`  Output: ${outputPath} (${(output.length / 1024 / 1024).toFixed(2)} MB)`);
 	console.log(`  Report: ${reportPath}`);
+	console.log('');
+	console.log('  Source breakdown:');
+	const sourceEntries = Object.entries(sourceCounts).sort((a, b) => b[1] - a[1]);
+	const sourceLabels: Record<string, string> = {
+		'component-governance': 'Component Governance (license from ClearlyDefined)',
+		'node-modules-license': 'LICENSE file read from node_modules/',
+		'extension-license': 'Built-in extension dep (LICENSE from extension node_modules/)',
+		'extension-transitive-license': 'Built-in extension transitive dep (LICENSE from extension node_modules/)',
+		'sibling-repo-fallback': 'Sibling fallback (LICENSE from another package in the same repo)',
+		'cgmanifest': 'Vendored code (license text inline in cgmanifest.json)',
+		'manual-entry': 'Manual entry (license text in static-notices.json)',
+		'unknown': 'Source not tagged',
+	};
+	for (const [src, count] of sourceEntries) {
+		const pct = ((count / sorted.length) * 100).toFixed(1);
+		console.log(`    ${sourceLabels[src] || src}: ${count} (${pct}%)`);
+	}
 
 	if (dynamicCoverageList.length > 0) {
 		console.log('');
