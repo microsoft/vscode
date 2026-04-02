@@ -1065,6 +1065,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		if (this.hasActiveBatchedConfirmation(templateData.renderedParts)) {
+			return false;
+		}
+
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' ||
@@ -2021,10 +2025,82 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex);
 		}
 
+		// Batch multiple consecutive tool confirmations into an existing confirmation part.
+		// Only batch when the immediately preceding rendered part is a waiting confirmation
+		// (confirmation -> confirmation), not when there's other content between them.
+		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.presentation !== 'hidden') {
+			const state = toolInvocation.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				const existingPart = this.findAdjacentWaitingConfirmationPart(context.contentIndex, templateData.renderedParts);
+				if (existingPart) {
+					existingPart.addBatchedToolInvocation(toolInvocation);
+					// Use a hidden placeholder so the content diff can replaceWith in-place
+					// when the tool leaves confirmation, keeping DOM order correct
+					const placeholder = dom.$('.chat-batched-tool-placeholder');
+					placeholder.style.display = 'none';
+					return {
+						domNode: placeholder,
+						dispose: () => { },
+						hasSameContent: (other) =>
+							other.kind === 'toolInvocation' && existingPart.hasBatchedToolInvocation(other.toolCallId),
+					};
+				}
+			}
+
+			// If this tool is still waiting for confirmation in an active batch, hide it
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				&& this.hasActiveBatchedConfirmation(templateData.renderedParts)) {
+				const { part } = createToolPart();
+				dom.hide(part.domNode);
+				return part;
+			}
+		}
+
 		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
 		const { part } = createToolPart();
 
 		return part;
+	}
+
+	/**
+	 * Finds a ChatToolInvocationPart that's waiting for confirmation and is
+	 * immediately adjacent (the previous rendered part) to the given content index.
+	 * This ensures we only batch consecutive confirmations, not ones separated by other content.
+	 */
+	private findAdjacentWaitingConfirmationPart(contentIndex: number, renderedParts: ReadonlyArray<IChatContentPart> | undefined): ChatToolInvocationPart | undefined {
+		if (!renderedParts || contentIndex <= 0) {
+			return undefined;
+		}
+		// Walk backwards from the immediately preceding index to find
+		// a confirmation part, skipping placeholder/no-content parts
+		for (let i = contentIndex - 1; i >= 0; i--) {
+			const part = renderedParts[i];
+			if (!part) {
+				continue;
+			}
+			// Found a waiting confirmation part — it's adjacent
+			if (part instanceof ChatToolInvocationPart && (part.isWaitingForConfirmation || part.hasActiveBatch)) {
+				return part;
+			}
+			// Found a placeholder for a batched tool — skip it and keep looking
+			if (part.domNode?.classList.contains('chat-batched-tool-placeholder')) {
+				continue;
+			}
+			break;
+		}
+		return undefined;
+	}
+
+	private hasActiveBatchedConfirmation(renderedParts: ReadonlyArray<IChatContentPart> | undefined): boolean {
+		if (!renderedParts) {
+			return false;
+		}
+		for (const part of renderedParts) {
+			if (part instanceof ChatToolInvocationPart && part.hasActiveBatch) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// watch for confirmation part transition when tool invocation is streaming
