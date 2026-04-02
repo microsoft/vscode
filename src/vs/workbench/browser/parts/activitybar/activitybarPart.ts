@@ -39,6 +39,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ChatShortcutViewContainerId } from '../../../contrib/chat/browser/chat.js';
 
 export class ActivitybarPart extends Part {
 
@@ -252,8 +253,6 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
-	private static readonly CHAT_SHORTCUT_VIEW_CONTAINER_ID = 'workbench.panel.chatShortcut';
-
 	constructor(
 		location: ViewContainerLocation,
 		options: IPaneCompositeBarOptions,
@@ -272,18 +271,24 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ICommandService commandService: ICommandService,
 	) {
-		// Wrap the pane composite part to intercept opens of the Chat shortcut container.
+		// Use a Proxy to intercept opens of the Chat shortcut container.
 		// When the user clicks the Chat icon in the Activity Bar, toggle Chat in its
 		// configured location instead of opening the sidebar composite.
-		const wrappedPart = Object.create(paneCompositePart, {
-			openPaneComposite: {
-				value: async (id?: string, focus?: boolean) => {
-					if (id === ActivityBarCompositeBar.CHAT_SHORTCUT_VIEW_CONTAINER_ID) {
-						await commandService.executeCommand('workbench.action.chat.toggle');
-						return undefined;
-					}
-					return paneCompositePart.openPaneComposite(id, focus);
+		// All other method calls are forwarded to the original part, bound to the
+		// original target so that instance state is always accessed correctly.
+		const wrappedPart = new Proxy(paneCompositePart, {
+			get(target, prop) {
+				if (prop === 'openPaneComposite') {
+					return async (id?: string, focus?: boolean) => {
+						if (id === ChatShortcutViewContainerId) {
+							await commandService.executeCommand('workbench.action.chat.toggle');
+							return undefined;
+						}
+						return target.openPaneComposite(id, focus);
+					};
 				}
+				const value = Reflect.get(target, prop, target);
+				return typeof value === 'function' ? value.bind(target) : value;
 			}
 		}) as IPaneCompositePart;
 
