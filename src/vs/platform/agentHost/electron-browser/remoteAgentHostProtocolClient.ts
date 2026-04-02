@@ -24,7 +24,7 @@ import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonR
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { ContentEncoding } from '../common/state/protocol/commands.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
-import { encodeBase64 } from '../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 /**
  * A protocol-level client for a single remote agent host connection.
@@ -208,19 +208,31 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * List the contents of a directory on the remote host's filesystem.
 	 */
-	async browseDirectory(uri: URI): Promise<ICommandMap['browseDirectory']['result']> {
-		return await this._sendRequest('browseDirectory', { uri: uri.toString() });
+	async resourceList(uri: URI): Promise<ICommandMap['resourceList']['result']> {
+		return await this._sendRequest('resourceList', { uri: uri.toString() });
 	}
 
 	/**
-	 * Fetch the content of a file on the remote host's filesystem.
+	 * Read the content of a resource on the remote host.
 	 */
-	async fetchContent(uri: URI): Promise<ICommandMap['fetchContent']['result']> {
-		return this._sendRequest('fetchContent', { uri: uri.toString() });
+	async resourceRead(uri: URI): Promise<ICommandMap['resourceRead']['result']> {
+		return this._sendRequest('resourceRead', { uri: uri.toString() });
 	}
 
-	async writeFile(params: ICommandMap['writeFile']['params']): Promise<ICommandMap['writeFile']['result']> {
-		return this._sendRequest('writeFile', params);
+	async resourceWrite(params: ICommandMap['resourceWrite']['params']): Promise<ICommandMap['resourceWrite']['result']> {
+		return this._sendRequest('resourceWrite', params);
+	}
+
+	async resourceCopy(params: ICommandMap['resourceCopy']['params']): Promise<ICommandMap['resourceCopy']['result']> {
+		return this._sendRequest('resourceCopy', params);
+	}
+
+	async resourceDelete(params: ICommandMap['resourceDelete']['params']): Promise<ICommandMap['resourceDelete']['result']> {
+		return this._sendRequest('resourceDelete', params);
+	}
+
+	async resourceMove(params: ICommandMap['resourceMove']['params']): Promise<ICommandMap['resourceMove']['result']> {
+		return this._sendRequest('resourceMove', params);
 	}
 
 	private _handleMessage(msg: IProtocolMessage): void {
@@ -264,42 +276,43 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/**
-	 * Handles reverse RPC requests from the server (e.g. browseDirectory,
-	 * fetchContent). Reads from the local file service and sends a response.
+	 * Handles reverse RPC requests from the server (e.g. resourceList,
+	 * resourceRead). Reads from the local file service and sends a response.
 	 */
 	private _handleReverseRequest(id: number, method: string, params: unknown): void {
 		const sendResult = (result: unknown) => {
-			const response: IJsonRpcResponse = { jsonrpc: '2.0', id, result };
-			this._transport.send(response);
+			this._transport.send({ jsonrpc: '2.0', id, result });
 		};
 		const sendError = (message: string) => {
-			const response: IJsonRpcResponse = { jsonrpc: '2.0', id, error: { code: -32000, message } };
-			this._transport.send(response);
+			this._transport.send({ jsonrpc: '2.0', id, error: { code: -32000, message } });
+		};
+		const handle = (fn: () => Promise<unknown>) => {
+			fn().then(sendResult, err => sendError(err instanceof Error ? err.message : String(err)));
 		};
 
-		const p = params as { uri?: string };
+		const p = params as Record<string, unknown>;
 		switch (method) {
-			case 'browseDirectory': {
+			case 'resourceList':
 				if (!p.uri) { sendError('Missing uri'); return; }
-				this._fileService.resolve(URI.parse(p.uri)).then(stat => {
-					const entries = (stat.children ?? []).map(c => ({
-						name: c.name,
-						type: c.isDirectory ? 'directory' as const : 'file' as const,
-					}));
-					sendResult({ entries });
-				}).catch(err => sendError(err instanceof Error ? err.message : String(err)));
-				return;
-			}
-			case 'fetchContent': {
+				return handle(async () => {
+					const stat = await this._fileService.resolve(URI.parse(p.uri as string));
+					return { entries: (stat.children ?? []).map(c => ({ name: c.name, type: c.isDirectory ? 'directory' as const : 'file' as const })) };
+				});
+			case 'resourceRead':
 				if (!p.uri) { sendError('Missing uri'); return; }
-				this._fileService.readFile(URI.parse(p.uri)).then(content => {
-					sendResult({
-						data: encodeBase64(content.value),
-						encoding: ContentEncoding.Base64,
-					});
-				}).catch(err => sendError(err instanceof Error ? err.message : String(err)));
-				return;
-			}
+				return handle(async () => {
+					const content = await this._fileService.readFile(URI.parse(p.uri as string));
+					return { data: encodeBase64(content.value), encoding: ContentEncoding.Base64 };
+				});
+			case 'resourceWrite':
+				if (!p.uri || !p.data) { sendError('Missing uri or data'); return; }
+				return handle(() => this._fileService.writeFile(URI.parse(p.uri as string), VSBuffer.fromString(p.data as string)).then(() => ({})));
+			case 'resourceDelete':
+				if (!p.uri) { sendError('Missing uri'); return; }
+				return handle(() => this._fileService.del(URI.parse(p.uri as string), { recursive: !!p.recursive }).then(() => ({})));
+			case 'resourceMove':
+				if (!p.source || !p.destination) { sendError('Missing source or destination'); return; }
+				return handle(() => this._fileService.move(URI.parse(p.source as string), URI.parse(p.destination as string), !p.failIfExists).then(() => ({})));
 			default:
 				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
 				sendError(`Unknown method: ${method}`);

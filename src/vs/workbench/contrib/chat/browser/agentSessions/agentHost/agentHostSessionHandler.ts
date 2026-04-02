@@ -181,8 +181,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
-	/** Per-session writeFile listeners for agent host editing sessions. */
-	private readonly _editingSessionListeners = this._register(new DisposableResourceMap());
 	/** Historical turns with file edits, pending hydration into the editing session. */
 	private readonly _pendingHistoryTurns = new ResourceMap<readonly ITurn[]>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
@@ -339,7 +337,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._sessionToBackend.delete(sessionResource);
 				this._pendingMessageSubscriptions.deleteAndDispose(sessionResource);
 				this._serverTurnWatchers.deleteAndDispose(sessionResource);
-				this._editingSessionListeners.deleteAndDispose(sessionResource);
 				this._pendingHistoryTurns.delete(sessionResource);
 				if (resolvedSession) {
 					this._clientState.unsubscribe(resolvedSession.toString());
@@ -1255,24 +1252,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 
-		// Wire up the writeFile listener if not already done
-		if (!this._editingSessionListeners.has(sessionResource)) {
-			this._editingSessionListeners.set(sessionResource, editingSession.onDidRequestFileWrite(params => {
-				this._config.connection.writeFile(params).catch(err => {
-					this._logService.warn('[AgentHost] writeFile failed for undo/redo', err);
-				});
-			}));
-
-			// Hydrate from historical turns if this is the first time
-			// the editing session is accessed for this chat session.
-			const pendingTurns = this._pendingHistoryTurns.get(sessionResource);
-			if (pendingTurns) {
-				this._pendingHistoryTurns.delete(sessionResource);
-				for (const turn of pendingTurns) {
-					for (const rp of turn.responseParts) {
-						if (rp.kind === ResponsePartKind.ToolCall) {
-							editingSession.addToolCallEdits(turn.id, rp.toolCall);
-						}
+		// Hydrate from historical turns if this is the first time
+		// the editing session is accessed for this chat session.
+		const pendingTurns = this._pendingHistoryTurns.get(sessionResource);
+		if (pendingTurns) {
+			this._pendingHistoryTurns.delete(sessionResource);
+			for (const turn of pendingTurns) {
+				for (const rp of turn.responseParts) {
+					if (rp.kind === ResponsePartKind.ToolCall) {
+						editingSession.addToolCallEdits(turn.id, rp.toolCall);
 					}
 				}
 			}
