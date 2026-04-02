@@ -329,20 +329,6 @@
 	text-transform: uppercase;
 	/* align with session item padding */
 	padding: 0 6px;
-	gap: 4px;
-
-	.session-section-icon {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 100%;
-		color: var(--vscode-descriptionForeground);
-
-		> .codicon {
-			font-size: 12px;
-			line-height: 1;
-		}
-	}
 
 	.session-section-label {
 		flex: 0 1 auto;

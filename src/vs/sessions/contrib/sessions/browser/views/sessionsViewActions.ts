@@ -328,7 +328,7 @@ registerAction2(class UnarchiveSectionAction extends Action2 {
 		super({
 			id: 'sessionsView.sectionUnarchive',
 			title: localize2('unarchiveSection', "Restore All"),
-			icon: Codicon.unarchive,
+			icon: Codicon.discard,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -487,7 +487,7 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 		super({
 			id: 'sessionsViewPane.unarchiveSession',
 			title: localize2('unarchiveSession', "Restore"),
-			icon: Codicon.unarchive,
+			icon: Codicon.discard,
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
