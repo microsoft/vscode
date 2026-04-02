@@ -1813,7 +1813,7 @@ export class AICustomizationListWidget extends Disposable {
 					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 					{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
-				].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents' || g.groupKey === BUILTIN_STORAGE);
+				].filter(g => g.groupKey === BUILTIN_STORAGE || g.groupKey === 'agents' || visibleSources.has(g.groupKey as PromptsStorage));
 
 		for (const item of matchedItems) {
 			const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
