@@ -658,13 +658,15 @@ export class FindMatch {
 
 	public readonly range: Range;
 	public readonly matches: string[] | null;
+	public readonly groups: { [key: string]: string } | null;
 
 	/**
 	 * @internal
 	 */
-	constructor(range: Range, matches: string[] | null) {
+	constructor(range: Range, matches: string[] | null, groups: { [key: string]: string } | null = null) {
 		this.range = range;
 		this.matches = matches;
+		this.groups = groups;
 	}
 }
 
