@@ -17,9 +17,12 @@ parameters:
     type: boolean
     default: true
   - name: publishExtension
-    displayName: Publish Stable Extension
+    displayName: Publish Stable Recovery Extension
     type: boolean
     default: false
+  - name: confirm
+    displayName: This will publish a new recovery extension to the marketplace. Do you want to continue? Type 'yes' to proceed.
+    type: string
 
 extends:
   template: azure-pipelines/extension/stable.yml@templates
