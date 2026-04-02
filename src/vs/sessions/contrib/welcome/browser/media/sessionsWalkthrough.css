@@ -36,7 +36,7 @@
 .sessions-walkthrough-card {
 	display: flex;
 	flex-direction: column;
-	width: 560px;
+	width: 640px;
 	max-width: calc(100vw - 64px);
 	max-height: calc(100vh - 80px);
 	text-align: left;
@@ -194,7 +194,7 @@
 	flex-direction: column;
 	align-items: stretch;
 	gap: 0;
-	width: min(100%, 320px);
+	width: min(100%, 400px);
 	margin-top: 16px;
 }
 
@@ -234,7 +234,7 @@
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact {
 	min-height: 40px;
-	padding: 0;
+	padding: 0 6px;
 	border-radius: 8px;
 	font-size: 11px;
 	gap: 0;
