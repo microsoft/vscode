@@ -118,11 +118,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly cachedInstructions: CachedPromise<IInstructionDiscoveryInfo>;
 
 	/**
-	 * Cached agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md).
-	 */
-	private readonly cachedAgentInstructions: CachedPromise<IAgentInstructionFile[]>;
-
-	/**
 	 * Cache for parsed prompt files keyed by URI.
 	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
 	 */
@@ -247,18 +242,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this._onDidContributedWhenChange.event,
 				this._onDidChangeInstructions.event,
 				this._onDidPluginPromptFilesChange.event,
-			)
-		));
-
-		this.cachedAgentInstructions = this._register(new CachedPromise(
-			(token) => this._computeAgentInstructions(token),
-			() => Event.any(
-				this.getFileLocatorEvent(PromptsType.instructions),
-				Event.filter(this.configurationService.onDidChangeConfiguration, e =>
-					e.affectsConfiguration(PromptsConfig.USE_AGENT_MD) ||
-					e.affectsConfiguration(PromptsConfig.USE_CLAUDE_MD) ||
-					e.affectsConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES) ||
-					e.affectsConfiguration(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS)),
 			)
 		));
 
@@ -965,7 +948,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listAgentInstructions(token: CancellationToken, _logger: Logger | undefined): Promise<IAgentInstructionFile[]> {
-		return this.cachedAgentInstructions.get(token);
+		return this._computeAgentInstructions(token);
 	}
 
 	private async _computeAgentInstructions(token: CancellationToken): Promise<IAgentInstructionFile[]> {

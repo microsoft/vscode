@@ -1263,6 +1263,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Start activation early — overlaps with request preparation below
 					const activationPromise = this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
+					activationPromise.catch(() => { }); // Prevent unhandled rejection if request exits before await
 
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, location, agent.id);
