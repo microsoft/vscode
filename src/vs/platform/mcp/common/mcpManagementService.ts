@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { IFileService } from '../../files/common/files.js';
+import { IFileService, whenProviderRegistered } from '../../files/common/files.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
@@ -341,6 +341,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	private initialize(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
+				await whenProviderRegistered(this.mcpResource, this.fileService);
 				try {
 					this.local = await this.populateLocalServers();
 				} finally {
