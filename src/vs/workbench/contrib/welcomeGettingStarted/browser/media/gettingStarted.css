@@ -756,6 +756,10 @@
 	outline-offset: 0;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .step-list-container {
+	padding-right: 4px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .step-list-container button:focus-visible {
 	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 	outline: none;
