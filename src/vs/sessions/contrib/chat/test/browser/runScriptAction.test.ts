@@ -17,7 +17,7 @@ suite('RunScriptContribution', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('contributes run dropdown with standalone VS Code item and no standalone terminal item', () => {
+	test('contributes run dropdown with standalone VS Code and terminal items', () => {
 		const items = MenuRegistry.getMenuItems(titleBarSessionMenu);
 
 		const runAction = items.find(item => isISubmenuItem(item) && item.submenu.id === 'AgentSessionsRunScriptDropdown');
@@ -25,9 +25,10 @@ suite('RunScriptContribution', () => {
 		const vscodeAction = items.find(item => isIMenuItem(item) && item.command.id === 'chat.openSessionWorktreeInVSCode');
 
 		assert.ok(runAction, 'run dropdown should be contributed to TitleBarSessionMenu');
-		assert.ok(!terminalAction, 'open terminal should not be contributed as a standalone TitleBarSessionMenu item');
+		assert.ok(terminalAction, 'open terminal should be contributed as a standalone TitleBarSessionMenu item');
 		assert.ok(vscodeAction, 'open in VS Code should be contributed as a standalone TitleBarSessionMenu item');
 		assert.strictEqual(runAction.order, 8);
 		assert.strictEqual(vscodeAction.order, 9);
+		assert.strictEqual(terminalAction.order, 10);
 	});
 });

@@ -510,8 +510,8 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			this._primaryActionAction.label = this._getPrimaryActionTooltip(runState);
 		}));
 
-		// Dropdown with categorized actions and per-item toolbars
-		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "Actions")));
+		// Dropdown with categorized task actions and per-item toolbars
+		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Tasks...")));
 		this._dropdown = this._register(new ChevronActionWidgetDropdown(
 			dropdownAction,
 			{
@@ -604,8 +604,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		const worktreeCategory = { label: localize('worktreeCreationCategory', "Run on Worktree Creation"), order: 1, showHeader: true };
 		// Category for task creation and management
 		const tasksCategory = { label: localize('tasksActionsCategory', "Tasks"), order: 2, showHeader: true };
-		// Category for session entry points
-		const openCategory = { label: localize('openActionsCategory', "Open"), order: 3, showHeader: true };
 
 		for (let i = 0; i < tasks.length; i++) {
 			const entry = tasks[i];
@@ -668,40 +666,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			});
 		}
 
-		actions.push({
-			id: 'runScript.openTerminal',
-			label: localize('openTerminal', "Open Terminal"),
-			tooltip: '',
-			hover: {
-				content: localize('openTerminalTooltip', "Open the session terminal"),
-				position: { hoverPosition: HoverPosition.LEFT }
-			},
-			icon: Codicon.terminal,
-			enabled: true,
-			class: undefined,
-			category: openCategory,
-			run: async () => {
-				await this._commandService.executeCommand('agentSession.openInTerminal');
-			},
-		});
-
-		actions.push({
-			id: 'runScript.openInVSCode',
-			label: localize('openInVSCode', "Open in VS Code"),
-			tooltip: '',
-			hover: {
-				content: localize('openInVSCodeTooltip', "Open the session worktree in VS Code"),
-				position: { hoverPosition: HoverPosition.LEFT }
-			},
-			icon: Codicon.vscodeInsiders,
-			enabled: true,
-			class: undefined,
-			category: openCategory,
-			run: async () => {
-				await this._commandService.executeCommand('chat.openSessionWorktreeInVSCode');
-			},
-		});
-
 		// "Add Task..." action
 		const canConfigure = !!(repo?.workingDirectory ?? repo?.uri);
 		actions.push({
@@ -749,14 +713,12 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 }
 
 /**
- * {@link ActionWidgetDropdownActionViewItem} that renders a text label and
- * chevron-down icon for the split button dropdown in the titlebar.
+ * {@link ActionWidgetDropdownActionViewItem} that renders a chevron-down icon
+ * for the split button dropdown in the titlebar.
  */
 class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		element.classList.add('run-script-dropdown-label-container');
-		append(element, $('span.run-script-dropdown-label', undefined, this._action.label));
-		append(element, $('span.codicon.codicon-chevron-down.run-script-dropdown-icon'));
+		element.classList.add('codicon', 'codicon-chevron-down');
 		return null;
 	}
 }

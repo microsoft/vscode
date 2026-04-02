@@ -5,16 +5,15 @@
 
 /* ---- Changes Titlebar Indicator (in right toolbar) ---- */
 
-.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item + .action-item.changes-titlebar-indicator {
+.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item:has(.codicon-vscode-insiders) + .action-item {
 	position: relative;
-	margin-left: 8px;
-	padding-left: 13px;
+	margin-left: 17px;
 }
 
-.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item + .action-item.changes-titlebar-indicator::before {
+.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item:has(.codicon-vscode-insiders) + .action-item::before {
 	content: '';
 	position: absolute;
-	left: 0;
+	left: -9px;
 	top: 3px;
 	width: 1px;
 	height: 16px;
