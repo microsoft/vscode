@@ -584,16 +584,21 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	}
 
 	private async getVisualViewportScale(): Promise<number> {
+		let connection: ICDPConnection | undefined;
 		try {
-			const result = await this._view.webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [{ code: 'window.visualViewport?.scale ?? 1' }]);
-			if (typeof result === 'number') {
-				const scale = Number(result);
+			// Use CDP instead of executeJavaScript so this still works while script execution is paused in DevTools.
+			connection = await this._debugger.attach();
+			const result = await connection.sendCommand('Page.getLayoutMetrics') as { cssVisualViewport?: { scale?: number } };
+			if (typeof result.cssVisualViewport?.scale === 'number') {
+				const scale = Number(result.cssVisualViewport.scale);
 				if (Number.isFinite(scale) && scale > 0) {
 					return scale;
 				}
 			}
 		} catch {
 			// Ignore execution errors while loading and use defaults.
+		} finally {
+			connection?.dispose();
 		}
 
 		return 1;
