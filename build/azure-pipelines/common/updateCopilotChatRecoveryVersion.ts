@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { retry, handleAll, ExponentialBackoff } from 'cockatiel';
-import { execSync } from 'child_process';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 
 const MARKETPLACE_EXTENSION_NAME = 'GitHub.copilot-chat';
 const MARKETPLACE_API_URL = 'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery';
+const COPILOT_PACKAGE_JSON_PATH = path.resolve(__dirname, '../../../extensions/copilot/package.json');
 
 interface IMarketplaceQueryResult {
 	readonly results: {
@@ -17,6 +19,15 @@ interface IMarketplaceQueryResult {
 			}[];
 		}[];
 	}[];
+}
+
+interface ICopilotPackageJson {
+	version: string;
+	engines?: {
+		vscode?: string;
+		[key: string]: unknown;
+	};
+	[key: string]: unknown;
 }
 
 const retryPolicy = retry(handleAll, {
@@ -36,7 +47,7 @@ async function queryMarketplaceVersions(extensionName: string): Promise<string[]
 		flags: 0x1 /* IncludeVersions */
 	});
 
-	const response = await retryPolicy.execute((context) => {
+	const response = await retryPolicy.execute(context => {
 		if (context.attempt > 0) {
 			console.log(`Retrying Marketplace query (attempt ${context.attempt + 1})...`);
 		}
@@ -79,9 +90,9 @@ function getHighestPatch(versions: string[], major: number, minor: number): numb
 		}
 
 		const [, vMajor, vMinor, vPatch] = match;
-		if (parseInt(vMajor) === major && parseInt(vMinor) === minor) {
+		if (Number.parseInt(vMajor, 10) === major && Number.parseInt(vMinor, 10) === minor) {
 			matching.push(version);
-			highest = Math.max(highest, parseInt(vPatch));
+			highest = Math.max(highest, Number.parseInt(vPatch, 10));
 		}
 	}
 
@@ -95,22 +106,7 @@ function getHighestPatch(versions: string[], major: number, minor: number): numb
 	return highest;
 }
 
-function getMostRecentReleaseBranch(): { major: number; minor: number } {
-	console.log('Looking for most recent release/* branch...');
-	const output = execSync('git branch -r --list "origin/release/*" --sort=-version:refname', { encoding: 'utf8' });
-
-	for (const line of output.split('\n')) {
-		const match = /origin\/release\/(\d+)\.(\d+)/.exec(line.trim());
-		if (match) {
-			console.log(`Most recent release branch: release/${match[1]}.${match[2]}`);
-			return { major: parseInt(match[1]), minor: parseInt(match[2]) };
-		}
-	}
-
-	throw new Error('No release/* branches found');
-}
-
-async function main() {
+async function computeVersion(): Promise<{ version: string; major: number; minor: number }> {
 	const sourceBranch = process.env['BUILD_SOURCEBRANCH'] ?? '';
 	console.log(`Source branch: ${sourceBranch || '(not set)'}`);
 
@@ -121,8 +117,8 @@ async function main() {
 	let patch: number;
 
 	if (releaseBranchMatch) {
-		major = parseInt(releaseBranchMatch[1]);
-		minor = parseInt(releaseBranchMatch[2]);
+		major = Number.parseInt(releaseBranchMatch[1], 10);
+		minor = Number.parseInt(releaseBranchMatch[2], 10);
 		console.log(`On release branch: ${major}.${minor}`);
 
 		const versions = await queryMarketplaceVersions(MARKETPLACE_EXTENSION_NAME);
@@ -130,15 +126,37 @@ async function main() {
 		patch = highestPatch + 1;
 		console.log(`Next patch version: ${patch}`);
 	} else {
-		console.log('Not on a release branch, looking up most recent release branch...');
-		const { major: m, minor: n } = getMostRecentReleaseBranch();
-		major = m;
-		minor = n;
+		console.log('Not on a release branch, set to 1.0.0');
+		major = 1;
+		minor = 0;
 		patch = 0;
 	}
 
 	const version = `${major}.${minor}.${patch}`;
 	console.log(`Computed version: ${version}`);
+	return { version, major, minor };
+}
+
+async function updatePackageJson(version: string, major: number, minor: number): Promise<void> {
+	const vscodeEngineVersion = `^${major}.${minor}.0`;
+	const packageJsonContents = await fs.readFile(COPILOT_PACKAGE_JSON_PATH, 'utf8');
+	const packageJson = JSON.parse(packageJsonContents) as ICopilotPackageJson;
+
+	packageJson.version = version;
+	packageJson.engines = {
+		...packageJson.engines,
+		vscode: vscodeEngineVersion,
+	};
+
+	await fs.writeFile(COPILOT_PACKAGE_JSON_PATH, `${JSON.stringify(packageJson, null, '\t')}\n`);
+	console.log(`Updated ${COPILOT_PACKAGE_JSON_PATH}`);
+	console.log(`- version: ${version}`);
+	console.log(`- engines.vscode: ${vscodeEngineVersion}`);
+}
+
+async function main(): Promise<void> {
+	const { version, major, minor } = await computeVersion();
+	await updatePackageJson(version, major, minor);
 }
 
 main().catch(err => {

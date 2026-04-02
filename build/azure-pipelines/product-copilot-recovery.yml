@@ -47,12 +47,8 @@ extends:
         displayName: Initialize copilot submodule
 
       - template: copilot/setup-steps.yml
-      - script: |
-          set -e
-          VERSION=$(node build/azure-pipelines/common/computeCopilotChatVersion.ts)
-          echo "Computed Copilot Chat version: $VERSION"
-          echo "##vso[task.setvariable variable=COPILOT_CHAT_VERSION]$VERSION"
-        displayName: Compute Copilot Chat version
+      - script: node build/azure-pipelines/common/updateCopilotChatRecoveryVersion.ts
+        displayName: Update Copilot Chat recovery version
       - template: copilot/build-steps.yml
 
     uploadSourceMaps:
