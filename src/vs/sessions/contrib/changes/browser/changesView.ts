@@ -924,7 +924,8 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
-				return (repositoryState?.indexChanges.length ?? 0) > 0 ||
+				return (repositoryState?.mergeChanges.length ?? 0) > 0 ||
+					(repositoryState?.indexChanges.length ?? 0) > 0 ||
 					(repositoryState?.workingTreeChanges.length ?? 0) > 0 ||
 					(repositoryState?.untrackedChanges.length ?? 0) > 0;
 			}));
