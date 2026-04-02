@@ -802,6 +802,74 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(dbNameInput?.description, 'Database name');
 		});
 
+		test('repeated variable placeholders in environment values should all be replaced', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
+					version: '1.0.0',
+					environmentVariables: [{
+						name: 'AUTH_CHAIN',
+						value: 'Bearer {api_token}:{api_token}',
+						variables: {
+							api_token: {
+								description: 'API token',
+								isSecret: true,
+								isRequired: true
+							}
+						}
+					}]
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, {
+					'AUTH_CHAIN': 'Bearer ${input:api_token}:${input:api_token}'
+				});
+			}
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'api_token');
+		});
+
+		test('repeated variable placeholders in argument values should all be replaced', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
+					version: '1.0.0',
+					packageArguments: [{
+						type: 'named',
+						name: '--header',
+						value: 'Authorization=Bearer {api_token}:{api_token}',
+						isRepeated: false,
+						variables: {
+							api_token: {
+								description: 'API token',
+								isSecret: true,
+								isRequired: true
+							}
+						}
+					}]
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'test-server@1.0.0',
+					'--header',
+					'Authorization=Bearer ${input:api_token}:${input:api_token}'
+				]);
+			}
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'api_token');
+		});
+
 		test('variable with choices creates pick input', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
