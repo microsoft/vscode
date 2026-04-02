@@ -7,7 +7,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { app } from 'electron';
 import { existsSync, unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
-import { release, tmpdir } from 'os';
+import { arch as osArch, release, tmpdir } from 'os';
 import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -56,6 +56,27 @@ function getUpdateType(): UpdateType {
 	return _updateType;
 }
 
+/**
+ * Gets the actual OS architecture for update purposes.
+ * On Windows ARM64, process.arch may return 'x64' if running under emulation,
+ * but we need to download the arm64 version of VS Code.
+ */
+function getOSArch(): string {
+	const machine = osArch();
+	// Normalize architecture names to match VS Code release naming
+	if (machine === 'ARM64' || machine === 'arm64') {
+		return 'arm64';
+	}
+	if (machine === 'x64' || machine === 'amd64') {
+		return 'x64';
+	}
+	if (machine === 'ia32') {
+		return 'ia32';
+	}
+	// Fallback to process.arch if we don't recognize the machine type
+	return process.arch;
+}
+
 export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
@@ -63,7 +84,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 	@memoize
 	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${getOSArch()}`);
 		return mkdir(result, { recursive: true }).then(() => result);
 	}
 
@@ -185,7 +206,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
-		let platform = `win32-${process.arch}`;
+		let platform = `win32-${getOSArch()}`;
 
 		if (getUpdateType() === UpdateType.Archive) {
 			platform += '-archive';
