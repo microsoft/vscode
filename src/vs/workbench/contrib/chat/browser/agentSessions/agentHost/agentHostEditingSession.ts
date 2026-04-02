@@ -19,8 +19,7 @@ import { IEditorWorkerService } from '../../../../../../editor/common/services/e
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ContentEncoding, IWriteFileParams } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { getToolFileEdits, ToolCallStatus, type IToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { FileEditKind, ToolCallStatus, type IToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { EditorActivation } from '../../../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -36,19 +35,11 @@ import { fileEditsToExternalEdits, type IToolCallFileEdit } from './stateToProgr
 
 // ---- Internal data model ----------------------------------------------------
 
-interface IAgentHostFileEdit {
-	readonly resource: URI;
-	readonly beforeContentUri: URI;
-	readonly afterContentUri: URI;
-	readonly undoStopId: string;
-	readonly diff?: { added?: number; removed?: number };
-}
-
 interface IAgentHostCheckpoint {
 	readonly requestId: string;
 	/** Tool-call ID, or `undefined` for the sentinel checkpoint at request start. */
 	readonly undoStopId: string | undefined;
-	readonly edits: IAgentHostFileEdit[];
+	readonly edits: IToolCallFileEdit[];
 }
 
 // ---- Modified file entry ----------------------------------------------------
@@ -145,9 +136,6 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _onDidRequestFileWrite = this._register(new Emitter<IWriteFileParams>());
-	readonly onDidRequestFileWrite: Event<IWriteFileParams> = this._onDidRequestFileWrite.event;
-
 	private readonly _checkpoints: IAgentHostCheckpoint[] = [];
 	private readonly _currentCheckpointIndex = observableValue<number>(this, -1);
 	private readonly _diffCache = new Map<string, IEditSessionEntryDiff>();
@@ -214,14 +202,15 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		}
 
 		const authority = this._connectionAuthority;
-		const protocolEdits = getToolFileEdits(tc);
 
-		const edits: IAgentHostFileEdit[] = fileEdits.map((edit: IToolCallFileEdit, i: number) => ({
+		const edits: IToolCallFileEdit[] = fileEdits.map((edit: IToolCallFileEdit) => ({
+			kind: edit.kind,
 			resource: toAgentHostUri(edit.resource, authority),
-			beforeContentUri: toAgentHostUri(edit.beforeContentUri, authority),
-			afterContentUri: toAgentHostUri(edit.afterContentUri, authority),
+			originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
+			beforeContentUri: edit.beforeContentUri ? toAgentHostUri(edit.beforeContentUri, authority) : undefined,
+			afterContentUri: edit.afterContentUri ? toAgentHostUri(edit.afterContentUri, authority) : undefined,
 			undoStopId: edit.undoStopId,
-			diff: protocolEdits[i]?.diff,
+			diff: edit.diff,
 		}));
 
 		const checkpoint: IAgentHostCheckpoint = {
@@ -244,11 +233,24 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		// Build progress parts for the file edit pills in the chat response
 		const progressParts: IChatProgress[] = [];
 		for (const edit of edits) {
-			progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
-			progressParts.push({ kind: 'codeblockUri', uri: edit.resource, isEdit: true, undoStopId: tc.toolCallId });
-			progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: false, isExternalEdit: true });
-			progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: true, isExternalEdit: true });
-			progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+			// Emit workspace file edit progress for creates, deletes, and renames
+			if (edit.kind === FileEditKind.Create || edit.kind === FileEditKind.Delete || edit.kind === FileEditKind.Rename) {
+				progressParts.push({
+					kind: 'workspaceEdit',
+					edits: [{
+						oldResource: edit.originalResource ?? (edit.kind === FileEditKind.Delete ? edit.resource : undefined),
+						newResource: edit.kind === FileEditKind.Delete ? undefined : edit.resource,
+					}],
+				});
+			}
+			// Emit code-block UI for content edits (and renames/creates with content)
+			if (edit.afterContentUri) {
+				progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+				progressParts.push({ kind: 'codeblockUri', uri: edit.resource, isEdit: true, undoStopId: tc.toolCallId });
+				progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: false, isExternalEdit: true });
+				progressParts.push({ kind: 'textEdit', uri: edit.resource, edits: [], done: true, isExternalEdit: true });
+				progressParts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+			}
 		}
 		return progressParts;
 	}
@@ -378,6 +380,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 		}
 
 		try {
+			if (!edit.afterContentUri) {
+				return VSBuffer.fromByteArray([]);
+			}
 			const content = await this._fileService.readFile(edit.afterContentUri);
 			return content.value;
 		} catch (err) {
@@ -697,7 +702,7 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 
 	private _rebuildEntries(): void {
 		const currentIdx = this._currentCheckpointIndex.get();
-		const resourceMap = new Map<string, { resource: URI; beforeContentUri: URI; afterContentUri: URI; requestId: string; added: number; removed: number }>();
+		const resourceMap = new Map<string, { resource: URI; beforeContentUri?: URI; afterContentUri?: URI; requestId: string; added: number; removed: number }>();
 
 		for (let i = 0; i <= currentIdx && i < this._checkpoints.length; i++) {
 			const cp = this._checkpoints[i];
@@ -706,7 +711,9 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 				const existing = resourceMap.get(key);
 				if (existing) {
 					// Update after-content to the latest, accumulate diff counts
-					existing.afterContentUri = edit.afterContentUri;
+					if (edit.afterContentUri) {
+						existing.afterContentUri = edit.afterContentUri;
+					}
 					existing.requestId = cp.requestId;
 					existing.added += edit.diff?.added ?? 0;
 					existing.removed += edit.diff?.removed ?? 0;
@@ -723,28 +730,90 @@ export class AgentHostEditingSession extends Disposable implements IChatEditingS
 			}
 		}
 
-		const entries = [...resourceMap.values()].map(v =>
-			new AgentHostModifiedFileEntry(v.resource, v.beforeContentUri, v.requestId, v.added, v.removed)
-		);
+		const entries = [...resourceMap.values()]
+			.filter(v => v.beforeContentUri && v.afterContentUri)
+			.map(v =>
+				new AgentHostModifiedFileEntry(v.resource, v.beforeContentUri!, v.requestId, v.added, v.removed)
+			);
 
 		this._entriesObs.set(entries, undefined);
 	}
 
 	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
-		const writes = checkpoint.edits.map(async edit => {
-			const contentUri = direction === 'before' ? edit.beforeContentUri : edit.afterContentUri;
+		const ops = checkpoint.edits.map(async edit => {
 			try {
-				const file = await this._fileService.readFile(contentUri);
-				this._onDidRequestFileWrite.fire({
-					uri: edit.resource.toString(),
-					data: file.value.toString(),
-					encoding: ContentEncoding.Utf8,
-				});
+				if (direction === 'before') {
+					// Undoing this edit
+					switch (edit.kind) {
+						case FileEditKind.Create:
+							// Undo create → delete the file
+							await this._fileService.del(edit.resource);
+							break;
+						case FileEditKind.Delete:
+							// Undo delete → recreate from before-snapshot
+							if (edit.beforeContentUri) {
+								const content = await this._fileService.readFile(edit.beforeContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+						case FileEditKind.Rename:
+							// Undo rename → move back to original
+							if (edit.originalResource) {
+								await this._fileService.move(edit.resource, edit.originalResource, true);
+							}
+							// Also restore before-content if we have it
+							if (edit.beforeContentUri && edit.originalResource) {
+								const content = await this._fileService.readFile(edit.beforeContentUri);
+								await this._fileService.writeFile(edit.originalResource, content.value);
+							}
+							break;
+						case FileEditKind.Edit:
+							// Undo edit → write before-snapshot content
+							if (edit.beforeContentUri) {
+								const content = await this._fileService.readFile(edit.beforeContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+					}
+				} else {
+					// Redoing this edit
+					switch (edit.kind) {
+						case FileEditKind.Create:
+							// Redo create → recreate from after-snapshot
+							if (edit.afterContentUri) {
+								const content = await this._fileService.readFile(edit.afterContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+						case FileEditKind.Delete:
+							// Redo delete → delete the file again
+							await this._fileService.del(edit.resource);
+							break;
+						case FileEditKind.Rename:
+							// Redo rename → move from original to new
+							if (edit.originalResource) {
+								await this._fileService.move(edit.originalResource, edit.resource, true);
+							}
+							// Also apply after-content if we have it
+							if (edit.afterContentUri) {
+								const content = await this._fileService.readFile(edit.afterContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+						case FileEditKind.Edit:
+							// Redo edit → write after-snapshot content
+							if (edit.afterContentUri) {
+								const content = await this._fileService.readFile(edit.afterContentUri);
+								await this._fileService.writeFile(edit.resource, content.value);
+							}
+							break;
+					}
+				}
 			} catch (err) {
-				this._logService.warn(`[AgentHostEditingSession] Failed to fetch content for ${direction}`, contentUri.toString(), err);
+				this._logService.warn(`[AgentHostEditingSession] Failed to ${direction === 'before' ? 'undo' : 'redo'} ${edit.kind} for ${edit.resource.toString()}`, err);
 			}
 		});
-		await Promise.all(writes);
+		await Promise.all(ops);
 	}
 
 	/**
