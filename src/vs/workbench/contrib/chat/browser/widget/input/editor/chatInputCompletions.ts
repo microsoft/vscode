@@ -257,7 +257,7 @@ class SlashCommandCompletions extends Disposable {
 					.filter(c => {
 						if (widget.lockedAgentId) {
 							// Exclude extension-provided prompt files for locked agents.
-							if (c.promptPath.extension) {
+							if (c.extension) {
 								return false;
 							}
 							// Exclude hooks as those don't work in locked agent scenarios.
