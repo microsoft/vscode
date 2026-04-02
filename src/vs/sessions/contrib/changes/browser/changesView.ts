@@ -65,8 +65,7 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { GitDiffChange, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { CIStatusWidget } from './ciStatusWidget.js';
+import { CIStatusWidget } from './checksWidget.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../sessions/common/sessionData.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -75,6 +74,7 @@ import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
+import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;
 
@@ -115,6 +115,7 @@ const hasPullRequestContextKey = new RawContextKey<boolean>('sessions.hasPullReq
 const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
 const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
+const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', true);
 
 // --- List Item
 
@@ -129,8 +130,6 @@ interface IChangesFileItem {
 	readonly changeType: ChangeType;
 	readonly linesAdded: number;
 	readonly linesRemoved: number;
-	readonly reviewCommentCount: number;
-	readonly agentFeedbackCount: number;
 }
 
 interface IChangesRootItem {
@@ -243,9 +242,7 @@ function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undef
 			isDeletion,
 			changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
 			linesAdded: change.insertions,
-			linesRemoved: change.deletions,
-			reviewCommentCount: 0,
-			agentFeedbackCount: 0,
+			linesRemoved: change.deletions
 		} satisfies IChangesFileItem;
 	});
 }
@@ -554,7 +551,6 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
-		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -624,6 +620,7 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		this.filesCountBadge = dom.append(this.filesHeaderNode, $('.changes-files-count'));
+		this.filesCountBadge.style.display = 'none';
 
 		// Overview section (header with summary only - actions moved outside card)
 		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
@@ -637,8 +634,10 @@ export class ChangesViewPane extends ViewPane {
 		// List container
 		this.listContainer = dom.append(this.contentContainer, $('.changes-file-list'));
 
-		// Welcome message for empty state
+		// Welcome message for empty state (hidden by default, shown when no changes)
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
+		this.welcomeContainer.style.display = 'none';
+
 		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
 		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
@@ -752,8 +751,6 @@ export class ChangesViewPane extends ViewPane {
 
 		// Convert session file changes to list items (cloud/background sessions)
 		const sessionFilesObs = derived(reader => {
-			const reviewCommentCountByFile = this.viewModel.activeSessionReviewCommentCountByFileObs.read(reader);
-			const agentFeedbackCountByFile = this.viewModel.activeSessionAgentFeedbackCountByFileObs.read(reader);
 			const changes = [...this.viewModel.activeSessionChangesObs.read(reader)];
 
 			return changes.map((entry): IChangesFileItem => {
@@ -770,14 +767,20 @@ export class ChangesViewPane extends ViewPane {
 					isDeletion,
 					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
 					linesAdded: entry.insertions,
-					linesRemoved: entry.deletions,
-					reviewCommentCount: reviewCommentCountByFile.get(uri.fsPath) ?? 0,
-					agentFeedbackCount: agentFeedbackCountByFile.get(uri.fsPath) ?? 0,
+					linesRemoved: entry.deletions
 				};
 			});
 		});
 
 		const isLoadingChangesObs = derived(reader => {
+			// If there is a git repository, wait for the repository to be opened first,
+			// as there are many context keys that depend on the repository information.
+			// We want to avoid flickering of the actions.
+			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			if (hasGitRepository && this.viewModel.activeSessionRepositoryObs.read(reader) === undefined) {
+				return true;
+			}
+
 			const versionMode = this.viewModel.versionModeObs.read(reader);
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return false;
@@ -912,12 +915,23 @@ export class ChangesViewPane extends ViewPane {
 			const outgoingChangesObs = derived(reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
+
 				return repositoryState?.HEAD?.ahead ?? 0;
 			});
 
 			this.renderDisposables.add(bindContextKey(hasOutgoingChangesContextKey, this.scopedContextKeyService, reader => {
 				const outgoingChanges = outgoingChangesObs.read(reader);
 				return outgoingChanges > 0;
+			}));
+
+			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, reader => {
+				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = repository?.state.read(reader);
+
+				return (repositoryState?.mergeChanges.length ?? 0) > 0 ||
+					(repositoryState?.indexChanges.length ?? 0) > 0 ||
+					(repositoryState?.workingTreeChanges.length ?? 0) > 0 ||
+					(repositoryState?.untrackedChanges.length ?? 0) > 0;
 			}));
 
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
@@ -965,7 +979,10 @@ export class ChangesViewPane extends ViewPane {
 							? { args: [sessionResource, this.agentSessionsService.getSession(sessionResource)?.metadata] }
 							: { shouldForwardArgs: true },
 						buttonConfigProvider: (action) => {
-							if (action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR') {
+							if (
+								action.id === 'github.copilot.sessions.sync' ||
+								action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR'
+							) {
 								const customLabel = outgoingChanges > 0
 									? `${action.label} ${outgoingChanges}↑`
 									: action.label;
@@ -995,7 +1012,7 @@ export class ChangesViewPane extends ViewPane {
 								action.id === 'github.copilot.chat.checkoutPullRequestReroute' ||
 								action.id === 'pr.checkoutFromChat' ||
 								action.id === 'github.copilot.sessions.initializeRepository' ||
-								action.id === 'github.copilot.sessions.commitChanges' ||
+								action.id === 'github.copilot.sessions.commit' ||
 								action.id === 'agentSession.markAsDone'
 							) {
 								return { showIcon: true, showLabel: true, isSecondary: false };
@@ -1035,6 +1052,7 @@ export class ChangesViewPane extends ViewPane {
 
 			if (this.filesCountBadge) {
 				this.filesCountBadge.textContent = `${files}`;
+				this.filesCountBadge.style.display = '';
 			}
 		}));
 
@@ -1130,34 +1148,12 @@ export class ChangesViewPane extends ViewPane {
 			}));
 		}
 
-		// Bind CI status widget to active session's PR CI model
+		// Checks
 		if (this.ciStatusWidget) {
-			const activeSessionResourceObs = derived(this, reader => this.sessionManagementService.activeSession.read(reader)?.resource);
+			const checksViewModel = this.instantiationService.createInstance(ChecksViewModel);
+			this.renderDisposables.add(checksViewModel);
 
-			const ciModelObs = derived(this, reader => {
-				const session = this.sessionManagementService.activeSession.read(reader);
-				if (!session) {
-					return undefined;
-				}
-				const gitHubInfo = session.gitHubInfo.read(reader);
-				if (!gitHubInfo?.pullRequest) {
-					return undefined;
-				}
-				const prModel = this.gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-				const pr = prModel.pullRequest.read(reader);
-				if (!pr) {
-					return undefined;
-				}
-				// Use the PR's headSha (commit SHA) rather than the branch
-				// name so CI checks can still be fetched after branch deletion
-				// (e.g. after the PR is merged).
-				const ciModel = this.gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headSha);
-				ciModel.refresh();
-				ciModel.startPolling();
-				reader.store.add({ dispose: () => ciModel.stopPolling() });
-				return ciModel;
-			});
-			this.renderDisposables.add(this.ciStatusWidget.bind(ciModelObs, activeSessionResourceObs));
+			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel));
 		}
 
 		// Update tree data with combined entries
@@ -1496,7 +1492,6 @@ class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
 
 interface IChangesTreeTemplate {
 	readonly label: IResourceLabel;
-	readonly templateDisposables: DisposableStore;
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 	readonly contextKeyService: IContextKeyService | undefined;
 	readonly reviewCommentsBadge: HTMLElement;
@@ -1505,6 +1500,8 @@ interface IChangesTreeTemplate {
 	readonly addedSpan: HTMLElement;
 	readonly removedSpan: HTMLElement;
 	readonly lineCountsContainer: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElement, void, IChangesTreeTemplate> {
@@ -1561,7 +1558,7 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		const decorationBadge = dom.$('.changes-decoration-badge');
 		label.element.appendChild(decorationBadge);
 
-		return { templateDisposables, label, toolbar, contextKeyService, reviewCommentsBadge, agentFeedbackBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer };
+		return { label, toolbar, contextKeyService, reviewCommentsBadge, agentFeedbackBadge, decorationBadge, addedSpan, removedSpan, lineCountsContainer, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
@@ -1630,29 +1627,41 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateData.lineCountsContainer.style.display = showChangeDecorations ? '' : 'none';
 		templateData.decorationBadge.style.display = showChangeDecorations ? '' : 'none';
 
-		if (data.reviewCommentCount > 0) {
-			templateData.reviewCommentsBadge.style.display = '';
-			templateData.reviewCommentsBadge.className = 'changes-review-comments-badge';
-			templateData.reviewCommentsBadge.replaceChildren(
-				dom.$('.codicon.codicon-comment-unresolved'),
-				dom.$('span', undefined, `${data.reviewCommentCount}`)
-			);
-		} else {
-			templateData.reviewCommentsBadge.style.display = 'none';
-			templateData.reviewCommentsBadge.replaceChildren();
-		}
+		// Review comments
+		templateData.elementDisposables.add(autorun(reader => {
+			const reviewCommentByFile = this.viewModel.activeSessionReviewCommentCountByFileObs.read(reader);
+			const reviewCommentCount = reviewCommentByFile?.get(data.uri.fsPath) ?? 0;
 
-		if (data.agentFeedbackCount > 0) {
-			templateData.agentFeedbackBadge.style.display = '';
-			templateData.agentFeedbackBadge.className = 'changes-agent-feedback-badge';
-			templateData.agentFeedbackBadge.replaceChildren(
-				dom.$('.codicon.codicon-comment'),
-				dom.$('span', undefined, `${data.agentFeedbackCount}`)
-			);
-		} else {
-			templateData.agentFeedbackBadge.style.display = 'none';
-			templateData.agentFeedbackBadge.replaceChildren();
-		}
+			if (reviewCommentCount > 0) {
+				templateData.reviewCommentsBadge.style.display = '';
+				templateData.reviewCommentsBadge.className = 'changes-review-comments-badge';
+				templateData.reviewCommentsBadge.replaceChildren(
+					dom.$('.codicon.codicon-comment-unresolved'),
+					dom.$('span', undefined, `${reviewCommentCount}`)
+				);
+			} else {
+				templateData.reviewCommentsBadge.style.display = 'none';
+				templateData.reviewCommentsBadge.replaceChildren();
+			}
+		}));
+
+		// Agent feedback
+		templateData.elementDisposables.add(autorun(reader => {
+			const agentFeedbackByFile = this.viewModel.activeSessionAgentFeedbackCountByFileObs.read(reader);
+			const agentFeedbackCount = agentFeedbackByFile?.get(data.uri.fsPath) ?? 0;
+
+			if (agentFeedbackCount > 0) {
+				templateData.agentFeedbackBadge.style.display = '';
+				templateData.agentFeedbackBadge.className = 'changes-agent-feedback-badge';
+				templateData.agentFeedbackBadge.replaceChildren(
+					dom.$('.codicon.codicon-comment'),
+					dom.$('span', undefined, `${agentFeedbackCount}`)
+				);
+			} else {
+				templateData.agentFeedbackBadge.style.display = 'none';
+				templateData.agentFeedbackBadge.replaceChildren();
+			}
+		}));
 
 		const badge = templateData.decorationBadge;
 		badge.className = 'changes-decoration-badge';
@@ -1735,7 +1744,16 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		}
 	}
 
+	disposeElement(_element: ITreeNode<ChangesTreeElement, void>, _index: number, templateData: IChangesTreeTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeCompressedElements(_element: ITreeNode<ICompressedTreeNode<ChangesTreeElement>, void>, _index: number, templateData: IChangesTreeTemplate): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: IChangesTreeTemplate): void {
+		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
 	}
 }

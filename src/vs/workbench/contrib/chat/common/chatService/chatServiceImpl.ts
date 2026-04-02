@@ -604,12 +604,11 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 		const chatSessionType = getChatSessionType(sessionResource);
-		const contribution = this.chatSessionService.getChatSessionContribution(chatSessionType);
 		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
 		const storedPermissionLevel = this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.permissionLevel;
 		let initialData: ISerializedChatDataReference | undefined = undefined;
-		if ((modelId || agentUri) && contribution?.useRequestToPopulateBuiltInPickers) {
+		if ((modelId || agentUri)) {
 			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
 			const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
 			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata } : undefined;

@@ -335,7 +335,7 @@ export class SessionsView extends ViewPane {
 			constructor() {
 				super({
 					id: 'sessionsViewPane.filterArchived',
-					title: localize('filterArchived', "Archived"),
+					title: localize('filterArchived', "Done"),
 					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
 					menu: [{
 						id: SessionsViewFilterOptionsSubMenu,
