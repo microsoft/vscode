@@ -111,7 +111,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
 		this._view.setBackgroundColor('#FFFFFF');
-		this._view.webContents.setVisualZoomLevelLimits(1, 3);
+		void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+			this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
+		});
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {
