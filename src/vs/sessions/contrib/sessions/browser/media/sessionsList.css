@@ -111,18 +111,7 @@
 		line-height: 17px;
 
 		> .codicon {
-		gap: 4px;
 			flex-shrink: 0;
-		.session-section-icon {
-			display: flex;
-			align-items: center;
-			color: var(--vscode-descriptionForeground);
-
-			> .codicon {
-				font-size: 12px;
-			}
-		}
-
 			font-size: 12px;
 			height: 16px;
 			display: flex;
