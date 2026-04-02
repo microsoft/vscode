@@ -79,7 +79,7 @@ export class AgentSessionHoverWidget extends Disposable {
 	}
 
 	private async loadModel() {
-		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token);
+		const modelRef = await this.chatService.acquireOrLoadSession(this.session.resource, ChatAgentLocation.Chat, this.cts.token, 'AgentSessionHoverWidget#loadModel');
 		if (this._store.isDisposed) {
 			modelRef?.dispose();
 			return;

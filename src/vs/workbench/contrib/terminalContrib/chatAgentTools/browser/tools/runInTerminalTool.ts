@@ -38,7 +38,7 @@ import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '.
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
+import { buildCommandDisplayText, extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh, normalizeTerminalCommandForDisplay } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
@@ -66,7 +66,6 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
-import { ChatConfiguration, isAutoApproveLevel } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
@@ -75,6 +74,8 @@ import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
+import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
+import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 
 // #region Tool data
 
@@ -96,7 +97,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'',
 		'Directory Management:',
 		'- Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected',
-		'- Remember when isBackground=false is specified, that the shell and cwd are reused until it is moved to the background',
+		'- By default (mode=sync), shell and cwd are reused by subsequent sync commands',
 		'- Use $PWD or Get-Location for current directory',
 		'- Use Push-Location/Pop-Location for directory stack',
 		'',
@@ -105,9 +106,10 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Install modules via Install-Module, Install-Package',
 		'- Use Get-Command to verify cmdlet/function availability',
 		'',
-		'Background Processes:',
-		'- For long-running tasks (e.g., servers), set isBackground=true',
+		'Async Mode:',
+		'- For long-running tasks (e.g., servers), use mode=async',
 		'- Returns a terminal ID for checking status and runtime later',
+		`- Use ${TerminalToolId.SendToTerminal} to send commands to a persistent terminal session (async mode)`,
 		'- Use Start-Job for background PowerShell jobs',
 	];
 
@@ -131,7 +133,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} or ${TerminalToolId.GetTerminalOutput} instead`,
+		`- NEVER run Start-Sleep or similar wait commands. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`,
 	);
 
 	return parts.join('\n');
@@ -172,7 +174,7 @@ Command Execution:
 
 Directory Management:
 - Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected
-- Remember when isBackground=false is specified, that shell and cwd is reused until it is moved to the background
+- By default (mode=sync), shell and cwd are reused by subsequent sync commands
 - Use $PWD for current directory references
 - Consider using pushd/popd for directory stack management
 - Supports directory shortcuts like ~ and -
@@ -182,9 +184,10 @@ Program Execution:
 - Install packages via package managers (brew, apt, etc.)
 - Use which or command -v to verify command availability
 
-Background Processes:
-- For long-running tasks (e.g., servers), set isBackground=true
-- Returns a terminal ID for checking status and runtime later`];
+Async Mode:
+- For long-running tasks (e.g., servers), use mode=async
+- Returns a terminal ID for checking status and runtime later
+- Use ${TerminalToolId.SendToTerminal} to send commands to a persistent terminal session`];
 
 	if (isSandboxEnabled) {
 		parts.push(createSandboxLines(networkDomains).join('\n'));
@@ -203,7 +206,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. If you need to wait for a background process, use ${TerminalToolId.AwaitTerminal} or ${TerminalToolId.GetTerminalOutput} instead`);
+- NEVER run sleep or similar wait commands in a terminal. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`);
 
 	return parts.join('');
 }
@@ -271,54 +274,86 @@ export async function createRunInTerminalToolData(
 		modelDescription = createBashModelDescription(isSandboxEnabled, networkDomains);
 	}
 
+	const sharedProperties: IJSONSchemaMap = {
+		command: {
+			type: 'string',
+			description: 'The command to run in the terminal.'
+		},
+		explanation: {
+			type: 'string',
+			description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
+		},
+		goal: {
+			type: 'string',
+			description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
+		},
+	};
+	const sandboxProperties: IJSONSchemaMap = isSandboxEnabled ? {
+		requestUnsandboxedExecution: {
+			type: 'boolean',
+			description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
+		},
+		requestUnsandboxedExecutionReason: {
+			type: 'string',
+			description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
+		},
+	} : {};
+
 	return {
 		id: TerminalToolId.RunInTerminal,
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion up to timeout; if still running, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
 		inputSchema: {
 			type: 'object',
 			properties: {
-				command: {
+				...sharedProperties,
+				...sandboxProperties,
+				mode: {
 					type: 'string',
-					description: 'The command to run in the terminal.'
-				},
-				explanation: {
-					type: 'string',
-					description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
-				},
-				goal: {
-					type: 'string',
-					description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
+					enum: ['sync', 'async'],
+					enumDescriptions: [
+						'Wait for completion up to timeout, then return with collected output. If still running at timeout, the terminal session continues in the background.',
+						'Wait for an initial idle/output signal, then return with a terminal ID and output snapshot while the session may continue running.'
+					],
+					description: 'Execution mode for this command.'
 				},
 				isBackground: {
 					type: 'boolean',
-					description: `Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using ${TerminalToolId.GetTerminalOutput}. If unsure whether a command will be long-running, prefer isBackground=true.`
+					description: 'Legacy execution mode flag. Deprecated in favor of "mode". If true, equivalent to mode=async. If false, equivalent to mode=sync.'
 				},
 				timeout: {
 					type: 'number',
-					description: 'An optional timeout in milliseconds. When provided, the tool will stop tracking the command after this duration and return the output collected so far with a timeout indicator. Be conservative with the timeout duration, give enough time that the command would complete on a low-end machine. Use 0 for no timeout. If it\'s not clear how long the command will take then use 0 to avoid prematurely terminating it, never guess too low.',
+					description: 'Timeout in milliseconds that determines how long to wait before returning. Required for mode=sync. Ignored for mode=async. Use 0 for no timeout.',
 				},
-				...isSandboxEnabled ? {
-					requestUnsandboxedExecution: {
-						type: 'boolean',
-						description: 'Request that this command run outside the terminal sandbox. Only set this when the command clearly needs unsandboxed access. The user will be prompted before the command runs unsandboxed.'
-					},
-					requestUnsandboxedExecutionReason: {
-						type: 'string',
-						description: 'A short explanation of why this command must run outside the terminal sandbox. Only provide this when requestUnsandboxedExecution is true.'
-					},
-				} : {},
 			},
-			required: [
-				'command',
-				'explanation',
-				'goal',
-				'isBackground',
+			required: ['command', 'explanation', 'goal'],
+			anyOf: [
+				{
+					required: ['mode'],
+					allOf: [
+						{
+							if: {
+								properties: {
+									mode: {
+										const: 'sync'
+									}
+								},
+								required: ['mode']
+							},
+							then: {
+								required: ['timeout']
+							}
+						}
+					]
+				},
+				{
+					required: ['isBackground']
+				}
 			]
 		}
 	};
@@ -343,10 +378,20 @@ export interface IRunInTerminalInputParams {
 	command: string;
 	explanation: string;
 	goal: string;
-	isBackground: boolean;
+	mode?: 'sync' | 'async';
+	/**
+	 * @deprecated Use `mode` instead.
+	 */
+	isBackground?: boolean;
 	timeout?: number;
 	requestUnsandboxedExecution?: boolean;
 	requestUnsandboxedExecutionReason?: string;
+}
+
+interface IResolvedExecutionOptions {
+	persistentSession: boolean;
+	waitStrategy: 'completion' | 'idle';
+	mode: 'sync' | 'async';
 }
 
 /**
@@ -368,6 +413,11 @@ export interface IActiveTerminalExecution {
 	 * Gets the current output from the terminal.
 	 */
 	getOutput(): string;
+
+	/**
+	 * Switches this execution to background mode, if supported.
+	 */
+	setBackground?(): void;
 }
 
 /**
@@ -402,7 +452,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
-	private static readonly _activeExecutions = new Map<string, ActiveTerminalExecution>();
+	private static readonly _activeExecutions = new Map<string, IActiveTerminalExecution & { dispose(): void }>();
 	public static getBackgroundOutput(id: string): string {
 		const execution = RunInTerminalTool._activeExecutions.get(id);
 		if (!execution) {
@@ -431,6 +481,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		execution.dispose();
 		RunInTerminalTool._activeExecutions.delete(id);
 		return true;
+	}
+
+	private _resolveExecutionOptions(args: IRunInTerminalInputParams): IResolvedExecutionOptions {
+		const mode = args.mode ?? (args.isBackground ? 'async' : 'sync');
+		switch (mode) {
+			case 'async':
+				return { mode: 'async', persistentSession: true, waitStrategy: 'idle' };
+			case 'sync':
+			default:
+				return { mode: 'sync', persistentSession: false, waitStrategy: 'completion' };
+		}
 	}
 	/**
 	 * Controls whether this tool wires up sandbox-specific command-line
@@ -528,13 +589,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async handleToolStream(context: IToolInvocationStreamContext, _token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
 		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
 		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
-			const normalizedCommand = normalizeTerminalCommandForDisplay(partialInput.command).replace(/\r\n|\r|\n/g, ' ');
-			const truncatedCommand = normalizedCommand.length > 80
-				? normalizedCommand.substring(0, 77) + '...'
-				: normalizedCommand;
-			const invocationMessage = partialInput.isBackground
-				? new MarkdownString(localize('runInTerminal.streaming.background', "Running `{0}` in background", truncatedCommand))
-				: new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
+			const truncatedCommand = buildCommandDisplayText(partialInput.command);
+			const invocationMessage = new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
 			return { invocationMessage };
 		}
 		return { invocationMessage: localize('runInTerminal.streaming.default', "Running command") };
@@ -542,6 +598,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
+		const executionOptions = this._resolveExecutionOptions(args);
 
 		const chatSessionResource = context.chatSessionResource;
 		let instance: ITerminalInstance | undefined;
@@ -589,7 +646,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				cwd,
 				shell,
 				os,
-				isBackground: args.isBackground,
+				isBackground: executionOptions.persistentSession,
 				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			});
 			if (rewriteResult) {
@@ -623,7 +680,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			},
 			cwd,
 			language,
-			isBackground: args.isBackground,
+			isBackground: executionOptions.persistentSession,
 			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
 			requestUnsandboxedExecutionReason,
 			missingSandboxDependencies: missingDependencies,
@@ -664,24 +721,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// commands that would be auto approved if it were enabled.
 		const commandLine = rewrittenCommand ?? args.command;
 
-		const isEligibleForAutoApproval = () => {
-			const config = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
-			if (config && typeof config === 'object') {
-				if (Object.prototype.hasOwnProperty.call(config, TOOL_REFERENCE_NAME)) {
-					return config[TOOL_REFERENCE_NAME];
-				}
-				for (const legacyName of LEGACY_TOOL_REFERENCE_FULL_NAMES) {
-					if (Object.prototype.hasOwnProperty.call(config, legacyName)) {
-						return config[legacyName];
-					}
-				}
-			}
-			// Default
-			return true;
-		};
+		const isEligibleForAutoApproval = () => isToolEligibleForTerminalAutoApproval(TOOL_REFERENCE_NAME, this._configurationService, LEGACY_TOOL_REFERENCE_FULL_NAMES);
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
-		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		const isAutoApproveAllowed = isEligibleForAutoApproval() && isAutoApproveEnabled && isAutoApproveWarningAccepted;
+		const isAutoApproveAllowed = isTerminalAutoApproveAllowed(TOOL_REFERENCE_NAME, this._configurationService, this._storageService, LEGACY_TOOL_REFERENCE_FULL_NAMES);
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			commandLine,
@@ -696,7 +738,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// In Autopilot/Bypass Approvals modes, do not interact with terminal auto-approve rules.
 		// Commands should flow through directly based on the chat permission level.
-		const isSessionAutoApproved = chatSessionResource && this._isSessionAutoApproveLevel(chatSessionResource);
+		const isSessionAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 		const commandLineAnalyzers = isSessionAutoApproved
 			? this._commandLineAnalyzers.filter(e => !(e instanceof CommandLineAutoApproveAnalyzer))
 			: this._commandLineAnalyzers;
@@ -769,16 +811,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				cdPrefix,
 			};
 
-			confirmationTitle = args.isBackground
-				? localize('runInTerminal.background.inDirectory', "Run `{0}` command in background within `{1}`?", shellType, directoryLabel)
-				: localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, directoryLabel);
+			confirmationTitle = localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, directoryLabel);
 		} else {
 			toolSpecificData.confirmation = {
 				commandLine: commandToDisplay,
 			};
-			confirmationTitle = args.isBackground
-				? localize('runInTerminal.background', "Run `{0}` command in background?", shellType)
-				: localize('runInTerminal', "Run `{0}` command?", shellType);
+			confirmationTitle = localize('runInTerminal', "Run `{0}` command?", shellType);
 		}
 
 		// Check for presentation overrides (e.g., Python -c command extraction)
@@ -794,23 +832,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				};
 				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
 					if (presenterResult.languageDisplayName) {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
-							: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
+						confirmationTitle = localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
 					} else {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.inDirectory.withoutLanguage', "Run command in `{0}` in background within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel)
-							: localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
+						confirmationTitle = localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
 					}
 				} else {
 					if (presenterResult.languageDisplayName) {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
-							: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+						confirmationTitle = localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
 					} else {
-						confirmationTitle = args.isBackground
-							? localize('runInTerminal.presentationOverride.background.withoutLanguage', "Run command in `{0}` in background?", shellType)
-							: localize('runInTerminal.presentationOverride.withoutLanguage', "Run command in `{0}`?", shellType);
+						confirmationTitle = localize('runInTerminal.presentationOverride.withoutLanguage', "Run command in `{0}`?", shellType);
 					}
 				}
 				if (!presenterResult.processOtherPresenters) {
@@ -822,12 +852,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (requiresUnsandboxConfirmation) {
 			confirmationTitle = blockedDomains?.length
-				? (args.isBackground
-					? localize('runInTerminal.unsandboxed.domain.background', "Run `{0}` command outside the [sandbox]({1}) in background to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
-					: localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains)))
-				: (args.isBackground
-					? localize('runInTerminal.unsandboxed.background', "Run `{0}` command outside the [sandbox]({1}) in background?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL)
-					: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL));
+				? localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
+				: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL);
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
@@ -854,12 +880,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			? rawDisplayCommand.substring(0, 77) + '...'
 			: rawDisplayCommand;
 		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
-			? args.isBackground
-				? new MarkdownString(localize('runInTerminal.invocation.sandbox.background', "Running `{0}` in sandbox in background", displayCommand))
-				: new MarkdownString(localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", displayCommand))
-			: args.isBackground
-				? new MarkdownString(localize('runInTerminal.invocation.background', "Running `{0}` in background", displayCommand))
-				: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", displayCommand));
+			? new MarkdownString(localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", displayCommand))
+			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", displayCommand));
 
 		return {
 			invocationMessage,
@@ -879,44 +901,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _getBlockedDomainReason(blockedDomains: string[], deniedDomains: string[] = []): string {
 		if (deniedDomains.length === blockedDomains.length && deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (blockedDomains.length === 1) {
-			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0]);
+			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0]);
 		}
-		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0], blockedDomains.length - 1);
-	}
-
-	/**
-	 * Returns true if the chat session's permission level (Autopilot/Bypass Approvals)
-	 * auto-approves all tool calls, unless enterprise policy restricts it.
-	 * Checks both the request-stamped level and the live picker level.
-	 */
-	private _isSessionAutoApproveLevel(chatSessionResource: URI): boolean {
-		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-		if (inspected.policyValue === false) {
-			return false;
-		}
-		// Check the live widget picker level (handles mid-session switches).
-		// Fall back to lastFocusedWidget if the session-specific widget isn't found
-		// (e.g., widget was backgrounded or URI mismatch).
-		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)
-			?? this._chatWidgetService.lastFocusedWidget;
-		if (widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel)) {
-			return true;
-		}
-		// Fall back to the request-stamped level
-		const model = this._chatService.getSession(chatSessionResource);
-		const request = model?.getRequests().at(-1);
-		return isAutoApproveLevel(request?.modeInfo?.permissionLevel);
+		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0], blockedDomains.length - 1);
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -994,8 +992,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
+		const executionOptions = this._resolveExecutionOptions(args);
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
+		if (args.timeout !== undefined && (Number.isNaN(args.timeout) || args.timeout < 0)) {
+			return {
+				content: [{
+					kind: 'text',
+					value: 'Error: timeout must be a non-negative number of milliseconds (use 0 for no timeout).'
+				}]
+			};
+		}
+		if (executionOptions.mode === 'sync' && args.timeout === undefined) {
+			if (args.isBackground === false) {
+				// Legacy path: isBackground=false didn't require timeout, default to no timeout
+				args.timeout = 0;
+			} else {
+				return {
+					content: [{
+						kind: 'text',
+						value: 'Error: timeout is required for mode=sync and must be provided in milliseconds (use 0 for no timeout).'
+					}]
+				};
+			}
+		}
 
 		const chatSessionResource = invocation.context.sessionResource;
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
@@ -1020,7 +1040,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		let error: string | undefined;
-		const isNewSession = !args.isBackground && !this._sessionTerminalAssociations.has(chatSessionResource);
+		const isNewSession = !executionOptions.persistentSession && !this._sessionTerminalAssociations.has(chatSessionResource);
 
 		const timingStart = Date.now();
 		const termId = generateUuid();
@@ -1029,8 +1049,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const store = new DisposableStore();
 
 		// Unified terminal initialization
-		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionResource=${chatSessionResource}`);
-		const toolTerminal = await this._initTerminal(chatSessionResource, termId, terminalToolSessionId, args.isBackground, token);
+		this._logService.debug(`RunInTerminalTool: Creating ${executionOptions.persistentSession ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionResource=${chatSessionResource}`);
+		const toolTerminal = await this._initTerminal(chatSessionResource, termId, terminalToolSessionId, executionOptions.persistentSession, token);
 
 		this._handleTerminalVisibility(toolTerminal, chatSessionResource);
 
@@ -1058,16 +1078,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let exitCode: number | undefined;
 		let altBufferResult: IToolResult | undefined;
 		let didTimeout = false;
-		let didMoveToBackground = args.isBackground;
+		let didMoveToBackground = executionOptions.persistentSession;
 		let timeoutPromise: CancelablePromise<void> | undefined;
 		let timeoutRacePromise: Promise<{ type: 'timeout' }> | undefined;
 		let outputMonitor: OutputMonitor | undefined;
 		let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 		const executeCancellation = store.add(new CancellationTokenSource(token));
 
-		// Set up timeout if provided and the setting is enabled (only for foreground)
+		// Set up timeout only for wait strategies that block on command completion.
 		const timeoutValue = args.timeout !== undefined ? clamp(args.timeout, 0, Number.MAX_SAFE_INTEGER) : undefined;
-		if (!args.isBackground && timeoutValue !== undefined && timeoutValue > 0) {
+		if (executionOptions.waitStrategy === 'completion' && timeoutValue !== undefined && timeoutValue > 0) {
 			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
 			if (shouldEnforceTimeout) {
 				timeoutPromise = timeout(timeoutValue);
@@ -1087,9 +1107,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
 				if (sessionId === terminalToolSessionId) {
 					const execution = RunInTerminalTool._activeExecutions.get(termId);
-					if (execution) {
-						execution.setBackground();
-					}
+					execution?.setBackground?.();
 					didMoveToBackground = true;
 					// Resolve the race promise instead of cancelling - this allows the execution
 					// to continue running so it can be awaited later
@@ -1107,7 +1125,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				termId,
 				toolTerminal,
 				commandDetection!,
-				args.isBackground
+				executionOptions.persistentSession
 			);
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
@@ -1118,6 +1136,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			// Set up OutputMonitor when start marker is created
 			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
+			const outputMonitorPollFn = executionOptions.persistentSession
+				? async (executionForPoll: { getOutput: () => string }): Promise<IPollingResult | undefined> => ({
+					output: executionForPoll.getOutput(),
+					state: OutputMonitorState.Idle,
+				})
+				: undefined;
 			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
 				if (!outputMonitor) {
 					outputMonitor = store.add(this._instantiationService.createInstance(
@@ -1127,7 +1151,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							sessionResource: chatSessionResource,
 							getOutput: (marker?: IXtermMarker) => execution.getOutput(marker ?? startMarker)
 						},
-						undefined,
+						outputMonitorPollFn,
 						invocation.context,
 						token,
 						command
@@ -1138,10 +1162,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Start execution (non-blocking - runs in background)
 			executionPromise = execution.start(command, executeCancellation.token, commandId);
 
-			if (args.isBackground) {
-				// Background mode: wait for OutputMonitor to detect idle, then return
-				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				// Wait for the start marker to be created (which creates the outputMonitor)
+			if (executionOptions.waitStrategy === 'idle') {
+				this._logService.debug(`RunInTerminalTool: Starting persistent execution with idle wait strategy \`${command}\``);
 				await startMarkerPromise;
 				if (outputMonitor) {
 					await Event.toPromise(outputMonitor.onDidFinishCommand);
@@ -1156,7 +1178,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				state.timestamp = state.timestamp ?? timingStart;
 				toolSpecificData.terminalCommandState = state;
 
-				// if the command is wrapped in a sandbox, we will not show the command. This is because the sandbox may add additional commands that are not relevant to the user, and the output will provide more context about what is running.
 				let resultText = (
 					didSandboxWrapCommand ? `Command is now running in terminal with ID=${termId}`
 						: didUserEditCommand
@@ -1165,18 +1186,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 								: `Command is running in terminal with ID=${termId}`
 				);
-				const backgroundOutput = pollingResult?.modelOutputEvalResponse ?? pollingResult?.output;
+				const backgroundOutput = pollingResult?.output;
 				const outputAnalyzerMessage = backgroundOutput
 					? await this._getOutputAnalyzerMessage(undefined, backgroundOutput, command, didSandboxWrapCommand)
 					: undefined;
-				if (pollingResult && pollingResult.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n`;
+				if (pollingResult && pollingResult.state === OutputMonitorState.Idle) {
+					resultText += `\n The command became idle with output:\n`;
 					if (outputAnalyzerMessage) {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}
-					resultText += pollingResult.modelOutputEvalResponse;
+					resultText += pollingResult.output;
 				} else if (pollingResult) {
-					resultText += `\n\ The command is still running, with output:\n`;
+					resultText += `\n The command is still running, with output:\n`;
 					if (outputAnalyzerMessage) {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}
@@ -1185,7 +1206,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const endCwd = await toolTerminal.instance.getCwdResource();
 				return {
 					toolMetadata: {
-						exitCode: undefined, // Background processes don't have immediate exit codes
+						exitCode: undefined,
 						id: termId,
 						cwd: endCwd?.toString(),
 					},
@@ -1335,7 +1356,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				terminalToolSessionId: toolSpecificData.terminalToolSessionId,
 				didUserEditCommand,
 				didToolEditCommand,
-				isBackground: args.isBackground,
+				isBackground: executionOptions.persistentSession,
 				isSandboxWrapped: toolSpecificData.commandLine.isSandboxWrapped === true,
 				requestUnsandboxedExecutionReason: args.requestUnsandboxedExecutionReason,
 				shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
@@ -1371,12 +1392,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} else if (didToolEditCommand) {
 				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
 			}
-			if (didMoveToBackground && !args.isBackground) {
+			if (didMoveToBackground && !executionOptions.persistentSession) {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 		}
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
-			resultText.push(`Note: Command timed out after ${timeoutValue}ms and was moved to the background. The command may still be running in terminal ID ${termId}. Use ${TerminalToolId.AwaitTerminal} to wait for it to complete or ${TerminalToolId.GetTerminalOutput} to check its current output. Do NOT use sleep or manual polling to wait.\n\n`);
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}. Use ${TerminalToolId.GetTerminalOutput} to check its current output, ${TerminalToolId.SendToTerminal} to send further input, or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait.\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
@@ -1536,7 +1557,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolTerminal.receivedUserInput = data.length > 0;
 			}
 		});
-		this._register(toolTerminal.instance.onDisposed(() => disposable.dispose()));
+		Event.once(toolTerminal.instance.onDisposed)(() => disposable.dispose());
 	}
 
 
@@ -1564,11 +1585,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						};
 						this._addSessionTerminalAssociation(chatSessionResource, toolTerminal);
 						this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, instance);
+						if (association.id) {
+							RunInTerminalTool._activeExecutions.set(association.id, this._register(new RestoredTerminalExecution(instance)));
+						}
 
 						// Listen for terminal disposal to clean up storage
-						this._register(instance.onDisposed(() => {
+						Event.once(instance.onDisposed)(() => {
 							this._removeProcessIdAssociation(instance.processId!);
-						}));
+							this._removeExecutionAssociations(instance);
+						});
 					}
 				}
 			}
@@ -1579,11 +1604,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _setupProcessIdAssociation(toolTerminal: IToolTerminal, chatSessionResource: URI, termId: string, isBackground: boolean) {
 		await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, isBackground);
-		this._register(toolTerminal.instance.onDisposed(() => {
+		Event.once(toolTerminal.instance.onDisposed)(() => {
 			if (toolTerminal!.instance.processId) {
 				this._removeProcessIdAssociation(toolTerminal!.instance.processId);
 			}
-		}));
+		});
 	}
 
 	private async _associateProcessIdWithSession(terminal: ITerminalInstance, chatSessionResource: URI, id: string, shellIntegrationQuality: ShellIntegrationQuality, isBackground?: boolean): Promise<void> {
@@ -1695,6 +1720,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private _removeTerminalAssociations(terminal: ITerminalInstance): void {
 		if (this._terminalsBeingDisposedBySessionCleanup.delete(terminal)) {
+			this._removeExecutionAssociations(terminal);
 			return;
 		}
 
@@ -1711,6 +1737,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (sessionTerminals.size === 0) {
 				this._sessionTerminalInstances.delete(sessionResource);
 			}
+		}
+
+		this._removeExecutionAssociations(terminal);
+	}
+
+	private _removeExecutionAssociations(terminal: ITerminalInstance): void {
+		const executionIdsToRemove: string[] = [];
+		for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
+			if (execution.instance === terminal) {
+				execution.dispose();
+				executionIdsToRemove.push(termId);
+			}
+		}
+		for (const termId of executionIdsToRemove) {
+			RunInTerminalTool._activeExecutions.delete(termId);
 		}
 	}
 	// #endregion
@@ -1821,6 +1862,20 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	 */
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);
+	}
+}
+
+class RestoredTerminalExecution extends Disposable implements IActiveTerminalExecution {
+	readonly completionPromise: Promise<ITerminalExecuteStrategyResult> = Promise.resolve({ output: undefined, error: 'restoredTerminalExecutionNotAwaitable' });
+
+	constructor(
+		readonly instance: ITerminalInstance,
+	) {
+		super();
+	}
+
+	getOutput(marker?: IXtermMarker): string {
+		return getOutput(this.instance, marker);
 	}
 }
 

@@ -20,7 +20,7 @@ import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/commo
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
-import { ISessionsManagementService } from '../sessionsManagementService.js';
+import { ISessionsManagementService, ActiveSessionSupportsMultiChatContext } from '../sessionsManagementService.js';
 import { ISession, SessionStatus } from '../../common/sessionData.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
@@ -546,7 +546,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session.mainChat, trimmedTitle);
+				await sessionsManagementService.renameChat(session, session.mainChat.resource, trimmedTitle);
 			}
 		}
 	}
@@ -626,6 +626,10 @@ registerAction2(class OpenSessionInNewWindowAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+		sessionsManagementService.openNewSessionView(); // running this first to address focus issues
+
 		for (const session of sessions) {
 			await chatWidgetService.openSession(session.resource, AUX_WINDOW_GROUP, {
 				auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
@@ -680,8 +684,16 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ContextKeyExpr.equals('sessions.hasPullRequest', true),
-					ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals('sessions.hasPullRequest', false),
+							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
+						),
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals('sessions.hasPullRequest', true),
+							ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
+						)
+					)
 				)
 			}]
 		});
@@ -711,7 +723,8 @@ registerAction2(class AddChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsAuxiliaryWindowContext.negate(),
 					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate()
+					IsNewChatSessionContext.negate(),
+					ActiveSessionSupportsMultiChatContext
 				)
 			}]
 		});
@@ -732,7 +745,7 @@ registerAction2(class AddChatAction extends Action2 {
 		});
 
 		if (query) {
-			await sessionsManagementService.sendAndCreateChat({ query }, activeSession);
+			await sessionsManagementService.sendAndCreateChat(activeSession, { query });
 		}
 	}
 });
