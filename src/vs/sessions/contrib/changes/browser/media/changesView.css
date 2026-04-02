@@ -18,6 +18,20 @@
 	overflow: hidden;
 }
 
+/* Container for horizontal tree + diff panel split */
+.changes-view-body .changes-tree-and-diff-container {
+	width: 100%;
+	overflow: hidden;
+	position: relative;
+}
+
+/* Inline diff panel (left side of horizontal split, tree is on the right) */
+.changes-view-body .changes-diff-panel {
+	overflow: hidden;
+	box-sizing: border-box;
+	border-right: 1px solid var(--vscode-panel-border);
+}
+
 /* Progress bar */
 .changes-view-body .chat-editing-session-container .changes-progress {
 	position: relative;
