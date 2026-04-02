@@ -6,6 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
@@ -47,6 +48,7 @@ import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.j
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IChatDebugService, IChatDebugResolvedEventContent, ChatDebugLogLevel } from '../../contrib/chat/common/chatDebugService.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -109,6 +111,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _customizationProviders = this._register(new DisposableMap<number, IDisposable>());
 	private readonly _customizationProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
 
+	/** Stored provider results for debug event resolution. */
+	private readonly _customizationDebugDetails = new Map<string, { items: IExternalCustomizationItem[]; durationInMillis: number }>();
+
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
@@ -131,9 +136,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
+
+		// Register a resolve provider for customization discovery debug events.
+		this._register(this._chatDebugService.registerProvider({
+			provideChatDebugLog: async () => undefined,
+			resolveChatDebugLogEvent: async (eventId) => {
+				return this._resolveCustomizationDebugEvent(eventId);
+			}
+		}));
 
 		// When the provider API kill-switch is toggled off, dispose all registered providers
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -618,11 +632,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		const itemProvider: IExternalCustomizationItemProvider = {
 			onDidChange: emitter.event,
 			provideChatSessionCustomizations: async (token) => {
+				const start = Date.now();
 				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
+				const durationInMillis = Date.now() - start;
 				if (!items) {
 					return undefined;
 				}
-				return items.map((item: IChatSessionCustomizationItemDto): IExternalCustomizationItem => ({
+				const mapped = items.map((item: IChatSessionCustomizationItemDto): IExternalCustomizationItem => ({
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,
@@ -631,20 +647,27 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					badge: item.badge,
 					badgeTooltip: item.badgeTooltip,
 				}));
+				this._logCustomizationDiscovery(metadata.label, mapped, durationInMillis);
+				return mapped;
 			},
 		};
 
-		// Convert metadata to a harness descriptor
-		const hiddenSections = metadata.unsupportedTypes?.map(type => {
-			switch (type) {
-				case 'agent': return AICustomizationManagementSection.Agents;
-				case 'skill': return AICustomizationManagementSection.Skills;
-				case 'instructions': return AICustomizationManagementSection.Instructions;
-				case 'prompt': return AICustomizationManagementSection.Prompts;
-				case 'hook': return AICustomizationManagementSection.Hooks;
-				default: return type;
-			}
-		});
+		// Convert supportedTypes whitelist to hiddenSections blacklist.
+		// Sections not in the supported list are hidden. When supportedTypes
+		// is omitted, all sections are shown.
+		const typeToSection: Record<string, string> = {
+			'agent': AICustomizationManagementSection.Agents,
+			'skill': AICustomizationManagementSection.Skills,
+			'instructions': AICustomizationManagementSection.Instructions,
+			'prompt': AICustomizationManagementSection.Prompts,
+			'hook': AICustomizationManagementSection.Hooks,
+			'plugins': AICustomizationManagementSection.Plugins,
+		};
+		let hiddenSections: string[] | undefined;
+		if (metadata.supportedTypes) {
+			const supportedSections = new Set(metadata.supportedTypes.map(t => typeToSection[t]).filter(Boolean));
+			hiddenSections = Object.values(typeToSection).filter(section => !supportedSections.has(section));
+		}
 
 		const descriptor: IHarnessDescriptor = {
 			id: chatSessionType,
@@ -673,6 +696,59 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		if (emitter) {
 			emitter.fire();
 		}
+	}
+
+	private _logCustomizationDiscovery(label: string, items: IExternalCustomizationItem[], durationInMillis: number): void {
+		const sessionResource = this._chatDebugService.activeSessionResource;
+		if (!sessionResource) {
+			return;
+		}
+
+		const eventId = generateUuid();
+		this._customizationDebugDetails.set(eventId, { items, durationInMillis });
+
+		// Evict oldest entries when the map grows too large.
+		if (this._customizationDebugDetails.size > 10_000) {
+			const first = this._customizationDebugDetails.keys().next().value;
+			if (first !== undefined) {
+				this._customizationDebugDetails.delete(first);
+			}
+		}
+
+		// Group items by type for a concise summary.
+		const byType = new Map<string, number>();
+		for (const item of items) {
+			byType.set(item.type, (byType.get(item.type) ?? 0) + 1);
+		}
+		const typeSummary = [...byType.entries()].map(([type, count]) => `${count} ${type}`).join(', ');
+		const details = `${items.length} items (${typeSummary}) in ${durationInMillis.toFixed(1)}ms`;
+
+		this._chatDebugService.log(
+			sessionResource,
+			`Customization Provider (${label})`,
+			details,
+			ChatDebugLogLevel.Info,
+			{ id: eventId, category: 'discovery' },
+		);
+	}
+
+	private _resolveCustomizationDebugEvent(eventId: string): IChatDebugResolvedEventContent | undefined {
+		const data = this._customizationDebugDetails.get(eventId);
+		if (!data) {
+			return undefined;
+		}
+
+		return {
+			kind: 'fileList',
+			discoveryType: 'customization-provider',
+			durationInMillis: data.durationInMillis,
+			files: data.items.map(item => ({
+				uri: item.uri,
+				name: item.name,
+				status: 'loaded' as const,
+				storage: item.groupKey,
+			})),
+		};
 	}
 }
 
