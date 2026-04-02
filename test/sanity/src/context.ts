@@ -758,9 +758,23 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installWindowsApp(type: 'user' | 'system', installerPath: string): string {
-		this.log(`Installing ${installerPath} in silent mode`);
-		this.runNoErrors(installerPath, '/silent', '/mergetasks=!runcode');
-		this.log(`Installed ${installerPath} successfully`);
+		// Normalize and validate the installer path before executing it
+		const resolvedInstallerPath = path.resolve(installerPath);
+
+		if (!fs.existsSync(resolvedInstallerPath)) {
+			this.error(`Installer does not exist: ${resolvedInstallerPath}`);
+		}
+
+		// Ensure the installer resides within the expected directory (the directory of the given path)
+		const expectedDir = path.resolve(path.dirname(installerPath));
+		const relativeToExpected = path.relative(expectedDir, resolvedInstallerPath);
+		if (relativeToExpected.startsWith('..') || path.isAbsolute(relativeToExpected)) {
+			this.error(`Unsafe installer path: ${installerPath}`);
+		}
+
+		this.log(`Installing ${resolvedInstallerPath} in silent mode`);
+		this.runNoErrors(resolvedInstallerPath, '/silent', '/mergetasks=!runcode');
+		this.log(`Installed ${resolvedInstallerPath} successfully`);
 
 		const appDir = this.getWindowsInstallDir(type);
 		let entryPoint: string;
