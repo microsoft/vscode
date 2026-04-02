@@ -127,6 +127,14 @@ declare module 'vscode' {
 		 * Whether any hooks are enabled for this request.
 		 */
 		readonly hasHooksEnabled: boolean;
+
+		/**
+		 * When true, this request was initiated by the system (e.g. a terminal
+		 * command completion notification) rather than by the user typing a
+		 * message. Extensions can use this to render the prompt differently
+		 * and skip billing.
+		 */
+		readonly isSystemInitiated?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {

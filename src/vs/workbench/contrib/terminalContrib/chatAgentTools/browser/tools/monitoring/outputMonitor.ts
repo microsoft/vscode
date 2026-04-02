@@ -6,17 +6,19 @@
 import type { IMarker as XtermMarker } from '@xterm/xterm';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import { timeout, type MaybePromise } from '../../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
-import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
+import { ChatModel, ChatRequestModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
+import { ChatRequestTextPart } from '../../../../../chat/common/requestParser/chatParserTypes.js';
+import { OffsetRange } from '../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, getTextResponseFromStream, type ILanguageModelChatSelector, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
@@ -111,6 +113,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	/** The chat session resource for this tool invocation, used to check permission level. */
 	private readonly _sessionResource: URI | undefined;
 
+	private _asyncMode = false;
+	private _command = '';
+	private _invocationContext: IToolInvocationContext | undefined;
+	private _currentMonitoringCts: CancellationTokenSource | undefined;
+
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
@@ -128,10 +135,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		super();
 
 		this._sessionResource = invocationContext?.sessionResource;
+		this._command = command;
+		this._invocationContext = invocationContext;
+		this._register(toDisposable(() => this._currentMonitoringCts?.dispose()));
 
 		// Start async to ensure listeners are set up
 		timeout(0).then(() => {
-			this._startMonitoring(command, invocationContext, token);
+			this._currentMonitoringCts = new CancellationTokenSource(token);
+			this._startMonitoring(command, invocationContext, this._currentMonitoringCts.token);
 		});
 	}
 
@@ -162,6 +173,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							extended = true;
 							this._state = OutputMonitorState.PollingForIdle;
 							continue;
+						} else if (this._asyncMode) {
+							// In async mode, wait for new data instead of stopping on timeout
+							this._logService.trace('OutputMonitor: Async mode - timeout reached, waiting for new terminal data');
+							extended = false;
+							await this._waitForNewData(token);
+							if (token.isCancellationRequested) {
+								break;
+							}
+							this._state = OutputMonitorState.PollingForIdle;
+							continue;
 						} else {
 							this._promptPart?.hide();
 							this._promptPart = undefined;
@@ -175,6 +196,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						const idleResult = await this._handleIdleState(token);
 						if (idleResult.shouldContinuePolling) {
 							this._logService.trace('OutputMonitor: Idle handler -> continue polling');
+							this._state = OutputMonitorState.PollingForIdle;
+							continue;
+						} else if (this._asyncMode) {
+							// In async mode, wait for new terminal data before monitoring again.
+							// This avoids expensive LLM calls while the terminal sits idle.
+							this._logService.trace('OutputMonitor: Async mode - waiting for new terminal data before next monitoring cycle');
+							await this._waitForNewData(token);
+							if (token.isCancellationRequested) {
+								break;
+							}
 							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
@@ -214,6 +245,54 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			this._onDidFinishCommand.fire();
 		}
+	}
+
+	/**
+	 * Continues monitoring in background mode with a new cancellation token.
+	 * In background mode, the monitor re-polls for idle and handles prompts
+	 * whenever new terminal data arrives, rather than stopping after the first
+	 * idle detection. Resource cost is bounded because the monitor only wakes
+	 * on new terminal data (via {@link _waitForNewData}) and each idle cycle
+	 * is capped by the standard polling timeouts.
+	 */
+	continueMonitoringAsync(token: CancellationToken): void {
+		this._asyncMode = true;
+		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops
+		this._currentMonitoringCts?.dispose();
+		this._currentMonitoringCts = new CancellationTokenSource(token);
+		this._state = OutputMonitorState.PollingForIdle;
+		this._startMonitoring(this._command, this._invocationContext, this._currentMonitoringCts.token);
+	}
+
+	/**
+	 * Waits for new terminal data or cancellation. Used in background mode
+	 * to avoid polling and LLM calls while the terminal is quiet.
+	 */
+	private _waitForNewData(token: CancellationToken): Promise<void> {
+		return new Promise<void>(resolve => {
+			if (token.isCancellationRequested) {
+				resolve();
+				return;
+			}
+			const cleanup = () => {
+				dataListener.dispose();
+				tokenListener.dispose();
+				disposedListener.dispose();
+			};
+			const dataListener = this._execution.instance.onData(() => {
+				cleanup();
+				resolve();
+			});
+			const tokenListener = token.onCancellationRequested(() => {
+				cleanup();
+				resolve();
+			});
+			// Resolve when the terminal instance is disposed to avoid waiting forever
+			const disposedListener = this._execution.instance.onDisposed(() => {
+				cleanup();
+				resolve();
+			});
+		});
 	}
 
 
@@ -275,6 +354,38 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			this._logService.trace('OutputMonitor: User input detected since idle; skipping prompt and continuing polling');
 			this._cleanupIdleInputListener();
 			return { shouldContinuePolling: true };
+		}
+
+		// In async mode, skip the LLM-based prompt detection to avoid expensive calls
+		// on every idle cycle. Instead, use regex-based detection for input-required
+		// patterns (passwords, [Y/n], etc.) which were already detected in _waitForIdle
+		// but need elicitation UI shown here.
+		if (this._asyncMode) {
+			if (detectsInputRequiredPattern(output)) {
+				this._logService.trace('OutputMonitor: Async mode - input-required pattern detected, showing free-form input');
+				const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts) || this._isAutopilotMode();
+				if (!autoReply) {
+					const currentMarker = this._execution.instance.registerMarker();
+					if (currentMarker) {
+						this._lastPromptMarker = currentMarker;
+					}
+					this._cleanupIdleInputListener();
+					this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+					const lastLine = output.trimEnd().split(/\r?\n/).pop() || '';
+					const receivedTerminalInput = await this._requestFreeFormTerminalInput(token, this._execution, {
+						prompt: lastLine,
+						options: [],
+						detectedRequestForFreeFormInput: true
+					});
+					if (receivedTerminalInput) {
+						this._logService.trace('OutputMonitor: Async mode - free-form input received, continue polling');
+						await timeout(200);
+						return { shouldContinuePolling: true };
+					}
+				}
+			}
+			this._cleanupIdleInputListener();
+			return { shouldContinuePolling: false, output };
 		}
 
 		this._logService.trace('OutputMonitor: Determining user input options via language model');
@@ -395,7 +506,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			while (!token.isCancellationRequested && waited < maxWaitMs) {
 				const waitTime = Math.min(currentInterval, maxWaitMs - waited);
-				await timeout(waitTime, token);
+				try {
+					await timeout(waitTime, token);
+				} catch (err) {
+					if (token.isCancellationRequested) {
+						return OutputMonitorState.Cancelled;
+					}
+					throw err;
+				}
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
@@ -843,11 +961,42 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!(chatModel instanceof ChatModel)) {
 			throw new Error('No model');
 		}
-		const request = chatModel.getRequests().at(-1);
+		// In async mode the last request may be an implicit (hidden) steering request.
+		// Attach the elicitation to the last visible request so it renders in the UI.
+		const requests = chatModel.getRequests();
+		let request: ChatRequestModel | undefined;
+		if (this._asyncMode) {
+			// In async mode the previous response is already complete.
+			// Create a new system-initiated request so the data model properly
+			// represents a finished response followed by a new request/response
+			// rather than reopening the completed response.
+			const message = localize('terminalPromptDetected', "Terminal is waiting for input");
+			const parts = [new ChatRequestTextPart(new OffsetRange(0, message.length), { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, message)];
+			request = chatModel.addRequest(
+				{ text: message, parts },
+				{ variables: [] },
+				0, // attempt
+				undefined, // modeInfo
+				undefined, // chatAgent
+				undefined, // slashCommand
+				undefined, // confirmation
+				undefined, // locationData
+				undefined, // attachments
+				undefined, // isCompleteAddedRequest
+				undefined, // modelId
+				undefined, // userSelectedTools
+				undefined, // id
+				true, // isSystemInitiated
+				localize('backgroundTaskInputNeeded', "Background task `{0}` input needed", this._command), // systemInitiatedLabel
+			);
+		} else {
+			request = requests.findLast(r => !r.isSystemInitiated) ?? requests.at(-1);
+		}
 		if (!request) {
 			throw new Error('No request');
 		}
 		let part!: ChatElicitationRequestPart;
+		const asyncRequest = this._asyncMode ? request : undefined;
 		const promise = new Promise<T | undefined>(resolve => {
 			const thePart = part = new ChatElicitationRequestPart(
 				title,
@@ -869,6 +1018,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					}
 					thePart.hide();
 					this._promptPart = undefined;
+					asyncRequest?.response?.complete();
 					return ElicitationState.Accepted;
 				},
 				async () => {
@@ -885,6 +1035,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					}
 					thePart.hide();
 					this._promptPart = undefined;
+					asyncRequest?.response?.complete();
 					return ElicitationState.Rejected;
 				},
 				undefined, // source
@@ -896,7 +1047,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			this._promptPart = thePart;
 		});
 
-		this._register(token.onCancellationRequested(() => part.hide()));
+		this._register(token.onCancellationRequested(() => {
+			part.hide();
+			asyncRequest?.response?.complete();
+		}));
 
 		return { promise, part };
 	}
