@@ -915,9 +915,6 @@ export class ChangesViewPane extends ViewPane {
 			const outgoingChangesObs = derived(reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
-				if (!repositoryState) {
-					return 0;
-				}
 
 				return repositoryState?.HEAD?.ahead ?? 0;
 			});
@@ -930,9 +927,6 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
-				if (!repositoryState) {
-					return true;
-				}
 
 				return (repositoryState?.mergeChanges.length ?? 0) > 0 ||
 					(repositoryState?.indexChanges.length ?? 0) > 0 ||
