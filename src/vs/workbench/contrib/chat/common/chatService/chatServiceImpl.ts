@@ -1852,7 +1852,7 @@ export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDet
 function logChatAgentError(telemetryService: ITelemetryService, agent: IChatAgentData | undefined, callstack: string, msg: string): void {
 	type ChatAgentErrorEvent = { callstack: string; msg: string; agent: string; agentExtensionId: string };
 	type ChatAgentErrorClassification = {
-		owner: 'bpasero';
+		owner: 'bryanchen-d';
 		comment: 'Logged when a chat agent handler throws an error with a callstack.';
 		callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
 		msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
