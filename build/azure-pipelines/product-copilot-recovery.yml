@@ -21,7 +21,7 @@ parameters:
     type: boolean
     default: false
   - name: confirm
-    displayName: This will publish a new recovery extension to the marketplace. You need to run it from a 'release/X.Y' branch. The pipeline will figure out the exact version number based on the branch, eg. 'X.Y.1'. This version of Copilot Chat will only be compatible with VS Code versions X.Y.*. Do you want to continue? Type 'yes' to proceed.
+    displayName: This will publish a new recovery Copilot Chat version to the marketplace. You need to run it from a 'release/X.Y' branch. The pipeline will figure out the exact version number based on the branch, eg. 'X.Y.1'. This version of Copilot Chat will only be compatible with VS Code versions 'X.Y.*' (same major & minor). Do you want to continue? Type 'yes' to proceed.
     type: string
 
 extends:
