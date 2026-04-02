@@ -131,7 +131,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
 
 		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary.provider-github')) as HTMLButtonElement;
-		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.githubCopilot', "Continue with GitHub Copilot")));
+		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.github', "Continue with GitHub")));
 
 		const googleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-google')) as HTMLButtonElement;
 		googleBtn.setAttribute('aria-label', localize('walkthrough.signin.google', "Continue with Google"));
