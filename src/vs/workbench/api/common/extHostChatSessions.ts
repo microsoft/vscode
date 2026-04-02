@@ -508,7 +508,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 						items: g.items,
 						selected: g.selected,
 						when: g.when,
-						searchable: g.searchable,
 						icon: g.icon,
 						commands: g.commands,
 					}));
@@ -783,14 +782,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return undefined;
 	}
 
-	private _getControllerForContentProviderHandle(handle: number) {
-		const entry = this._chatSessionContentProviders.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-		return this.getChatSessionItemController(entry.chatSessionScheme);
-	}
-
 	private _createInputStateFromOptions(
 		groups: readonly vscode.ChatSessionProviderOptionGroup[],
 		sessionOptions?: ReadonlyArray<{ optionId: string; value: string }>,
@@ -908,29 +899,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	async $invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, query: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]> {
-		const optionGroups = this._chatSessionItemControllers.get(providerHandle)?.optionGroups
-			?? this._getControllerForContentProviderHandle(providerHandle)?.optionGroups;
-		if (!optionGroups) {
-			this._logService.warn(`No option groups found for provider handle ${providerHandle}`);
-			return [];
-		}
-
-		const group = optionGroups.find((g: vscode.ChatSessionProviderOptionGroup) => g.id === optionGroupId);
-		if (!group || !group.onSearch) {
-			this._logService.warn(`No onSearch callback found for option group ${optionGroupId}`);
-			return [];
-		}
-
-		try {
-			const results = await group.onSearch(query, token);
-			return results ?? [];
-		} catch (error) {
-			this._logService.error(`Error calling onSearch for option group ${optionGroupId}:`, error);
-			return [];
-		}
-	}
-
 	async $refreshChatSessionItems(handle: number, token: CancellationToken): Promise<void> {
 		const controllerData = this._chatSessionItemControllers.get(handle);
 		if (!controllerData) {
@@ -1022,7 +990,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			items: g.items,
 			selected: g.selected,
 			when: g.when,
-			searchable: g.searchable,
 			icon: g.icon,
 			commands: g.commands,
 		}));
