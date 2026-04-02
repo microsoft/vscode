@@ -647,7 +647,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		};
 		let hiddenSections: string[] | undefined;
 		if (metadata.supportedTypes) {
-			const supportedSections = new Set(metadata.supportedTypes.map(t => typeToSection[t]).filter(Boolean));
+			const supportedSections = new Set<string>();
+			for (const t of metadata.supportedTypes) {
+				const section = typeToSection[t];
+				if (section) {
+					supportedSections.add(section);
+				}
+			}
 			hiddenSections = Object.values(typeToSection).filter(section => !supportedSections.has(section));
 		}
 

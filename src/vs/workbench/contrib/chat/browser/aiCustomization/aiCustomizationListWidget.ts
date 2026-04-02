@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -1165,6 +1166,7 @@ export class AICustomizationListWidget extends Disposable {
 		try {
 			items = await this.fetchItemsForSection(section);
 		} catch (err) {
+			onUnexpectedError(err);
 			items = [];
 		}
 

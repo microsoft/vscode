@@ -639,6 +639,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					id: AICustomizationManagementCommands.GenerateDebugReport,
 					title: localize2('generateDebugReport', "Generate Customization Debug Report"),
 					category: Categories.Developer,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
 					f1: true,
 				});
 			}
