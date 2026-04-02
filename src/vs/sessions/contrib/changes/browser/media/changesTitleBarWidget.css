@@ -5,9 +5,21 @@
 
 /* ---- Changes Titlebar Indicator (in right toolbar) ---- */
 
-/* .agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item + .action-item.changes-titlebar-indicator {
-	margin-left: 48px;
-} */
+.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item + .action-item.changes-titlebar-indicator {
+	position: relative;
+	margin-left: 8px;
+	padding-left: 13px;
+}
+
+.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item + .action-item.changes-titlebar-indicator::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 3px;
+	width: 1px;
+	height: 16px;
+	background-color: var(--vscode-disabledForeground);
+}
 
 .agent-sessions-workbench .changes-titlebar-indicator {
 	display: flex;
