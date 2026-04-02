@@ -230,6 +230,12 @@ export interface ICustomAgent {
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
+
+	/**
+	 * Optional context key expression. When set, the agent is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 export interface IAgentInstructions {
@@ -296,6 +302,12 @@ export interface IInstructionFile {
 	 * The source that produced this prompt path.
 	 */
 	readonly source?: PromptFileSource;
+
+	/**
+	 * Optional context key expression. When set, the instruction file is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 /**

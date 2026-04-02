@@ -511,10 +511,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const settledResults = await Promise.allSettled(this.contributedFiles[type].values());
 		// Note: `when` clauses are intentionally NOT evaluated here (global context).
-		// They are evaluated later at session-scoped time:
+		// They are propagated into the model types (IAgentSkill, IChatPromptSlashCommand,
+		// ICustomAgent, IInstructionFile) and evaluated later at session-scoped time:
 		//  - slash commands: per-widget in chatInputCompletions.ts via `c.when`
-		//  - instructions: in ComputeAutomaticInstructions using its scoped IContextKeyService
 		//  - skills: in ComputeAutomaticInstructions using its scoped IContextKeyService
+		//  - agents: in ComputeAutomaticInstructions using its scoped IContextKeyService
+		//  - instructions: in ComputeAutomaticInstructions using its scoped IContextKeyService
 		const contributedFiles = settledResults
 			.filter((result): result is PromiseFulfilledResult<IExtensionPromptPath> => result.status === 'fulfilled')
 			.map(result => result.value)
@@ -799,8 +801,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const target = getTarget(PromptsType.agent, ast.header ?? uri);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
+				const when = isExtensionPromptPath(promptPath) && promptPath.when
+					? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
+					: undefined;
 				if (!ast.header) {
-					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true } };
+					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, when };
 					return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 				}
 				const visibility = {
@@ -827,7 +832,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 
-				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };
+				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, when };
 				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));
@@ -1307,6 +1312,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IInstructionFile[] = [];
 		for (const file of discoveryInfo.files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
+				const when = isExtensionPromptPath(file.promptPath) && file.promptPath.when
+					? ContextKeyExpr.deserialize(file.promptPath.when) ?? undefined
+					: undefined;
 				result.push({
 					uri: file.promptPath.uri,
 					storage: file.promptPath.storage,
@@ -1316,6 +1324,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					name: file.promptPath.name,
 					description: file.promptPath.description,
 					pattern: file.pattern,
+					when,
 				});
 			}
 		}

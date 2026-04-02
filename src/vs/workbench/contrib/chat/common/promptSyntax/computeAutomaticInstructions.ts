@@ -14,6 +14,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../actions/chatContextKeys.js';
+import { localChatSessionType } from '../chatSessionsService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -187,9 +188,23 @@ export class ComputeAutomaticInstructions {
 			return;
 		}
 
-		for (const { uri, pattern } of instructionFiles) {
+		const sessionType = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
+		const isNonLocalSession = !!sessionType && sessionType !== localChatSessionType;
+
+		for (const instructionFile of instructionFiles) {
 			if (token.isCancellationRequested) {
 				return;
+			}
+
+			const { uri, pattern, when } = instructionFile;
+
+			// Filter by session type: skip in non-local sessions unless when clause matches
+			if (when) {
+				if (!this._contextKeyService.contextMatchesRules(when)) {
+					continue;
+				}
+			} else if (isNonLocalSession) {
+				continue;
 			}
 
 			if (!pattern) {
@@ -334,6 +349,11 @@ export class ComputeAutomaticInstructions {
 		const filePath = (uri: URI) => getFilePath(uri, remoteOS);
 
 		const entries: string[] = [];
+
+		// Compute session type once, used for filtering instructions, skills, and agents
+		const sessionType = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
+		const isNonLocalSession = !!sessionType && sessionType !== localChatSessionType;
+
 		if (readTool) {
 
 			const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
@@ -346,14 +366,21 @@ export class ComputeAutomaticInstructions {
 			entries.push(`If the file is not already available as attachment, use the ${readTool.variable} tool to acquire it.`);
 			entries.push('Make sure to acquire the instructions before working with the codebase.');
 			let hasContent = false;
-			for (const { uri, description, pattern } of instructionFiles) {
-				entries.push('<instruction>');
-				if (description) {
-					entries.push(`<description>${description}</description>`);
+			for (const instruction of instructionFiles) {
+				if (instruction.when) {
+					if (!this._contextKeyService.contextMatchesRules(instruction.when)) {
+						continue;
+					}
+				} else if (isNonLocalSession) {
+					continue;
 				}
-				entries.push(`<file>${filePath(uri)}</file>`);
-				if (pattern) {
-					entries.push(`<applyTo>${pattern}</applyTo>`);
+				entries.push('<instruction>');
+				if (instruction.description) {
+					entries.push(`<description>${instruction.description}</description>`);
+				}
+				entries.push(`<file>${filePath(instruction.uri)}</file>`);
+				if (instruction.pattern) {
+					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
 				}
 				entries.push('</instruction>');
 				hasContent = true;
@@ -383,8 +410,6 @@ export class ComputeAutomaticInstructions {
 			// Also filter out the troubleshoot skill when the feature flags are disabled
 			const isDebugLogEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
-			const sessionType = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
-			const isNonLocalSession = !!sessionType && sessionType !== 'local';
 			const modelInvocableSkills = agentSkills?.filter(skill => {
 				if (skill.disableModelInvocation) {
 					return false;
@@ -470,19 +495,27 @@ export class ComputeAutomaticInstructions {
 				}
 
 				for (const agent of agents) {
-					if (canUseAgent(agent)) {
-						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
-						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
+					if (!canUseAgent(agent)) {
+						continue;
+					}
+					if (agent.when) {
+						if (!this._contextKeyService.contextMatchesRules(agent.when)) {
+							continue;
 						}
-						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
-						}
-						entries.push('</agent>');
-						if (isInClaudeAgentsFolder(agent.uri)) {
-							telemetryEvent.claudeAgentsCount++;
-						}
+					} else if (isNonLocalSession) {
+						continue;
+					}
+					entries.push('<agent>');
+					entries.push(`<name>${agent.name}</name>`);
+					if (agent.description) {
+						entries.push(`<description>${agent.description}</description>`);
+					}
+					if (agent.argumentHint) {
+						entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+					}
+					entries.push('</agent>');
+					if (isInClaudeAgentsFolder(agent.uri)) {
+						telemetryEvent.claudeAgentsCount++;
 					}
 				}
 				entries.push('</agents>', '', ''); // add trailing newline
