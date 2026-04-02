@@ -7,7 +7,7 @@ import { KeyMod, KeyCode, KeyChord } from '../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { List } from '../../../base/browser/ui/list/listWidget.js';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from '../../../platform/list/browser/listService.js';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from '../../../platform/list/browser/listService.js';
 import { PagedList } from '../../../base/browser/ui/list/listPaging.js';
 import { equals, range } from '../../../base/common/arrays.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
@@ -335,7 +335,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.collapse',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, ContextKeyExpr.or(WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent)),
+	when: WorkbenchListFocusContextKey,
 	primary: KeyCode.LeftArrow,
 	mac: {
 		primary: KeyCode.LeftArrow,
@@ -360,12 +360,48 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!tree.collapse(focus)) {
 			const parent = tree.getParentElement(focus);
 
-			if (parent) {
-				navigate(widget, widget => {
+			if (!parent) {
+				const root = tree.getNode();
+				const siblings = root.children;
+				const focusIndex = siblings.findIndex(child => child.element === focus);
+
+				type TreeNode = (typeof root)['children'][number];
+
+				const findNextOpenSiblingAbove = (): TreeNode | undefined => {
+					for (let i = focusIndex - 1; i >= 0; i--) {
+						const sibling = siblings[i];
+						if (sibling.collapsible && sibling.children.length > 0 && !sibling.collapsed) {
+							return sibling;
+						}
+					}
+					return undefined;
+				};
+
+				const findNextOpenSiblingBelow = (): TreeNode | undefined => {
+					for (let i = focusIndex + 1; i < siblings.length; i++) {
+						const sibling = siblings[i];
+						if (sibling.collapsible && sibling.children.length > 0 && !sibling.collapsed) {
+							return sibling;
+						}
+					}
+					return undefined;
+				};
+
+				const firstSibling = siblings[0];
+
+				const siblingToFocus = findNextOpenSiblingAbove() ?? findNextOpenSiblingBelow() ?? firstSibling;
+
+				navigate(widget, w => {
 					const fakeKeyboardEvent = new KeyboardEvent('keydown');
-					widget.setFocus([parent], fakeKeyboardEvent);
+					w.setFocus([siblingToFocus.element], fakeKeyboardEvent);
 				});
+				return;
 			}
+
+			navigate(widget, widget => {
+				const fakeKeyboardEvent = new KeyboardEvent('keydown');
+				widget.setFocus([parent], fakeKeyboardEvent);
+			});
 		}
 	}
 });
