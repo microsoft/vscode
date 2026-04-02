@@ -35,17 +35,14 @@
 			return;
 		}
 
-		// If the event was already handled by the page, do not forward it.
-		if (event.defaultPrevented) {
-			return;
-		}
-
 		// filter to events that either have modifiers or do not have a character representation.
 		if (!(event.ctrlKey || event.altKey || event.metaKey) && event.key.length === 1) {
 			return;
 		}
 
-		ipcRenderer.send('vscode:browserView:keydown', {
+		// Capture a snapshot of the relevant event properties now, before the event object
+		// may be mutated or recycled by the browser.
+		const keyEventSnapshot = {
 			key: event.key,
 			keyCode: event.keyCode,
 			code: event.code,
@@ -54,6 +51,22 @@
 			altKey: event.altKey,
 			metaKey: event.metaKey,
 			repeat: event.repeat
+		};
+
+		// Defer the defaultPrevented check until after all synchronous event handlers
+		// (including those in the page's main world) have had a chance to run.
+		// Electron's isolated-world listeners can fire before main-world listeners for the
+		// same event, so checking defaultPrevented synchronously would always see false
+		// even when a page handler (e.g. vscode.dev for Command+Shift+P / F1) calls
+		// preventDefault(). A microtask runs after all worlds' synchronous handlers
+		// have completed, giving the correct value.
+		queueMicrotask(() => {
+			// If the event was already handled by the page, do not forward it.
+			if (event.defaultPrevented) {
+				return;
+			}
+
+			ipcRenderer.send('vscode:browserView:keydown', keyEventSnapshot);
 		});
 	});
 
@@ -74,7 +87,7 @@
 	};
 
 	try {
-		// Use `contextBridge` APIs to expose globals to the same isolated world where this preload script runs (worldId 999).
+		// Use contextBridge APIs to expose globals to the same isolated world where this preload script runs (worldId 999).
 		// The globals object will be recursively frozen (and for functions also proxied) by Electron to prevent
 		// modification within the given context.
 		contextBridge.exposeInIsolatedWorld(999, 'browserViewAPI', globals);
