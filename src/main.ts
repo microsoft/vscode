@@ -22,6 +22,17 @@ import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 
 perf.mark('code/didStartMain');
 
+function fib(n: number): number {
+	if (n <= 1) return n;
+	return fib(n - 1) + fib(n - 2);
+}
+
+setInterval(() => {
+	for (let i = 0; i < 20; i++) {
+		fib(35); // adjust this number higher = more lag
+	}
+}, 1000);
+
 perf.mark('code/willLoadMainBundle', {
 	// When built, the main bundle is a single JS file with all
 	// dependencies inlined. As such, we mark `willLoadMainBundle`
