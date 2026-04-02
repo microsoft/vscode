@@ -410,7 +410,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		// remove previous content
-		this._matchesCount.firstChild?.remove();
+		// this._matchesCount.firstChild?.remove();
+		[...this._matchesCount.childNodes].forEach(x => x.parentNode?.removeChild(x));
+
 
 		let label: string;
 		if (this._state.matchesCount > 0) {
@@ -427,7 +429,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label = NLS_NO_RESULTS;
 		}
 
-		this._matchesCount.appendChild(document.createTextNode(label));
+		const matchesLocationInput = this.createMatchesLocationInput();
+		matchesLocationInput.value = `${this._state.matchesPosition}`;
+
+		this._matchesCount.appendChild(matchesLocationInput);
+		this._matchesCount.appendChild(document.createTextNode(' of '));
+		this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
@@ -435,6 +442,36 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	// ----- actions
 
+
+	private createMatchesLocationInput(): HTMLInputElement {
+		const inputEl = document.createElement('input');
+
+		// Set input type and upper/lower bounds
+		inputEl.type = 'number';
+		inputEl.max = `${this._state.matchesCount}`;
+		inputEl.min = '1';
+
+		inputEl.classList.add(...['monaco-inputbox', 'editable-match-location']);
+
+		inputEl.onfocus = () => {
+			inputEl.classList.add(...['synthetic-focus']);
+		};
+
+		inputEl.onblur = () => {
+			inputEl.classList.remove(...['synthetic-focus']);
+		};
+
+		inputEl.oninput = (event) => {
+
+		};
+
+		inputEl.onchange = (event) => {
+
+		};
+
+		return inputEl;
+
+	}
 	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
 		if (label === NLS_NO_RESULTS) {
 			return searchString === ''

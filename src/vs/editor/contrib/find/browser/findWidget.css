@@ -126,6 +126,30 @@
 	line-height: 23px;
 }
 
+/* Editable numerical input for match location */
+.monaco-editor .find-widget .matchesCount .editable-match-location {
+	width: 20px;
+	min-width: 20px;
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border, transparent);
+	bottom: 2px;
+	margin-right: 0.5em;
+	text-align: center;
+}
+
+
+/*
+Hide spin-box stepper controls (up and down arrows) to keep
+the UI consistent with the rest of the widget.
+(For now, Chromium support ONLY)
+ */
+.monaco-editor .find-widget .matchesCount .editable-match-location::-webkit-inner-spin-button,
+.monaco-editor .find-widget .matchesCount .editable-match-location::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+
 .monaco-editor .find-widget .button {
 	width: 16px;
 	height: 16px;
