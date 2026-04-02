@@ -87,6 +87,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 	) => Promise<void>;
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
 
+	inputStateHandle?: number;
+
 	private readonly _proxy: ExtHostChatSessionsShape;
 	private readonly _providerHandle: number;
 	private readonly _logService: ILogService;
@@ -134,6 +136,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 
 			this._options = sessionContent.options ? ChatSessionOptionsMap.fromRecord(sessionContent.options) : undefined;
 			this.title = sessionContent.title;
+			this.inputStateHandle = sessionContent.inputStateHandle;
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
@@ -572,6 +575,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	private readonly _activeSessions = new ResourceMap<ObservableChatSession>();
 	private readonly _sessionDisposables = new ResourceMap<IDisposable>();
+	private readonly _inputStateToSessionType = new Map<number, string>();
 
 	private readonly _proxy: ExtHostChatSessionsShape;
 
@@ -617,6 +621,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	private _getHandleForSessionType(chatSessionType: string): number | undefined {
 		return this._sessionTypeToHandle.get(chatSessionType);
+	}
+
+	private _getInputStateHandleForSession(sessionResource: URI): number | undefined {
+		return this._activeSessions.get(sessionResource)?.inputStateHandle;
 	}
 
 	$registerChatSessionItemController(handle: number, chatSessionType: string): void {
@@ -813,9 +821,19 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		try {
 			const initialSessionOptions = this._chatSessionsService.getSessionOptions(sessionResource);
+
+			// Find the input state handle from a previous initialization (for re-opening sessions)
+			const inputStateHandle = session.inputStateHandle;
+
 			await session.initialize(token, {
 				initialSessionOptions: initialSessionOptions ? [...initialSessionOptions].map(([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value?.id })) : undefined,
+				inputStateHandle,
 			});
+
+			// Register the input state handle → session type mapping
+			if (session.inputStateHandle !== undefined) {
+				this._inputStateToSessionType.set(session.inputStateHandle, sessionResource.scheme);
+			}
 			if (session.options) {
 				for (const [_, handle] of this._sessionTypeToHandle) {
 					if (handle === providerHandle) {
@@ -916,14 +934,20 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._refreshProviderOptions(handle, sessionType);
 	}
 
-	$updateChatSessionInputState(controllerHandle: number, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
-		const registration = this._itemControllerRegistrations.get(controllerHandle);
-		if (!registration) {
-			this._logService.warn(`No controller found for handle ${controllerHandle} when updating input state`);
+	$updateChatSessionInputState(inputStateHandle: number, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
+		const chatSessionType = this._inputStateToSessionType.get(inputStateHandle);
+		if (!chatSessionType) {
+			this._logService.warn(`No session type found for input state handle ${inputStateHandle} when updating input state`);
 			return;
 		}
 
-		this._applyOptionGroups(controllerHandle, registration.chatSessionType, optionGroups);
+		const controllerHandle = this._getHandleForSessionType(chatSessionType);
+		if (controllerHandle === undefined) {
+			this._logService.warn(`No controller handle found for session type '${chatSessionType}' when updating input state`);
+			return;
+		}
+
+		this._applyOptionGroups(controllerHandle, chatSessionType, optionGroups);
 	}
 
 	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
@@ -962,7 +986,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyMap<string, string | IChatSessionProviderOptionItem | undefined>): Promise<void> {
 		this._logService.trace(`[MainThreadChatSessions] notifyOptionsChange: starting proxy call for handle ${handle}, sessionResource ${sessionResource}`);
 		try {
-			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, Object.fromEntries(updates), CancellationToken.None);
+			const inputStateHandle = this._getInputStateHandleForSession(sessionResource);
+			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, inputStateHandle, Object.fromEntries(updates), CancellationToken.None);
 			this._logService.trace(`[MainThreadChatSessions] notifyOptionsChange: proxy call completed for handle ${handle}, sessionResource ${sessionResource}`);
 		} catch (error) {
 			this._logService.error(`[MainThreadChatSessions] notifyOptionsChange: error for handle ${handle}, sessionResource ${sessionResource}:`, error);
