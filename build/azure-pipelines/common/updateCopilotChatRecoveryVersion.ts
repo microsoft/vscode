@@ -26,10 +26,6 @@ interface IMarketplaceQueryResult {
 
 interface ICopilotPackageJson {
 	version: string;
-	engines?: {
-		vscode?: string;
-		[key: string]: unknown;
-	};
 	[key: string]: unknown;
 }
 
@@ -141,20 +137,14 @@ async function computeVersion(): Promise<{ version: string; major: number; minor
 }
 
 async function updatePackageJson(version: string, major: number, minor: number): Promise<void> {
-	const vscodeEngineVersion = `^${major}.${minor}.0`;
 	const packageJsonContents = await fs.readFile(COPILOT_PACKAGE_JSON_PATH, 'utf8');
 	const packageJson = JSON.parse(packageJsonContents) as ICopilotPackageJson;
 
 	packageJson.version = version;
-	packageJson.engines = {
-		...packageJson.engines,
-		vscode: vscodeEngineVersion,
-	};
 
 	await fs.writeFile(COPILOT_PACKAGE_JSON_PATH, `${JSON.stringify(packageJson, null, '\t')}\n`);
 	console.log(`Updated ${COPILOT_PACKAGE_JSON_PATH}`);
 	console.log(`- version: ${version}`);
-	console.log(`- engines.vscode: ${vscodeEngineVersion}`);
 }
 
 async function main(): Promise<void> {
