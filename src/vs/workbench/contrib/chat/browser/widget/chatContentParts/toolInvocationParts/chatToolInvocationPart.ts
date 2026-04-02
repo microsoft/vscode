@@ -334,10 +334,15 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			parent.appendChild(this.batchedConfirmationPart.domNode);
 		}
 
-		// When the batch empties, show this tool part again so its progress renders
+		// When the batch empties, dispose it, remove its DOM, and show this tool part again
 		this._register(this.batchedConfirmationPart.onDidEmpty(() => {
+			const batchedPart = this.batchedConfirmationPart;
+			if (batchedPart) {
+				batchedPart.domNode.remove();
+				batchedPart.dispose();
+				this.batchedConfirmationPart = undefined;
+			}
 			dom.show(this.domNode);
-			this.batchedConfirmationPart = undefined;
 		}));
 	}
 

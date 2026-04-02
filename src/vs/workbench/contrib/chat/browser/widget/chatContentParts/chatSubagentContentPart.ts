@@ -670,11 +670,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				this.appendToolPartToDOM(part, toolInvocation);
 				this.lastConfirmationToolPart = part;
 
-				// Clear tracking when this tool leaves confirmation
+				// Clear tracking when this tool leaves confirmation AND the batch is no longer active.
+				// Keep the reference while the batch is active so appendToolPartToDOM can
+				// find the batchDomNode and insert new tool wrappers before it.
 				this._register(autorun(r => {
 					const currentState = toolInvocation.state.read(r);
 					if (currentState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
-						if (this.lastConfirmationToolPart === part) {
+						if (this.lastConfirmationToolPart === part && !part.hasActiveBatch) {
 							this.lastConfirmationToolPart = undefined;
 						}
 					}
