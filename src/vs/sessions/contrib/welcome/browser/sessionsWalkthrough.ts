@@ -127,8 +127,8 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			return;
 		}
 
-		// Sign-in button row inside the right column.
-		const providerRow = append(right, $('.sessions-walkthrough-providers-row'));
+		const signInActions = append(right, $('.sessions-walkthrough-sign-in-actions'));
+		const providerRow = append(signInActions, $('.sessions-walkthrough-providers-row'));
 
 		// Primary sign-in button
 		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.provider-github')) as HTMLButtonElement;
@@ -145,7 +145,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
 
 		const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE.com';
-		const enterpriseBtn = append(right, $('button.sessions-walkthrough-provider-link', undefined, localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName))) as HTMLButtonElement;
+		const enterpriseBtn = append(signInActions, $('button.sessions-walkthrough-provider-secondary', undefined, localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName))) as HTMLButtonElement;
 
 		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
@@ -174,7 +174,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				strategy,
 				titleEl,
 				subtitleEl,
-				providerRow
+				signInActions
 			)));
 		}
 	}
@@ -189,7 +189,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		);
 	}
 
-	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, providerRow: HTMLElement): Promise<void> {
+	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
 		// Disable all provider buttons
 		for (const btn of providerButtons) {
 			btn.disabled = true;
@@ -202,7 +202,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		this.disclaimerElement.classList.add('hidden');
 		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
 		await this._wait(fadeDuration);
-		if (this._shouldAbortUpdate(titleEl, subtitleEl, providerRow)) {
+		if (this._shouldAbortUpdate(titleEl, subtitleEl, signInActions)) {
 			return;
 		}
 
@@ -210,12 +210,12 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		titleEl.textContent = localize('walkthrough.settingUp', "Signing in\u2026");
 		subtitleEl.textContent = localize('walkthrough.poweredBy', "Complete authorization in your browser.");
 
-		// Replace provider buttons with progress bar
-		const heroText = providerRow.parentElement;
+		// Replace sign-in actions with progress bar
+		const heroText = signInActions.parentElement;
 		if (!heroText) {
 			return;
 		}
-		providerRow.remove();
+		signInActions.remove();
 		append(heroText, $('.sessions-walkthrough-progress-bar', undefined, $('.sessions-walkthrough-progress-bar-fill')));
 
 		// Fade back in

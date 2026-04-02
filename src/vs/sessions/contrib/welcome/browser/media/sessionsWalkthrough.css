@@ -195,6 +195,12 @@
 	margin-top: 16px;
 }
 
+.sessions-walkthrough-sign-in-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
 /* Icon-only provider buttons (Google, Apple) */
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only {
 	width: 40px;
@@ -209,21 +215,30 @@
 	height: 18px;
 }
 
-.sessions-walkthrough-provider-link {
-	border: 0;
-	background-color: unset;
-	color: var(--vscode-textLink-foreground);
+.sessions-walkthrough-provider-secondary {
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+	background: color-mix(in srgb, var(--vscode-foreground) 3%, transparent);
+	color: var(--vscode-descriptionForeground);
+	min-height: 28px;
 	width: fit-content;
 	margin: 12px auto 0;
-	padding: 0;
+	padding: 0 12px;
+	border-radius: 999px;
 	font-size: 13px;
 	font-weight: 500;
 	cursor: pointer;
+	transition: background 100ms, border-color 100ms, color 100ms;
 }
 
-.sessions-walkthrough-provider-link:hover {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
+.sessions-walkthrough-provider-secondary:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+	color: var(--vscode-foreground);
+}
+
+.sessions-walkthrough-provider-secondary:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 /* ---- Hero layout (icon left, text right) ---- */
@@ -353,9 +368,11 @@
 .monaco-reduce-motion .sessions-walkthrough-overlay,
 .monaco-reduce-motion .sessions-walkthrough-content,
 .monaco-reduce-motion .sessions-walkthrough-provider-btn,
+.monaco-reduce-motion .sessions-walkthrough-provider-secondary,
 .agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-overlay,
 .agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-content,
-.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-provider-btn {
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-provider-btn,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-provider-secondary {
 	transition-duration: 0ms !important;
 }
 

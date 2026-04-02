@@ -293,7 +293,7 @@ suite('SessionsWelcomeContribution', () => {
 				const githubButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-github');
 				const googleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-google');
 				const appleButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-btn.provider-apple');
-				const enterpriseButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-link');
+				const enterpriseButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-secondary');
 				assert.ok(githubButton);
 				assert.ok(googleButton);
 				assert.ok(appleButton);
@@ -315,7 +315,49 @@ suite('SessionsWelcomeContribution', () => {
 
 			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-apple', ChatSetupStrategy.SetupWithAppleProvider);
 			await assertButtonStrategy('.sessions-walkthrough-provider-btn.provider-google', ChatSetupStrategy.SetupWithGoogleProvider);
-			await assertButtonStrategy('.sessions-walkthrough-provider-link', ChatSetupStrategy.SetupWithEnterpriseProvider);
+			await assertButtonStrategy('.sessions-walkthrough-provider-secondary', ChatSetupStrategy.SetupWithEnterpriseProvider);
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('enterprise sign-in option is removed after setup begins', async () => {
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
+		let resolveExecuteCommand!: () => void;
+		const executeCommandStarted = new Promise<void>(resolve => {
+			resolveExecuteCommand = resolve;
+		});
+
+		instantiationService.stub(ICommandService, {
+			executeCommand: () => {
+				resolveExecuteCommand();
+				return new Promise<boolean>(() => { });
+			}
+		} as unknown as ICommandService);
+		instantiationService.stub(IExtensionService, {
+			stopExtensionHosts: () => Promise.resolve(false),
+			startExtensionHosts: () => Promise.resolve()
+		} as unknown as IExtensionService);
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		try {
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const enterpriseButton = container.querySelector<HTMLButtonElement>('.sessions-walkthrough-provider-secondary');
+			assert.ok(enterpriseButton);
+
+			enterpriseButton.click();
+			await executeCommandStarted;
+			await new Promise(resolve => setTimeout(resolve, 250));
+
+			assert.strictEqual(container.querySelector('.sessions-walkthrough-provider-secondary'), null);
+			assert.strictEqual(container.querySelector('.sessions-walkthrough-provider-btn'), null);
+
+			overlay.dispose();
 		} finally {
 			container.remove();
 		}
