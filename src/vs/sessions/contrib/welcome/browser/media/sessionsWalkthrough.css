@@ -219,12 +219,12 @@
 	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
 	background: color-mix(in srgb, var(--vscode-foreground) 3%, transparent);
 	color: var(--vscode-descriptionForeground);
-	min-height: 28px;
+	min-height: 24px;
 	width: fit-content;
-	margin: 12px auto 0;
-	padding: 0 12px;
+	margin: 10px auto 0;
+	padding: 0 10px;
 	border-radius: 999px;
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 500;
 	cursor: pointer;
 	transition: background 100ms, border-color 100ms, color 100ms;
