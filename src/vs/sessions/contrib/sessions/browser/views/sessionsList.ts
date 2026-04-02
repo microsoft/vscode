@@ -498,6 +498,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 interface ISessionSectionTemplate {
 	readonly container: HTMLElement;
+	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly toolbar: MenuWorkbenchToolBar;
@@ -520,6 +521,7 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 
 		container.classList.add('session-section');
 		const label = DOM.append(container, $('span.session-section-label'));
+		const icon = DOM.append(container, $('span.session-section-icon'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 
@@ -529,13 +531,20 @@ class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScor
 			menuOptions: { shouldForwardArgs: true },
 		}));
 
-		return { container, label, count, toolbar, contextKeyService, disposables };
+		return { container, icon, label, count, toolbar, contextKeyService, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
 		const element = node.element;
 		if (!isSessionSection(element)) {
 			return;
+		}
+		DOM.clearNode(template.icon);
+		if (element.id === 'archived') {
+			DOM.append(template.icon, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`));
+			template.icon.style.display = '';
+		} else {
+			template.icon.style.display = 'none';
 		}
 		template.label.textContent = element.label;
 		if (this.hideSectionCount) {
@@ -875,7 +884,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Add archived section at the bottom
 		if (archived.length > 0) {
-			sections.push({ id: 'archived', label: localize('archived', "Marked as Done"), sessions: archived });
+			sections.push({ id: 'archived', label: localize('archived', "Done"), sessions: archived });
 		}
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);

@@ -111,7 +111,18 @@
 		line-height: 17px;
 
 		> .codicon {
+		gap: 4px;
 			flex-shrink: 0;
+		.session-section-icon {
+			display: flex;
+			align-items: center;
+			color: var(--vscode-descriptionForeground);
+
+			> .codicon {
+				font-size: 12px;
+			}
+		}
+
 			font-size: 12px;
 			height: 16px;
 			display: flex;
@@ -318,13 +329,28 @@
 	text-transform: uppercase;
 	/* align with session item padding */
 	padding: 0 6px;
+	gap: 4px;
+
+	.session-section-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 100%;
+		color: var(--vscode-descriptionForeground);
+
+		> .codicon {
+			font-size: 12px;
+			line-height: 1;
+		}
+	}
 
 	.session-section-label {
-		flex: 1;
+		flex: 0 1 auto;
 	}
 
 	.session-section-count {
 		opacity: 0.7;
+		margin-left: auto;
 		margin-right: 4px;
 	}
 
