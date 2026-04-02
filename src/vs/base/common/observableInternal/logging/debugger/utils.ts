@@ -46,6 +46,12 @@ export class Throttler implements IDisposable {
 
 export function deepAssign<T>(target: T, source: T): void {
 	for (const key in source) {
+		if (!Object.prototype.hasOwnProperty.call(source, key)) {
+			continue;
+		}
+		if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+			continue;
+		}
 		if (!!target[key] && typeof target[key] === 'object' && !!source[key] && typeof source[key] === 'object') {
 			deepAssign(target[key], source[key]);
 		} else {
@@ -56,6 +62,12 @@ export function deepAssign<T>(target: T, source: T): void {
 
 export function deepAssignDeleteNulls<T>(target: T, source: T): void {
 	for (const key in source) {
+		if (!Object.prototype.hasOwnProperty.call(source, key)) {
+			continue;
+		}
+		if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+			continue;
+		}
 		if (source[key] === null) {
 			delete target[key];
 		} else if (!!target[key] && typeof target[key] === 'object' && !!source[key] && typeof source[key] === 'object') {
