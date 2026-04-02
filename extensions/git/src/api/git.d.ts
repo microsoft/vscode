@@ -259,6 +259,7 @@ export interface Repository {
 	add(paths: string[]): Promise<void>;
 	revert(paths: string[]): Promise<void>;
 	clean(paths: string[]): Promise<void>;
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
 	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean; }): Promise<void>;
@@ -278,6 +279,7 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 

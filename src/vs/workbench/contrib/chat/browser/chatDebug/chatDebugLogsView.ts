@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -20,18 +21,22 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { filterDebugEventsByText } from '../../common/chatDebugEvents.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
+import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer, getEventCreatedText, getEventNameText, getEventDetailsText } from './chatDebugEventList.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 import { IChatWidgetService } from '../chat.js';
 import { createDebugEventsAttachment } from './chatDebugAttachment.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 
 const $ = DOM.$;
 
@@ -60,13 +65,13 @@ export class ChatDebugLogsView extends Disposable {
 	private tree: WorkbenchObjectTree<IChatDebugEvent, void>;
 
 	private currentSessionResource: URI | undefined;
-	private logsViewMode: LogsViewMode = LogsViewMode.List;
+	private logsViewMode: LogsViewMode = LogsViewMode.Tree;
 	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly sessionStateDisposable = this._register(new MutableDisposable());
 	private readonly refreshScheduler: RunOnceScheduler;
-	private shimmerRow!: HTMLElement;
+	private readonly progressBar: ProgressBar;
 
 	constructor(
 		parent: HTMLElement,
@@ -76,6 +81,8 @@ export class ChatDebugLogsView extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.refreshList(), 50));
@@ -165,11 +172,18 @@ export class ChatDebugLogsView extends Disposable {
 		DOM.append(this.tableHeader, $('span.chat-debug-col-name', undefined, localize('chatDebug.col.name', "Name")));
 		DOM.append(this.tableHeader, $('span.chat-debug-col-details', undefined, localize('chatDebug.col.details', "Details")));
 
+		// Progress bar (shown when session is in progress)
+		this.progressBar = this._register(new ProgressBar(mainColumn, {
+			...defaultProgressBarStyles,
+			ariaLabel: localize('chatDebug.progressAriaLabel', "Chat debug logs loading progress")
+		}));
+
 		// Body container
 		this.bodyContainer = DOM.append(mainColumn, $('.chat-debug-logs-body'));
 
-		// List container
+		// List container (initially hidden — tree view is default)
 		this.listContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
+		DOM.hide(this.listContainer);
 
 		const accessibilityProvider = {
 			getAriaLabel: (e: IChatDebugEvent) => {
@@ -209,9 +223,8 @@ export class ChatDebugLogsView extends Disposable {
 			{ identityProvider, accessibilityProvider }
 		));
 
-		// Tree container (initially hidden)
+		// Tree container (default view)
 		this.treeContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
-		DOM.hide(this.treeContainer);
 
 		this.tree = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IChatDebugEvent, void>,
@@ -222,21 +235,34 @@ export class ChatDebugLogsView extends Disposable {
 			{ identityProvider, accessibilityProvider }
 		));
 
-		// Shimmer row (positioned right below last row to indicate session is running)
-		this.shimmerRow = DOM.append(this.bodyContainer, $('.chat-debug-logs-shimmer-row'));
-		this.shimmerRow.setAttribute('aria-label', localize('chatDebug.loadingMore', "Loading more events…"));
-		this.shimmerRow.setAttribute('aria-busy', 'true');
-		DOM.append(this.shimmerRow, $('span.chat-debug-logs-shimmer-bar'));
-		DOM.hide(this.shimmerRow);
-
 		// Detail panel (sibling of main column so it aligns with table header)
 		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentContainer));
+		this._register(this.detailPanel.onDidChangeWidth(() => {
+			if (this.currentDimension) {
+				this.layout(this.currentDimension);
+			}
+		}));
 		this._register(this.detailPanel.onDidHide(() => {
 			if (this.list.getSelection().length > 0) {
 				this.list.setSelection([]);
 			}
 			if (this.tree.getSelection().length > 0) {
 				this.tree.setSelection([]);
+			}
+			if (this.currentDimension) {
+				this.layout(this.currentDimension);
+			}
+		}));
+
+		// Context menu
+		this._register(this.list.onContextMenu(e => {
+			if (e.element) {
+				this.showEventContextMenu(e.element, e.browserEvent);
+			}
+		}));
+		this._register(this.tree.onContextMenu(e => {
+			if (e.element) {
+				this.showEventContextMenu(e.element, e.browserEvent);
 			}
 		}));
 
@@ -292,7 +318,7 @@ export class ChatDebugLogsView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Logs"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
 			new TextBreadcrumbItem(localize('chatDebug.logs', "Logs")),
 		]);
@@ -303,8 +329,8 @@ export class ChatDebugLogsView extends Disposable {
 		const breadcrumbHeight = 22;
 		const headerHeight = this.headerContainer.offsetHeight;
 		const tableHeaderHeight = this.tableHeader.offsetHeight;
-		const detailVisible = this.detailPanel.element.style.display !== 'none';
-		const detailWidth = detailVisible ? this.detailPanel.element.offsetWidth : 0;
+		const detailVisible = this.detailPanel.isVisible;
+		const detailWidth = detailVisible ? this.detailPanel.width : 0;
 		const listHeight = dimension.height - breadcrumbHeight - headerHeight - tableHeaderHeight;
 		const listWidth = dimension.width - detailWidth;
 		if (this.logsViewMode === LogsViewMode.Tree) {
@@ -312,6 +338,10 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.list.layout(listHeight, listWidth);
 		}
+		if (this.detailPanel.isVisible) {
+			this.detailPanel.layout(listHeight);
+		}
+		this.detailPanel.layoutSash();
 	}
 
 	refreshList(): void {
@@ -336,11 +366,6 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.refreshTree(filtered);
 		}
-		this.updateShimmerPosition(filtered.length);
-	}
-
-	private updateShimmerPosition(itemCount: number): void {
-		this.shimmerRow.style.top = `${itemCount * 28}px`;
 	}
 
 	addEvent(event: IChatDebugEvent): void {
@@ -396,14 +421,14 @@ export class ChatDebugLogsView extends Disposable {
 
 	private trackSessionState(): void {
 		if (!this.currentSessionResource) {
-			DOM.hide(this.shimmerRow);
+			this.progressBar.stop();
 			this.sessionStateDisposable.clear();
 			return;
 		}
 
 		const model = this.chatService.getSession(this.currentSessionResource);
 		if (!model) {
-			DOM.hide(this.shimmerRow);
+			this.progressBar.stop();
 			this.sessionStateDisposable.clear();
 			return;
 		}
@@ -411,9 +436,9 @@ export class ChatDebugLogsView extends Disposable {
 		this.sessionStateDisposable.value = autorun(reader => {
 			const inProgress = model.requestInProgress.read(reader);
 			if (inProgress) {
-				DOM.show(this.shimmerRow);
+				this.progressBar.infinite();
 			} else {
-				DOM.hide(this.shimmerRow);
+				this.progressBar.stop();
 			}
 		});
 	}
@@ -506,5 +531,29 @@ export class ChatDebugLogsView extends Disposable {
 		this.filterWidget.checkMoreFilters(!this.filterState.isAllFiltersDefault());
 	}
 
+	private showEventContextMenu(event: IChatDebugEvent, browserEvent: UIEvent): void {
+		const d = event.created;
+		const pad = (n: number) => String(n).padStart(2, '0');
+		const timestamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+		const row = [getEventCreatedText(event), getEventNameText(event), getEventDetailsText(event)].filter(Boolean).join('\t');
+		const name = getEventNameText(event);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => DOM.isMouseEvent(browserEvent)
+				? new StandardMouseEvent(DOM.getWindow(this.container), browserEvent)
+				: this.container,
+			getActions: () => [
+				new Action('chatDebug.copyTimestamp', localize('chatDebug.copyTimestamp', "Copy Timestamp"), undefined, true, () => this.clipboardService.writeText(timestamp)),
+				new Action('chatDebug.copyRow', localize('chatDebug.copyRow', "Copy Row"), undefined, true, () => this.clipboardService.writeText(row)),
+				new Separator(),
+				new Action('chatDebug.filterBefore', localize('chatDebug.filterBefore', "Filter Before Timestamp"), undefined, true, () => this.applyFilterToken(`before:${timestamp}`)),
+				new Action('chatDebug.filterAfter', localize('chatDebug.filterAfter', "Filter After Timestamp"), undefined, true, () => this.applyFilterToken(`after:${timestamp}`)),
+				new Action('chatDebug.filterName', localize('chatDebug.filterName', "Filter Name"), undefined, !!name, () => this.applyFilterToken(name)),
+			],
+		});
+	}
+
+	private applyFilterToken(token: string): void {
+		this.filterWidget.setFilterText(token);
+	}
 
 }

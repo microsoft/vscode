@@ -158,6 +158,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.clean(paths.map(p => Uri.file(p)));
 	}
 
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }) {
+		return this.#repository.restore(paths.map(p => Uri.file(p)), options);
+	}
+
 	diff(cached?: boolean) {
 		return this.#repository.diff(cached);
 	}
@@ -210,6 +214,10 @@ export class ApiRepository implements Repository {
 
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]> {
 		return this.#repository.diffBetweenWithStats(ref1, ref2, path);
+	}
+
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]> {
+		return this.#repository.diffBetweenWithStats2(ref, path);
 	}
 
 	hashObject(data: string): Promise<string> {

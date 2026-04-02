@@ -18,7 +18,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
-import { AgentFileType, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { AgentInstructionFileType, IPromptPath, IPromptsService, IAgentInstructionFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -37,7 +37,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
-import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID } from '../../browser/actions/chatActions.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } from '../../browser/actions/chatActions.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -66,7 +66,7 @@ suite('ChatTipService', () => {
 	let configurationService: TestConfigurationService;
 	let commandExecutedEmitter: Emitter<ICommandEvent>;
 	let storageService: InMemoryStorageService;
-	let mockInstructionFiles: IResolvedAgentFile[];
+	let mockInstructionFiles: IAgentInstructionFile[];
 	let mockPromptInstructionFiles: IPromptPath[];
 	let chatEntitlementService: TestChatEntitlementService;
 
@@ -821,7 +821,7 @@ suite('ChatTipService', () => {
 	});
 
 	function createMockPromptsService(
-		agentInstructions: IResolvedAgentFile[] = [],
+		agentInstructions: IAgentInstructionFile[] = [],
 		promptInstructions: IPromptPath[] = [],
 		options?: { onDidChangeCustomAgents?: Event<void>; listPromptFiles?: (_type: PromptsType) => Promise<readonly IPromptPath[]> },
 	): Partial<IPromptsService> {
@@ -904,14 +904,14 @@ suite('ChatTipService', () => {
 	test('excludes tip.customInstructions when copilot-instructions.md exists in workspace', async () => {
 		const tip = createMockTip({
 			id: 'tip.customInstructions',
-			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
+			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentInstructionFileType.copilotInstructionsMd, excludeUntilChecked: true },
 		});
 
 		const tracker = testDisposables.add(new TipEligibilityTracker(
 			[tip],
 			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
 			storageService,
-			createMockPromptsService([{ uri: { path: '/.github/copilot-instructions.md' }, realPath: undefined, type: AgentFileType.copilotInstructionsMd } as IResolvedAgentFile]) as IPromptsService,
+			createMockPromptsService([{ uri: { path: '/.github/copilot-instructions.md' }, realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd } as IAgentInstructionFile]) as IPromptsService,
 			createMockToolsService(),
 			new NullLogService(),
 		));
@@ -925,14 +925,14 @@ suite('ChatTipService', () => {
 	test('does not exclude tip.customInstructions when only AGENTS.md exists', async () => {
 		const tip = createMockTip({
 			id: 'tip.customInstructions',
-			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
+			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentInstructionFileType.copilotInstructionsMd, excludeUntilChecked: true },
 		});
 
 		const tracker = testDisposables.add(new TipEligibilityTracker(
 			[tip],
 			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
 			storageService,
-			createMockPromptsService([{ uri: { path: '/AGENTS.md' }, realPath: undefined, type: AgentFileType.agentsMd } as IResolvedAgentFile]) as IPromptsService,
+			createMockPromptsService([{ uri: { path: '/AGENTS.md' }, realPath: undefined, type: AgentInstructionFileType.agentsMd } as IAgentInstructionFile]) as IPromptsService,
 			createMockToolsService(),
 			new NullLogService(),
 		));
@@ -946,7 +946,7 @@ suite('ChatTipService', () => {
 	test('excludes tip.customInstructions when .instructions.md files exist in workspace', async () => {
 		const tip = createMockTip({
 			id: 'tip.customInstructions',
-			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
+			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentInstructionFileType.copilotInstructionsMd, excludeUntilChecked: true },
 		});
 
 		const tracker = testDisposables.add(new TipEligibilityTracker(
@@ -967,7 +967,7 @@ suite('ChatTipService', () => {
 	test('does not exclude tip.customInstructions when no instruction files exist', async () => {
 		const tip = createMockTip({
 			id: 'tip.customInstructions',
-			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
+			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentInstructionFileType.copilotInstructionsMd, excludeUntilChecked: true },
 		});
 
 		const tracker = testDisposables.add(new TipEligibilityTracker(
@@ -1484,12 +1484,28 @@ suite('ChatTipService', () => {
 			commandExecutedEmitter.fire({ commandId: 'workbench.action.openSettings', args: [] });
 
 			assert.strictEqual(dismissed, true, `${tipId} should dismiss when its settings command is clicked`);
-			assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should hide for the rest of the session after actioning a tip');
+			assert.notStrictEqual(service.getWelcomeTip(contextKeyService)?.id, tipId, `${tipId} should not be shown again after actioning its command link`);
 
-			service.resetSession();
-			assertTipNeverShown(service, tipId);
+			const nextService = createService();
+			assertTipNeverShown(nextService, tipId);
 		});
 	}
+
+	test('dismisses createPrompt tip after clicking its command link', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+
+		const tip = findTipById(service, 'tip.createPrompt');
+		assert.ok(tip, 'Should show tip.createPrompt before command click');
+		assert.ok(tip.enabledCommands?.includes(GENERATE_PROMPT_COMMAND_ID), 'Tip should enable the create prompt command');
+
+		commandExecutedEmitter.fire({ commandId: GENERATE_PROMPT_COMMAND_ID, args: [] });
+
+		assert.notStrictEqual(service.getWelcomeTip(contextKeyService)?.id, 'tip.createPrompt', 'tip.createPrompt should not be shown again after actioning its command link');
+
+		const nextService = createService();
+		assertTipNeverShown(nextService, 'tip.createPrompt');
+	});
 
 	test('logs telemetry when tip is shown', () => {
 		const events: { eventName: string; data: Record<string, unknown> }[] = [];
@@ -1685,7 +1701,7 @@ suite('ChatTipService', () => {
 
 		const tip = createMockTip({
 			id: 'tip.customInstructions',
-			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
+			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentInstructionFileType.copilotInstructionsMd, excludeUntilChecked: true },
 		});
 
 		const tracker = testDisposables.add(new TipEligibilityTracker(

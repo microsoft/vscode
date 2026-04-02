@@ -7,10 +7,13 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { localize } from '../../../../../nls.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IOpenBrowserToolParams, OpenBrowserToolData } from './openBrowserTool.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { alreadyOpenResult, createBrowserPageLink, findExistingPageByHost } from './browserToolHelpers.js';
 
 export const OpenBrowserToolNonAgenticData: IToolData = {
 	...OpenBrowserToolData,
@@ -48,16 +51,24 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
+		if (!params.forceNew) {
+			const existing = await findExistingPageByHost(this.editorService, undefined, params.url);
+			if (existing) {
+				return alreadyOpenResult(existing);
+			}
+		}
+
 		logBrowserOpen(this.telemetryService, 'chatTool');
 
-		const browserUri = BrowserViewUri.forUrl(params.url);
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
+		const browserUri = BrowserViewUri.forId(generateUuid());
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: params.url } } });
 
 		return {
 			content: [{
 				kind: 'text',
 				value: `Page opened successfully. Note that you do not have access to the page contents unless the user enables agentic tools via the \`workbench.browser.enableChatTools\` setting.`,
-			}]
+			}],
+			toolResultMessage: new MarkdownString(localize('browser.open.nonAgentic.result', "Opened {0}", createBrowserPageLink(browserUri)))
 		};
 	}
 }
