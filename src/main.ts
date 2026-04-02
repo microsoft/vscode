@@ -443,6 +443,12 @@ function getArgvConfigPath(): string {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// On Linux, respect XDG_CONFIG_HOME
+	if (process.platform === 'linux') {
+		const xdgConfigHome = process.env['XDG_CONFIG_HOME'] || path.join(os.homedir(), '.config');
+		return path.join(xdgConfigHome, dataFolderName!, 'argv.json');
+	}
+
 	return path.join(os.homedir(), dataFolderName!, 'argv.json');
 }
 
