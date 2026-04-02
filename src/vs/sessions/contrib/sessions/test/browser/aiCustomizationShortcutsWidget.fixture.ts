@@ -23,8 +23,7 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
-import { ISessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISession } from '../../common/sessionData.js';
+import { IActiveSession, ISessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { Menus } from '../../../../browser/menus.js';
 
 // Ensure color registrations are loaded
@@ -129,7 +128,13 @@ function createMockPromptsServiceWithCounts(counts?: ICustomizationCounts): IPro
 	}));
 	const skills = Array.from({ length: counts?.skills ?? 0 }, (_, i) => fakeItem('skill', i));
 	const prompts = Array.from({ length: counts?.prompts ?? 0 }, (_, i) => ({
-		promptPath: { uri: fakeUri('prompt', i), storage: PromptsStorage.local, type: PromptsType.prompt },
+		uri: fakeUri('prompt', i),
+		name: `prompt-${i}`,
+		type: PromptsType.prompt,
+		storage: PromptsStorage.local,
+		userInvocable: true,
+		parsedPromptFile: undefined,
+		when: undefined,
 	}));
 	const instructions = Array.from({ length: counts?.instructions ?? 0 }, (_, i) => fakeItem('instructions', i));
 	const hooks = Array.from({ length: counts?.hooks ?? 0 }, (_, i) => fakeItem('hook', i));
@@ -201,7 +206,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidChangeLanguageModels = Event.None;
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-				override readonly activeSession = observableValue<ISession | undefined>('activeSession', undefined);
+				override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;

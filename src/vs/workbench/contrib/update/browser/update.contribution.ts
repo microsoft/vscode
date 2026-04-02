@@ -9,6 +9,8 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, showReleaseNotesInEditor, DefaultAccountUpdateContribution } from './update.js';
 import { UpdateTitleBarContribution } from './updateTitleBarEntry.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -241,3 +243,25 @@ if (isWindows) {
 
 	registerAction2(DeveloperApplyUpdateAction);
 }
+
+registerAction2(class ShowUpdateInfoAction extends Action2 {
+	constructor() {
+		super({
+			id: 'update.showUpdateInfo',
+			title: localize2('showUpdateInfo', "Show Update Info"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: IsWebContext.negate(),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const markdown = await quickInputService.input({ prompt: localize('showUpdateInfo.prompt', "Enter markdown to render (leave empty to load from URL)") });
+		if (markdown === undefined) {
+			return; // cancelled
+		}
+		await commandService.executeCommand('_update.showUpdateInfo', markdown || undefined);
+	}
+});

@@ -163,6 +163,20 @@ export interface ISubscribeResult {
  * { "jsonrpc": "2.0", "id": 2, "error": { "code": -32003, "message": "Session already exists" } }
  * ```
  */
+/**
+ * Identifies a source session and turn to fork from.
+ *
+ * When provided in `createSession`, the server populates the new session with
+ * content from the source session up to and including the response of the
+ * specified turn.
+ */
+export interface ISessionForkSource {
+	/** URI of the existing session to fork from */
+	session: URI;
+	/** Turn ID in the source session; content up to and including this turn's response is copied */
+	turnId: string;
+}
+
 export interface ICreateSessionParams {
 	/** Session URI (client-chosen, e.g. `copilot:/<uuid>`) */
 	session: URI;
@@ -172,6 +186,11 @@ export interface ICreateSessionParams {
 	model?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
+	/**
+	 * Fork from an existing session. The new session is populated with content
+	 * from the source session up to and including the specified turn's response.
+	 */
+	fork?: ISessionForkSource;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────

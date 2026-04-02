@@ -23,6 +23,7 @@ import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
@@ -1363,6 +1364,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.GeneralPurposeAgentEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.generalPurposeAgent.enabled', "Controls whether the built-in General Purpose agent is available as a subagent."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.SubagentsAllowInvocationsFromSubagents]: {
 			type: 'boolean',
 			description: nls.localize('chat.subagents.allowInvocationsFromSubagents', "Allow subagents to invoke subagents."),
@@ -1528,6 +1538,32 @@ class ChatResolverContribution extends Disposable {
 				}
 			}
 		));
+	}
+}
+
+class CopilotTelemetryContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.copilotTelemetry';
+
+	constructor(
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+	) {
+		super();
+
+		this.updateCopilotTrackingId();
+
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			this.updateCopilotTrackingId();
+		}));
+	}
+
+	private updateCopilotTrackingId(): void {
+		const copilotTrackingId = this.chatEntitlementService.copilotTrackingId;
+		if (copilotTrackingId) {
+			// __GDPR__COMMON__ "common.copilotTrackingId" : { "endPoint": "GoogleAnalyticsID", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "The anonymized Copilot analytics tracking ID from the entitlement API." }
+			this.telemetryService.setCommonProperty('common.copilotTrackingId', copilotTrackingId);
+		}
 	}
 }
 
@@ -1873,6 +1909,7 @@ registerEditorFeature(ChatInputBoxContentProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatDebugEditorInput.ID, ChatDebugEditorInputSerializer);
 
+registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribution, WorkbenchPhase.BlockRestore);
