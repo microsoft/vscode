@@ -759,6 +759,11 @@ configurationRegistry.registerConfiguration({
 				}
 			}
 		},
+		[ChatConfiguration.DefaultNewSessionMode]: {
+			type: 'string',
+			description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
+			default: '',
+		},
 		[AgentHostEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.enabled', "When enabled, some agents run in a separate agent host process."),
@@ -1606,6 +1611,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.newChatButtonExperimentIcon = ChatContextKeys.newChatButtonExperimentIcon.bindTo(this.contextKeyService);
 		this.registerMaxRequestsSetting();
 		this.registerNewChatButtonIcon();
+		this.registerDefaultModeSetting();
 	}
 
 
@@ -1644,6 +1650,24 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			} else {
 				this.newChatButtonExperimentIcon.reset();
 			}
+		});
+	}
+
+	private registerDefaultModeSetting(): void {
+		this.experimentService.getTreatment<string>('chatDefaultNewSessionMode').then(value => {
+			const node: IConfigurationNode = {
+				id: 'chatSidebar',
+				title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
+				type: 'object',
+				properties: {
+					[ChatConfiguration.DefaultNewSessionMode]: {
+						type: 'string',
+						description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
+						default: typeof value === 'string' ? value : '',
+					}
+				}
+			};
+			configurationRegistry.updateConfigurations({ add: [node], remove: [] });
 		});
 	}
 }

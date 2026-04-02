@@ -65,8 +65,7 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { GitDiffChange, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { IGitHubService } from '../../github/browser/githubService.js';
-import { CIStatusWidget } from './ciStatusWidget.js';
+import { CIStatusWidget } from './checksWidget.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../sessions/common/sessionData.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -75,6 +74,7 @@ import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
+import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;
 
@@ -551,7 +551,6 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
-		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -621,6 +620,7 @@ export class ChangesViewPane extends ViewPane {
 		}));
 
 		this.filesCountBadge = dom.append(this.filesHeaderNode, $('.changes-files-count'));
+		this.filesCountBadge.style.display = 'none';
 
 		// Overview section (header with summary only - actions moved outside card)
 		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
@@ -634,8 +634,10 @@ export class ChangesViewPane extends ViewPane {
 		// List container
 		this.listContainer = dom.append(this.contentContainer, $('.changes-file-list'));
 
-		// Welcome message for empty state
+		// Welcome message for empty state (hidden by default, shown when no changes)
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
+		this.welcomeContainer.style.display = 'none';
+
 		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
 		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
@@ -913,9 +915,6 @@ export class ChangesViewPane extends ViewPane {
 			const outgoingChangesObs = derived(reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
-				if (!repositoryState) {
-					return 0;
-				}
 
 				return repositoryState?.HEAD?.ahead ?? 0;
 			});
@@ -928,9 +927,6 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(bindContextKey(hasUncommittedChangesContextKey, this.scopedContextKeyService, reader => {
 				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
 				const repositoryState = repository?.state.read(reader);
-				if (!repositoryState) {
-					return true;
-				}
 
 				return (repositoryState?.mergeChanges.length ?? 0) > 0 ||
 					(repositoryState?.indexChanges.length ?? 0) > 0 ||
@@ -1056,6 +1052,7 @@ export class ChangesViewPane extends ViewPane {
 
 			if (this.filesCountBadge) {
 				this.filesCountBadge.textContent = `${files}`;
+				this.filesCountBadge.style.display = '';
 			}
 		}));
 
@@ -1151,34 +1148,12 @@ export class ChangesViewPane extends ViewPane {
 			}));
 		}
 
-		// Bind CI status widget to active session's PR CI model
+		// Checks
 		if (this.ciStatusWidget) {
-			const activeSessionResourceObs = derived(this, reader => this.sessionManagementService.activeSession.read(reader)?.resource);
+			const checksViewModel = this.instantiationService.createInstance(ChecksViewModel);
+			this.renderDisposables.add(checksViewModel);
 
-			const ciModelObs = derived(this, reader => {
-				const session = this.sessionManagementService.activeSession.read(reader);
-				if (!session) {
-					return undefined;
-				}
-				const gitHubInfo = session.gitHubInfo.read(reader);
-				if (!gitHubInfo?.pullRequest) {
-					return undefined;
-				}
-				const prModel = this.gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
-				const pr = prModel.pullRequest.read(reader);
-				if (!pr) {
-					return undefined;
-				}
-				// Use the PR's headSha (commit SHA) rather than the branch
-				// name so CI checks can still be fetched after branch deletion
-				// (e.g. after the PR is merged).
-				const ciModel = this.gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headSha);
-				ciModel.refresh();
-				ciModel.startPolling();
-				reader.store.add({ dispose: () => ciModel.stopPolling() });
-				return ciModel;
-			});
-			this.renderDisposables.add(this.ciStatusWidget.bind(ciModelObs, activeSessionResourceObs));
+			this.renderDisposables.add(this.ciStatusWidget.setInput(checksViewModel));
 		}
 
 		// Update tree data with combined entries
