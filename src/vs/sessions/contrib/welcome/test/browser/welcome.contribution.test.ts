@@ -64,6 +64,10 @@ class TestWalkthroughOverlay extends Disposable {
 	resolve(outcome: WalkthroughOutcome): void {
 		this._resolveOutcome(outcome);
 	}
+
+	complete(): void {
+		this.resolve('completed');
+	}
 }
 
 suite('SessionsWelcomeContribution', () => {
@@ -195,7 +199,7 @@ suite('SessionsWelcomeContribution', () => {
 		assert.strictEqual(isOverlayVisible(), true, 'should show overlay when extension is disabled');
 	});
 
-	test('setup completion persists welcome completion without dismissing overlay', () => {
+	test('setup completion dismisses overlay and persists welcome completion', async () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
 		mockEntitlementService.sentimentObs.set({ completed: false, installed: false } as IChatSentiment, undefined);
 
@@ -208,10 +212,11 @@ suite('SessionsWelcomeContribution', () => {
 			mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, tx);
 			mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, tx);
 		});
+		await flushMicrotasks();
 
 		const storageService = instantiationService.get(IStorageService);
 		assert.strictEqual(storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false), true);
-		assert.strictEqual(isOverlayVisible(), true, 'should remain visible until walkthrough completes');
+		assert.strictEqual(isOverlayVisible(), false, 'should dismiss once setup completes');
 	});
 
 	test('walkthrough cannot be dismissed by Escape or backdrop click', () => {
@@ -328,6 +333,18 @@ suite('SessionsWelcomeContribution', () => {
 			getDefaultAccount: () => Promise.resolve(undefined)
 		} as unknown as IDefaultAccountService);
 		instantiationService.stub(ILogService, new NullLogService());
+		const productService = instantiationService.get(IProductService);
+		instantiationService.stub(IProductService, {
+			...productService,
+			defaultChatAgent: {
+				...productService.defaultChatAgent,
+				chatExtensionId: 'test.chat',
+				termsStatementUrl: 'https://example.com/terms',
+				privacyStatementUrl: 'https://example.com/privacy',
+				publicCodeMatchesUrl: 'https://example.com/public-code',
+				manageSettingsUrl: 'https://example.com/settings'
+			}
+		} as IProductService);
 
 		const container = document.createElement('div');
 		document.body.appendChild(container);
@@ -340,6 +357,48 @@ suite('SessionsWelcomeContribution', () => {
 
 			const links = Array.from(disclaimer.querySelectorAll<HTMLAnchorElement>('a'));
 			assert.deepStrictEqual(links.map(link => link.textContent), ['Terms', 'Privacy Statement', 'public code', 'settings']);
+
+			overlay.dispose();
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('walkthrough hides disclaimer when required product links are missing', () => {
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
+		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
+
+		instantiationService.stub(ICommandService, {
+			executeCommand: () => Promise.resolve(false)
+		} as unknown as ICommandService);
+		instantiationService.stub(IExtensionService, {
+			stopExtensionHosts: () => Promise.resolve(false),
+			startExtensionHosts: () => Promise.resolve()
+		} as unknown as IExtensionService);
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const productService = instantiationService.get(IProductService);
+		instantiationService.stub(IProductService, {
+			...productService,
+			defaultChatAgent: {
+				...productService.defaultChatAgent,
+				chatExtensionId: 'test.chat',
+				termsStatementUrl: '',
+				privacyStatementUrl: '',
+				publicCodeMatchesUrl: '',
+				manageSettingsUrl: ''
+			}
+		} as IProductService);
+
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		try {
+			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
+			const disclaimer = container.querySelector<HTMLElement>('.sessions-walkthrough-disclaimer');
+			assert.ok(disclaimer);
+			assert.strictEqual(disclaimer.classList.contains('hidden'), true);
+			assert.strictEqual(disclaimer.querySelectorAll('a').length, 0);
 
 			overlay.dispose();
 		} finally {

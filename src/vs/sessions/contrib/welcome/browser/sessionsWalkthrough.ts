@@ -7,14 +7,11 @@ import './media/sessionsWalkthrough.css';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
@@ -30,7 +27,6 @@ const dismissDuration = 250;
 /**
  * Sign-in onboarding overlay:
  *   - Sign in via GitHub / Google / Apple
- *   - Success state with "Get Started" button
  */
 export class SessionsWalkthroughOverlay extends Disposable {
 
@@ -54,7 +50,6 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
@@ -109,7 +104,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		this.contentContainer.textContent = '';
 		this.footerContainer.textContent = '';
-		this.disclaimerElement.classList.remove('hidden');
+		this.disclaimerElement.classList.toggle('hidden', this.disclaimerLinks.length === 0);
 
 		// Horizontal layout: icon left, text + buttons right
 		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
@@ -120,9 +115,9 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const titleEl = append(right, $('h2', undefined, localize('walkthrough.step1.title', "Welcome to Agents")));
 		const subtitleEl = append(right, $('p', undefined, localize('walkthrough.step1.subtitle', "Sign in to continue with agent-powered development.")));
 
-		// If already signed in, go straight to success
+		// If already signed in, finish immediately so the app can render.
 		if (this._isAlreadySetUp()) {
-			this._showSignInSuccess().catch(err => this.logService.error('[sessions walkthrough] Failed to show sign-in success:', err));
+			this.complete();
 			return;
 		}
 
@@ -243,8 +238,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 					}
 				}
 
-				// Show personalized success state
-				await this._showSignInSuccess();
+				this.complete();
 			} else {
 				// Show cancellation feedback, then reset to sign-in
 				error.textContent = localize('walkthrough.canceledError', "Sign-in was canceled. Please try again.");
@@ -285,58 +279,12 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		}
 	}
 
-	private async _showSignInSuccess(): Promise<void> {
-		const stepDisposables = this.stepDisposables.value = new DisposableStore();
-		this.disclaimerElement.classList.add('hidden');
-
-		// Get user's account name
-		const account = await this.defaultAccountService.getDefaultAccount();
-		const userName = account?.accountName ?? '';
-		if (!this.overlay.isConnected) {
-			return;
-		}
-
-		// Fade out current content
-		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-		await this._wait(fadeDuration);
-		if (!this.overlay.isConnected) {
-			return;
-		}
-
-		// Rebuild content in hero format
-		this.contentContainer.textContent = '';
-		this.footerContainer.textContent = '';
-
-		const layout = append(this.contentContainer, $('.sessions-walkthrough-hero'));
-
-		const right = append(layout, $('.sessions-walkthrough-hero-text'));
-
-		// Welcome message
-		if (userName) {
-			append(right, $('h2', undefined, localize('walkthrough.welcomeUser', "Welcome, {0}", userName)));
-		} else {
-			append(right, $('h2', undefined, localize('walkthrough.welcomeBack', "You\u2019re all set")));
-		}
-
-		append(right, $('p', undefined, localize('walkthrough.successSubtitle', "You\u2019re signed in and ready to go.")));
-
-		// Get Started button
-		const actions = append(right, $('.sessions-walkthrough-success-actions'));
-
-		const getStartedBtn = stepDisposables.add(new Button(actions, { ...defaultButtonStyles }));
-		getStartedBtn.label = localize('walkthrough.getStarted', "Get Started");
-		this.currentFocusableElements = [getStartedBtn.element];
-		getStartedBtn.focus();
-		stepDisposables.add(getStartedBtn.onDidClick(() => {
-			this._finish('completed');
-		}));
-
-		// Fade in
-		this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
-	}
-
 	// ------------------------------------------------------------------
 	// Lifecycle
+
+	complete(): void {
+		this._finish('completed');
+	}
 
 	private _finish(outcome: WalkthroughOutcome): void {
 		this.overlay.classList.add('sessions-walkthrough-dismissed');
@@ -425,10 +373,21 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private _createDisclaimer(): { element: HTMLElement; links: readonly HTMLAnchorElement[] } {
 		const defaultChatAgent = this.productService.defaultChatAgent;
 		const disclaimer = append(this.overlay, $('p.sessions-walkthrough-disclaimer.hidden'));
-		const termsLink = this._appendDisclaimerLink(defaultChatAgent?.termsStatementUrl ?? '', localize('walkthrough.disclaimer.terms', "Terms"));
-		const privacyLink = this._appendDisclaimerLink(defaultChatAgent?.privacyStatementUrl ?? '', localize('walkthrough.disclaimer.privacy', "Privacy Statement"));
-		const publicCodeLink = this._appendDisclaimerLink(defaultChatAgent?.publicCodeMatchesUrl ?? '', localize('walkthrough.disclaimer.publicCode', "public code"));
-		const settingsLink = this._appendDisclaimerLink(defaultChatAgent?.manageSettingsUrl ?? '', localize('walkthrough.disclaimer.settings', "settings"));
+		const termsStatementUrl = defaultChatAgent?.termsStatementUrl;
+		const privacyStatementUrl = defaultChatAgent?.privacyStatementUrl;
+		const publicCodeMatchesUrl = defaultChatAgent?.publicCodeMatchesUrl;
+		const manageSettingsUrl = defaultChatAgent?.manageSettingsUrl;
+		if (!termsStatementUrl || !privacyStatementUrl || !publicCodeMatchesUrl || !manageSettingsUrl) {
+			return {
+				element: disclaimer,
+				links: []
+			};
+		}
+
+		const termsLink = this._appendDisclaimerLink(termsStatementUrl, localize('walkthrough.disclaimer.terms', "Terms"));
+		const privacyLink = this._appendDisclaimerLink(privacyStatementUrl, localize('walkthrough.disclaimer.privacy', "Privacy Statement"));
+		const publicCodeLink = this._appendDisclaimerLink(publicCodeMatchesUrl, localize('walkthrough.disclaimer.publicCode', "public code"));
+		const settingsLink = this._appendDisclaimerLink(manageSettingsUrl, localize('walkthrough.disclaimer.settings', "settings"));
 
 		append(disclaimer, document.createTextNode(localize('walkthrough.disclaimer.prefix', "By continuing, you agree to GitHub's ")));
 		disclaimer.appendChild(termsLink);

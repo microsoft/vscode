@@ -330,3 +330,19 @@
 	box-shadow: 0 0 0 1px var(--vscode-focusBorder) !important;
 	border-radius: 2px !important;
 }
+
+/* Reduced motion */
+
+.monaco-reduce-motion .sessions-walkthrough-overlay,
+.monaco-reduce-motion .sessions-walkthrough-content,
+.monaco-reduce-motion .sessions-walkthrough-provider-btn,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-overlay,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-content,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-provider-btn {
+	transition-duration: 0ms !important;
+}
+
+.monaco-reduce-motion .sessions-walkthrough-progress-bar-fill,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-progress-bar-fill {
+	animation: none !important;
+}

@@ -136,8 +136,8 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			this.layoutService.mainContainer,
 		));
 
-		// When chat setup completes (observables flip), persist completion but
-		// let the walkthrough show its success page — don't dismiss yet.
+		// When chat setup completes (observables flip), persist completion and
+		// finish the walkthrough so the app can render immediately.
 		this.overlayRef.value.add(autorun(reader => {
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
@@ -145,6 +145,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			if (!welcomeCompletionStored && !this._needsChatSetup()) {
 				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				walkthrough.complete();
 			}
 		}));
 
@@ -200,6 +201,7 @@ registerAction2(class extends Action2 {
 
 			if (!needsChatSetup(chatEntitlementService)) {
 				storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				walkthrough.complete();
 				store.dispose();
 			}
 		}));
