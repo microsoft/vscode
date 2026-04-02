@@ -27,7 +27,7 @@ export type EditorAutoClosingStrategy = 'always' | 'languageDefined' | 'beforeWh
 /**
  * Configuration options for auto wrapping quotes and brackets
  */
-export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'never';
+export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'brackets' | 'both' | 'never';
 
 /**
  * Configuration options for typing over closing quotes or brackets
@@ -6104,13 +6104,14 @@ export const EditorOptions = {
 	)),
 	autoSurround: register(new EditorStringEnumOption(
 		EditorOption.autoSurround, 'autoSurround',
-		'languageDefined' as 'languageDefined' | 'quotes' | 'brackets' | 'never',
-		['languageDefined', 'quotes', 'brackets', 'never'] as const,
+		'languageDefined' as 'languageDefined' | 'quotes' | 'brackets' | 'both' | 'never',
+		['languageDefined', 'quotes', 'brackets', 'both', 'never'] as const,
 		{
 			enumDescriptions: [
 				nls.localize('editor.autoSurround.languageDefined', "Use language configurations to determine when to automatically surround selections."),
 				nls.localize('editor.autoSurround.quotes', "Surround with quotes but not brackets."),
 				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
+				nls.localize('editor.autoSurround.both', "Surround with both brackets and quotes."),
 				''
 			],
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
