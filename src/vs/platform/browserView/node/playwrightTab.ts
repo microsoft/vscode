@@ -16,9 +16,12 @@ type IAiAriaSnapshotOptions = {
 	_track?: string;
 };
 
-type IPageWithAiAriaSnapshot = playwright.Page & {
-	ariaSnapshot(options?: IAiAriaSnapshotOptions): Promise<string>;
-};
+declare module 'playwright-core' {
+	interface Page {
+		// We defined this here to be able to use the unofficial `_track` option
+		ariaSnapshot(options?: IAiAriaSnapshotOptions): Promise<string>;
+	}
+}
 
 /**
  * Wrapper around a Playwright page that tracks additional state like active dialogs and recent console messages,
@@ -198,7 +201,7 @@ export class PlaywrightTab {
 		if (!full) {
 			options._track = 'response';
 		}
-		return (page as IPageWithAiAriaSnapshot).ariaSnapshot(options);
+		return page.ariaSnapshot(options);
 	}
 
 	private async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
