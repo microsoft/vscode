@@ -21,7 +21,7 @@ parameters:
     type: boolean
     default: false
   - name: confirm
-    displayName: This will publish a new recovery Copilot Chat version to the marketplace. You need to run it from a 'release/X.Y' branch. The pipeline will figure out the exact version number based on the branch, eg. 'X.Y.1'. This version of Copilot Chat will only be compatible with VS Code versions 'X.Y.*' (same major & minor). Do you want to continue? Type 'yes' to proceed.
+    displayName: This will publish a new recovery Copilot Chat version to the VS Marketplace. You need to run it from a 'release/X.Y' branch. The pipeline will figure out the exact version number based on the branch, eg. 'X.Y.1'. Do you want to continue? Type 'yes' to proceed.
     type: string
 
 extends:
@@ -38,11 +38,17 @@ extends:
     vscePackageArgs: '--allow-package-secrets sendgrid'
 
     buildSteps:
-      - ${{ if and(eq(parameters.publishExtension, true), not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
-        - script: |
-            echo "##vso[task.logissue type=error]publishExtension requires a release/* branch"
-            exit 1
-          displayName: Validate release branch
+      - ${{ if eq(parameters.publishExtension, true) }}:
+        - ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
+          - script: |
+              echo "##vso[task.logissue type=error]publishExtension requires a release/* branch"
+              exit 1
+            displayName: Validate release branch
+        - ${{ if ne(parameters.confirm, 'yes') }}:
+          - script: |
+              echo "##vso[task.logissue type=error]publishExtension requires confirm to be 'yes'"
+              exit 1
+            displayName: Validate confirm parameter
 
       - script: |
           set -e
