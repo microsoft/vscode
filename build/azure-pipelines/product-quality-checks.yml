@@ -182,6 +182,25 @@ jobs:
         displayName: "[Shadow] Validate NOTICE coverage"
         continueOnError: true
         condition: succeededOrFailed()
+
+      - script: |
+          echo "=== Comparing NOTICE files ==="
+          if [ -f "$(Build.SourcesDirectory)/ThirdPartyNotices.txt" ]; then
+            cp "$(Build.SourcesDirectory)/ThirdPartyNotices.txt" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.mixin.txt"
+            echo "Mixin NOTICE: $(wc -c < "$(Build.SourcesDirectory)/ThirdPartyNotices.txt") bytes"
+          else
+            echo "Mixin ThirdPartyNotices.txt not found (expected after mixin-quality step)"
+          fi
+          if [ -f "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt" ]; then
+            cp "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
+            echo "New NOTICE:   $(wc -c < "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt") bytes"
+          else
+            echo "Dynamic ThirdPartyNotices.txt not found (merge step may have failed)"
+          fi
+          echo "Both files available in build artifacts as ThirdPartyNotices.mixin.txt and ThirdPartyNotices.new.txt"
+        displayName: "[Shadow] Compare mixin vs new NOTICE"
+        continueOnError: true
+        condition: succeededOrFailed()
       # -- End Shadow Mode --
 
       - task: AzureCLI@2
