@@ -1632,6 +1632,18 @@ export class AICustomizationListWidget extends Disposable {
 
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
 
+		// Build a URI→description lookup from promptsService for items the provider
+		// doesn't supply descriptions for (e.g. skills and instructions from ChatResource).
+		const descriptionsByUri = new ResourceMap<string>();
+		if (promptType === PromptsType.skill) {
+			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
+			for (const s of skills ?? []) {
+				if (s.description) {
+					descriptionsByUri.set(s.uri, s.description);
+				}
+			}
+		}
+
 		return allItems
 			.filter(item => item.type === promptType)
 			.map((item: IExternalCustomizationItem) => {
@@ -1643,7 +1655,7 @@ export class AICustomizationListWidget extends Disposable {
 					uri: item.uri,
 					name: item.name,
 					filename: basename(item.uri),
-					description: item.description,
+					description: item.description ?? descriptionsByUri.get(item.uri),
 					promptType,
 					disabled: item.enabled === false,
 					status: item.status,
