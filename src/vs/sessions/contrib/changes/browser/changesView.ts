@@ -13,7 +13,7 @@ import { IObjectTreeElement, ITreeNode } from '../../../../base/browser/ui/tree/
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, ObservablePromise, observableSignalFromEvent, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/path.js';
@@ -30,7 +30,7 @@ import { MenuId, Action2, MenuItemAction, registerAction2 } from '../../../../pl
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -48,7 +48,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
-import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
+import { IResourceLabel, ResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
@@ -60,7 +60,7 @@ import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '..
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
@@ -75,6 +75,12 @@ import { Color } from '../../../../base/common/color.js';
 import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
+import { isDefined } from '../../../../base/common/types.js';
 
 const $ = dom.$;
 
@@ -116,6 +122,7 @@ const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpe
 const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
 const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
 const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', true);
+const changesViewDiffPanelOpenContextKey = new RawContextKey<boolean>('changesViewDiffPanelOpen', false);
 
 // --- List Item
 
@@ -527,6 +534,17 @@ export class ChangesViewPane extends ViewPane {
 	private splitView: SplitView | undefined;
 	private splitViewContainer: HTMLElement | undefined;
 
+	private treeAndDiffContainer: HTMLElement | undefined;
+	private diffPanelContainer: HTMLElement | undefined;
+	private horizontalSplitView: SplitView<number> | undefined;
+	private _multiDiffWidget: MultiDiffEditorWidget | undefined;
+	private readonly _currentDiffModelDisposable = this._register(new MutableDisposable());
+	private readonly _diffPanelOpenObs = observableValue<boolean>(this, false);
+	private _savedDiffPanelWidth = 0;
+	private _savedAuxBarWidth = 0;
+	private currentTreeWidth = 0;
+	private _combinedEntriesObs: IObservable<IChangesFileItem[]> | undefined;
+
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	// Track current body dimensions for list layout
@@ -552,6 +570,9 @@ export class ChangesViewPane extends ViewPane {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
+		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
+		@IStorageService private readonly storageService: IStorageService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -577,6 +598,14 @@ export class ChangesViewPane extends ViewPane {
 			return activeSession?.sessionType ?? '';
 		}));
 
+		// Bind diff panel open context key
+		this._register(bindContextKey(changesViewDiffPanelOpenContextKey, this.scopedContextKeyService, reader => {
+			return this._diffPanelOpenObs.read(reader);
+		}));
+
+		// Restore saved diff panel width
+		this._savedDiffPanelWidth = this.storageService.getNumber('workbench.changesView.diffPanelWidth', StorageScope.WORKSPACE, 0);
+
 		// Title actions
 		this._register(autorun(reader => {
 			this.viewModel.activeSessionResourceObs.read(reader);
@@ -595,8 +624,11 @@ export class ChangesViewPane extends ViewPane {
 		// SplitView container for resizable file tree / CI checks split
 		this.splitViewContainer = dom.append(this.bodyContainer, $('.changes-splitview-container'));
 
-		// Main container with file icons support (the "card") — top pane
-		this.contentContainer = dom.append(this.splitViewContainer, $('.chat-editing-session-container.show-file-icons'));
+		// Wrapper for the horizontal split between file tree (left) and inline diff panel (right)
+		this.treeAndDiffContainer = dom.append(this.splitViewContainer, $('.changes-tree-and-diff-container'));
+
+		// Main container with file icons support (the "card") — left side of horizontal split
+		this.contentContainer = dom.append(this.treeAndDiffContainer, $('.chat-editing-session-container.show-file-icons'));
 		this._register(createFileIconThemableTreeContainerScope(this.contentContainer, this.themeService));
 
 		// Toggle class based on whether the file icon theme has file icons
@@ -641,6 +673,9 @@ export class ChangesViewPane extends ViewPane {
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
 		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
+		// Diff panel — right side of the horizontal split (initially hidden)
+		this.diffPanelContainer = dom.append(this.treeAndDiffContainer, $('.changes-diff-panel'));
+
 		// CI Status widget — bottom pane
 		this.ciStatusWidget = this._register(this.instantiationService.createInstance(CIStatusWidget, this.splitViewContainer));
 
@@ -654,15 +689,19 @@ export class ChangesViewPane extends ViewPane {
 		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
 		const treeMinHeight = 3 * ChangesTreeDelegate.ROW_HEIGHT;
 
-		// Top pane: file tree
+		// Top pane: tree + inline diff (horizontal split wrapper)
 		const treePane: IView = {
-			element: this.contentContainer,
+			element: this.treeAndDiffContainer,
 			minimumSize: treeMinHeight,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None,
 			layout: (height) => {
-				this.contentContainer!.style.height = `${height}px`;
-				this._layoutTreeInPane(height);
+				this.treeAndDiffContainer!.style.height = `${height}px`;
+				if (this.horizontalSplitView) {
+					this.horizontalSplitView.layout(this.currentBodyWidth, height);
+				} else {
+					this._layoutTreeInPane(height);
+				}
 			},
 		};
 
@@ -683,6 +722,48 @@ export class ChangesViewPane extends ViewPane {
 
 		this.splitView.addView(treePane, Sizing.Distribute, 0, true);
 		this.splitView.addView(ciPane, CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT, 1, true);
+
+		// Horizontal split: file tree (left) | inline diff panel (right)
+		const TREE_MIN_WIDTH = 180;
+		const DIFF_PANEL_MIN_WIDTH = 300;
+
+		const treePaneH: IView<number> = {
+			element: this.contentContainer,
+			minimumSize: TREE_MIN_WIDTH,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: (width, _offset, height) => {
+				this.currentTreeWidth = width;
+				this.contentContainer!.style.width = `${width}px`;
+				this.contentContainer!.style.height = `${height ?? 0}px`;
+				this._layoutTreeInPane(height ?? 0);
+			},
+		};
+
+		const diffPaneH: IView<number> = {
+			element: this.diffPanelContainer,
+			minimumSize: DIFF_PANEL_MIN_WIDTH,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: (width, _offset, height) => {
+				this.diffPanelContainer!.style.width = `${width}px`;
+				this.diffPanelContainer!.style.height = `${height ?? 0}px`;
+				if (this._multiDiffWidget) {
+					this._multiDiffWidget.layout(new dom.Dimension(width, height ?? 0));
+				}
+			},
+		};
+
+		this.horizontalSplitView = this._register(new SplitView<number>(this.treeAndDiffContainer, {
+			orientation: Orientation.HORIZONTAL,
+			proportionalLayout: false,
+		}));
+		// Diff panel on the left (index 0), file tree on the right (index 1)
+		this.horizontalSplitView.addView(diffPaneH, Sizing.Distribute, 0);
+		this.horizontalSplitView.addView(treePaneH, Sizing.Distribute, 1);
+
+		// Initially hide the diff panel
+		this.horizontalSplitView.setViewVisible(0, false);
 
 		// Style the sash as a visible separator between sections
 		const updateSplitViewStyles = () => {
@@ -831,6 +912,9 @@ export class ChangesViewPane extends ViewPane {
 			}
 			return entries.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
 		});
+
+		// Keep a reference so _openDiffPanel can access the current entries
+		this._combinedEntriesObs = combinedEntriesObs;
 
 		// Calculate stats from combined entries
 		const topLevelStats = derived(reader => {
@@ -995,6 +1079,7 @@ export class ChangesViewPane extends ViewPane {
 							}
 							if (
 								action.id === 'chatEditing.viewAllSessionChanges' ||
+								action.id === 'sessions.changes.toggleDiffPanel' ||
 								action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
 							) {
 								return { showIcon: true, showLabel: false, isSecondary: true };
@@ -1086,6 +1171,24 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutSplitView()));
 
 			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean) => {
+				// When the inline diff panel is open, reveal the file there instead of opening a modal editor
+				if (this._diffPanelOpenObs.get() && this._multiDiffWidget) {
+					this._multiDiffWidget.reveal(
+						{
+							original: item.originalUri,
+							modified: item.isDeletion ? undefined : item.uri,
+						},
+						{ highlight: true }
+					);
+
+					const targetResource = item.isDeletion ? item.originalUri : item.uri;
+					if (targetResource) {
+						const editor = this._multiDiffWidget.tryGetCodeEditor(targetResource);
+						editor?.editor.focus();
+					}
+					return;
+				}
+
 				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
 				const currentIndex = items.indexOf(item);
 
@@ -1173,6 +1276,16 @@ export class ChangesViewPane extends ViewPane {
 			this.renderDisposables.add(this.ciStatusWidget.bind(ciModelObs, activeSessionResourceObs));
 		}
 
+		// Keep the inline diff model in sync with changes when the panel is open
+		this.renderDisposables.add(autorun(reader => {
+			const isOpen = this._diffPanelOpenObs.read(reader);
+			const entries = combinedEntriesObs.read(reader);
+			if (isOpen) {
+				// Fire-and-forget: update the diff model with the latest entries
+				this._buildAndSetDiffModel(entries);
+			}
+		}));
+
 		// Update tree data with combined entries
 		this.renderDisposables.add(autorun(reader => {
 			const entries = combinedEntriesObs.read(reader);
@@ -1213,7 +1326,9 @@ export class ChangesViewPane extends ViewPane {
 		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
 		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight - overviewHeight);
-		this.tree.layout(treeHeight, this.currentBodyWidth);
+		// Use the tree's allocated width from the horizontal split when available
+		const treeWidth = this.currentTreeWidth > 0 ? this.currentTreeWidth : this.currentBodyWidth;
+		this.tree.layout(treeHeight, treeWidth);
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 	}
 
@@ -1428,6 +1543,147 @@ export class ChangesViewPane extends ViewPane {
 				},
 			}
 		));
+	}
+
+
+	/** Toggles the inline multi-diff panel to the right of the file tree. */
+	public toggleDiffPanel(): void {
+		if (this._diffPanelOpenObs.get()) {
+			this._closeDiffPanel();
+		} else {
+			this._openDiffPanel();
+		}
+	}
+
+	private _openDiffPanel(): void {
+		if (!this.horizontalSplitView || !this.diffPanelContainer) {
+			return;
+		}
+
+		// Lazily create the widget on first open
+		if (!this._multiDiffWidget) {
+			const factory: IWorkbenchUIElementFactory = {
+				createResourceLabel: (element) => {
+					const label = this.instantiationService.createInstance(ResourceLabel, element, {});
+					return {
+						setUri(uri, options = {}) {
+							if (!uri) { label.element.clear(); }
+							else { label.element.setFile(uri, { strikethrough: options?.strikethrough }); }
+						},
+						dispose() { label.dispose(); }
+					};
+				}
+			};
+			this._multiDiffWidget = this._store.add(
+				this.instantiationService.createInstance(MultiDiffEditorWidget, this.diffPanelContainer, factory)
+			);
+		}
+
+		// Show the diff panel with a sensible default width (2/3 of available, or saved width)
+		const defaultWidth = this._savedDiffPanelWidth > 0
+			? this._savedDiffPanelWidth
+			: Math.floor(this.currentBodyWidth * 2 / 3);
+		const treeWidthBeforeOpen = this.currentTreeWidth;
+		this.horizontalSplitView.setViewVisible(0, true);
+		this.horizontalSplitView.resizeView(0, defaultWidth);
+
+		// Widen the auxiliary bar to make room for the diff panel
+		const currentAuxSize = this.workbenchLayoutService.getSize(Parts.AUXILIARYBAR_PART);
+		this._savedAuxBarWidth = currentAuxSize.width;
+		this.workbenchLayoutService.setSize(Parts.AUXILIARYBAR_PART, {
+			width: currentAuxSize.width + defaultWidth,
+			height: currentAuxSize.height,
+		});
+
+		// Keep the tree width stable when opening the diff panel.
+		if (treeWidthBeforeOpen > 0) {
+			this.horizontalSplitView.resizeView(1, treeWidthBeforeOpen);
+		}
+
+		this._diffPanelOpenObs.set(true, undefined);
+		this.layoutSplitView();
+
+		// Build diff model from current combined entries
+		const items = this._combinedEntriesObs?.get() ?? [];
+		this._buildAndSetDiffModel(items);
+	}
+
+	private _closeDiffPanel(): void {
+		if (this.horizontalSplitView) {
+			// Save current width before hiding so we can restore it next time
+			this._savedDiffPanelWidth = this.horizontalSplitView.getViewSize(0);
+			this.storageService.store('workbench.changesView.diffPanelWidth', this._savedDiffPanelWidth, StorageScope.WORKSPACE, StorageTarget.USER);
+			this.horizontalSplitView.setViewVisible(0, false);
+		}
+
+		// Restore the auxiliary bar to its original width
+		if (this._savedAuxBarWidth > 0) {
+			const currentAuxSize = this.workbenchLayoutService.getSize(Parts.AUXILIARYBAR_PART);
+			this.workbenchLayoutService.setSize(Parts.AUXILIARYBAR_PART, {
+				width: this._savedAuxBarWidth,
+				height: currentAuxSize.height,
+			});
+			this._savedAuxBarWidth = 0;
+		}
+
+		this._currentDiffModelDisposable.clear();
+		this._multiDiffWidget?.setViewModel(undefined);
+		this._diffPanelOpenObs.set(false, undefined);
+		this.layoutSplitView();
+	}
+
+	private async _buildAndSetDiffModel(items: IChangesFileItem[]): Promise<void> {
+		this._currentDiffModelDisposable.clear();
+
+		if (!this._multiDiffWidget || items.length === 0) {
+			this._multiDiffWidget?.setViewModel(undefined);
+			return;
+		}
+
+		// Clear view while loading
+		this._multiDiffWidget.setViewModel(undefined);
+
+		const store = new DisposableStore();
+
+		// Resolve all text models in parallel
+		const docItems = await Promise.all(items.map(async (item): Promise<RefCounted<IDocumentDiffItem> | undefined> => {
+			const itemStore = new DisposableStore();
+			try {
+				const [originalRef, modifiedRef] = await Promise.all([
+					item.originalUri ? this.textModelService.createModelReference(item.originalUri) : Promise.resolve(undefined),
+					item.isDeletion ? Promise.resolve(undefined) : this.textModelService.createModelReference(item.uri),
+				]);
+				if (originalRef) { itemStore.add(originalRef); }
+				if (modifiedRef) { itemStore.add(modifiedRef); }
+				const docItem: IDocumentDiffItem = {
+					original: originalRef?.object.textEditorModel,
+					modified: modifiedRef?.object.textEditorModel,
+				};
+				return store.add(RefCounted.createOfNonDisposable(docItem, itemStore, this));
+			} catch {
+				itemStore.dispose();
+				return undefined;
+			}
+		}));
+
+		// If panel was closed while awaiting, discard the result
+		if (!this._diffPanelOpenObs.get()) {
+			store.dispose();
+			return;
+		}
+
+		const validDocs = docItems.filter(isDefined);
+		const model: IMultiDiffEditorModel = {
+			documents: {
+				get value() { return validDocs; },
+				onDidChange: Event.None,
+			}
+		};
+
+		const viewModel = store.add(this._multiDiffWidget.createViewModel(model));
+		this._multiDiffWidget.setViewModel(viewModel);
+		this._currentDiffModelDisposable.value = store;
+		this.layoutSplitView();
 	}
 
 	override dispose(): void {
@@ -1774,6 +2030,38 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 		templateData.templateDisposables.dispose();
 	}
 }
+
+// --- Inline Diff Panel Toggle Action (Sessions window only)
+
+class ToggleInlineDiffPanelAction extends ViewAction<ChangesViewPane> {
+	static readonly ID = 'sessions.changes.toggleDiffPanel';
+
+	constructor() {
+		super({
+			id: ToggleInlineDiffPanelAction.ID,
+			title: localize2('sessions.changes.toggleDiffPanel', 'View All Changes'),
+			viewId: CHANGES_VIEW_ID,
+			f1: false,
+			icon: Codicon.diffMultiple,
+			toggled: changesViewDiffPanelOpenContextKey.isEqualTo(true),
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('isSessionsWindow', true),
+				ChatContextKeys.hasAgentSessionChanges,
+			),
+			menu: [{
+				id: MenuId.ChatEditingSessionChangesToolbar,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.equals('isSessionsWindow', true),
+			}],
+		});
+	}
+
+	async runInView(_accessor: ServicesAccessor, view: ChangesViewPane): Promise<void> {
+		view.toggleDiffPanel();
+	}
+}
+registerAction2(ToggleInlineDiffPanelAction);
 
 // --- View Mode Actions
 
