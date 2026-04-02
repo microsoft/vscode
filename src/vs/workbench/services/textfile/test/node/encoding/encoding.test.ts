@@ -463,5 +463,13 @@ suite('Encoding', () => {
 		}
 	});
 
+	test('cp857 is present in SUPPORTED_ENCODINGS (issue #300041)', function () {
+		// Regression test: CP857 (Turkish DOS) was missing from document encoding support
+		// while already being supported by the terminal.
+		assert.ok('cp857' in encoding.SUPPORTED_ENCODINGS, 'cp857 should be in SUPPORTED_ENCODINGS');
+		assert.strictEqual(encoding.SUPPORTED_ENCODINGS['cp857'].labelLong, 'Turkish DOS (CP 857)');
+		assert.strictEqual(encoding.SUPPORTED_ENCODINGS['cp857'].labelShort, 'CP 857');
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
