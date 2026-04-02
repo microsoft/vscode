@@ -158,6 +158,12 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	clearRecentlyUsedList(): void { }
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
+	onDidChangeNewModels = Event.None;
+	getNewModelIds(): readonly string[] { return []; }
+	markModelsAsSeen(): void { }
+	refreshNewModels(): void { }
+	simulateNewModel(): string | undefined { return undefined; }
+	getModelNameFromManifest(): string | undefined { return undefined; }
 }
 
 suite('ChatModelsViewModel', () => {

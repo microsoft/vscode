@@ -448,6 +448,42 @@ export interface ILanguageModelsService {
 	 * Fetched from the chat control manifest.
 	 */
 	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }>;
+
+	/**
+	 * Returns Copilot model metadata IDs that are "new" — present in the current
+	 * model list but not yet seen by the user. Excludes BYOK models.
+	 */
+	getNewModelIds(): readonly string[];
+
+	/**
+	 * Marks models as seen so they no longer appear as "new".
+	 * If no IDs are provided, all current Copilot models are marked as seen.
+	 */
+	markModelsAsSeen(modelIds?: string[]): void;
+
+	/**
+	 * Re-reads the seen model IDs from storage and recalculates the new models set.
+	 * Useful after external storage mutations (e.g., developer simulate command).
+	 */
+	refreshNewModels(): void;
+
+	/**
+	 * Developer utility: picks a non-auto Copilot model and removes it from the
+	 * seen set so it appears "new". Returns the model identifier that was made new,
+	 * or `undefined` if no eligible model could be found (e.g., cache is empty).
+	 */
+	simulateNewModel(): string | undefined;
+
+	/**
+	 * Looks up a model's display name from the control manifest.
+	 * Useful for models that are not in the cache (e.g., unavailable models for free users).
+	 */
+	getModelNameFromManifest(modelId: string): string | undefined;
+
+	/**
+	 * Fires when the set of new (unseen) models changes.
+	 */
+	readonly onDidChangeNewModels: Event<void>;
 }
 
 export interface IModelControlEntry {
@@ -551,6 +587,7 @@ const CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY = 'chatModelPickerPreferences';
 const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_MODELS_CONTROL_STORAGE_KEY = 'chat.modelsControl';
+const CHAT_MODEL_SEEN_IDS_STORAGE_KEY = 'chat.seenModelIds';
 
 interface IChatControlResponse {
 	readonly version: number;
@@ -582,6 +619,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private _modelPickerUserPreferences: IStringDictionary<boolean> = {};
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
+	private readonly _hasNewModels: IContextKey<boolean>;
 
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
@@ -590,6 +628,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _onDidChangeModelsControlManifest = this._store.add(new Emitter<IModelsControlManifest>());
 	readonly onDidChangeModelsControlManifest = this._onDidChangeModelsControlManifest.event;
+
+	private readonly _onDidChangeNewModels = this._store.add(new Emitter<void>());
+	readonly onDidChangeNewModels = this._onDidChangeNewModels.event;
+
+	private _seenModelIds: Set<string> | undefined;
+	private _newModelIds: Set<string> = new Set();
 
 	private _modelsControlManifest: IModelsControlManifest = { free: {}, paid: {} };
 	private _modelsControlRawResponse: IChatControlResponse['models'] | undefined;
@@ -612,13 +656,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
+		this._hasNewModels = ChatContextKeys.hasNewModels.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._readModelPickerPreferences();
 		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+		this._seenModelIds = this._readSeenModelIds();
 		this._initChatControlData();
 		this._store.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._store)(() => this._onDidChangeModelPickerPreferences()));
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
 			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
+			this._updateNewModelIds();
 			this._refreshModelsControlManifest();
 		}));
 		this._store.add(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(changedGroups => this._onDidChangeLanguageModelGroups(changedGroups)));
@@ -1718,10 +1765,175 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	//#endregion
 
+	//#region New model detection
+
+	private _readSeenModelIds(): Set<string> | undefined {
+		const raw = this._storageService.get(CHAT_MODEL_SEEN_IDS_STORAGE_KEY, StorageScope.APPLICATION);
+		if (raw === undefined) {
+			return undefined; // first launch — will seed on first model resolution
+		}
+		try {
+			const arr = JSON.parse(raw);
+			return new Set(Array.isArray(arr) ? arr : []);
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _saveSeenModelIds(): void {
+		if (this._seenModelIds) {
+			this._storageService.store(CHAT_MODEL_SEEN_IDS_STORAGE_KEY, JSON.stringify([...this._seenModelIds]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+	}
+
+	private _getCopilotModelIds(): string[] {
+		const ids = new Set(
+			Array.from(this._modelCache.entries())
+				.filter(([id, meta]) => meta.vendor === 'copilot' && id !== 'copilot/auto')
+				.map(([id]) => id)
+		);
+
+		// Include all models from the control manifest so that
+		// unavailable models are also tracked for newness.  This covers
+		// premium models shown with an upgrade link for free users,
+		// and admin-disabled models shown with "Contact your admin"
+		// for enterprise users.
+		for (const entryId of Object.keys(this._modelsControlManifest.paid)) {
+			ids.add(`copilot/${entryId}`);
+		}
+		for (const entryId of Object.keys(this._modelsControlManifest.free)) {
+			ids.add(`copilot/${entryId}`);
+		}
+
+		return [...ids];
+	}
+
+	private _updateNewModelIds(): void {
+		const copilotIds = this._getCopilotModelIds();
+		if (copilotIds.length === 0) {
+			return;
+		}
+
+		// First launch: seed with all current models so nothing is "new"
+		if (this._seenModelIds === undefined) {
+			this._seenModelIds = new Set(copilotIds);
+			this._saveSeenModelIds();
+			return;
+		}
+
+		const prevNewModelIds = this._newModelIds;
+		const unseen = copilotIds.filter(id => !this._seenModelIds!.has(id));
+
+		// Only one model may be "new" at a time.  When multiple appear at
+		// once, pick the one whose display name sorts last (typically the
+		// highest-versioned model) and mark the rest as seen.
+		if (unseen.length > 1) {
+			unseen.sort((a, b) => {
+				const nameA = this._modelCache.get(a)?.name ?? this.getModelNameFromManifest(a) ?? a;
+				const nameB = this._modelCache.get(b)?.name ?? this.getModelNameFromManifest(b) ?? b;
+				return nameA.localeCompare(nameB);
+			});
+			for (let i = 0; i < unseen.length - 1; i++) {
+				this._seenModelIds!.add(unseen[i]);
+			}
+			this._saveSeenModelIds();
+			unseen.splice(0, unseen.length - 1);
+		}
+
+		this._newModelIds = new Set(unseen);
+
+		// Only fire when the set actually changed
+		const changed = this._newModelIds.size !== prevNewModelIds.size
+			|| [...this._newModelIds].some(id => !prevNewModelIds.has(id));
+		if (changed) {
+			this._hasNewModels.set(this._newModelIds.size > 0);
+			this._onDidChangeNewModels.fire();
+		}
+	}
+
+	getNewModelIds(): readonly string[] {
+		return [...this._newModelIds];
+	}
+
+	markModelsAsSeen(modelIds?: string[]): void {
+		if (!this._seenModelIds) {
+			this._seenModelIds = new Set();
+		}
+
+		const idsToMark = modelIds ?? [...this._getCopilotModelIds(), ...this._newModelIds];
+		let changed = false;
+		for (const id of idsToMark) {
+			if (!this._seenModelIds.has(id)) {
+				this._seenModelIds.add(id);
+				changed = true;
+			}
+		}
+
+		if (changed) {
+			this._newModelIds = new Set([...this._newModelIds].filter(id => !this._seenModelIds!.has(id)));
+			this._hasNewModels.set(this._newModelIds.size > 0);
+			this._saveSeenModelIds();
+			this._onDidChangeNewModels.fire();
+		}
+	}
+
+	refreshNewModels(): void {
+		this._seenModelIds = this._readSeenModelIds();
+		this._updateNewModelIds();
+	}
+
+	simulateNewModel(): string | undefined {
+		const copilotIds = this._getCopilotModelIds();
+		if (copilotIds.length === 0) {
+			return undefined;
+		}
+
+		// Ensure the seen set is populated (first-launch seeding)
+		if (this._seenModelIds === undefined) {
+			this._seenModelIds = new Set(copilotIds);
+			this._saveSeenModelIds();
+		}
+
+		// Target Opus 4.6 specifically so we can test free-user behavior.
+		// The model may be in the cache (paid users) or only in the control
+		// manifest (free users where it appears as unavailable with upgrade link).
+		const candidate = 'copilot/claude-opus-4.6';
+		if (!this._seenModelIds.has(candidate)) {
+			// Seed it so we can remove it and detect it as new
+			this._seenModelIds.add(candidate);
+			this._saveSeenModelIds();
+		}
+
+		// Mark any other currently-new models as seen so only the simulated
+		// model appears as new.  Without this, the tip picks getNewModelIds()[0]
+		// which may be a different model that was already new.
+		for (const id of this._newModelIds) {
+			this._seenModelIds.add(id);
+		}
+
+		this._seenModelIds.delete(candidate);
+		this._saveSeenModelIds();
+
+		// Directly add to the new model set since the model might only exist in
+		// the manifest (not in the cache) for free users.
+		this._newModelIds = new Set([candidate]);
+		this._hasNewModels.set(true);
+		this._onDidChangeNewModels.fire();
+		return candidate;
+	}
+
+	//#endregion
+
 	//#region Models control manifest
 
 	getModelsControlManifest(): IModelsControlManifest {
 		return this._modelsControlManifest;
+	}
+
+	getModelNameFromManifest(modelId: string): string | undefined {
+		const metadataId = modelId.startsWith('copilot/') ? modelId.slice('copilot/'.length) : modelId;
+		const entry = this._modelsControlManifest.free[metadataId] ?? this._modelsControlManifest.paid[metadataId];
+		return entry?.label;
 	}
 
 	private _setModelsControlManifest(response: IChatControlResponse['models']): void {
@@ -1755,6 +1967,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		this._modelsControlManifest = { free, paid };
+		this._updateNewModelIds();
 		this._onDidChangeModelsControlManifest.fire(this._modelsControlManifest);
 	}
 
