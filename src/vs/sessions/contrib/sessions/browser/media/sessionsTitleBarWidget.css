@@ -83,8 +83,8 @@
 	font-size: 14px;
 }
 
-.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	color: var(--vscode-icon-foreground) !important;
+.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
+	color: var(--vscode-icon-foreground);
 }
 
 /* Label (title) */
