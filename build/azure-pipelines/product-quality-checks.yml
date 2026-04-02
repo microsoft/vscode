@@ -187,17 +187,21 @@ jobs:
           echo "=== Comparing NOTICE files ==="
           if [ -f "$(Build.SourcesDirectory)/ThirdPartyNotices.txt" ]; then
             cp "$(Build.SourcesDirectory)/ThirdPartyNotices.txt" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.mixin.txt"
-            echo "Mixin NOTICE: $(wc -c < "$(Build.SourcesDirectory)/ThirdPartyNotices.txt") bytes"
+            MIXIN_SIZE=$(wc -c < "$(Build.SourcesDirectory)/ThirdPartyNotices.txt")
+            echo "Mixin NOTICE: $MIXIN_SIZE bytes"
           else
             echo "Mixin ThirdPartyNotices.txt not found (expected after mixin-quality step)"
           fi
           if [ -f "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt" ]; then
             cp "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt" "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
-            echo "New NOTICE:   $(wc -c < "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt") bytes"
+            NEW_SIZE=$(wc -c < "$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.dynamic.txt")
+            echo "New NOTICE:   $NEW_SIZE bytes"
           else
             echo "Dynamic ThirdPartyNotices.txt not found (merge step may have failed)"
           fi
-          echo "Both files available in build artifacts as ThirdPartyNotices.mixin.txt and ThirdPartyNotices.new.txt"
+          echo "##vso[artifact.upload containerfolder=notice-comparison;artifactname=notice-comparison]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.mixin.txt"
+          echo "##vso[artifact.upload containerfolder=notice-comparison;artifactname=notice-comparison]$(Build.ArtifactStagingDirectory)/ThirdPartyNotices.new.txt"
+          echo "##vso[artifact.upload containerfolder=notice-comparison;artifactname=notice-comparison]$(Build.ArtifactStagingDirectory)/notice-merge-report.json"
         displayName: "[Shadow] Compare mixin vs new NOTICE"
         continueOnError: true
         condition: succeededOrFailed()
