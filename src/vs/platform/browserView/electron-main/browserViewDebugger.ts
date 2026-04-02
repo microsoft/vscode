@@ -167,6 +167,13 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 			return;
 		}
 
+		// The WebContents may already be destroyed when the window/view is being torn
+		// down. Calling detach() on a destroyed target throws "target closed while
+		// handling command", so skip the detach - the target is gone anyway.
+		if (this.view.webContents.isDestroyed()) {
+			return;
+		}
+
 		this._electronDebugger.removeListener('message', this._messageHandler);
 		try {
 			this._electronDebugger.detach();
