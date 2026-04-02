@@ -138,7 +138,7 @@
   },
   "devDependencies": {
     "@playwright/cli": "^0.1.1",
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.56.1",
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
