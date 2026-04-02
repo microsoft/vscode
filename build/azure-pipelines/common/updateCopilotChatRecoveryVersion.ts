@@ -6,6 +6,9 @@
 import { retry, handleAll, ExponentialBackoff } from 'cockatiel';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const MARKETPLACE_EXTENSION_NAME = 'GitHub.copilot-chat';
 const MARKETPLACE_API_URL = 'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery';
