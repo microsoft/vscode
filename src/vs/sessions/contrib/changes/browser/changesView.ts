@@ -771,6 +771,14 @@ export class ChangesViewPane extends ViewPane {
 		});
 
 		const isLoadingChangesObs = derived(reader => {
+			// If there is a git repository, wait for the repository to be opened first,
+			// as there are many context keys that depend on the repository information.
+			// We want to avoid flickering of the actions.
+			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
+			if (hasGitRepository && this.viewModel.activeSessionRepositoryObs.read(reader) === undefined) {
+				return true;
+			}
+
 			const versionMode = this.viewModel.versionModeObs.read(reader);
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return false;
