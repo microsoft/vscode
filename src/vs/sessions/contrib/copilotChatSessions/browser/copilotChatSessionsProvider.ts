@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -262,6 +262,23 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		}
 		if (this._gitRepository) {
 			this._loadBranches(this._gitRepository);
+
+			// Automatically update the selected branch when the repository
+			// state changes. This is done only for the Folder sessions.
+			const currentBranchName = derived(reader => {
+				const state = this._gitRepository?.state.read(reader);
+				return state?.HEAD?.name;
+			});
+
+			this._register(autorun(reader => {
+				const isolationMode = this.isolationMode.read(reader);
+				if (isolationMode === 'worktree') {
+					return;
+				}
+
+				const currentBranch = currentBranchName.read(reader);
+				this.setBranch(currentBranch ?? this._defaultBranch);
+			}));
 		}
 		this._loading.set(false, undefined);
 	}
@@ -308,7 +325,13 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			this._isolationModeObservable.set(mode, undefined);
 			this.setOption(ISOLATION_OPTION_ID, mode);
 
-			if (mode === 'workspace' && this._defaultBranch) {
+			if (mode === 'workspace') {
+				// When switching to workspace mode, update the branch
+				// selection to reflect the current branch as that is
+				// what will be used for the folder session
+				const currentBranch = this._gitRepository?.state.get().HEAD?.name;
+				this.setBranch(currentBranch ?? this._defaultBranch);
+			} else {
 				this.setBranch(this._defaultBranch);
 			}
 		}
