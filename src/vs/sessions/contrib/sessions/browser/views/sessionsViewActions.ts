@@ -684,8 +684,16 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ContextKeyExpr.equals('sessions.hasPullRequest', true),
-					ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals('sessions.hasPullRequest', false),
+							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
+						),
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals('sessions.hasPullRequest', true),
+							ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
+						)
+					)
 				)
 			}]
 		});
