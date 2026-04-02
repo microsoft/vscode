@@ -422,7 +422,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			const actual = await testObject.scanSystemExtensions({});
 
 			assert.deepStrictEqual(actual.length, 1);
-			assert.deepStrictEqual(actual[0].autoUpdate, true);
+			assert.deepStrictEqual(actual[0].forceAutoUpdate, true);
 		});
 
 		test('system extension has autoUpdate set to false when not in autoUpdateBuiltinExtensions', async () => {
@@ -433,7 +433,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			const actual = await testObject.scanSystemExtensions({});
 
 			assert.deepStrictEqual(actual.length, 1);
-			assert.deepStrictEqual(actual[0].autoUpdate, false);
+			assert.deepStrictEqual(actual[0].forceAutoUpdate, false);
 		});
 
 		test('system extension has autoUpdate set to false when quality is not stable', async () => {
@@ -444,7 +444,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			const actual = await testObject.scanSystemExtensions({});
 
 			assert.deepStrictEqual(actual.length, 1);
-			assert.deepStrictEqual(actual[0].autoUpdate, false);
+			assert.deepStrictEqual(actual[0].forceAutoUpdate, false);
 		});
 
 		test('scan user extension is excluded when autoUpdate is disabled (non-stable quality)', async () => {

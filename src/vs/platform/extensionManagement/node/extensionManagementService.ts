@@ -917,7 +917,7 @@ export class ExtensionsScanner extends Disposable {
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
-			autoUpdate: extension.autoUpdate,
+			forceAutoUpdate: extension.forceAutoUpdate,
 			private: !!extension.metadata?.private,
 			isWorkspaceScoped: false,
 			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix'),
