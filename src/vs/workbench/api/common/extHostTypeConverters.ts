@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray, coalesce, isNonEmptyArray } from '../../../base/common/arrays.js';
-import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
+import { VSBuffer, decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { IDataTransferFile, IDataTransferItem, UriList } from '../../../base/common/dataTransfer.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
@@ -3694,7 +3694,21 @@ export namespace ChatAgentResult {
 			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
 				return new types.LanguageModelPromptTsxPart(value.value);
 			} else if (value.$mid === MarshalledId.LanguageModelDataPart) {
-				return new types.LanguageModelDataPart(value.data, value.mimeType, value.audience);
+				let buffer: Uint8Array;
+				// correction for old data serialized pre-303151
+				if (value.data && typeof value.data === 'object' && value.data.type === 'Buffer' && Array.isArray(value.data.data)) {
+					buffer = new Uint8Array(value.data.data);
+				} else if (typeof value.data === 'string') {
+					try {
+						buffer = decodeBase64(value.data).buffer;
+					} catch {
+						buffer = new Uint8Array(0);
+					}
+				} else {
+					buffer = new Uint8Array(0);
+				}
+
+				return new types.LanguageModelDataPart(buffer, value.mimeType, value.audience);
 			}
 
 			return undefined;

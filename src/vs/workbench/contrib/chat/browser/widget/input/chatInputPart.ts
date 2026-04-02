@@ -86,7 +86,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry, MAX_IMAGES_PER_REQUEST, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
-import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, validateChatMode } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -109,7 +109,6 @@ import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegat
 import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
-import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItem.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../chatContentParts/chatQuestionCarouselPart.js';
@@ -388,7 +387,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
-	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>());
+	private readonly chatSessionPickerWidgets = this._register(new DisposableMap<string, ChatSessionPickerActionItem>());
 	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
 	private _lastSessionPickerOptions: IChatInputPickerOptions | undefined;
@@ -691,29 +690,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
-		this._register(autorun(r => {
-			const mode = this._currentModeObservable.read(r);
-			const modeName = mode.name.read(r);
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource) {
-				let needsUpdate = true;
-				const agentOption = this.chatSessionsService.getSessionOption(sessionResource, agentOptionId);
-				if (typeof agentOption !== 'undefined') {
-					const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
-					const isDefaultAgent = agentId === ChatMode.Agent.id;
-					needsUpdate = isDefaultAgent
-						? mode.id !== ChatMode.Agent.id
-						: mode.label.read(undefined) !== agentId; // Extensions use Label (name) as identifier for custom agents.
-				}
-				if (needsUpdate) {
-					this.chatSessionsService.updateSessionOptions(
-						sessionResource,
-						new Map([[agentOptionId, mode.isBuiltin ? '' : modeName]])
-					);
-				}
-			}
-		}));
-
 		// Validate the initial mode - if Agent mode is set by default but disabled by policy, switch to Ask
 		this.validateCurrentChatMode();
 	}
@@ -849,7 +825,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Create picker widgets for all option groups available for the current session type.
 	 */
-	private createChatSessionPickerWidgets(action: MenuItemAction, pickerOptions?: IChatInputPickerOptions): (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] {
+	private createChatSessionPickerWidgets(action: MenuItemAction, pickerOptions?: IChatInputPickerOptions): ChatSessionPickerActionItem[] {
 		this._lastSessionPickerAction = action;
 		this._lastSessionPickerOptions = pickerOptions;
 
@@ -861,7 +837,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const { visibleGroupIds, optionGroups, effectiveSessionType } = result;
 		this.chatSessionPickerWidgets.clearAndDisposeAll();
 
-		const widgets: (ChatSessionPickerActionItem | SearchableOptionPickerActionItem)[] = [];
+		const widgets: ChatSessionPickerActionItem[] = [];
 		for (const optionGroup of optionGroups) {
 			if (!visibleGroupIds.has(optionGroup.id)) {
 				continue;
@@ -897,7 +873,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			};
 
-			const widget = this.instantiationService.createInstance(optionGroup.searchable ? SearchableOptionPickerActionItem : ChatSessionPickerActionItem, action, initialState, itemDelegate, pickerOptions);
+			const widget = this.instantiationService.createInstance(ChatSessionPickerActionItem, action, initialState, itemDelegate, pickerOptions);
 			this.chatSessionPickerWidgets.set(optionGroup.id, widget);
 			widgets.push(widget);
 		}
@@ -1622,23 +1598,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const requiresCustomModels = sessionResource && this.chatSessionsService.requiresCustomModelsForSessionType(getChatSessionType(sessionResource));
 		this.chatSessionHasTargetedModels.set(!!requiresCustomModels);
 
-		// Handle agent option from session - set initial mode
-		if (customAgentTarget) {
-			const contribution = sessionResource && this.chatSessionsService.getChatSessionContribution(getChatSessionType(sessionResource));
-			const agentOption = this.chatSessionsService.getSessionOption(sessionResource, agentOptionId);
-			if (typeof agentOption !== 'undefined' && !contribution?.useRequestToPopulateBuiltInPickers) {
-				const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
-				const currentMode = this._currentModeObservable.get();
-				const isDefaultAgent = agentId === ChatMode.Agent.id;
-				const needsUpdate = isDefaultAgent
-					? currentMode.id !== ChatMode.Agent.id
-					: currentMode.label.get() !== agentId; // Extensions use Label (name) as identifier for custom agents.
-
-				if (needsUpdate) {
-					this.setChatMode(agentId);
-				}
-			}
-		}
 
 		// Step 1: Determine the session type
 		// - Panel/Editor: Use actual session's type (ctx available)
@@ -3363,7 +3322,7 @@ function getLastPosition(model: ITextModel): IPosition {
 const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
-type ChatSessionPickerWidget = ChatSessionPickerActionItem | SearchableOptionPickerActionItem;
+type ChatSessionPickerWidget = ChatSessionPickerActionItem;
 
 class ChatSessionPickersContainerActionItem extends ActionViewItem {
 	constructor(

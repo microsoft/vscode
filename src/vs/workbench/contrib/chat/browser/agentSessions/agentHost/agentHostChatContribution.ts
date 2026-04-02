@@ -162,6 +162,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			capabilities: {
+				supportsCheckpoints: true,
+			},
 		}));
 
 		// Session list controller

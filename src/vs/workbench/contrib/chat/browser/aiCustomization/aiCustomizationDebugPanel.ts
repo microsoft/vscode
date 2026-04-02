@@ -165,7 +165,7 @@ async function appendRawServiceData(lines: string[], promptsService: IPromptsSer
 		const commands = await promptsService.getPromptSlashCommands(CancellationToken.None);
 		lines.push(`  getPromptSlashCommands:            ${commands.length} commands`);
 		for (const c of commands) {
-			lines.push(`    /${c.name} [${c.promptPath.storage}] ${c.promptPath.uri.fsPath} (type=${c.promptPath.type})`);
+			lines.push(`    /${c.name} [${c.storage}] ${c.uri.fsPath} (type=${c.type})`);
 		}
 	}
 

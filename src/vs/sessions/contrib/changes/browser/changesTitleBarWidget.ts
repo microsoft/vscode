@@ -24,9 +24,11 @@ import { IsAuxiliaryWindowContext, AuxiliaryBarVisibleContext } from '../../../.
 import { getAgentChangesSummary } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { logChangesViewToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from './changesView.js';
 
@@ -182,11 +184,14 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		const isVisible = !layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		layoutService.setPartHidden(!isVisible, Parts.AUXILIARYBAR_PART);
 		if (isVisible) {
 			paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
 		}
+
+		logChangesViewToggle(telemetryService, isVisible);
 	}
 });

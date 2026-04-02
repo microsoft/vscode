@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -53,11 +54,15 @@ suite('SessionsWelcomeContribution', () => {
 	const disposables = new DisposableStore();
 	let instantiationService: TestInstantiationService;
 	let mockEntitlementService: MockChatEntitlementService;
+	let defaultAccountEmitter: Emitter<unknown>;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		mockEntitlementService = new MockChatEntitlementService();
 		instantiationService.stub(IChatEntitlementService, mockEntitlementService as unknown as IChatEntitlementService);
+
+		defaultAccountEmitter = disposables.add(new Emitter<unknown>());
+		instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: defaultAccountEmitter.event } as Partial<IDefaultAccountService> as IDefaultAccountService);
 
 		// Ensure product has a defaultChatAgent so the contribution activates
 		const productService = instantiationService.get(IProductService);
@@ -205,5 +210,23 @@ suite('SessionsWelcomeContribution', () => {
 		});
 
 		assert.strictEqual(isOverlayVisible(), true, 'should show overlay for Available entitlement');
+	});
+
+	test('returning user: explicit sign-out shows overlay', () => {
+		markReturningUser();
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true } as IChatSentiment, undefined);
+
+		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
+		assert.ok(contribution);
+		assert.strictEqual(isOverlayVisible(), false, 'should not show initially');
+
+		// Simulate explicit sign-out: account removed then entitlement goes Unknown
+		defaultAccountEmitter.fire(null);
+		transaction(tx => {
+			mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, tx);
+		});
+
+		assert.strictEqual(isOverlayVisible(), true, 'should show overlay after explicit sign-out');
 	});
 });

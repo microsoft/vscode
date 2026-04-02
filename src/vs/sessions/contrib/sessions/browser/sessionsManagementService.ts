@@ -384,16 +384,29 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void> {
 		this.isNewChatSessionContext.set(false);
 
-		const updatedSession = await this.sessionsProvidersService.sendAndCreateChat(session.sessionId, options);
-		this.setActiveSession(updatedSession);
-
-		// Set the active chat to the last (newly created) chat
-		if (this._activeChatObservable) {
-			const chats = updatedSession.chats.get();
-			const lastChat = chats[chats.length - 1];
-			if (lastChat) {
-				this._activeChatObservable.set(lastChat, undefined);
+		const setActiveChatToLast = () => {
+			const activeSession = this._activeSession.get();
+			if (this._activeChatObservable && activeSession) {
+				const chats = activeSession.chats.get();
+				const lastChat = chats[chats.length - 1];
+				if (lastChat) {
+					this._activeChatObservable.set(lastChat, undefined);
+				}
 			}
+		};
+
+		// Listen for chats changing during the send (subsequent chat appears in the group)
+		const chatsListener = autorun(reader => {
+			session.chats.read(reader);
+			setActiveChatToLast();
+		});
+
+		try {
+			const updatedSession = await this.sessionsProvidersService.sendAndCreateChat(session.sessionId, options);
+			this.setActiveSession(updatedSession);
+			setActiveChatToLast();
+		} finally {
+			chatsListener.dispose();
 		}
 	}
 
