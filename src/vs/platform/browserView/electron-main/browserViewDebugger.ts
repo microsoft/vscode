@@ -163,15 +163,16 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 	 * Detach from the Electron debugger
 	 */
 	private detachElectronDebugger(): void {
-		if (!this._electronDebugger.isAttached()) {
-			return;
-		}
-
-		this._electronDebugger.removeListener('message', this._messageHandler);
 		try {
+			if (this.view.webContents.isDestroyed() || !this._electronDebugger.isAttached()) {
+				return;
+			}
+
+			this._electronDebugger.removeListener('message', this._messageHandler);
 			this._electronDebugger.detach();
-		} catch (error) {
-			this.logService.error(`[BrowserViewDebugger] Error detaching from WebContents:`, error);
+		} catch {
+			// Expected during disposal when the WebContents target is already
+			// closed or closing — no action needed.
 		}
 	}
 
