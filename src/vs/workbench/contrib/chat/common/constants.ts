@@ -48,6 +48,7 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	GeneralPurposeAgentEnabled = 'chat.generalPurposeAgent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
@@ -196,3 +197,9 @@ export const ChatEditorTitleMaxLength = 30;
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
 export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);
+
+/**
+ * The built-in general-purpose agent name. When the model uses this name,
+ * the subagent inherits the parent's system prompt, model, and tools.
+ */
+export const GeneralPurposeAgentName = 'General Purpose';
