@@ -108,11 +108,20 @@ export class ComputeAutomaticInstructions {
 		// find instructions where the `applyTo` matches the attached context
 		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, token);
 
-		// add all instructions referenced by all instruction files that are in the context
-		await this._addReferencedInstructions(variables, telemetryEvent, token);
-
-		// get copilot instructions
-		await this._addAgentInstructions(variables, telemetryEvent, token);
+		// referenced instructions (depends on applying instructions above) and agent instructions are independent
+		// Collect into local sets and merge to ensure deterministic variable ordering
+		const referencedVars = new ChatRequestVariableSet(variables.asArray());
+		const agentVars = new ChatRequestVariableSet();
+		await Promise.all([
+			this._addReferencedInstructions(referencedVars, telemetryEvent, token),
+			this._addAgentInstructions(agentVars, telemetryEvent, token),
+		]);
+		for (const v of referencedVars.asArray()) {
+			variables.add(v);
+		}
+		for (const v of agentVars.asArray()) {
+			variables.add(v);
+		}
 
 		const customizationsIndexVariable = await this._getCustomizationsIndex(instructionFiles, variables, telemetryEvent, token);
 		if (customizationsIndexVariable) {
@@ -328,7 +337,15 @@ export class ComputeAutomaticInstructions {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 
-		const remoteEnv = await this._remoteAgentService.getEnvironment();
+		// Start all independent async operations concurrently
+		const remoteEnvPromise = this._remoteAgentService.getEnvironment();
+		const agentSkillsPromise = readTool ? this._promptsService.findAgentSkills(token) : Promise.resolve(undefined);
+		const shouldFetchCustomAgents = !!(runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents));
+		const customAgentsPromise = shouldFetchCustomAgents
+			? this._promptsService.getCustomAgents(token)
+			: undefined;
+
+		const remoteEnv = await remoteEnvPromise;
 		const remoteOS = remoteEnv?.os;
 		const filePath = (uri: URI) => getFilePath(uri, remoteOS);
 
@@ -376,7 +393,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const agentSkills = await this._promptsService.findAgentSkills(token);
+			const agentSkills = await agentSkillsPromise;
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
 			// Also filter by `when` clause using the scoped context key service
 			// Also filter out the troubleshoot skill when the feature flags are disabled
@@ -431,7 +448,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
 		}
-		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+		if (runSubagentTool && customAgentsPromise) {
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
@@ -440,8 +457,8 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
-			if (agents.length > 0) {
+			const agents = await customAgentsPromise;
+			if (agents && agents.length > 0) {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');
 				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');

@@ -1067,6 +1067,9 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedAgent: IChatAgentData | undefined;
 			let detectedCommand: IChatAgentCommand | undefined;
 
+			// Start hook collection early — doesn't depend on anything else
+			const hooksPromise = this.promptsService.getHooks(token);
+
 			// Gate /troubleshoot and the troubleshoot skill behind the feature flags
 			{
 				const debugLogEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
@@ -1110,11 +1113,11 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}
 
-			// Collect hooks from hook .json files
+			// Collect hooks from the promise started earlier
 			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
-				const hooksInfo = await this.promptsService.getHooks(token);
+				const hooksInfo = await hooksPromise;
 				if (hooksInfo) {
 					collectedHooks = hooksInfo.hooks;
 					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
@@ -1258,7 +1261,9 @@ export class ChatService extends Disposable implements IChatService {
 					const agent = (detectedAgent ?? agentPart?.agent ?? defaultAgent)!;
 					const command = detectedCommand ?? agentSlashCommandPart?.command;
 
-					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
+					// Start activation early — overlaps with request preparation below
+					const activationPromise = this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
+					activationPromise.catch(() => { }); // Prevent unhandled rejection if request exits before await
 
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, location, agent.id);
@@ -1296,6 +1301,9 @@ export class ChatService extends Disposable implements IChatService {
 							await autostartResult.wait();
 						}
 					}
+
+					// Ensure extension is activated before invoking the agent
+					await activationPromise;
 
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
