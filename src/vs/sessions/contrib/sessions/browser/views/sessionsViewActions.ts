@@ -689,6 +689,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 							ContextKeyExpr.equals('sessions.hasGitRepository', true),
 							ContextKeyExpr.equals('sessions.hasPullRequest', false),
 							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
+							ContextKeyExpr.equals('sessions.hasUncommittedChanges', false),
 						),
 						ContextKeyExpr.and(
 							ContextKeyExpr.equals('sessions.hasGitRepository', true),
