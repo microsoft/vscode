@@ -1505,9 +1505,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			const questionRow = dom.$('div.chat-question-summary-label');
 			const questionText = question.message ?? question.title;
-			let labelText = typeof questionText === 'string' ? questionText : questionText.value;
-			labelText = labelText.replace(/[:\s]+$/, '');
-			questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', labelText);
+			const messageContent = this.getQuestionText(questionText);
+			questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', messageContent);
 			summaryItem.appendChild(questionRow);
 
 			if (answer !== undefined) {
