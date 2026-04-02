@@ -228,9 +228,9 @@
 
 .sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact {
 	min-height: 40px;
-	padding: 0 12px;
+	padding: 0 8px;
 	border-radius: 8px;
-	font-size: 12px;
+	font-size: 11px;
 	gap: 0;
 	justify-content: center;
 }
