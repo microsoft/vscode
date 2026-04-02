@@ -100,6 +100,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get foregroundInstances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
+	/** Gets all non-background terminals that were not created by extensions. */
+	private get _userCreatedForegroundInstances(): ITerminalInstance[] {
+		return this.foregroundInstances.filter(e => !e.shellLaunchConfig.isExtensionOwnedTerminal);
+	}
 	get detachedInstances(): Iterable<IDetachedTerminalInstance> {
 		return this._detachedXterms;
 	}
@@ -652,7 +656,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const shouldPersistProcesses = this._terminalConfigurationService.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
 			if (!shouldPersistProcesses) {
 				const hasDirtyInstances = (
-					(this._terminalConfigurationService.config.confirmOnExit === 'always' && this.foregroundInstances.length > 0) ||
+					(this._terminalConfigurationService.config.confirmOnExit === 'always' && this._userCreatedForegroundInstances.length > 0) ||
 					(this._terminalConfigurationService.config.confirmOnExit === 'hasChildProcesses' && this.foregroundInstances.some(e => e.hasChildProcesses))
 				);
 				if (hasDirtyInstances) {
@@ -932,7 +936,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
 		let message: string;
-		const foregroundInstances = this.foregroundInstances;
+		const foregroundInstances = this._userCreatedForegroundInstances;
 		if (foregroundInstances.length === 1 || singleTerminal) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "Do you want to terminate the active terminal session?");
 		} else {
