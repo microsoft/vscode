@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../actions/chatContextKeys.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -382,11 +383,20 @@ export class ComputeAutomaticInstructions {
 			// Also filter out the troubleshoot skill when the feature flags are disabled
 			const isDebugLogEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
+			const sessionType = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
+			const isNonLocalSession = !!sessionType && sessionType !== 'local';
 			const modelInvocableSkills = agentSkills?.filter(skill => {
 				if (skill.disableModelInvocation) {
 					return false;
 				}
-				if (skill.when && !this._contextKeyService.contextMatchesRules(skill.when)) {
+				if (skill.when) {
+					// Evaluate per-session; a `when` referencing `chatSessionType` will naturally
+					// include or exclude this skill based on the current session.
+					if (!this._contextKeyService.contextMatchesRules(skill.when)) {
+						return false;
+					}
+				} else if (isNonLocalSession) {
+					// Skills without a `when` clause default to local-session-only.
 					return false;
 				}
 				if ((!isDebugLogEnabled || !isFileLoggingEnabled) && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {

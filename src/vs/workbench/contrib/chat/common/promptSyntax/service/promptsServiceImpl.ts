@@ -34,7 +34,7 @@ import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAU
 import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, isExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -510,19 +510,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IExtensionPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const settledResults = await Promise.allSettled(this.contributedFiles[type].values());
+		// Note: `when` clauses are intentionally NOT evaluated here (global context).
+		// They are evaluated later at session-scoped time:
+		//  - slash commands: per-widget in chatInputCompletions.ts via `c.when`
+		//  - instructions: in ComputeAutomaticInstructions using its scoped IContextKeyService
+		//  - skills: in ComputeAutomaticInstructions using its scoped IContextKeyService
 		const contributedFiles = settledResults
 			.filter((result): result is PromiseFulfilledResult<IExtensionPromptPath> => result.status === 'fulfilled')
 			.map(result => result.value)
 			.filter(file => {
-				if (!file.when) {
-					return true;
-				}
-				const expr = ContextKeyExpr.deserialize(file.when);
-				if (!expr) {
+				if (file.when && !ContextKeyExpr.deserialize(file.when)) {
 					this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
 					return false;
 				}
-				return this.contextKeyService.contextMatchesRules(expr);
+				return true;
 			});
 
 		const activationEvent = this.getProviderActivationEvent(type);
@@ -684,6 +685,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
 		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
 		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
+		const when = isExtensionPromptPath(promptPath) && promptPath.when
+			? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
+			: undefined;
 		return {
 			uri: promptPath.uri,
 			name: name,
@@ -695,7 +699,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			description: promptPath.description,
 			argumentHint: argumentHint,
 			userInvocable: userInvocable ?? true,
-			when: undefined,
+			when: when,
 		};
 	}
 
@@ -1149,6 +1153,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const file of discoveryInfo.files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.promptPath.description, file.promptPath.uri);
+				const skillWhen = isExtensionPromptPath(file.promptPath) && file.promptPath.when
+					? ContextKeyExpr.deserialize(file.promptPath.when) ?? undefined
+					: undefined;
 				result.push({
 					uri: file.promptPath.uri,
 					storage: file.promptPath.storage,
@@ -1156,7 +1163,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					description: sanitizedDescription,
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
-					when: undefined,
+					when: skillWhen,
 					pluginUri: file.promptPath.pluginUri,
 					extension: file.promptPath.extension,
 				});

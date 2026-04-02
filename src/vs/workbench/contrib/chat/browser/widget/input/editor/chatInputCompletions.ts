@@ -59,6 +59,7 @@ import {
 	PromptsType,
 	Target
 } from '../../../../common/promptSyntax/promptTypes.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
@@ -256,8 +257,11 @@ class SlashCommandCompletions extends Disposable {
 				const userInvocableCommands = promptCommands
 					.filter(c => {
 						if (widget.lockedAgentId) {
-							// Exclude extension-provided prompt files for locked agents.
-							if (c.extension) {
+							// Extension-provided prompt files are hidden in locked agent mode unless
+							// they declare a `when` clause that references `chatSessionType` —
+							// that clause is then evaluated per-widget below.
+							const whenReferencesSessionType = c.when?.keys().includes(ChatContextKeys.chatSessionType.key);
+							if (c.extension && !whenReferencesSessionType) {
 								return false;
 							}
 							// Exclude hooks as those don't work in locked agent scenarios.
