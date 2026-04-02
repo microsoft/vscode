@@ -129,7 +129,7 @@ export class BranchPicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement) {
+		if (!this._triggerElement || !this._slotElement) {
 			return;
 		}
 		dom.clearNode(this._triggerElement);
@@ -145,8 +145,11 @@ export class BranchPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		this._slotElement?.classList.toggle('disabled', isLoading || isDisabled);
-		this._triggerElement.setAttribute('aria-disabled', String(isLoading || isDisabled));
-		this._triggerElement.tabIndex = (isLoading || isDisabled) ? -1 : 0;
+		const visible = !(isLoading || isDisabled);
+		dom.setVisibility(visible, this._slotElement);
+		this._slotElement.classList.toggle('disabled', false);
+		this._triggerElement.setAttribute('aria-hidden', String(!visible));
+		this._triggerElement.setAttribute('aria-disabled', String(!visible));
+		this._triggerElement.tabIndex = visible ? 0 : -1;
 	}
 }
