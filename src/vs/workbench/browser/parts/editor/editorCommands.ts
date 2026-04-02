@@ -334,7 +334,7 @@ function registerEditorMoveCopyCommand(): void {
 				}
 				break;
 			case 'center':
-				targetGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)[(editorGroupsService.count / 2) - 1];
+				targetGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)[Math.round(editorGroupsService.count / 2) - 1];
 				break;
 			case 'position':
 				targetGroup = editorGroupsService.getGroups(GroupsOrder.GRID_APPEARANCE)[(args.value ?? 1) - 1];
