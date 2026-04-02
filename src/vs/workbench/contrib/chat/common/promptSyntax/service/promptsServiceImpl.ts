@@ -699,7 +699,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			description: promptPath.description,
 			argumentHint: argumentHint,
 			userInvocable: userInvocable ?? true,
-			when: when,
+			when,
 		};
 	}
 
@@ -1153,7 +1153,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const file of discoveryInfo.files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.promptPath.description, file.promptPath.uri);
-				const skillWhen = isExtensionPromptPath(file.promptPath) && file.promptPath.when
+				const when = isExtensionPromptPath(file.promptPath) && file.promptPath.when
 					? ContextKeyExpr.deserialize(file.promptPath.when) ?? undefined
 					: undefined;
 				result.push({
@@ -1163,7 +1163,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					description: sanitizedDescription,
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
-					when: skillWhen,
+					when,
 					pluginUri: file.promptPath.pluginUri,
 					extension: file.promptPath.extension,
 				});
