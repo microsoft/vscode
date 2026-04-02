@@ -1662,16 +1662,11 @@ export class AICustomizationListWidget extends Disposable {
 	 *
 	 * - `file:` URIs under a workspace folder → storage `local` (Workspace group)
 	 * - `file:` URIs elsewhere (e.g. `~/.copilot/`) → storage `user` (User group)
-	 * - `vscode-userdata:` URIs (extension globalStorage) → storage `extension` (read-only, Extensions group)
-	 * - Non-file schemes (synthetic URIs like `copilotcli:`) → groupKey `builtin` (Built-in group)
+	 * - Non-file schemes (synthetic URIs, vscode-userdata:, etc.) → groupKey `builtin` (Built-in group)
 	 */
 	private _inferStorageAndGroup(uri: URI, workspaceFolders: readonly { uri: URI }[]): { storage?: PromptsStorage; groupKey?: string } {
-		// Non-file schemes are synthetic/built-in
+		// Non-file schemes are synthetic/built-in (includes vscode-userdata: for extension-contributed items)
 		if (uri.scheme !== Schemas.file) {
-			// vscode-userdata: = extension-contributed (read-only)
-			if (uri.scheme === Schemas.vscodeUserData) {
-				return { storage: PromptsStorage.extension };
-			}
 			return { groupKey: BUILTIN_STORAGE };
 		}
 
