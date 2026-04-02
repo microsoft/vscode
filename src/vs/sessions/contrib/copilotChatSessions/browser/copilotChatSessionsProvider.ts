@@ -1619,11 +1619,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					throw new Error('Session was cancelled before being committed');
 				}
 
-				// Response completed normally — the commit is in-flight (async IPC),
-				// wait for it with the safety timeout.
+				// Response completed normally — the commit is in-flight (the extension
+				// fired it before the response finished, but the async IPC chain hasn't
+				// delivered it yet). It should arrive in milliseconds; use a short
+				// safety timeout to avoid blocking forever on an IPC failure.
 			}
 
-			const result = await raceTimeout(commitPromise, 60_000);
+			const result = await raceTimeout(commitPromise, 5_000);
 			if (!result) {
 				throw new Error('Timed out waiting for session commit');
 			}
@@ -1636,6 +1638,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/**
 	 * Waits for an {@link AgentSessionAdapter} with the given resource to appear
 	 * in the session cache (populated by {@link _refreshSessionCache}).
+	 * Only called once during session initialisation (after the commit event),
+	 * so the timeout has no performance impact on steady-state operations.
 	 */
 	private async _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
 		const key = resource.toString();
@@ -1657,7 +1661,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			// The adapter should appear almost immediately after the commit
 			// event via _refreshSessionCache; use a short safety timeout.
-			const result = await raceTimeout(sessionPromise, 10_000);
+			const result = await raceTimeout(sessionPromise, 5_000);
 			if (!result) {
 				throw new Error('Timed out waiting for committed session in cache');
 			}
