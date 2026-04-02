@@ -109,6 +109,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
 		this._view.setBackgroundColor('#FFFFFF');
+		this._view.webContents.setVisualZoomLevelLimits(1, 3);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {
