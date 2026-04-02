@@ -490,7 +490,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override doQuitAndInstall(): void {
-		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
+		if ((this.state.type !== StateType.Ready && this.state.type !== StateType.Restarting) || !this.availableUpdate) {
 			return;
 		}
 
