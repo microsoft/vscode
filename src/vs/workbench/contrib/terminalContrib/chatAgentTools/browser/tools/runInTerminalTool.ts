@@ -1352,7 +1352,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				});
 				// Register a listener to notify the agent when commands complete in this
 				// background terminal, and continue the output monitor for prompt-for-input detection
-				this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, outputMonitor);
+				this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor);
 			} else {
 				// Foreground completed or error - clean up execution and output monitor
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
@@ -1773,7 +1773,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * to detect prompts-for-input while the terminal runs in the background.
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
-	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, outputMonitor?: OutputMonitor): void {
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor): void {
 		const commandDetection = terminalInstance.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
 			outputMonitor?.dispose();
@@ -1832,6 +1832,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._chatService.sendRequest(chatSessionResource, message, {
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
+				systemInitiatedLabel: localize('backgroundTaskCompleted', "Background task `{0}` completed", commandName),
 				...sendOptions,
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);

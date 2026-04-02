@@ -987,6 +987,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				undefined, // userSelectedTools
 				undefined, // id
 				true, // isSystemInitiated
+				localize('backgroundTaskInputNeeded', "Background task `{0}` input needed", this._command), // systemInitiatedLabel
 			);
 		} else {
 			request = requests.findLast(r => !r.isSystemInitiated) ?? requests.at(-1);
