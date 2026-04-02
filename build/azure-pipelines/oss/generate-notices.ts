@@ -464,13 +464,23 @@ function main(): void {
 		process.exit(1);
 	}
 
-	// Build map keyed by lowercase name for dedup
+	// Build map keyed by name@version to keep ALL versions of each package.
+	// A package may appear at multiple versions (e.g., semver 1.0.27 and 7.7.4)
+	// with potentially different license text. Completeness > minimal file size.
 	const mergedMap = new Map<string, NoticeEntry>();
+	// Track which package NAMES are covered (for dynamic gap-filling — if CG has
+	// any version of a package, don't try to find it dynamically)
+	const coveredNames = new Set<string>();
 	for (const entry of cgEntries) {
-		const key = entry.name.toLowerCase();
-		if (!mergedMap.has(key)) {
-			mergedMap.set(key, entry);
+		const versionKey = `${entry.name.toLowerCase()}@${entry.version}`;
+		if (!mergedMap.has(versionKey)) {
+			mergedMap.set(versionKey, entry);
 		}
+		coveredNames.add(entry.name.toLowerCase());
+	}
+	const dupVersions = cgEntries.length - mergedMap.size;
+	if (dupVersions > 0) {
+		console.log(`  ${mergedMap.size} unique name@version entries (${dupVersions} exact duplicates removed)`);
 	}
 
 	// -- Step 3: Filter dev dependency leaks ------------------------------
@@ -483,10 +493,20 @@ function main(): void {
 	const filteredDevDeps: string[] = [];
 	for (const devDep of staticData.devDepFilter) {
 		const key = devDep.toLowerCase();
-		if (mergedMap.has(key)) {
-			const entry = mergedMap.get(key)!;
-			console.log(`  Removed: ${entry.name} ${entry.version}`);
-			mergedMap.delete(key);
+		// Remove ALL versions of this dev dep from the merged map
+		const toRemove: string[] = [];
+		for (const [vkey] of mergedMap) {
+			if (vkey.startsWith(key + '@')) {
+				toRemove.push(vkey);
+			}
+		}
+		if (toRemove.length > 0) {
+			for (const vkey of toRemove) {
+				const entry = mergedMap.get(vkey)!;
+				console.log(`  Removed: ${entry.name} ${entry.version}`);
+				mergedMap.delete(vkey);
+			}
+			coveredNames.delete(key);
 			filteredDevDeps.push(devDep);
 		}
 	}
@@ -499,10 +519,16 @@ function main(): void {
 	const overridesApplied: string[] = [];
 	for (const [pkgName, override] of Object.entries(staticData.overrides)) {
 		const key = pkgName.toLowerCase();
-		if (mergedMap.has(key)) {
-			const entry = mergedMap.get(key)!;
-			console.log(`  OVERRIDE: ${entry.name} license changed to ${override.license}`);
-			entry.license = override.license;
+		let applied = false;
+		// Apply override to ALL versions of this package
+		for (const [vkey, entry] of mergedMap) {
+			if (vkey.startsWith(key + '@')) {
+				console.log(`  OVERRIDE: ${entry.name} ${entry.version} license changed to ${override.license}`);
+				entry.license = override.license;
+				applied = true;
+			}
+		}
+		if (applied) {
 			overridesApplied.push(pkgName);
 		}
 	}
@@ -528,7 +554,7 @@ function main(): void {
 
 		for (const dep of prodDeps) {
 			const key = dep.toLowerCase();
-			if (mergedMap.has(key)) {
+			if (coveredNames.has(key)) {
 				continue; // Already covered by CG
 			}
 			if (devDeps.has(key)) {
@@ -546,7 +572,7 @@ function main(): void {
 					url: pkgInfo?.repository || '',
 					licenseText: licenseResult.licenseText,
 				};
-				mergedMap.set(key, entry);
+				coveredNames.add(key); coveredNames.add(key); mergedMap.set(key + '@' + (entry.version || ''), entry);
 				dynamicCoverageList.push(`${dep} — LICENSE found at ${licenseResult.licensePath}`);
 				console.log(`  DYNAMIC: ${dep} ${pkgInfo?.version || ''} — LICENSE from node_modules`);
 			} else {
@@ -564,7 +590,7 @@ function main(): void {
 						url: pkgInfo?.repository || '',
 						licenseText: siblingResult.licenseText,
 					};
-					mergedMap.set(key, entry);
+					coveredNames.add(key); coveredNames.add(key); mergedMap.set(key + '@' + (entry.version || ''), entry);
 					dynamicCoverageList.push(`${dep} — LICENSE from sibling ${siblingResult.siblingName} (same repo: ${pkgInfo!.repository})`);
 					console.log(`  DYNAMIC (sibling): ${dep} ${pkgInfo?.version || ''} — LICENSE from ${siblingResult.siblingName}`);
 				} else {
@@ -600,7 +626,7 @@ function main(): void {
 
 					for (const dep of extDeps) {
 						const key = dep.toLowerCase();
-						if (mergedMap.has(key)) {
+						if (coveredNames.has(key)) {
 							continue;
 						}
 
@@ -615,7 +641,7 @@ function main(): void {
 								url: pkgInfo?.repository || '',
 								licenseText: licenseResult.licenseText,
 							};
-							mergedMap.set(key, entry);
+							coveredNames.add(key); coveredNames.add(key); mergedMap.set(key + '@' + (entry.version || ''), entry);
 							dynamicCoverageList.push(`${dep} — LICENSE from extension ${ext}`);
 							console.log(`  DYNAMIC: ${dep} — LICENSE from extension ${ext}`);
 						} else {
@@ -632,7 +658,7 @@ function main(): void {
 									url: pkgInfo?.repository || '',
 									licenseText: siblingResult.licenseText,
 								};
-								mergedMap.set(key, entry);
+								coveredNames.add(key); coveredNames.add(key); mergedMap.set(key + '@' + (entry.version || ''), entry);
 								dynamicCoverageList.push(`${dep} — LICENSE from sibling ${siblingResult.siblingName} (extension ${ext})`);
 								console.log(`  DYNAMIC (sibling): ${dep} — LICENSE from ${siblingResult.siblingName} (extension ${ext})`);
 							}
@@ -682,14 +708,14 @@ function main(): void {
 								for (const sub of fs.readdirSync(full)) {
 									const scopedName = `${entry}/${sub}`;
 									const key = scopedName.toLowerCase();
-									if (mergedMap.has(key)) {
+									if (coveredNames.has(key)) {
 										continue;
 									}
 
 									const licenseResult = findLicenseInNodeModules(scopedName, repoRoot);
 									if (licenseResult) {
 										const pkgInfo = readPackageJson(scopedName, repoRoot);
-										mergedMap.set(key, {
+										coveredNames.add(key); mergedMap.set(key, {
 											name: scopedName,
 											version: pkgInfo?.version || '',
 											license: pkgInfo?.license || '',
@@ -705,14 +731,14 @@ function main(): void {
 							}
 						} else {
 							const key = entry.toLowerCase();
-							if (mergedMap.has(key)) {
+							if (coveredNames.has(key)) {
 								continue;
 							}
 
 							const licenseResult = findLicenseInNodeModules(entry, repoRoot);
 							if (licenseResult) {
 								const pkgInfo = readPackageJson(entry, repoRoot);
-								mergedMap.set(key, {
+								coveredNames.add(key); mergedMap.set(key, {
 									name: entry,
 									version: pkgInfo?.version || '',
 									license: pkgInfo?.license || '',
@@ -739,12 +765,12 @@ function main(): void {
 	const cgManifestEntries = parseCgManifests(repoRoot);
 	for (const entry of cgManifestEntries) {
 		const key = entry.name.toLowerCase();
-		if (mergedMap.has(key)) {
+		if (coveredNames.has(key)) {
 			continue; // Already covered
 		}
 
 		if (entry.licenseText) {
-			mergedMap.set(key, entry);
+			coveredNames.add(key); coveredNames.add(key); mergedMap.set(key + '@' + (entry.version || ''), entry);
 			dynamicCoverageList.push(`${entry.name} — licenseDetail from cgmanifest.json`);
 			console.log(`  DYNAMIC: ${entry.name} — licenseDetail from cgmanifest`);
 		} else {
@@ -766,14 +792,14 @@ function main(): void {
 
 	for (const pkg of staticData.packages) {
 		const key = pkg.name.toLowerCase();
-		if (mergedMap.has(key)) {
+		if (coveredNames.has(key)) {
 			// Static entry is stale — CG or dynamic already covers this
 			staleStaticEntries.push(pkg.name);
 			console.log(`  STALE: ${pkg.name} is in static-notices.json but already covered by CG/dynamic`);
 			continue;
 		}
 
-		mergedMap.set(key, {
+		coveredNames.add(key); mergedMap.set(key, {
 			name: pkg.name,
 			version: pkg.version,
 			license: pkg.license,
