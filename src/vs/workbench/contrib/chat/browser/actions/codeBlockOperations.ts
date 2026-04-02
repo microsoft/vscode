@@ -117,7 +117,7 @@ export class InsertCodeBlockOperation {
 
 		const edits = [new ResourceTextEdit(activeModel.uri, { range, text })];
 		await this.bulkEditService.apply(edits);
-		this.codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+		this.codeEditorService.listCodeEditors().find(editor => isEqual(editor.getModel()?.uri, activeModel.uri))?.focus();
 		return true;
 	}
 

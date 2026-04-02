@@ -41,6 +41,31 @@ export const SKILL_LANGUAGE_ID = 'skill';
 export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID];
 
 /**
+ * Configuration key for enabling the agent debug log feature.
+ */
+export const AGENT_DEBUG_LOG_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.enabled';
+
+/**
+ * Configuration key for enabling file logging for the agent debug log.
+ */
+export const AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING = 'github.copilot.chat.agentDebugLog.fileLogging.enabled';
+
+/**
+ * The name of the troubleshoot slash command / skill.
+ */
+export const TROUBLESHOOT_COMMAND_NAME = 'troubleshoot';
+
+/**
+ * URI scheme used by the Copilot extension for built-in skills.
+ */
+export const COPILOT_SKILL_URI_SCHEME = 'copilot-skill';
+
+/**
+ * Path fragment that identifies the troubleshoot skill in a URI.
+ */
+export const TROUBLESHOOT_SKILL_PATH = 'troubleshoot/SKILL.md';
+
+/**
  * The language id for a prompts type.
  */
 export function getLanguageIdForPromptsType(type: PromptsType): string {
@@ -92,3 +117,27 @@ export function isValidPromptType(type: string): type is PromptsType {
 	return Object.values(PromptsType).includes(type as PromptsType);
 }
 
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot',
+	Claude = 'claude',
+	Undefined = 'undefined',
+}
+
+/**
+ * Tracks where prompt files originate from.
+ */
+export enum PromptFileSource {
+	GitHubWorkspace = 'github-workspace',
+	CopilotPersonal = 'copilot-personal',
+	ClaudePersonal = 'claude-personal',
+	ClaudeWorkspace = 'claude-workspace',
+	ClaudeWorkspaceLocal = 'claude-workspace-local',
+	AgentsWorkspace = 'agents-workspace',
+	AgentsPersonal = 'agents-personal',
+	ConfigWorkspace = 'config-workspace',
+	ConfigPersonal = 'config-personal',
+	ExtensionContribution = 'extension-contribution',
+	ExtensionAPI = 'extension-api',
+	Plugin = 'plugin',
+}

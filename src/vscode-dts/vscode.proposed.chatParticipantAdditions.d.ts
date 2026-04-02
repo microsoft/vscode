@@ -840,6 +840,12 @@ declare module 'vscode' {
 		readonly completionTokens: number;
 
 		/**
+		 * The number of tokens reserved for the response.
+		 * This is rendered specially in the UI to indicate that these tokens aren't used but are reserved.
+		 */
+		readonly outputBuffer?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -984,10 +990,6 @@ declare module 'vscode' {
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
-	export interface ChatResultFeedback {
-		readonly unhelpfulReason?: string;
-	}
-
 	export namespace lm {
 		export function fileIsIgnored(uri: Uri, token?: CancellationToken): Thenable<boolean>;
 	}
@@ -1059,6 +1061,8 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequestModeInstructions {
+		/** set when the mode a custom agent (not built-in), to be used as identifier */
+		readonly uri?: Uri;
 		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];

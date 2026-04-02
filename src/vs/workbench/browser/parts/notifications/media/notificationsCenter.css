@@ -5,13 +5,14 @@
 
 .monaco-workbench > .notifications-center {
 	position: absolute;
-	z-index: 1000;
+	z-index: 2545; /* above modal editor backdrop (2540), below quick input (2550) and dialogs (2575) */
 	right: 7px; /* attempt to position at same location as a toast */
 	bottom: 29px; /* 22px status bar height + 7px (attempt to position at same location as a toast) */
 	display: none;
 	overflow: hidden;
 	border: 1px solid var(--vscode-editorWidget-border);
 	border-radius: var(--vscode-cornerRadius-small);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {

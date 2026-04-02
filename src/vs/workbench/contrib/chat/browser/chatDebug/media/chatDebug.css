@@ -283,6 +283,7 @@
 .chat-debug-editor-header .viewpane-filter-container {
 	flex: 1;
 	max-width: 500px;
+	margin-right: auto;
 }
 .chat-debug-editor-header .viewpane-filter-container .monaco-inputbox {
 	border-color: var(--vscode-panelInput-border, transparent) !important;
@@ -292,6 +293,12 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
+}
+.chat-debug-troubleshoot-button.monaco-button {
+	width: auto;
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
 }
 .chat-debug-view-mode-labels {
 	display: grid;
@@ -324,11 +331,16 @@
 .chat-debug-table-header .chat-debug-col-details {
 	flex: 1;
 }
+.chat-debug-logs-main > .monaco-progress-container {
+	height: 2px;
+	flex-shrink: 0;
+}
 .chat-debug-logs-content {
 	display: flex;
 	flex-direction: row;
 	flex: 1;
 	overflow: hidden;
+	position: relative;
 }
 .chat-debug-logs-main {
 	display: flex;
@@ -394,34 +406,8 @@
 .chat-debug-log-row.chat-debug-log-trace {
 	opacity: 0.7;
 }
-.chat-debug-logs-shimmer-row {
-	position: absolute;
-	left: 0;
-	right: 0;
-	display: flex;
-	align-items: center;
-	padding: 0 16px;
-	height: 28px;
-	gap: 40px;
-	pointer-events: none;
-}
-.chat-debug-logs-shimmer-bar {
-	flex: 1;
-	height: 10px;
-	border-radius: 3px;
-	background: linear-gradient(
-		90deg,
-		var(--vscode-descriptionForeground) 25%,
-		var(--vscode-chat-thinkingShimmer, rgba(255, 255, 255, 0.3)) 50%,
-		var(--vscode-descriptionForeground) 75%
-	);
-	background-size: 200% 100%;
-	animation: chat-debug-shimmer 2s linear infinite;
-	opacity: 0.15;
-}
 .chat-debug-detail-panel {
 	flex-shrink: 0;
-	width: 350px;
 	display: flex;
 	flex-direction: column;
 	border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
@@ -453,11 +439,6 @@
 .chat-debug-detail-button.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
-}
-.chat-debug-detail-content {
-	flex: 1;
-	min-height: 0;
-	overflow-y: auto;
 }
 .chat-debug-detail-panel pre {
 	margin: 0;
@@ -636,8 +617,6 @@
 }
 .chat-debug-message-section-content-wrapper {
 	border-top: 1px solid var(--vscode-widget-border, transparent);
-	max-height: 300px;
-	overflow-y: auto;
 }
 .chat-debug-message-section-content {
 	margin: 0;
@@ -659,7 +638,8 @@
 }
 
 /* ---- File list: settings gear button ---- */
-.chat-debug-settings-gear.monaco-button {
+.chat-debug-settings-gear.monaco-button,
+.chat-debug-section-copy-btn.monaco-button {
 	flex-shrink: 0;
 	opacity: 0.7;
 	border-radius: 3px;
@@ -669,14 +649,17 @@
 	color: inherit;
 	min-width: auto;
 }
-.chat-debug-settings-gear.monaco-button:hover {
+.chat-debug-settings-gear.monaco-button:hover,
+.chat-debug-section-copy-btn.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }
-.chat-debug-settings-gear-header-passthrough {
+.chat-debug-settings-gear-header-passthrough,
+.chat-debug-section-copy-header-passthrough {
 	pointer-events: none;
 }
-.chat-debug-settings-gear-header-passthrough .chat-debug-settings-gear {
+.chat-debug-settings-gear-header-passthrough .chat-debug-settings-gear,
+.chat-debug-section-copy-header-passthrough .chat-debug-section-copy-btn {
 	pointer-events: auto;
 }
 
@@ -720,6 +703,14 @@
 	display: flex;
 	flex: 1;
 	overflow: hidden;
+	position: relative;
+}
+.chat-debug-flowchart-content-wrapper > .chat-debug-detail-panel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 10;
 }
 .chat-debug-flowchart-content {
 	flex: 1;

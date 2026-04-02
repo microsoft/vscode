@@ -103,7 +103,7 @@ export class ModelsManagementEditor extends EditorPane {
 export const chatManagementSashBorder = registerColor('chatManagement.sashBorder', PANEL_BORDER, localize('chatManagementSashBorder', "The color of the Chat Management editor splitview sash border."));
 
 function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
-	return !chatEntitlementService.sentiment.installed ||
+	return !chatEntitlementService.sentiment.completed ||
 		chatEntitlementService.entitlement === ChatEntitlement.Available;
 }
 
@@ -407,6 +407,7 @@ export class ChatManagementEditor extends EditorPane {
 		const entitlement = this.chatEntitlementService.entitlement;
 		return entitlement === ChatEntitlement.Available ||
 			entitlement === ChatEntitlement.Free ||
+			entitlement === ChatEntitlement.EDU ||
 			entitlement === ChatEntitlement.Pro;
 	}
 

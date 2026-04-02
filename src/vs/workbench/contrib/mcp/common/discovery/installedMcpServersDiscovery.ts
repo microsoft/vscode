@@ -96,6 +96,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					env: config.env || {},
 					envFile: config.envFile,
 					cwd: config.cwd,
+					sandbox: server.rootSandbox
 				};
 
 				definitions[1].push({
@@ -103,7 +104,6 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					label: server.name,
 					launch,
 					sandboxEnabled: config.type === 'http' ? undefined : config.sandboxEnabled,
-					sandbox: config.type === 'http' ? undefined : config.sandbox,
 					cacheNonce: await McpServerLaunch.hash(launch),
 					roots: mcpConfigPath?.workspaceFolder ? [mcpConfigPath.workspaceFolder.uri] : undefined,
 					variableReplacement: {

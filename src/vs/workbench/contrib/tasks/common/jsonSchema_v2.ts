@@ -28,7 +28,7 @@ function fixReferences(literal: Record<string, unknown> | unknown[]) {
 		}
 		Object.getOwnPropertyNames(literal).forEach(property => {
 			const value = literal[property];
-			if (Array.isArray(value) || typeof value === 'object') {
+			if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
 				fixReferences(value as Record<string, unknown>);
 			}
 		});
@@ -384,8 +384,8 @@ const runOptions: IJSONSchema = {
 		},
 		runOn: {
 			type: 'string',
-			enum: ['default', 'folderOpen'],
-			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened.'),
+			enum: ['default', 'folderOpen', 'worktreeCreated'],
+			description: nls.localize('JsonSchema.tasks.runOn', 'Configures when the task should be run. If set to folderOpen, then the task will be run automatically when the folder is opened. If set to worktreeCreated, then the task will be run automatically when an Agent Session worktree is created.'),
 			default: 'default'
 		},
 		instanceLimit: {

@@ -8,7 +8,7 @@
 	color: inherit;
 	border-radius: var(--vscode-cornerRadius-large);
 	border: 1px solid var(--vscode-inlineChat-border);
-	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	background: var(--vscode-inlineChat-background);
 	padding-top: 3px;
 	position: relative;

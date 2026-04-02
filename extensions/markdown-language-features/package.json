@@ -230,6 +230,14 @@
           "group": "1_markdown"
         }
       ],
+      "modalEditor/editorTitle": [
+        {
+          "command": "markdown.showPreviewToSide",
+          "when": "editorLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview",
+          "alt": "markdown.showPreview",
+          "group": "navigation"
+        }
+      ],
       "explorer/context": [
         {
           "command": "markdown.showPreview",
@@ -774,12 +782,12 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "dompurify": "^3.2.7",
+    "dompurify": "^3.3.2",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.4",
     "morphdom": "^2.7.7",
-    "picomatch": "^2.3.1",
+    "picomatch": "^2.3.2",
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",

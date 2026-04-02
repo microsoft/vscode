@@ -22,6 +22,7 @@
 
 .monaco-dropdown .dropdown-menu {
 	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-dropdown-with-primary {

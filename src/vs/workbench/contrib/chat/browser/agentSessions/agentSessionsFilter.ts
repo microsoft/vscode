@@ -17,7 +17,13 @@ import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessi
 
 export enum AgentSessionsGrouping {
 	Capped = 'capped',
-	Date = 'date'
+	Date = 'date',
+	Repository = 'repository'
+}
+
+export enum AgentSessionsSorting {
+	Created = 'created',
+	Updated = 'updated'
 }
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
@@ -40,6 +46,7 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	notifyResults?(count: number): void;
 
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
+	readonly sortResults?: () => AgentSessionsSorting | undefined;
 
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
@@ -49,6 +56,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	states: [] as const,
 	archived: true as const /* archived are never excluded but toggle between expanded and collapsed */,
 	read: false as const,
+	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
 });
 
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
@@ -60,6 +68,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	readonly limitResults = () => this.options.limitResults?.();
 	readonly groupResults = () => this.options.groupResults?.();
+	readonly sortResults = () => this.options.sortResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
 	private isStoringExcludes = false;
@@ -272,6 +281,15 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
+	/**
+	 * Programmatically toggle the repository group capping state.
+	 */
+	setRepositoryGroupCapped(capped: boolean): void {
+		if (this.excludes.repositoryGroupCapped !== capped) {
+			this.storeExcludes({ ...this.excludes, repositoryGroupCapped: capped });
+		}
+	}
+
 	private registerResetAction(disposables: DisposableStore, menuId: MenuId): void {
 		const that = this;
 		disposables.add(registerAction2(class extends Action2 {
@@ -287,7 +305,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				});
 			}
 			run(): void {
-				that.storeExcludes({ ...DEFAULT_EXCLUDES });
+				that.reset();
 			}
 		}));
 	}
@@ -331,5 +349,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	notifyResults(count: number): void {
 		this.options.notifyResults?.(count);
+	}
+
+	reset(): void {
+		this.storeExcludes({ ...DEFAULT_EXCLUDES });
 	}
 }

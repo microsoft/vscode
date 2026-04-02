@@ -112,7 +112,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		}
 		try {
 			const script = path.join(workspaceRoot, 'build', 'npm', 'installStateHash.ts');
-			const output = cp.execFileSync(process.execPath, [script], {
+			const output = cp.execFileSync(process.execPath, [script, '--ignore-node-version'], {
 				cwd: workspaceRoot,
 				timeout: 10_000,
 				encoding: 'utf8',
@@ -197,25 +197,16 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 			return '';
 		}
 		try {
-			return this._normalizeFileContent(path.join(this._root, file));
+			const script = path.join(this._root, 'build', 'npm', 'installStateHash.ts');
+			return cp.execFileSync(process.execPath, [script, '--normalize-file', path.join(this._root, file)], {
+				cwd: this._root,
+				timeout: 10_000,
+				encoding: 'utf8',
+			});
 		} catch {
 			return '';
 		}
 	}
-
-	private _normalizeFileContent(filePath: string): string {
-		const raw = fs.readFileSync(filePath, 'utf8');
-		if (path.basename(filePath) === 'package.json') {
-			const json = JSON.parse(raw);
-			for (const key of NpmUpToDateFeature._packageJsonIgnoredKeys) {
-				delete json[key];
-			}
-			return JSON.stringify(json, null, '\t') + '\n';
-		}
-		return raw;
-	}
-
-	private static readonly _packageJsonIgnoredKeys = ['distro'];
 
 	private _getChangedFiles(state: InstallState): { readonly label: string; readonly isFile: boolean }[] {
 		if (!state.saved) {

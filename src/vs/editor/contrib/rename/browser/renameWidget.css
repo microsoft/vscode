@@ -7,6 +7,7 @@
 	z-index: 100;
 	color: inherit;
 	border-radius: 4px;
+	box-shadow: var(--vscode-shadow-hover);
 }
 
 .monaco-editor .rename-box.preview {

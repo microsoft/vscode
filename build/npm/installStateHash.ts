@@ -36,14 +36,45 @@ export interface PostinstallState {
 	readonly fileHashes: Record<string, string>;
 }
 
-const packageJsonIgnoredKeys = new Set(['distro']);
+const packageJsonRelevantKeys = new Set([
+	'name',
+	'dependencies',
+	'devDependencies',
+	'optionalDependencies',
+	'peerDependencies',
+	'peerDependenciesMeta',
+	'overrides',
+	'engines',
+	'workspaces',
+	'bundledDependencies',
+	'bundleDependencies',
+]);
+
+const packageLockJsonIgnoredKeys = new Set(['version']);
 
 function normalizeFileContent(filePath: string): string {
 	const raw = fs.readFileSync(filePath, 'utf8');
-	if (path.basename(filePath) === 'package.json') {
+	const basename = path.basename(filePath);
+	if (basename === 'package.json') {
 		const json = JSON.parse(raw);
-		for (const key of packageJsonIgnoredKeys) {
+		const filtered: Record<string, unknown> = {};
+		for (const key of packageJsonRelevantKeys) {
+			// eslint-disable-next-line local/code-no-in-operator
+			if (key in json) {
+				filtered[key] = json[key];
+			}
+		}
+		return JSON.stringify(filtered, null, '\t') + '\n';
+	}
+	if (basename === 'package-lock.json') {
+		const json = JSON.parse(raw);
+		for (const key of packageLockJsonIgnoredKeys) {
 			delete json[key];
+		}
+		if (json.packages?.['']) {
+			for (const key of packageLockJsonIgnoredKeys) {
+				delete json.packages[''][key];
+			}
 		}
 		return JSON.stringify(json, null, '\t') + '\n';
 	}
@@ -56,7 +87,7 @@ function hashContent(content: string): string {
 	return hash.digest('hex');
 }
 
-export function computeState(): PostinstallState {
+export function computeState(options?: { ignoreNodeVersion?: boolean }): PostinstallState {
 	const fileHashes: Record<string, string> = {};
 	for (const filePath of collectInputFiles()) {
 		const key = path.relative(root, filePath);
@@ -66,7 +97,7 @@ export function computeState(): PostinstallState {
 			// file may not be readable
 		}
 	}
-	return { nodeVersion: process.versions.node, fileHashes };
+	return { nodeVersion: options?.ignoreNodeVersion ? '' : process.versions.node, fileHashes };
 }
 
 export function computeContents(): Record<string, string> {
@@ -110,11 +141,24 @@ export function readSavedContents(): Record<string, string> | undefined {
 
 // When run directly, output state as JSON for tooling (e.g. the vscode-extras extension).
 if (import.meta.filename === process.argv[1]) {
-	console.log(JSON.stringify({
-		root,
-		stateContentsFile,
-		current: computeState(),
-		saved: readSavedState(),
-		files: [...collectInputFiles(), stateFile],
-	}));
+	const args = new Set(process.argv.slice(2));
+
+	if (args.has('--normalize-file')) {
+		const filePath = process.argv[process.argv.indexOf('--normalize-file') + 1];
+		if (!filePath) {
+			process.exit(1);
+		}
+		process.stdout.write(normalizeFileContent(filePath));
+	} else {
+		const ignoreNodeVersion = args.has('--ignore-node-version');
+		const current = computeState({ ignoreNodeVersion });
+		const saved = readSavedState();
+		console.log(JSON.stringify({
+			root,
+			stateContentsFile,
+			current,
+			saved: saved && ignoreNodeVersion ? { nodeVersion: '', fileHashes: saved.fileHashes } : saved,
+			files: [...collectInputFiles(), stateFile],
+		}));
+	}
 }

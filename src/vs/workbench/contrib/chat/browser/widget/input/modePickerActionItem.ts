@@ -28,7 +28,8 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { PromptsStorage, Target } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -98,7 +99,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				if (mode.uri) {
 					let label, icon, id;
 					if (mode.source?.storage === PromptsStorage.extension) {
-						icon = Codicon.eye;
+						icon = Codicon.file;
 						id = `viewAgent:${mode.id}`;
 						label = localize('viewModeConfiguration', "View {0} agent", mode.label.get());
 					} else {
