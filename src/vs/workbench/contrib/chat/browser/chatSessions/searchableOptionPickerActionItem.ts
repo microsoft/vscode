@@ -142,6 +142,7 @@ export class SearchableOptionPickerActionItem extends ChatSessionPickerActionIte
 			quickPick.placeholder = optionGroup.description ?? localize('selectOption.placeholder', "Select {0}", optionGroup.name);
 			quickPick.matchOnDescription = true;
 			quickPick.matchOnDetail = true;
+			quickPick.matchOnLabelMode = 'fuzzy';
 			quickPick.ignoreFocusOut = true;
 			quickPick.busy = true;
 			quickPick.show();

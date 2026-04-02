@@ -28,7 +28,7 @@ function fixReferences(literal: Record<string, unknown> | unknown[]) {
 		}
 		Object.getOwnPropertyNames(literal).forEach(property => {
 			const value = literal[property];
-			if (Array.isArray(value) || typeof value === 'object') {
+			if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
 				fixReferences(value as Record<string, unknown>);
 			}
 		});

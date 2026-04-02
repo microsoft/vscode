@@ -100,8 +100,8 @@ class MockChatEntitlementService implements IChatEntitlementService {
 
 	readonly quotas = {};
 
-	readonly sentiment: IChatSentiment = { installed: true, registered: true };
-	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { installed: true, registered: true });
+	readonly sentiment: IChatSentiment = { completed: true, registered: true };
+	readonly sentimentObs: IObservable<IChatSentiment> = observableValue('sentiment', { completed: true, registered: true });
 
 	readonly anonymous = false;
 	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);

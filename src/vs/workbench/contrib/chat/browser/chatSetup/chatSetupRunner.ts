@@ -157,6 +157,10 @@ export class ChatSetup {
 			success = false;
 		}
 
+		if (success) {
+			this.context.update({ completed: true });
+		}
+
 		return { success, dialogSkipped };
 	}
 

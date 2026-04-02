@@ -124,7 +124,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 			await editorService.closeEditors(editorsToClose);
 		}
 
-		await widget.acceptInput('act on feedback'); // move to use /act-on-feedback when the bug is fixed
+		await widget.acceptInput('/act-on-feedback');
 	}
 }
 
@@ -245,7 +245,7 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 			await editorService.closeEditors(editorsToClose);
 		}
 
-		await widget.acceptInput('act on feedback');
+		await widget.acceptInput('/act-on-feedback');
 	}
 }
 

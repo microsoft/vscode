@@ -191,8 +191,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			actionProvider,
 			actionBarActions: [{
 				id: 'chat.permissions.learnMore',
-				label: localize('permissions.learnMore', "Learn More about Permissions"),
-				tooltip: localize('permissions.learnMore', "Learn More about Permissions"),
+				label: localize('permissions.learnMore', "Learn more about permissions"),
+				tooltip: localize('permissions.learnMore', "Learn more about permissions"),
 				class: undefined,
 				enabled: true,
 				run: async () => {

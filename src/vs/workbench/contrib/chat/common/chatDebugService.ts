@@ -294,6 +294,7 @@ export interface IChatDebugSourceFolderEntry {
 export interface IChatDebugEventFileListContent {
 	readonly kind: 'fileList';
 	readonly discoveryType: string;
+	readonly durationInMillis: number;
 	readonly files: readonly IChatDebugFileEntry[];
 	readonly sourceFolders?: readonly IChatDebugSourceFolderEntry[];
 }

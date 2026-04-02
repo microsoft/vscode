@@ -80,21 +80,6 @@
 	transition: background 0.3s ease;
 }
 
-/* Bounce animation — macOS dock-style bounce when prominent state appears */
-.monaco-action-bar .update-indicator.prominent {
-	animation: update-indicator-bounce 0.6s ease;
-}
-
-@keyframes update-indicator-bounce {
-	0%   { transform: translateY(0); }
-	20%  { transform: translateY(-6px); }
-	40%  { transform: translateY(0); }
-	55%  { transform: translateY(-3px); }
-	70%  { transform: translateY(0); }
-	85%  { transform: translateY(-1px); }
-	100% { transform: translateY(0); }
-}
-
 /* Reduced motion */
 .monaco-workbench.monaco-reduce-motion .update-indicator.progress-indefinite .indicator-label::after {
 	animation: none;
@@ -102,8 +87,4 @@
 
 .monaco-workbench.monaco-reduce-motion .update-indicator.progress-percent .indicator-label::after {
 	transition: none;
-}
-
-.monaco-workbench.monaco-reduce-motion .update-indicator.prominent {
-	animation: none;
 }

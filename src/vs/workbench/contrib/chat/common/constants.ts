@@ -55,11 +55,15 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	SignInTitleBarEnabled = 'chat.signInTitleBar.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
+	ArtifactsMode = 'chat.artifacts.mode',
+	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
+	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
 	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
 }
 

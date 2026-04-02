@@ -3,29 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { AgentHostFileSystemProvider } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ROOT_STATE_URI, type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { resolveTokenForResource } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
+import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -55,9 +64,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService,
-		@ILabelService private readonly _labelService: ILabelService,
+		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super();
 
@@ -72,17 +83,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			'agentHostIpc.local',
 			'Agent Host (Local)'));
 
-		// Register a read-only filesystem provider for the local agent host
-		// so that agent-host-scheme URIs with 'local' authority can be resolved.
-		const fsProvider = this._register(new AgentHostFileSystemProvider());
-		this._register(fsProvider.registerAuthority('local', this._agentHostService));
-		this._register(this._fileService.registerProvider(AGENT_HOST_SCHEME, fsProvider));
-
-		// Display agent-host URIs with the original file path
-		this._register(this._labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
+		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
 		// Shared client state for protocol reconciliation
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService));
+		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService, () => this._agentHostService.nextClientSeq()));
 
 		// Forward action envelopes from the host to client state
 		this._register(this._loggedConnection.onDidAction(envelope => {
@@ -158,11 +162,35 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			capabilities: {
+				supportsCheckpoints: true,
+			},
 		}));
 
 		// Session list controller
 		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined));
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+
+		// Customization sync provider + bundler + observable
+		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
+		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
+		store.add(this._customizationHarnessService.registerExternalHarness({
+			id: sessionType,
+			label: agent.displayName,
+			icon: ThemeIcon.fromId(Codicon.server.id),
+			hiddenSections: [],
+			hideGenerateButton: true,
+			getStorageSourceFilter: () => ({ sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin] }),
+			syncProvider,
+		}));
+
+		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
+		const updateCustomizations = async () => {
+			const refs = await this._resolveCustomizations(syncProvider, bundler);
+			customizations.set(refs, undefined);
+		};
+		store.add(syncProvider.onDidChange(() => updateCustomizations()));
+		updateCustomizations(); // resolve initial state
 
 		// Session handler
 		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
@@ -174,6 +202,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connection: this._loggedConnection!,
 			connectionAuthority: 'local',
 			resolveAuthentication: () => this._resolveAuthenticationInteractively(),
+			customizations,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -193,6 +222,48 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
 		store.add(this._authenticationService.onDidChangeSessions(() =>
 			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
+	}
+
+	/**
+	 * Resolves the customizations to include in the active client set.
+	 *
+	 * Classifies sync provider entries as plugins (matched against
+	 * installed plugins) or individual files (bundled into a synthetic
+	 * Open Plugin).
+	 */
+	private async _resolveCustomizations(
+		syncProvider: AgentCustomizationSyncProvider,
+		bundler: SyncedCustomizationBundler,
+	): Promise<ICustomizationRef[]> {
+		const entries = syncProvider.getSelectedEntries();
+		if (entries.length === 0) {
+			return [];
+		}
+
+		const plugins = this._agentPluginService.plugins.get();
+		const refs: ICustomizationRef[] = [];
+		const individualFiles: { uri: URI; type: PromptsType }[] = [];
+
+		for (const entry of entries) {
+			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
+			if (plugin) {
+				refs.push({
+					uri: plugin.uri.toString() as ProtocolURI,
+					displayName: plugin.label,
+				});
+			} else if (entry.type) {
+				individualFiles.push({ uri: entry.uri, type: entry.type });
+			}
+		}
+
+		if (individualFiles.length > 0) {
+			const result = await bundler.bundle(individualFiles);
+			if (result) {
+				refs.push(result.ref);
+			}
+		}
+
+		return refs;
 	}
 
 	/**

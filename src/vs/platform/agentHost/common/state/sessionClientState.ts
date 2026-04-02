@@ -51,7 +51,7 @@ export class SessionClientState extends Disposable {
 
 	private readonly _clientId: string;
 	private readonly _log: (msg: string) => void;
-	private _nextClientSeq = 1;
+	private readonly _seqAllocator: () => number;
 	private _lastSeenServerSeq = 0;
 
 	// Confirmed state — reflects only what the server has acknowledged
@@ -74,10 +74,11 @@ export class SessionClientState extends Disposable {
 	private readonly _onDidReceiveNotification = this._register(new Emitter<INotification>());
 	readonly onDidReceiveNotification: Event<INotification> = this._onDidReceiveNotification.event;
 
-	constructor(clientId: string, logService: ILogService) {
+	constructor(clientId: string, logService: ILogService, seqAllocator: () => number) {
 		super();
 		this._clientId = clientId;
 		this._log = msg => logService.warn(`[SessionClientState] ${msg}`);
+		this._seqAllocator = seqAllocator;
 	}
 
 	get clientId(): string {
@@ -160,7 +161,7 @@ export class SessionClientState extends Disposable {
 	 * Only session actions can be write-ahead (root actions are server-only).
 	 */
 	applyOptimistic(action: ISessionAction): number {
-		const clientSeq = this._nextClientSeq++;
+		const clientSeq = this._seqAllocator();
 		this._pendingActions.push({ clientSeq, action });
 		this._applySessionToOptimistic(action);
 		return clientSeq;

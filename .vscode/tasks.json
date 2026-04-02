@@ -228,14 +228,14 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run Dev Sessions",
+			"label": "Run Dev Agents",
 			"type": "shell",
 			"command": "./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions",
+				"--agents",
 				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
 				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
 			],
@@ -248,8 +248,8 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Sessions - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev Sessions"],
+			"label": "Run and Compile Agents - OSS",
+			"dependsOn": ["Transpile Client", "Run Dev Agents"],
 			"dependsOrder": "sequence",
 			"inSessions": true,
 			"problemMatcher": []
@@ -393,9 +393,9 @@
 			]
 		},
 		{
-			"label": "Launch Component Explorer",
+			"label": "Component Explorer Server",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
 			"inSessions": true,
 			"problemMatcher": {
@@ -408,7 +408,7 @@
 					"column": 3
 				},
 				"background": {
-					"activeOnStart": true,
+					"activeOnStart": false,
 					"beginsPattern": ".*Setting up sessions.*",
 					"endsPattern": "  current: (?<componentExplorerUrl>.*) \\(current\\)"
 				}
@@ -424,6 +424,33 @@
 			"inSessions": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
+			},
+			"presentation": {
+				"focus": false,
+				"reveal": "never"
+			}
+		},
+		{
+			"label": "Serve Out (rspack)",
+			"type": "npm",
+			"script": "serve-out-rspack",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "rspack",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*compiling.*",
+					"endsPattern": ".*compiled.*successfully.*"
+				}
 			}
 		},
 		{

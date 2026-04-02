@@ -150,4 +150,13 @@ export interface IAICustomizationWorkspaceService {
 	 * customizations visible in the AI Customization views.
 	 */
 	getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
+
+	/**
+	 * Returns a map of built-in skill names that have direct UI integrations
+	 * (toolbar buttons, menu items, etc.) to a tooltip describing the
+	 * integration. Used to display a 'UI Integration' badge in the
+	 * customizations editor, especially important when users override a
+	 * built-in skill that drives a UI surface.
+	 */
+	getSkillUIIntegrations(): ReadonlyMap<string, string>;
 }

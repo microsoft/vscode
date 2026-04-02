@@ -354,7 +354,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const update = this.state.update;
 		const explicit = this.state.explicit;
-		this.setState(State.Updating(update));
+		this.setState(State.Updating(update, explicit));
 
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
@@ -417,7 +417,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						const maxProgress = parseInt(maxStr, 10);
 						if (!isNaN(currentProgress) && !isNaN(maxProgress) && this.state.type === StateType.Updating) {
 							if (this.state.currentProgress !== currentProgress || this.state.maxProgress !== maxProgress) {
-								this.setState(State.Updating(update, currentProgress, maxProgress));
+								this.setState(State.Updating(update, explicit, currentProgress, maxProgress));
 							}
 						}
 					}

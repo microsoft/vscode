@@ -59,7 +59,7 @@ suite('AgentPluginRepositoryService', () => {
 				return undefined;
 			},
 		} as unknown as ICommandService);
-		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
@@ -136,7 +136,7 @@ suite('AgentPluginRepositoryService', () => {
 				return undefined;
 			},
 		} as unknown as ICommandService);
-		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
@@ -176,7 +176,7 @@ suite('AgentPluginRepositoryService', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
-		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 		instantiationService.stub(IFileService, { exists: async () => true } as unknown as IFileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
@@ -270,7 +270,7 @@ suite('AgentPluginRepositoryService', () => {
 		) {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
-			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 			instantiationService.stub(IFileService, {
 				exists: async () => true,
 				del: async (resource: URI) => { onDel(resource); },
@@ -363,7 +363,7 @@ suite('AgentPluginRepositoryService', () => {
 		test('does not throw when delete fails', async () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
-			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 			instantiationService.stub(IFileService, {
 				exists: async () => true,
 				del: async () => { throw new Error('permission denied'); },

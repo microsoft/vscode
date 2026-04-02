@@ -95,8 +95,6 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 			this._updateActionForAlt(status.altKey);
 		});
 
-		this._editor.applyFontInfo(this._inputElement);
-		this._editor.applyFontInfo(this._measureElement);
 		this._lineHeight = 22;
 		this._inputElement.style.lineHeight = `${this._lineHeight}px`;
 	}

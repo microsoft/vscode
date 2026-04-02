@@ -69,9 +69,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 	static readonly activePanelSettingsKey = 'workbench.agentsession.panelpart.activepanelid';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_BOTTOM = 14;
-	static readonly MARGIN_LEFT = 12;
-	static readonly MARGIN_RIGHT = 12;
+	static readonly MARGIN_BOTTOM = 10;
+	static readonly MARGIN_LEFT = 10;
+	static readonly MARGIN_RIGHT = 10;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,

@@ -42,84 +42,100 @@ jobs:
         run: npm ci
         working-directory: build
 
-      - name: Install build/vite dependencies
-        run: rm -f package-lock.json && npm install
-        working-directory: build/vite
+      - name: Install rspack dependencies
+        run: npm ci
+        working-directory: build/rspack
 
-      - name: Build vite
-        run: npm run build
-        working-directory: build/vite
+      - name: Transpile source
+        run: npm run transpile-client
 
       - name: Install Playwright Chromium
         run: npx playwright install chromium
 
       - name: Capture screenshots
-        run: ./node_modules/.bin/component-explorer screenshot --project ./test/componentFixtures/component-explorer.json
+        run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
 
-      - name: Compare screenshots
-        id: compare
-        run: |
-          ./node_modules/.bin/component-explorer screenshot:compare \
-            --project ./test/componentFixtures \
-            --report ./test/componentFixtures/.screenshots/report
-        continue-on-error: true
-
-      - name: Prepare explorer artifact
-        run: |
-          mkdir -p /tmp/explorer-artifact/screenshot-report
-          cp -r build/vite/dist/* /tmp/explorer-artifact/
-          if [ -d test/componentFixtures/.screenshots/report ]; then
-            cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
-          fi
-
-      - name: Upload explorer artifact
+      - name: Upload screenshots
         uses: actions/upload-artifact@v7
         with:
-          name: component-explorer
-          path: /tmp/explorer-artifact/
+          name: screenshots
+          path: test/componentFixtures/.screenshots/current/
 
-      - name: Upload screenshot report
-        if: steps.compare.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: screenshot-diff
-          path: |
-            test/componentFixtures/.screenshots/current/
-            test/componentFixtures/.screenshots/report/
-
-      - name: Set check title
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger ingestion
         run: |
-          REPORT="test/componentFixtures/.screenshots/report/report.json"
-          STATE="success"
-          if [ -f "$REPORT" ]; then
-            CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
-            TITLE="⚠ ${CHANGED} screenshots changed"
-            BLOCKS_CI=$(node -e "
-              const r = require('./$REPORT');
-              const blocking = Object.entries(r.fixtures).filter(([, f]) =>
-                f.status !== 'unchanged' && (f.labels || []).includes('blocks-ci')
-              );
-              if (blocking.length > 0) {
-                console.log(blocking.map(([name]) => name).join(', '));
-              }
-            ")
-            if [ -n "$BLOCKS_CI" ]; then
-              STATE="failure"
-              TITLE="❌ ${CHANGED} screenshots changed (blocks CI: ${BLOCKS_CI})"
-            fi
-          else
-            TITLE="✅ Screenshots match"
-          fi
+          curl -sS -X POST "https://hediet-screenshots.azurewebsites.net/ingest" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "owner": "${{ github.repository_owner }}",
+              "repo": "${{ github.event.repository.name }}",
+              "runId": ${{ github.run_id }},
+              "artifactName": "screenshots"
+            }'
 
-          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-          DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json&search=changed"
+      # - name: Compare screenshots
+      #   id: compare
+      #   run: |
+      #     ./node_modules/.bin/component-explorer screenshot:compare \
+      #       --project ./test/componentFixtures \
+      #       --report ./test/componentFixtures/.screenshots/report
+      #   continue-on-error: true
 
-          gh api "repos/${{ github.repository }}/statuses/$SHA" \
-            --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
-          {"state":"$STATE","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
-          EOF
+      # - name: Prepare explorer artifact
+      #   run: |
+      #     mkdir -p /tmp/explorer-artifact/screenshot-report
+      #     cp -r build/vite/dist/* /tmp/explorer-artifact/
+      #     if [ -d test/componentFixtures/.screenshots/report ]; then
+      #       cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
+      #     fi
+
+      # - name: Upload explorer artifact
+      #   uses: actions/upload-artifact@v7
+      #   with:
+      #     name: component-explorer
+      #     path: /tmp/explorer-artifact/
+
+      # - name: Upload screenshot report
+      #   if: steps.compare.outcome == 'failure'
+      #   uses: actions/upload-artifact@v7
+      #   with:
+      #     name: screenshot-diff
+      #     path: |
+      #       test/componentFixtures/.screenshots/current/
+      #       test/componentFixtures/.screenshots/report/
+
+      # - name: Set check title
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: |
+      #     REPORT="test/componentFixtures/.screenshots/report/report.json"
+      #     STATE="success"
+      #     if [ -f "$REPORT" ]; then
+      #       CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
+      #       TITLE="⚠ ${CHANGED} screenshots changed"
+      #       BLOCKS_CI=$(node -e "
+      #         const r = require('./$REPORT');
+      #         const blocking = Object.entries(r.fixtures).filter(([, f]) =>
+      #           f.status !== 'unchanged' && (f.labels || []).includes('blocks-ci')
+      #         );
+      #         if (blocking.length > 0) {
+      #           console.log(blocking.map(([name]) => name).join(', '));
+      #         }
+      #       ")
+      #       if [ -n "$BLOCKS_CI" ]; then
+      #         STATE="failure"
+      #         TITLE="❌ ${CHANGED} screenshots changed (blocks CI: ${BLOCKS_CI})"
+      #       fi
+      #     else
+      #       TITLE="✅ Screenshots match"
+      #     fi
+
+      #     SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+      #     DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json&search=changed"
+
+      #     gh api "repos/${{ github.repository }}/statuses/$SHA" \
+      #       --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
+      #     {"state":"$STATE","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
+      #     EOF
 
       # - name: Post PR comment
       #   if: github.event_name == 'pull_request'

@@ -88,6 +88,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		// Header
 		this._headerNode = $('div.agent-feedback-widget-header');
 
+		// Comment icon (decorative, hidden from screen readers)
+		const commentIcon = renderIcon(Codicon.comment);
+		commentIcon.setAttribute('aria-hidden', 'true');
+		this._headerNode.appendChild(commentIcon);
+
 		// Title showing feedback count
 		this._titleNode = $('span.agent-feedback-widget-title');
 		this._updateTitle();
@@ -148,7 +153,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _updateTitle(): void {
 		const count = this._commentItems.length;
 		if (count === 1) {
-			this._titleNode.textContent = nls.localize('oneComment', "1 comment");
+			this._titleNode.textContent = this._commentItems[0].text;
 		} else {
 			this._titleNode.textContent = nls.localize('nComments', "{0} comments", count);
 		}
@@ -201,16 +206,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 			const itemActions: ICommentItemActions = { editAction: undefined!, convertAction: undefined, removeAction: undefined! };
 
-			// Edit action — only disabled for PR review comments
-			const isEditable = comment.source !== SessionEditorCommentSource.PRReview;
-			const editTooltip = isEditable
-				? nls.localize('editComment', "Edit")
-				: nls.localize('editPRCommentDisabled', "PR review comments cannot be edited");
 			itemActions.editAction = new Action(
 				'agentFeedback.widget.edit',
-				editTooltip,
+				nls.localize('editComment', "Edit"),
 				ThemeIcon.asClassName(Codicon.edit),
-				isEditable,
+				true,
 				(): void => { this._startEditing(comment, text, itemActions); },
 			);
 			actionBar.push(itemActions.editAction, { icon: true, label: false });
@@ -286,19 +286,17 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 
 	private _renderSuggestion(comment: ISessionEditorComment): HTMLElement {
 		const suggestionNode = $('div.agent-feedback-widget-suggestion');
-		const title = $('div.agent-feedback-widget-suggestion-title');
-		title.textContent = nls.localize('suggestedChange', "Suggested Change");
-		suggestionNode.appendChild(title);
 
 		for (const edit of comment.suggestion?.edits ?? []) {
 			const editNode = $('div.agent-feedback-widget-suggestion-edit');
-			const rangeLabel = $('div.agent-feedback-widget-suggestion-range');
+
+			const header = $('div.agent-feedback-widget-suggestion-header');
 			if (edit.range.startLineNumber === edit.range.endLineNumber) {
-				rangeLabel.textContent = nls.localize('suggestionLineNumber', "Line {0}", edit.range.startLineNumber);
+				header.textContent = nls.localize('suggestedChangeLine', "Suggested Change \u2022 Line {0}", edit.range.startLineNumber);
 			} else {
-				rangeLabel.textContent = nls.localize('suggestionLineRange', "Lines {0}-{1}", edit.range.startLineNumber, edit.range.endLineNumber);
+				header.textContent = nls.localize('suggestedChangeLines', "Suggested Change \u2022 Lines {0}-{1}", edit.range.startLineNumber, edit.range.endLineNumber);
 			}
-			editNode.appendChild(rangeLabel);
+			editNode.appendChild(header);
 
 			const newText = $('pre.agent-feedback-widget-suggestion-text');
 			newText.textContent = edit.newText;
@@ -323,10 +321,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _startEditing(comment: ISessionEditorComment, textContainer: HTMLElement, actions: ICommentItemActions): void {
-		if (comment.source === SessionEditorCommentSource.PRReview) {
-			return;
-		}
-
 		// Disable all actions while editing
 		actions.editAction.enabled = false;
 		if (actions.convertAction) {
@@ -382,8 +376,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _saveEdit(comment: ISessionEditorComment, newText: string): void {
 		if (comment.source === SessionEditorCommentSource.AgentFeedback) {
 			this._agentFeedbackService.updateFeedback(this._sessionResource, comment.sourceId, newText);
-		} else if (comment.source === SessionEditorCommentSource.CodeReview) {
-			this._codeReviewService.updateComment(this._sessionResource, comment.sourceId, newText);
+		} else {
+			// PR review and code review comments are converted to agent feedback on edit
+			this._convertToAgentFeedbackWithText(comment, newText);
 		}
 	}
 
@@ -391,7 +386,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		editStore.dispose();
 
 		// Re-enable actions
-		actions.editAction.enabled = comment.source !== SessionEditorCommentSource.PRReview;
+		actions.editAction.enabled = true;
 		if (actions.convertAction) {
 			actions.convertAction.enabled = true;
 		}
@@ -406,6 +401,13 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	private _convertToAgentFeedback(comment: ISessionEditorComment): void {
+		this._convertToAgentFeedbackWithText(comment, comment.text);
+	}
+
+	/**
+	 * Converts a non-agent-feedback comment into an agent feedback item, optionally with edited text.
+	 */
+	private _convertToAgentFeedbackWithText(comment: ISessionEditorComment, text: string): void {
 		if (!comment.canConvertToAgentFeedback) {
 			return;
 		}
@@ -418,7 +420,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._sessionResource,
 			comment.resourceUri,
 			comment.range,
-			comment.text,
+			text,
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
 			sourcePRReviewCommentId,

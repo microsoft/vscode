@@ -21,8 +21,8 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../github/common/types.js';
-import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
+import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './fixCIChecksAction.js';
 
 const $ = dom.$;
@@ -40,7 +40,7 @@ interface ICICheckCounts {
 }
 
 class CICheckListDelegate implements IListVirtualDelegate<ICICheckListItem> {
-	static readonly ITEM_HEIGHT = 24;
+	static readonly ITEM_HEIGHT = 28;
 
 	getHeight(_element: ICICheckListItem): number {
 		return CICheckListDelegate.ITEM_HEIGHT;
@@ -66,6 +66,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 	constructor(
 		private readonly _labels: ResourceLabels,
 		private readonly _openerService: IOpenerService,
+		private readonly _getModel: () => GitHubPullRequestCIModel | undefined,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICICheckTemplateData {
@@ -104,6 +105,18 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 
 		const actions: Action[] = [];
 
+		if (element.group === CICheckGroup.Failed && parseWorkflowRunId(element.check.detailsUrl) !== undefined) {
+			actions.push(templateData.elementDisposables.add(new Action(
+				'ci.rerunCheck',
+				localize('ci.rerunCheck', "Rerun Check"),
+				ThemeIcon.asClassName(Codicon.debugRerun),
+				true,
+				async () => {
+					await this._getModel()?.rerunFailedCheck(element.check);
+				},
+			)));
+		}
+
 		if (element.check.detailsUrl) {
 			actions.push(templateData.elementDisposables.add(new Action(
 				'ci.openOnGitHub',
@@ -130,22 +143,23 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 }
 
 /**
- * A collapsible widget that shows the CI status of a PR.
- * Rendered beneath the changes tree in the changes view.
+ * A widget that shows the CI status of a PR.
+ * Rendered beneath the changes tree in the changes view as a SplitView pane.
  */
 export class CIStatusWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 30;
-	static readonly MIN_BODY_HEIGHT = 72; // at least 3 checks (3 * 24)
-	static readonly MAX_BODY_HEIGHT = 240; // at most 10 checks (10 * 24)
+	static readonly HEADER_HEIGHT = 34; // total header height in px
+	static readonly MIN_BODY_HEIGHT = 84; // at least 3 checks (3 * 28)
+	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
+	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
 
 	private readonly _domNode: HTMLElement;
 	private readonly _headerNode: HTMLElement;
 	private readonly _titleNode: HTMLElement;
-	private readonly _titleLabel: IResourceLabel;
+	private readonly _titleLabelNode: HTMLElement;
+	private readonly _countsNode: HTMLElement;
 	private readonly _headerActionBarContainer: HTMLElement;
 	private readonly _headerActionBar: ActionBar;
-	private readonly _twistieNode: HTMLElement;
 	private readonly _bodyNode: HTMLElement;
 	private readonly _list: WorkbenchList<ICICheckListItem>;
 	private readonly _labels: ResourceLabels;
@@ -154,10 +168,14 @@ export class CIStatusWidget extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	private _collapsed = true;
+	private readonly _onDidToggleCollapsed = this._register(new Emitter<boolean>());
+	readonly onDidToggleCollapsed = this._onDidToggleCollapsed.event;
+
 	private _checkCount = 0;
+	private _collapsed = false;
 	private _model: GitHubPullRequestCIModel | undefined;
 	private _sessionResource: URI | undefined;
+	private readonly _chevronNode: HTMLElement;
 
 	get element(): HTMLElement {
 		return this._domNode;
@@ -179,6 +197,11 @@ export class CIStatusWidget extends Disposable {
 		return this._checkCount > 0;
 	}
 
+	/** Whether the body is collapsed (header-only). */
+	get collapsed(): boolean {
+		return this._collapsed;
+	}
+
 	constructor(
 		container: HTMLElement,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -191,25 +214,45 @@ export class CIStatusWidget extends Disposable {
 		this._domNode = dom.append(container, $('.ci-status-widget'));
 		this._domNode.style.display = 'none';
 
-		// Header (always visible)
+		// Header (always visible, click to collapse/expand)
 		this._headerNode = dom.append(this._domNode, $('.ci-status-widget-header'));
 		this._titleNode = dom.append(this._headerNode, $('.ci-status-widget-title'));
-		this._titleLabel = this._register(this._labels.create(this._titleNode, { supportIcons: true }));
+		this._titleLabelNode = dom.append(this._titleNode, $('.ci-status-widget-title-label'));
+		this._titleLabelNode.textContent = localize('ci.checksLabel', "Checks");
+		this._countsNode = dom.append(this._titleNode, $('.ci-status-widget-counts'));
 		this._headerActionBarContainer = dom.append(this._headerNode, $('.ci-status-widget-header-actions'));
 		this._headerActionBar = this._register(new ActionBar(this._headerActionBarContainer));
-		this._headerActionBarContainer.style.display = 'none';
 		this._register(dom.addDisposableListener(this._headerActionBarContainer, dom.EventType.CLICK, e => {
 			e.preventDefault();
 			e.stopPropagation();
 		}));
-		this._twistieNode = dom.append(this._headerNode, $('.ci-status-widget-twistie'));
-		this._updateTwistie();
+		this._chevronNode = dom.append(this._headerNode, $('.group-chevron'));
+		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
-		this._register(dom.addDisposableListener(this._headerNode, 'click', () => this._toggle()));
+		this._headerNode.setAttribute('role', 'button');
+		this._headerNode.setAttribute('aria-label', localize('ci.toggleChecks', "Toggle PR Checks"));
+		this._headerNode.setAttribute('aria-expanded', 'true');
+		this._headerNode.tabIndex = 0;
 
-		// Body (collapsible list of checks)
-		this._bodyNode = dom.append(this._domNode, $('.ci-status-widget-body'));
-		this._bodyNode.style.display = 'none';
+		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.CLICK, e => {
+			// Don't toggle when clicking the action bar
+			if (dom.isAncestor(e.target as HTMLElement, this._headerActionBarContainer)) {
+				return;
+			}
+			this._toggleCollapsed();
+		}));
+		this._register(dom.addDisposableListener(this._headerNode, dom.EventType.KEY_DOWN, e => {
+			if ((e.key === 'Enter' || e.key === ' ') && e.target === this._headerNode) {
+				e.preventDefault();
+				this._toggleCollapsed();
+			}
+		}));
+
+		// Body (list of checks)
+		const bodyId = 'ci-status-widget-body';
+		this._bodyNode = dom.append(this._domNode, $(`.${bodyId}`));
+		this._bodyNode.id = bodyId;
+		this._headerNode.setAttribute('aria-controls', bodyId);
 
 		const listContainer = $('.ci-status-widget-list');
 		this._list = this._register(this._instantiationService.createInstance(
@@ -217,7 +260,7 @@ export class CIStatusWidget extends Disposable {
 			'CIStatusWidget',
 			listContainer,
 			new CICheckListDelegate(),
-			[new CICheckListRenderer(this._labels, this._openerService)],
+			[new CICheckListRenderer(this._labels, this._openerService, () => this._model)],
 			{
 				multipleSelectionSupport: false,
 				openOnSingleClick: false,
@@ -244,6 +287,7 @@ export class CIStatusWidget extends Disposable {
 			this._model = model;
 			if (!model) {
 				this._checkCount = 0;
+				this._setCollapsed(false);
 				this._renderBody([]);
 				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';
@@ -252,10 +296,10 @@ export class CIStatusWidget extends Disposable {
 			}
 
 			const checks = model.checks.read(reader);
-			const overallStatus = model.overallStatus.read(reader);
 
 			if (checks.length === 0) {
 				this._checkCount = 0;
+				this._setCollapsed(false);
 				this._renderBody([]);
 				this._renderHeaderActions([]);
 				this._domNode.style.display = 'none';
@@ -268,7 +312,7 @@ export class CIStatusWidget extends Disposable {
 			this._checkCount = sorted.length;
 
 			this._domNode.style.display = '';
-			this._renderHeader(checks, overallStatus);
+			this._renderHeader(checks);
 			this._renderHeaderActions(getFailedChecks(checks));
 			this._renderBody(sorted);
 
@@ -278,31 +322,35 @@ export class CIStatusWidget extends Disposable {
 		});
 	}
 
-	private _toggle(): void {
-		this._collapsed = !this._collapsed;
-		this._bodyNode.style.display = this._collapsed ? 'none' : '';
-		this._updateTwistie();
-		this._onDidChangeHeight.fire();
-	}
+	private _renderHeader(checks: readonly IGitHubCICheck[]): void {
+		const counts = getCheckCounts(checks);
 
-	private _updateTwistie(): void {
-		dom.clearNode(this._twistieNode);
-		this._twistieNode.appendChild(renderIcon(this._collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-	}
+		// Update count badges
+		dom.clearNode(this._countsNode);
 
-	private _renderHeader(checks: readonly IGitHubCICheck[], overallStatus: GitHubCIOverallStatus): void {
-		const { icon, className } = getHeaderIconAndClass(checks, overallStatus);
-		this._titleNode.className = `ci-status-widget-title ${className}`;
+		if (counts.running > 0) {
+			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-running'));
+			badge.appendChild(renderIcon(Codicon.circleFilled));
+			dom.append(badge, $('span')).textContent = `${counts.running}`;
+		}
 
-		const summary = getChecksSummary(checks);
-		const title = localize('ci.headerTitle', "Checks: {0}", summary);
-		this._titleLabel.setResource({
-			name: title,
-			resource: URI.from({ scheme: 'github-checks', path: '/summary' }),
-		}, {
-			icon: icon,
-			title,
-		});
+		if (counts.failed > 0) {
+			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-failure'));
+			badge.appendChild(renderIcon(Codicon.error));
+			dom.append(badge, $('span')).textContent = `${counts.failed}`;
+		}
+
+		if (counts.pending > 0) {
+			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-pending'));
+			badge.appendChild(renderIcon(Codicon.circleFilled));
+			dom.append(badge, $('span')).textContent = `${counts.pending}`;
+		}
+
+		if (counts.successful > 0) {
+			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-success'));
+			badge.appendChild(renderIcon(Codicon.passFilled));
+			dom.append(badge, $('span')).textContent = `${counts.successful}`;
+		}
 	}
 
 	private _renderHeaderActions(failedChecks: readonly IGitHubCICheck[]): void {
@@ -310,7 +358,8 @@ export class CIStatusWidget extends Disposable {
 		this._headerActionBar.clear();
 
 		if (failedChecks.length === 0) {
-			this._headerActionBarContainer.style.display = 'none';
+			this._headerActionBarContainer.classList.remove('has-actions');
+			this._domNode.classList.remove('has-fix-actions');
 			return;
 		}
 
@@ -325,28 +374,46 @@ export class CIStatusWidget extends Disposable {
 		));
 
 		this._headerActionBar.push([fixChecksAction], { icon: true, label: false });
-		this._headerActionBarContainer.style.display = 'flex';
+		this._headerActionBarContainer.classList.add('has-actions');
+		this._domNode.classList.add('has-fix-actions');
 	}
 
 	/**
 	 * Layout the widget body list to the given height.
 	 * Called by the parent view after computing available space.
 	 */
-	layout(maxBodyHeight: number): void {
-		if (this._collapsed || this._checkCount === 0) {
+	layout(height: number): void {
+		if (this._collapsed) {
+			this._bodyNode.style.display = 'none';
 			return;
 		}
-		const contentHeight = this._checkCount * CICheckListDelegate.ITEM_HEIGHT;
-		const bodyHeight = Math.min(contentHeight, maxBodyHeight);
-		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
-		this._list.layout(bodyHeight);
+		this._bodyNode.style.display = '';
+		this._list.layout(height);
+	}
+
+	private _toggleCollapsed(): void {
+		this._setCollapsed(!this._collapsed);
+		this._onDidToggleCollapsed.fire(this._collapsed);
+		// Also fires onDidChangeHeight so the SplitView pane updates its min/max constraints
+		this._onDidChangeHeight.fire();
+	}
+
+	private _setCollapsed(collapsed: boolean): void {
+		this._collapsed = collapsed;
+		this._updateChevron();
+		this._headerNode.setAttribute('aria-expanded', String(!collapsed));
+	}
+
+	private _updateChevron(): void {
+		this._chevronNode.className = 'group-chevron';
+		this._chevronNode.classList.add(
+			...ThemeIcon.asClassNameArray(
+				this._collapsed ? Codicon.chevronRight : Codicon.chevronDown
+			)
+		);
 	}
 
 	private _renderBody(checks: readonly ICICheckListItem[]): void {
-		const contentHeight = checks.length * CICheckListDelegate.ITEM_HEIGHT;
-		const bodyHeight = Math.min(contentHeight, CIStatusWidget.MAX_BODY_HEIGHT);
-		this._list.getHTMLElement().style.height = `${bodyHeight}px`;
-		this._list.layout(bodyHeight);
 		this._list.splice(0, this._list.length, checks);
 	}
 
@@ -417,59 +484,10 @@ function getCheckCounts(checks: readonly IGitHubCICheck[]): ICICheckCounts {
 	return { running, pending, failed, successful };
 }
 
-function getChecksSummary(checks: readonly IGitHubCICheck[]): string {
-	const counts = getCheckCounts(checks);
-	const parts: string[] = [];
-
-	if (counts.running > 0) {
-		parts.push(counts.running === 1
-			? localize('ci.oneRunning', "1 running")
-			: localize('ci.manyRunning', "{0} running", counts.running));
-	}
-
-	if (counts.pending > 0) {
-		parts.push(counts.pending === 1
-			? localize('ci.onePending', "1 pending")
-			: localize('ci.manyPending', "{0} pending", counts.pending));
-	}
-
-	if (counts.failed > 0) {
-		parts.push(counts.failed === 1
-			? localize('ci.oneFailed', "1 failed")
-			: localize('ci.manyFailed', "{0} failed", counts.failed));
-	}
-
-	if (counts.successful > 0) {
-		parts.push(counts.successful === 1
-			? localize('ci.oneSuccessful', "1 successful")
-			: localize('ci.manySuccessful', "{0} successful", counts.successful));
-	}
-
-	return parts.join(', ');
-}
-
-function getHeaderIconAndClass(checks: readonly IGitHubCICheck[], overallStatus: GitHubCIOverallStatus): { icon: ThemeIcon; className: string } {
-	const counts = getCheckCounts(checks);
-	if (counts.running > 0) {
-		return { icon: Codicon.clock, className: 'ci-status-running' };
-	}
-
-	switch (overallStatus) {
-		case GitHubCIOverallStatus.Success:
-			return { icon: Codicon.passFilled, className: 'ci-status-success' };
-		case GitHubCIOverallStatus.Failure:
-			return { icon: Codicon.error, className: 'ci-status-failure' };
-		case GitHubCIOverallStatus.Pending:
-			return { icon: Codicon.circleFilled, className: 'ci-status-pending' };
-		default:
-			return { icon: Codicon.circleFilled, className: 'ci-status-neutral' };
-	}
-}
-
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return Codicon.clock;
+			return Codicon.sync;
 		case GitHubCheckStatus.Queued:
 			return Codicon.circleFilled;
 		case GitHubCheckStatus.Completed:

@@ -5,10 +5,11 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const HandleDialogBrowserToolData: IToolData = {
@@ -57,9 +58,10 @@ export class HandleDialogBrowserTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const link = createBrowserPageLink(_context.parameters.pageId);
 		return {
-			invocationMessage: localize('browser.handleDialog.invocation', "Handling browser dialog"),
-			pastTenseMessage: localize('browser.handleDialog.past', "Handled browser dialog"),
+			invocationMessage: new MarkdownString(localize('browser.handleDialog.invocation', "Handling dialog in {0}", link)),
+			pastTenseMessage: new MarkdownString(localize('browser.handleDialog.past', "Handled dialog in {0}", link)),
 		};
 	}
 

@@ -11,7 +11,7 @@ import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/co
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -36,14 +36,16 @@ type IStoredMarketplaceIndex = Dto<Record<string, IMarketplaceIndexEntry>>;
 export class AgentPluginRepositoryService implements IAgentPluginRepositoryService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly agentPluginsHome: URI;
 	private readonly _cacheRoot: URI;
 	private readonly _marketplaceIndex = new Lazy<Map<string, IMarketplaceIndexEntry>>(() => this._loadMarketplaceIndex());
 	private readonly _pluginSources: ReadonlyMap<PluginSourceKind, IPluginSource>;
 	private readonly _cloneSequencer = new SequencerByKey<string>();
+	private readonly _migrationDone: Promise<void>;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -51,7 +53,23 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
-		this._cacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
+		// On native, use the well-known ~/{dataFolderName}/agent-plugins/ path
+		// so that external tools can discover it. On web, fall back to the
+		// internal cache location.
+		this.agentPluginsHome = environmentService.agentPluginsHome;
+		const legacyCacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
+		const oldCacheRoot = environmentService.cacheHome.scheme === 'file'
+			? legacyCacheRoot
+			: this.agentPluginsHome;
+		this._cacheRoot = this.agentPluginsHome;
+
+		// Migrate plugin files from the old internal cache directory to the
+		// new well-known location. This is a one-time operation.
+		if (!isEqual(oldCacheRoot, this.agentPluginsHome)) {
+			this._migrationDone = this._migrateDirectory(oldCacheRoot);
+		} else {
+			this._migrationDone = Promise.resolve();
+		}
 
 		// Build per-kind source repository map via instantiation service so
 		// each repository can inject its own dependencies.
@@ -91,6 +109,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	async ensureRepository(marketplace: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
+		await this._migrationDone;
 		const repoDir = this.getRepositoryUri(marketplace, options?.marketplaceType);
 		return this._cloneSequencer.queue(repoDir.fsPath, async () => {
 			const repoExists = await this._fileService.exists(repoDir);
@@ -254,6 +273,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	async ensurePluginSource(plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI> {
+		await this._migrationDone;
 		const repo = this.getPluginSource(plugin.sourceDescriptor.kind);
 		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 			return this.ensureRepository(plugin.marketplaceReference, options);
@@ -348,6 +368,36 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				break;
 			}
 			current = dirname(current);
+		}
+	}
+
+	/**
+	 * One-time migration of plugin files from the old internal cache
+	 * directory (`{cacheHome}/agentPlugins/`) to the new well-known
+	 * location (`~/{dataFolderName}/agent-plugins/`).
+	 */
+	private async _migrateDirectory(oldCacheRoot: URI): Promise<void> {
+		try {
+			const oldExists = await this._fileService.exists(oldCacheRoot);
+			if (!oldExists) {
+				return;
+			}
+
+			const newExists = await this._fileService.exists(this.agentPluginsHome);
+			if (newExists) {
+				this._logService.info('[AgentPluginRepositoryService] Both old and new agent-plugins directories exist; skipping directory migration');
+				return;
+			}
+
+			this._logService.info(`[AgentPluginRepositoryService] Migrating agent plugins from ${oldCacheRoot.toString()} to ${this.agentPluginsHome.toString()}`);
+			await this._fileService.move(oldCacheRoot, this.agentPluginsHome, false);
+
+			// Clear the marketplace index — it caches repository URIs that
+			// pointed to the old location and would cause path mismatches.
+			this._storageService.remove(MARKETPLACE_INDEX_STORAGE_KEY, StorageScope.APPLICATION);
+			this._marketplaceIndex.value.clear();
+		} catch (error) {
+			this._logService.error('[AgentPluginRepositoryService] Directory migration failed', error);
 		}
 	}
 

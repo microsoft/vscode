@@ -31,9 +31,12 @@
 	background-color: var(--vscode-sessionsAuxiliaryBar-background);
 }
 
-/* Hide the underline indicator entirely */
-.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator:before {
+/* Hide the underline indicator for non-focused items, but keep it for keyboard focus */
+.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(:focus-visible) .active-item-indicator:before {
 	display: none !important;
+}
+.agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus-visible .active-item-indicator:before {
+	display: block !important;
 }
 
 /* Active/checked state: background container instead of underline */

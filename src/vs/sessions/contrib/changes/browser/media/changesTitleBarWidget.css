@@ -21,7 +21,8 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
-.agent-sessions-workbench .changes-titlebar-indicator.active {
+.agent-sessions-workbench .changes-titlebar-indicator.toggled,
+.agent-sessions-workbench .changes-titlebar-indicator.toggled:hover {
 	background: var(--vscode-toolbar-activeBackground);
 }
 

@@ -41,7 +41,7 @@
 /* Editor */
 /* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
 .sessions-chat-editor {
-	padding: 0 6px 6px 6px;
+	padding: 0 8px 6px 10px;
 	flex-shrink: 1;
 }
 
@@ -172,7 +172,9 @@
 }
 
 @keyframes sessions-chat-spin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 /* Attach row (pills only, above editor, inside input area) */

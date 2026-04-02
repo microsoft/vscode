@@ -12,6 +12,7 @@ import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -61,8 +62,21 @@ export class CommandCenterControl {
 			}
 		});
 
-		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
-		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+		let quickInputVisible = false;
+		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(() => {
+			quickInputVisible = true;
+			this._setVisibility(quickInputService.alignment.get() !== 'top');
+		}));
+		this._disposables.add(quickInputService.onHide(() => {
+			quickInputVisible = false;
+			this._setVisibility(true);
+		}));
+		this._disposables.add(autorun(reader => {
+			const alignment = quickInputService.alignment.read(reader);
+			if (quickInputVisible) {
+				this._setVisibility(alignment !== 'top');
+			}
+		}));
 		this._disposables.add(titleToolbar);
 	}
 

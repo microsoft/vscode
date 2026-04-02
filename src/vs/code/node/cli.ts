@@ -500,9 +500,9 @@ export async function main(argv: string[]): Promise<void> {
 			//    focusing issues when the new instance only sends data to a previous instance and then closes.
 			const spawnArgs = ['-n', '-g'];
 
-			// Figure out the app to launch: with --sessions we try to launch the embedded app
+			// Figure out the app to launch: with --agents we try to launch the embedded app
 			let appToLaunch = process.execPath;
-			if (args.sessions) {
+			if (args.agents) {
 				// process.execPath is e.g. /Applications/Code.app/Contents/MacOS/Electron
 				// Embedded app is at /Applications/Code.app/Contents/Applications/<EmbeddedApp>.app
 				const contentsPath = dirname(dirname(process.execPath));
@@ -512,7 +512,7 @@ export async function main(argv: string[]): Promise<void> {
 					const embeddedApp = files.find(file => file.endsWith('.app'));
 					if (embeddedApp) {
 						appToLaunch = join(applicationsPath, embeddedApp);
-						argv = argv.filter(arg => arg !== '--sessions');
+						argv = argv.filter(arg => arg !== '--agents');
 					}
 				} catch (error) {
 					/* may not exist on disk */

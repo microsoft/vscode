@@ -113,16 +113,16 @@ class ActiveSessionFailedCIChecksContextContribution extends Disposable implemen
 			if (!session) {
 				return undefined;
 			}
-			const context = sessionManagementService.getGitHubContextForSession(session.resource);
-			if (!context || context.prNumber === undefined) {
+			const gitHubInfo = session.gitHubInfo.read(reader);
+			if (!gitHubInfo?.pullRequest) {
 				return undefined;
 			}
-			const prModel = gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+			const prModel = gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			const pr = prModel.pullRequest.read(reader);
 			if (!pr) {
 				return undefined;
 			}
-			return gitHubService.getPullRequestCI(context.owner, context.repo, pr.headRef);
+			return gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headRef);
 		});
 
 		this._register(bindContextKey(hasActiveSessionFailedCIChecks, contextKeyService, reader => {
@@ -167,19 +167,18 @@ class FixCIChecksAction extends Action2 {
 			return;
 		}
 
-		const sessionResource = activeSession.resource;
-		const context = sessionManagementService.getGitHubContextForSession(sessionResource);
-		if (!context || context.prNumber === undefined) {
+		const gitHubInfo = activeSession.gitHubInfo.get();
+		if (!gitHubInfo?.pullRequest) {
 			return;
 		}
 
-		const prModel = gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+		const prModel = gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 		const pr = prModel.pullRequest.get();
 		if (!pr) {
 			return;
 		}
 
-		const ciModel = gitHubService.getPullRequestCI(context.owner, context.repo, pr.headRef);
+		const ciModel = gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headRef);
 		const checks = ciModel.checks.get();
 		const failedChecks = getFailedChecks(checks);
 		if (failedChecks.length === 0) {
@@ -192,6 +191,7 @@ class FixCIChecksAction extends Action2 {
 		}));
 
 		const prompt = buildFixChecksPrompt(failedCheckDetails);
+		const sessionResource = activeSession.resource;
 		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource)
 			?? await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget) {
