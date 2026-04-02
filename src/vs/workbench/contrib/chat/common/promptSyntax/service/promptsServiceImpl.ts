@@ -947,27 +947,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return [];
 	}
 
-	public async listAgentInstructions(token: CancellationToken, _logger: Logger | undefined): Promise<IAgentInstructionFile[]> {
-		return this._computeAgentInstructions(token);
-	}
-
-	private async _computeAgentInstructions(token: CancellationToken): Promise<IAgentInstructionFile[]> {
+	public async listAgentInstructions(token: CancellationToken, logger: Logger | undefined): Promise<IAgentInstructionFile[]> {
 		const resolvedAgentFiles: IAgentInstructionFile[] = [];
 		const promises: Promise<IAgentInstructionFile[]>[] = [];
 
 		const includeParents = this.configurationService.getValue(PromptsConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS) === true;
-		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents, undefined);
+		const rootFolders = await this.fileLocator.getWorkspaceFolderRoots(includeParents, logger);
 
 		const rootFiles: IWorkspaceInstructionFile[] = [];
 		const useAgentMD = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useAgentMD) {
-			this.logger.trace('[PromptsService] Agent MD files are disabled via configuration.');
+			logger?.logInfo('Agent MD files are disabled via configuration.');
 		} else {
 			rootFiles.push({ fileName: AGENT_MD_FILENAME, type: AgentInstructionFileType.agentsMd });
 		}
 		const useClaudeMD = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_MD);
 		if (!useClaudeMD) {
-			this.logger.trace('[PromptsService] Claude MD files are disabled via configuration.');
+			logger?.logInfo('Claude MD files are disabled via configuration.');
 		} else {
 			const claudeMdFile = { fileName: CLAUDE_MD_FILENAME, type: AgentInstructionFileType.claudeMd };
 			rootFiles.push(claudeMdFile); // CLAUDE.md in workspace root
@@ -978,7 +974,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
 		if (!useCopilotInstructionsFiles) {
-			this.logger.trace('[PromptsService] Copilot instructions files are disabled via configuration.');
+			logger?.logInfo('Copilot instructions files are disabled via configuration.');
 		} else {
 			const githubConfigFiles = [{ fileName: COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, type: AgentInstructionFileType.copilotInstructionsMd }];
 			promises.push(this.fileLocator.findFilesInRoots(rootFolders, GITHUB_CONFIG_FOLDER, githubConfigFiles, token, resolvedAgentFiles));
@@ -1006,7 +1002,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		resolvedAgentFiles.forEach(add);
 		for (const symlink of symlinks) {
 			if (seenFileURI.has(symlink.realPath)) {
-				this.logger.trace(`[PromptsService] Skipping symlinked agent instructions file ${symlink.uri} as target already included: ${symlink.realPath}`);
+				logger?.logInfo(`Skipping symlinked agent instructions file ${symlink.uri} as target already included: ${symlink.realPath}`);
 			} else {
 				result.push(symlink);
 				seenFileURI.add(symlink.realPath);
