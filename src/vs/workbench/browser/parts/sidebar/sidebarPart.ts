@@ -11,9 +11,9 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER } from '../../../common/theme.js';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_HOVER_BACKGROUND, ACTIVITY_BAR_TOP_HOVER_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_BACKGROUND, ACTIVITY_BAR_TOP_ACTIVE_BACKGROUND, ACTIVITY_BAR_BOTTOM_BACKGROUND, ACTIVITY_BAR_BOTTOM_ACTIVE_BACKGROUND, ACTIVITY_BAR_BOTTOM_FOREGROUND, ACTIVITY_BAR_BOTTOM_ACTIVE_BORDER, ACTIVITY_BAR_BOTTOM_HOVER_BACKGROUND, ACTIVITY_BAR_BOTTOM_HOVER_FOREGROUND, ACTIVITY_BAR_BOTTOM_INACTIVE_FOREGROUND, ACTIVITY_BAR_BOTTOM_DRAG_AND_DROP_BORDER } from '../../../common/theme.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
@@ -176,6 +176,13 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
+
+		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		if (this.paneCompositeBarContainer && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM)) {
+			const isTop = activityBarPosition === ActivityBarPosition.TOP;
+			this.paneCompositeBarContainer.style.backgroundColor = (isTop ? this.getColor(ACTIVITY_BAR_TOP_BACKGROUND) : this.getColor(ACTIVITY_BAR_BOTTOM_BACKGROUND)) || '';
+			this.paneCompositeBarContainer.style.color = (isTop ? this.getColor(ACTIVITY_BAR_TOP_FOREGROUND) : this.getColor(ACTIVITY_BAR_BOTTOM_FOREGROUND)) || '';
+		}
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -218,16 +225,20 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			compositeSize: 0,
 			iconSize: 16,
 			overflowActionSize: 30,
-			colors: theme => ({
-				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-				inactiveBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
-				activeBorderBottomColor: theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BORDER),
-				activeForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_FOREGROUND),
-				inactiveForegroundColor: theme.getColor(ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND),
-				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
-				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
-				dragAndDropBorder: theme.getColor(ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER)
-			}),
+			colors: theme => {
+				const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+				const isTop = activityBarPosition === ActivityBarPosition.TOP;
+				return {
+					activeBackgroundColor: isTop ? theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BACKGROUND) : theme.getColor(ACTIVITY_BAR_BOTTOM_ACTIVE_BACKGROUND),
+					inactiveBackgroundColor: isTop ? theme.getColor(ACTIVITY_BAR_TOP_BACKGROUND) : theme.getColor(ACTIVITY_BAR_BOTTOM_BACKGROUND),
+					activeBorderBottomColor: isTop ? theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BORDER) : theme.getColor(ACTIVITY_BAR_BOTTOM_ACTIVE_BORDER),
+					activeForegroundColor: isTop ? theme.getColor(ACTIVITY_BAR_TOP_FOREGROUND) : theme.getColor(ACTIVITY_BAR_BOTTOM_FOREGROUND),
+					inactiveForegroundColor: isTop ? theme.getColor(ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND) : theme.getColor(ACTIVITY_BAR_BOTTOM_INACTIVE_FOREGROUND),
+					badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
+					badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+					dragAndDropBorder: isTop ? theme.getColor(ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER) : theme.getColor(ACTIVITY_BAR_BOTTOM_DRAG_AND_DROP_BORDER)
+				};
+			},
 			compact: true
 		};
 	}
@@ -340,3 +351,178 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		};
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	// Top (Title & Header)
+	const activeForegroundTop = theme.getColor(ACTIVITY_BAR_TOP_FOREGROUND);
+	if (activeForegroundTop) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label.codicon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label.codicon {
+				color: ${activeForegroundTop} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label.uri-icon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label.uri-icon {
+				background-color: ${activeForegroundTop} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+		`);
+	}
+
+	const inactiveForegroundTop = theme.getColor(ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND);
+	if (inactiveForegroundTop) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .action-label.codicon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .action-label.codicon {
+				color: ${inactiveForegroundTop} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .action-label.uri-icon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .action-label.uri-icon {
+				background-color: ${inactiveForegroundTop} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+		`);
+	}
+
+	const hoverBackgroundTop = theme.getColor(ACTIVITY_BAR_TOP_HOVER_BACKGROUND);
+	if (hoverBackgroundTop) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .active-item-indicator,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .active-item-indicator {
+				background-color: ${hoverBackgroundTop} !important;
+				z-index: 0;
+			}
+		`);
+	}
+
+	const hoverForegroundTop = theme.getColor(ACTIVITY_BAR_TOP_HOVER_FOREGROUND);
+	if (hoverForegroundTop) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.codicon,
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:hover .action-label.codicon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.codicon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:hover .action-label.codicon {
+				color: ${hoverForegroundTop} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.uri-icon,
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:hover .action-label.uri-icon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.uri-icon,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:hover .action-label.uri-icon {
+				background-color: ${hoverForegroundTop} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+		`);
+	}
+
+	// Active/Click state for Top
+	const activeBackgroundTop = theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BACKGROUND);
+	if (activeBackgroundTop) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:active .active-item-indicator,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:active .active-item-indicator {
+				background-color: ${activeBackgroundTop} !important;
+				z-index: 0;
+			}
+		`);
+	}
+
+	const activeBorderTop = theme.getColor(ACTIVITY_BAR_TOP_ACTIVE_BORDER);
+	if (activeBorderTop) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:active .active-item-indicator:before,
+			.monaco-workbench .part.sidebar > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:active .active-item-indicator:before {
+				border-bottom-color: ${activeBorderTop};
+			}
+		`);
+	}
+
+	// Bottom (Footer)
+	const activeForegroundBottom = theme.getColor(ACTIVITY_BAR_BOTTOM_FOREGROUND);
+	if (activeForegroundBottom) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label.codicon {
+				color: ${activeForegroundBottom} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .action-label.uri-icon {
+				background-color: ${activeForegroundBottom} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+		`);
+	}
+
+	const inactiveForegroundBottom = theme.getColor(ACTIVITY_BAR_BOTTOM_INACTIVE_FOREGROUND);
+	if (inactiveForegroundBottom) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .action-label.codicon {
+				color: ${inactiveForegroundBottom} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.checked) .action-label.uri-icon {
+				background-color: ${inactiveForegroundBottom} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+		`);
+	}
+
+	const hoverBackgroundBottom = theme.getColor(ACTIVITY_BAR_BOTTOM_HOVER_BACKGROUND);
+	if (hoverBackgroundBottom) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .active-item-indicator {
+				background-color: ${hoverBackgroundBottom} !important;
+				z-index: 0;
+			}
+		`);
+	}
+
+	const hoverForegroundBottom = theme.getColor(ACTIVITY_BAR_BOTTOM_HOVER_FOREGROUND);
+	if (hoverForegroundBottom) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.codicon,
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:hover .action-label.codicon {
+				color: ${hoverForegroundBottom} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover .action-label.uri-icon,
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:hover .action-label.uri-icon {
+				background-color: ${hoverForegroundBottom} !important;
+				position: relative !important;
+				z-index: 1 !important;
+			}
+		`);
+	}
+
+	// Active/Click state for Bottom
+	const activeBackgroundBottom = theme.getColor(ACTIVITY_BAR_BOTTOM_ACTIVE_BACKGROUND);
+	if (activeBackgroundBottom) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:active .active-item-indicator {
+				background-color: ${activeBackgroundBottom} !important;
+				z-index: 0;
+			}
+		`);
+	}
+
+	const activeBorderBottom = theme.getColor(ACTIVITY_BAR_BOTTOM_ACTIVE_BORDER);
+	if (activeBorderBottom) {
+		collector.addRule(`
+			.monaco-workbench .part.sidebar > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:active .active-item-indicator:before {
+				border-bottom-color: ${activeBorderBottom};
+			}
+		`);
+	}
+});
