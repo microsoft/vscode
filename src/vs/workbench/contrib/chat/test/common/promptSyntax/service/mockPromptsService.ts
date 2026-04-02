@@ -64,7 +64,7 @@ export class MockPromptsService implements IPromptsService {
 	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: { providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
 	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getHooks(_token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
+	getHooks(_token: CancellationToken): Promise<any> { return Promise.resolve(undefined); }
 	getInstructionFiles(_token: CancellationToken): Promise<readonly IInstructionFile[]> { throw new Error('Method not implemented.'); }
 	getDiscoveryInfo(_type: PromptsType, _token: CancellationToken): Promise<IPromptDiscoveryInfo> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
