@@ -854,7 +854,7 @@ suite('FindModel', () => {
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
-			null,
+			[1, 1, 1, 1],
 			[
 				[1, 1, 1, 1],
 				[2, 1, 2, 1],
@@ -1069,7 +1069,7 @@ suite('FindModel', () => {
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
-			null,
+			[1, 1, 1, 18],
 			[
 				[1, 1, 1, 18],
 				[2, 1, 2, 18],
@@ -1098,7 +1098,7 @@ suite('FindModel', () => {
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
-			null,
+			[1, 1, 1, 18],
 			[
 				[1, 1, 1, 18],
 				[2, 1, 2, 18],
@@ -1169,7 +1169,7 @@ suite('FindModel', () => {
 		assertFindState(
 			editor,
 			[1, 1, 1, 1],
-			null,
+			[1, 1, 1, 18],
 			[
 				[1, 1, 1, 18],
 				[2, 1, 2, 18],
