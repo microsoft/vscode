@@ -12,7 +12,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionType } from '../../sessions/browser/sessionsProvider.js';
 
 export class SessionTypePicker extends Disposable {
@@ -26,7 +25,6 @@ export class SessionTypePicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
@@ -34,8 +32,7 @@ export class SessionTypePicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session) {
-				const chat = session.activeChat.read(reader);
-				this._sessionTypes = this.sessionsProvidersService.getSessionTypes(chat);
+				this._sessionTypes = this.sessionsManagementService.getSessionTypes(session);
 				this._sessionType = session.sessionType;
 			} else {
 				this._sessionTypes = [];
@@ -80,8 +77,8 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (!chat) {
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!session) {
 			return;
 		}
 
@@ -96,7 +93,7 @@ export class SessionTypePicker extends Disposable {
 		const delegate: IActionListDelegate<ISessionType> = {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
-				this.sessionsManagementService.setSessionType(chat, type);
+				this.sessionsManagementService.setSessionType(session, type);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};

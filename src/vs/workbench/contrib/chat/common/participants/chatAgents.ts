@@ -50,6 +50,7 @@ export interface IChatAgentAttachmentCapabilities {
 	supportsTerminalAttachments?: boolean;
 	supportsPromptAttachments?: boolean;
 	supportsHandOffs?: boolean;
+	supportsCheckpoints?: boolean;
 }
 
 export interface IChatAgentData {
@@ -218,12 +219,18 @@ export interface IChatAgentCompletionItem {
 	command?: Command;
 }
 
+export interface IChatAgentInvocationEvent {
+	readonly agentId: string;
+	readonly request: Readonly<IChatAgentRequest>;
+}
+
 export interface IChatAgentService {
 	_serviceBrand: undefined;
 	/**
 	 * undefined when an agent was removed
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
+	readonly onWillInvokeAgent: Event<IChatAgentInvocationEvent>;
 	readonly hasToolsAgent: boolean;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
@@ -268,6 +275,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
+	private readonly _onWillInvokeAgent = this._register(new Emitter<IChatAgentInvocationEvent>());
+	readonly onWillInvokeAgent: Event<IChatAgentInvocationEvent> = this._onWillInvokeAgent.event;
 
 	private readonly _agentsContextKeys = new Set<string>();
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
@@ -514,6 +523,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 			throw new Error(`No activated agent with id "${id}"`);
 		}
 
+		this._onWillInvokeAgent.fire({ agentId: id, request });
 		const result = await data.impl.invoke(request, progress, history, token);
 		markChat(request.sessionResource, ChatPerfMark.AgentDidInvoke);
 		return result;

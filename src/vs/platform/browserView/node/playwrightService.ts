@@ -424,21 +424,15 @@ class PlaywrightPageManager extends Disposable {
 
 		try {
 			await this._group!.addView(viewId);
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			this.logService.error('[PlaywrightPageManager] Failed to add view:', errorMessage);
+		} catch (err) {
 			this.onViewRemoved(viewId);
+			throw err;
 		}
 	}
 
 	private async _removePageFromGroup(viewId: string): Promise<void> {
 		this.onViewRemoved(viewId);
-		try {
-			await this._group!.removeView(viewId);
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			this.logService.error('[PlaywrightPageManager] Failed to remove view:', errorMessage);
-		}
+		await this._group!.removeView(viewId);
 	}
 
 	private _fireTrackedPagesChanged(): void {

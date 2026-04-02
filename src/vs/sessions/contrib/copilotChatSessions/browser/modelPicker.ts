@@ -14,7 +14,8 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { RemoteNewSession } from './copilotChatSessionsProvider.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { CopilotChatSessionsProvider, RemoteNewSession } from './copilotChatSessionsProvider.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -50,15 +51,16 @@ export class CloudModelPicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
-			if (chat instanceof RemoteNewSession) {
-				this._setSession(chat);
+			const providerSession = session ? sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			if (providerSession instanceof RemoteNewSession) {
+				this._setSession(providerSession);
 			}
 		}));
 

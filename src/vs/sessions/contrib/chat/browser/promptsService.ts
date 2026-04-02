@@ -25,7 +25,7 @@ import { IUserDataProfileService } from '../../../../workbench/services/userData
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
-/** URI root for built-in skills bundled with the Sessions app. */
+/** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
 
 export class AgenticPromptsService extends PromptsService {
@@ -38,8 +38,7 @@ export class AgenticPromptsService extends PromptsService {
 
 	private getCopilotRoot(): URI {
 		if (!this._copilotRoot) {
-			const pathService = this.instantiationService.invokeFunction(accessor => accessor.get(IPathService));
-			this._copilotRoot = joinPath(pathService.userHome({ preferLocal: true }), '.copilot');
+			this._copilotRoot = joinPath(this.pathService.userHome({ preferLocal: true }), '.copilot');
 		}
 		return this._copilotRoot;
 	}
@@ -62,9 +61,8 @@ export class AgenticPromptsService extends PromptsService {
 	 * Each subdirectory containing a SKILL.md is treated as a skill.
 	 */
 	private async discoverBuiltinSkills(): Promise<readonly IAgentSkill[]> {
-		const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		try {
-			const stat = await fileService.resolve(BUILTIN_SKILLS_URI);
+			const stat = await this.fileService.resolve(BUILTIN_SKILLS_URI);
 			if (!stat.children) {
 				return [];
 			}
@@ -124,8 +122,8 @@ export class AgenticPromptsService extends PromptsService {
 	 * Override to include built-in skills, appending them with lowest priority.
 	 * Skills from any other source (workspace, user, extension, internal) take precedence.
 	 */
-	public override async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
-		const baseResult = await super.findAgentSkills(token, sessionResource);
+	public override async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
+		const baseResult = await super.findAgentSkills(token);
 		if (baseResult === undefined) {
 			return undefined;
 		}

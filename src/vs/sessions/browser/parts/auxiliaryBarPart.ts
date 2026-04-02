@@ -48,9 +48,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
 
 	/** Visual margin values for the card-like appearance */
-	static readonly MARGIN_TOP = 12;
-	static readonly MARGIN_BOTTOM = 2;
-	static readonly MARGIN_RIGHT = 12;
+	static readonly MARGIN_TOP = 10;
+	static readonly MARGIN_BOTTOM = 0;
+	static readonly MARGIN_RIGHT = 10;
 
 	// Action ID for run script - defined here to avoid layering issues
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
@@ -61,8 +61,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private readonly _runScriptMenu = this._register(new MutableDisposable<IMenu>());
 	private readonly _runScriptMenuListener = this._register(new MutableDisposable<IDisposable>());
 
-	// Use the side bar dimensions
-	override readonly minimumWidth: number = 170;
+	// Sessions-specific auxiliary bar dimensions (intentionally not tied to the sessions SidebarPart values)
+	override readonly minimumWidth: number = 270;
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
