@@ -2025,7 +2025,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.promptsService,
 			this.workspaceService,
 			{ allItems: this.allItems, displayEntries: this.displayEntries },
-			activeDescriptor.itemProvider,
+			activeDescriptor,
 		);
 	}
 }
