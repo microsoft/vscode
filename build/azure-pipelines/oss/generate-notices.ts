@@ -14,6 +14,12 @@ interface NoticeEntry {
 	license: string;
 	url: string;
 	licenseText: string;
+	/** How this entry was discovered */
+	source?: 'component-governance' | 'node-modules-license' | 'extension-license' | 'extension-transitive-license' | 'sibling-repo-fallback' | 'cgmanifest' | 'manual-entry';
+	/** Additional detail about source (e.g., extension name, sibling name) */
+	sourceDetail?: string;
+	/** Human-readable explanation of how this package was found and why */
+	note?: string;
 }
 
 interface StaticNoticesFile {
@@ -62,8 +68,8 @@ interface MergeReport {
 	/** Packages from static-notices.json that CG or node_modules now covers */
 	staleStaticEntries: string[];
 	/** Packages we could not find a license for */
-	missingLicense: string[];
-}
+	missingLicense: string[];	/** Per-entry audit trail: every package with its source */
+	entries: Array<{ name: string; version: string; license: string; source: string; sourceDetail?: string; note?: string }>;}
 
 // -- Constants ----------------------------------------------------------------
 
@@ -472,6 +478,9 @@ function main(): void {
 	// any version of a package, don't try to find it dynamically)
 	const coveredNames = new Set<string>();
 	for (const entry of cgEntries) {
+		entry.source = 'component-governance';
+		entry.sourceDetail = 'ClearlyDefined';
+		entry.note = 'License found in the ClearlyDefined database via Component Governance';
 		const versionKey = `${entry.name.toLowerCase()}@${entry.version}`;
 		if (!mergedMap.has(versionKey)) {
 			mergedMap.set(versionKey, entry);
@@ -851,6 +860,43 @@ function main(): void {
 
 	fs.writeFileSync(outputPath, output, 'utf8');
 
+	// Tag sources on entries that weren't tagged during creation
+	const dynamicNames = new Set(dynamicCoverageList.map(d => d.split(' ')[0].toLowerCase()));
+	const staticNames = new Set(staticData.packages.map(p => p.name.toLowerCase()));
+	for (const entry of sorted) {
+		if (entry.source) {
+			continue; // Already tagged (CG entries)
+		}
+		const key = entry.name.toLowerCase();
+		if (staticNames.has(key)) {
+			entry.source = 'manual-entry';
+			entry.sourceDetail = 'static-notices.json';
+			entry.note = 'License cannot be discovered automatically. Manually added to static-notices.json.';
+		} else if (dynamicNames.has(key)) {
+			const detail = dynamicCoverageList.find(d => d.toLowerCase().startsWith(key));
+			if (detail?.includes('transitive')) {
+				entry.source = 'extension-transitive-license';
+				entry.note = 'Transitive dependency of a built-in extension. LICENSE file found in the extension node_modules/ folder.';
+			} else if (detail?.includes('sibling')) {
+				entry.source = 'sibling-repo-fallback';
+				entry.note = 'Package missing LICENSE from npm publish. Used LICENSE from a sibling package in the same GitHub repo.';
+			} else if (detail?.includes('extension')) {
+				entry.source = 'extension-license';
+				entry.note = 'Direct dependency of a built-in extension. CG skips extensions, so LICENSE was read from extension node_modules/.';
+			} else if (detail?.includes('cgmanifest')) {
+				entry.source = 'cgmanifest';
+				entry.note = 'Vendored code declared in cgmanifest.json with inline licenseDetail.';
+			} else {
+				entry.source = 'node-modules-license';
+				entry.note = 'ClearlyDefined does not have this package. LICENSE file found in node_modules/.';
+			}
+			entry.sourceDetail = detail?.split(' — ')[1] || undefined;
+		} else {
+			entry.source = 'unknown';
+			entry.note = 'Source not determined. May be a tagging bug.';
+		}
+	}
+
 	const report: MergeReport = {
 		timestamp: new Date().toISOString(),
 		cgEntryCount,
@@ -863,6 +909,14 @@ function main(): void {
 		dynamicCoverageList,
 		staleStaticEntries,
 		missingLicense,
+		entries: sorted.map(e => ({
+			name: e.name,
+			version: e.version,
+			license: e.license,
+			source: e.source || 'unknown',
+			sourceDetail: e.sourceDetail,
+			note: e.note,
+		})),
 	};
 
 	fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
