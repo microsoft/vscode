@@ -23,7 +23,7 @@ import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/mo
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo } from '../../sessions/common/sessionData.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionsBrowseAction, ISessionChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
@@ -1595,7 +1595,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		try {
 			const commitPromise = new Promise<URI>(resolve => {
 				disposables.add(this.chatSessionsService.onDidCommitSession(e => {
-					if (e.original.toString() === untitledResource.toString()) {
+					if (isEqual(e.original, untitledResource)) {
 						resolve(e.committed);
 					}
 				}));
