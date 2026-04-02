@@ -9,7 +9,7 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type IStateAction, type IRootAgentsChangedAction, type IRootActiveSessionsChangedAction, type ISessionReadyAction, type ISessionCreationFailedAction, type ISessionTurnStartedAction, type ISessionDeltaAction, type ISessionResponsePartAction, type ISessionToolCallStartAction, type ISessionToolCallDeltaAction, type ISessionToolCallReadyAction, type ISessionToolCallConfirmedAction, type ISessionToolCallCompleteAction, type ISessionToolCallResultConfirmedAction, type ISessionTurnCompleteAction, type ISessionTurnCancelledAction, type ISessionErrorAction, type ISessionTitleChangedAction, type ISessionUsageAction, type ISessionReasoningAction, type ISessionModelChangedAction, type ISessionServerToolsChangedAction, type ISessionActiveClientChangedAction, type ISessionActiveClientToolsChangedAction, type ISessionPendingMessageSetAction, type ISessionPendingMessageRemovedAction, type ISessionQueuedMessagesReorderedAction, type ISessionCustomizationsChangedAction, type ISessionCustomizationToggledAction } from './actions.js';
+import { ActionType, type IStateAction, type IRootAgentsChangedAction, type IRootActiveSessionsChangedAction, type ISessionReadyAction, type ISessionCreationFailedAction, type ISessionTurnStartedAction, type ISessionDeltaAction, type ISessionResponsePartAction, type ISessionToolCallStartAction, type ISessionToolCallDeltaAction, type ISessionToolCallReadyAction, type ISessionToolCallConfirmedAction, type ISessionToolCallCompleteAction, type ISessionToolCallResultConfirmedAction, type ISessionTurnCompleteAction, type ISessionTurnCancelledAction, type ISessionErrorAction, type ISessionTitleChangedAction, type ISessionUsageAction, type ISessionReasoningAction, type ISessionModelChangedAction, type ISessionServerToolsChangedAction, type ISessionActiveClientChangedAction, type ISessionActiveClientToolsChangedAction, type ISessionPendingMessageSetAction, type ISessionPendingMessageRemovedAction, type ISessionQueuedMessagesReorderedAction, type ISessionCustomizationsChangedAction, type ISessionCustomizationToggledAction, type ISessionTruncatedAction } from './actions.js';
 
 
 // ─── Root vs Session Action Unions ───────────────────────────────────────────
@@ -48,6 +48,7 @@ export type ISessionAction =
 	| ISessionQueuedMessagesReorderedAction
 	| ISessionCustomizationsChangedAction
 	| ISessionCustomizationToggledAction
+	| ISessionTruncatedAction
 	;
 
 /** Union of session actions that clients may dispatch. */
@@ -57,6 +58,7 @@ export type IClientSessionAction =
 	| ISessionToolCallCompleteAction
 	| ISessionToolCallResultConfirmedAction
 	| ISessionTurnCancelledAction
+	| ISessionTitleChangedAction
 	| ISessionModelChangedAction
 	| ISessionActiveClientChangedAction
 	| ISessionActiveClientToolsChangedAction
@@ -64,6 +66,7 @@ export type IClientSessionAction =
 	| ISessionPendingMessageRemovedAction
 	| ISessionQueuedMessagesReorderedAction
 	| ISessionCustomizationToggledAction
+	| ISessionTruncatedAction
 	;
 
 /** Union of session actions that only the server may produce. */
@@ -77,7 +80,6 @@ export type IServerSessionAction =
 	| ISessionToolCallReadyAction
 	| ISessionTurnCompleteAction
 	| ISessionErrorAction
-	| ISessionTitleChangedAction
 	| ISessionUsageAction
 	| ISessionReasoningAction
 	| ISessionServerToolsChangedAction
@@ -107,7 +109,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
 	[ActionType.SessionTurnComplete]: false,
 	[ActionType.SessionTurnCancelled]: true,
 	[ActionType.SessionError]: false,
-	[ActionType.SessionTitleChanged]: false,
+	[ActionType.SessionTitleChanged]: true,
 	[ActionType.SessionUsage]: false,
 	[ActionType.SessionReasoning]: false,
 	[ActionType.SessionModelChanged]: true,
@@ -119,4 +121,5 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
 	[ActionType.SessionQueuedMessagesReordered]: true,
 	[ActionType.SessionCustomizationsChanged]: false,
 	[ActionType.SessionCustomizationToggled]: true,
+	[ActionType.SessionTruncated]: true,
 };

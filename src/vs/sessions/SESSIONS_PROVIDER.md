@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Sessions Provider architecture introduces an **extensible provider model** for managing agent sessions in the Sessions window. Instead of hardcoding session types and backends, multiple providers register with a central registry (`ISessionsProvidersService`), which aggregates sessions from all providers and routes actions to the correct one.
+The Sessions Provider architecture introduces an **extensible provider model** for managing agent sessions in the Agent Sessions window. Instead of hardcoding session types and backends, multiple providers register with a central registry (`ISessionsProvidersService`), which aggregates sessions from all providers and routes actions to the correct one.
 
 This design allows new compute environments (remote agent hosts, cloud backends, third-party agents) to plug in without modifying core session management code.
 
@@ -65,7 +65,7 @@ The common session interface exposed by all providers. It is a self-contained fa
 | `loading` | `IObservable<boolean>` | Whether the session is initializing |
 | `isArchived` | `IObservable<boolean>` | Archive state |
 | `isRead` | `IObservable<boolean>` | Read/unread state |
-| `description` | `IObservable<string \| undefined>` | Status description (e.g., current agent action) |
+| `description` | `IObservable<IMarkdownString \| undefined>` | Status description (e.g., current agent action), supports markdown |
 | `lastTurnEnd` | `IObservable<Date \| undefined>` | When the last agent turn ended |
 | `pullRequest` | `IObservable<ISessionPullRequest \\| undefined>` | Associated pull request |
 

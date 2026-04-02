@@ -30,7 +30,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatRequestVariableEntry, isImplicitVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isStringVariableEntry, isWorkspaceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -351,7 +351,10 @@ export class ViewAllSessionChangesAction extends Action2 {
 			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
 			icon: Codicon.diffMultiple,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.hasAgentSessionChanges,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('sessions.hasGitRepository', true),
+				ChatContextKeys.hasAgentSessionChanges,
+			),
 			menu: [
 				{
 					id: MenuId.ChatEditingSessionChangesToolbar,
@@ -492,6 +495,8 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 		await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
 	}
 
+	await chatService.cancelCurrentRequestForSession(sessionResource, 'restoreCheckpoint');
+
 	// Restore the snapshot to what it was before the request(s) that we deleted
 	const snapshotRequestId = chatRequests[itemIndex].id;
 	await session.restoreSnapshot(snapshotRequestId, undefined);
@@ -530,7 +535,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession)),
 				}
 			]
 		});
@@ -583,7 +588,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest.negate())
 				}
 			]
 		});
@@ -617,6 +622,42 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	}
 });
 
+registerAction2(class StartOverAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.startOver',
+			title: localize2('chat.startOver.label', "Start Over"),
+			tooltip: localize2('chat.startOver.tooltip', "Clears the chat and undoes all changes"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [
+				{
+					id: MenuId.ChatMessageCheckpoint,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest)
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		widget?.viewModel?.model.setCheckpoint(item.id);
+		await restoreSnapshotWithConfirmation(accessor, item);
+	}
+});
+
 registerAction2(class RestoreLastCheckpoint extends Action2 {
 	constructor() {
 		super({
@@ -628,7 +669,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.inChatSession,
 				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
-				ChatContextKeys.lockedToCodingAgent.negate()
+				ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession)
 			)
 		});
 	}
@@ -807,27 +848,31 @@ registerAction2(class ResolveSymbolsContextAction extends EditingSessionAction {
 		const symbol = args[0] as Location;
 
 		const modelReference = await textModelService.createModelReference(symbol.uri);
-		const textModel = modelReference.object.textEditorModel;
-		if (!textModel) {
-			return;
+		try {
+			const textModel = modelReference.object.textEditorModel;
+			if (!textModel) {
+				return;
+			}
+
+			const position = new Position(symbol.range.startLineNumber, symbol.range.startColumn);
+
+			const [references, definitions, implementations] = await Promise.all([
+				this.getReferences(position, textModel, languageFeaturesService),
+				this.getDefinitions(position, textModel, languageFeaturesService),
+				this.getImplementations(position, textModel, languageFeaturesService)
+			]);
+
+			// Sort the references, definitions and implementations by
+			// how important it is that they make it into the working set as it has limited size
+			const attachments = [];
+			for (const reference of [...definitions, ...implementations, ...references]) {
+				attachments.push(chatWidget.attachmentModel.asFileVariableEntry(reference.uri));
+			}
+
+			chatWidget.attachmentModel.addContext(...attachments);
+		} finally {
+			modelReference.dispose();
 		}
-
-		const position = new Position(symbol.range.startLineNumber, symbol.range.startColumn);
-
-		const [references, definitions, implementations] = await Promise.all([
-			this.getReferences(position, textModel, languageFeaturesService),
-			this.getDefinitions(position, textModel, languageFeaturesService),
-			this.getImplementations(position, textModel, languageFeaturesService)
-		]);
-
-		// Sort the references, definitions and implementations by
-		// how important it is that they make it into the working set as it has limited size
-		const attachments = [];
-		for (const reference of [...definitions, ...implementations, ...references]) {
-			attachments.push(chatWidget.attachmentModel.asFileVariableEntry(reference.uri));
-		}
-
-		chatWidget.attachmentModel.addContext(...attachments);
 	}
 
 	private async getReferences(position: Position, textModel: ITextModel, languageFeaturesService: ILanguageFeaturesService): Promise<Location[]> {

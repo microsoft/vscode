@@ -263,18 +263,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				const chatSession = this._chatService.getSession(request.sessionResource);
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
-					const contributedSession = chatSession?.contributedChatSession;
-					let chatSessionContext: IChatSessionContextDto | undefined;
-					if (contributedSession) {
-						const chatSessionResource = contributedSession.chatSessionResource;
-						const isUntitled = isUntitledChatSession(chatSessionResource);
+					const chatSessionResource = request.sessionResource;
+					const chatSessionContext: IChatSessionContextDto = {
+						chatSessionResource,
+						isUntitled: isUntitledChatSession(chatSessionResource),
+						initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(this._chatSessionService.getSessionOptions(chatSessionResource)),
+					};
 
-						chatSessionContext = {
-							chatSessionResource,
-							isUntitled,
-							initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(contributedSession.initialSessionOptions),
-						};
-					}
 					return await this._proxy.$invokeAgent(handle, request, {
 						history,
 						chatSessionContext,

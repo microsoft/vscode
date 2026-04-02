@@ -862,7 +862,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				const sourceSB = new StringBuilder(10000);
 				const ref = await this.textModelService.createModelReference(sourceURI);
 				if (templateData.currentElement.element !== element) {
-					return; // avoid a race, #192831
+					ref.dispose(); // avoid a leak when element went stale during async, #192831
+					return;
 				}
 				textModel = ref.object.textEditorModel;
 				templateData.cellDisposable.push(ref);

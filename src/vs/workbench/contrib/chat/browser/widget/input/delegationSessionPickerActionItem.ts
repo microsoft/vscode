@@ -95,6 +95,9 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	private _hasGitRepository(): boolean {
+		if (this.delegate.hasGitRepository) {
+			return this.delegate.hasGitRepository();
+		}
 		return !Iterable.isEmpty(this.gitService.repositories);
 	}
 
@@ -119,9 +122,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		if (this._isSessionsWindow && sessionTypeItem.type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
-			return localize('chat.cloudRequiresGit', "Requires a Git repository");
-		}
 		return undefined;
 	}
 

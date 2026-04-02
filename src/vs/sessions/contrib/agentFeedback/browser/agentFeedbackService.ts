@@ -20,6 +20,8 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -144,6 +146,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -200,6 +203,12 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeNavigation.fire(sessionResource);
 
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+
+		logChangesViewReviewCommentAdded(this._telemetryService, {
+			hasExistingFeedback: hasExistingForFile,
+			hasSuggestion: !!suggestion,
+			isFromPRReview: !!sourcePRReviewCommentId,
+		});
 
 		return feedback;
 	}

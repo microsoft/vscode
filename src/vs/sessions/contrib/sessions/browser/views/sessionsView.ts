@@ -30,7 +30,9 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -53,6 +55,7 @@ export class SessionsView extends ViewPane {
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
+	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 
 	constructor(
@@ -69,6 +72,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -89,6 +93,9 @@ export class SessionsView extends ViewPane {
 		this.groupingContextKey.set(this.currentGrouping);
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
+
+		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
+		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -129,7 +136,10 @@ export class SessionsView extends ViewPane {
 			supportIcons: true,
 		}));
 		newSessionButton.label = `$(${Codicon.plus.id}) ${localize('sessionLabel', "Session")}`;
-		this._register(newSessionButton.onDidClick(() => this.sessionsManagementService.openNewSessionView()));
+		this._register(newSessionButton.onDidClick(() => {
+			logSessionsInteraction(this.telemetryService, 'newSession');
+			this.sessionsManagementService.openNewSessionView();
+		}));
 
 		const buttonLabel = $('.new-session-button-label');
 		const keybindingHint = $('span.new-session-keybinding-hint');
@@ -187,6 +197,9 @@ export class SessionsView extends ViewPane {
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
+		// Sync workspace group capped context key with persisted state
+		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
+
 		// Register session type filter actions (re-register when session types change)
 		this.registerSessionTypeFilters(sessionsControl);
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
@@ -224,7 +237,7 @@ export class SessionsView extends ViewPane {
 
 		// AI Customization toolbar (bottom, fixed height)
 		this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
-			onDidToggleCollapse: () => {
+			onDidChangeLayout: () => {
 				if (this.viewPaneContainer) {
 					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
 					this.layoutBody(offsetHeight, offsetWidth);
@@ -234,7 +247,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private restoreLastSelectedSession(): void {
-		const activeSession = this.sessionsManagementService.activeSession.get()?.activeChat.get();
+		const activeSession = this.sessionsManagementService.activeSession.get();
 		if (activeSession && this.sessionsControl) {
 			this.sessionsControl.reveal(activeSession.resource);
 		}
@@ -322,7 +335,7 @@ export class SessionsView extends ViewPane {
 			constructor() {
 				super({
 					id: 'sessionsViewPane.filterArchived',
-					title: localize('filterArchived', "Archived"),
+					title: localize('filterArchived', "Done"),
 					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
 					menu: [{
 						id: SessionsViewFilterOptionsSubMenu,
@@ -365,6 +378,7 @@ export class SessionsView extends ViewPane {
 
 		// Reset filter action
 		const filterContextKeys = this.filterContextKeys;
+		const workspaceGroupCappedContextKey = this.workspaceGroupCappedContextKey;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -382,6 +396,7 @@ export class SessionsView extends ViewPane {
 				for (const { key, getDefault } of filterContextKeys.values()) {
 					key.set(getDefault());
 				}
+				workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 			}
 		}));
 	}

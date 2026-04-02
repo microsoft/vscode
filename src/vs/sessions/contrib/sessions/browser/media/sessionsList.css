@@ -13,7 +13,7 @@
 	}
 
 	.pane-body & .monaco-tree-sticky-container {
-		padding: 0 6px;
+		padding: 0 10px;
 	}
 
 	.monaco-list-row {
@@ -119,12 +119,7 @@
 			justify-content: center;
 		}
 
-		&.session-icon-active > .codicon {
-			color: var(--vscode-textLink-foreground);
-		}
-
 		&.session-icon-pulse > .codicon {
-			color: var(--vscode-list-warningForeground);
 			animation: session-needs-input-pulse 2s ease-in-out infinite;
 		}
 
@@ -132,19 +127,6 @@
 			&.session-icon-pulse > .codicon {
 				animation: none;
 			}
-		}
-
-		&.session-icon-unread > .codicon {
-			color: var(--vscode-textLink-foreground);
-		}
-
-		&.session-icon-error > .codicon {
-			color: var(--vscode-errorForeground);
-		}
-
-		/* Small dot for read sessions — subtle indicator */
-		> .codicon.codicon-circle-small-filled {
-			color: var(--vscode-agentSessionReadIndicator-foreground);
 		}
 	}
 
@@ -220,6 +202,13 @@
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	.session-description p {
+		margin: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.session-description:empty {
@@ -331,11 +320,12 @@
 	padding: 0 6px;
 
 	.session-section-label {
-		flex: 1;
+		flex: 0 1 auto;
 	}
 
 	.session-section-count {
 		opacity: 0.7;
+		margin-left: auto;
 		margin-right: 4px;
 	}
 
