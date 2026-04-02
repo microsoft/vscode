@@ -1220,10 +1220,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedParts = [];
 
 		const label = element.systemInitiatedLabel ?? element.messageText;
-		const messageElement = dom.$('span.progress-step');
-		messageElement.textContent = label;
+		const rendered = this.chatContentMarkdownRenderer.render(new MarkdownString(label));
+		templateData.elementDisposables.add(rendered);
+		rendered.element.classList.add('progress-step');
 
-		const progressPart = this.instantiationService.createInstance(ChatProgressSubPart, messageElement, Codicon.check, undefined);
+		const progressPart = this.instantiationService.createInstance(ChatProgressSubPart, rendered.element, Codicon.check, undefined);
 		templateData.elementDisposables.add(progressPart);
 		templateData.value.appendChild(progressPart.domNode);
 	}
