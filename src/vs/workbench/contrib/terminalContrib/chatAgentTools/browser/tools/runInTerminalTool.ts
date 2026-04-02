@@ -1777,6 +1777,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
+		// Acquire a reference to the ChatModel so it stays alive while we wait
+		// for the background terminal to complete. Without this, the model can
+		// be disposed if the user navigates away, and sendRequest would throw.
+		const sessionRef = this._chatService.acquireExistingSession(chatSessionResource, 'RunInTerminalTool#completionNotification');
+		if (!sessionRef) {
+			this._logService.warn(`RunInTerminalTool: Cannot register completion notification for terminal ${termId} - session already disposed`);
+			outputMonitor?.dispose();
+			return;
+		}
+
 		// Continue the output monitor in background mode for prompt-for-input detection.
 		// The monitor wakes only on new terminal data (not on a fixed interval), so
 		// resource cost is proportional to actual terminal activity.
@@ -1823,6 +1833,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disposedListener.dispose();
 			bgCts?.dispose();
 			outputMonitor?.dispose();
+			sessionRef.dispose();
 		};
 
 		this._register(listener);

@@ -491,6 +491,30 @@ suite('ChatService', () => {
 		assert.strictEqual(chatModel2.getRequests()[0].isSystemInitiated, true);
 	});
 
+	test('acquireExistingSession keeps model alive for steering request after refs released', async () => {
+		const testService = createChatService();
+		const modelRef = startSessionModel(testService);
+		const sessionResource = modelRef.object.sessionResource;
+
+		// Acquire a keep-alive reference (what the fix does)
+		const keepAliveRef = testDisposables.add(testService.acquireExistingSession(sessionResource, 'test#keepAlive')!);
+		assert.ok(keepAliveRef, 'acquireExistingSession should return a reference');
+
+		// Release the original reference to simulate user navigating away
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+
+		// Model should still be accessible because keepAliveRef holds it
+		const response = await testService.sendRequest(sessionResource, 'terminal completed', {
+			queue: ChatRequestQueueKind.Steering,
+			isSystemInitiated: true,
+		});
+		assert.strictEqual(response.kind, 'queued');
+
+		// Clean up
+		keepAliveRef.dispose();
+	});
+
 	test('onDidDisposeSession', async () => {
 		const testService = createChatService();
 		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
