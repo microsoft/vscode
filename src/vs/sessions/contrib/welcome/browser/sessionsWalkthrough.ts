@@ -23,6 +23,12 @@ export type WalkthroughOutcome = 'completed' | 'dismissed';
 const fadeDuration = 200;
 const resetMessageDuration = 2000;
 const dismissDuration = 250;
+const fallbackChatAgentLinks = {
+	termsStatementUrl: 'https://aka.ms/github-copilot-terms-statement',
+	privacyStatementUrl: 'https://aka.ms/github-copilot-privacy-statement',
+	publicCodeMatchesUrl: 'https://aka.ms/github-copilot-match-public-code',
+	manageSettingsUrl: 'https://aka.ms/github-copilot-settings'
+};
 
 /**
  * Sign-in onboarding overlay:
@@ -373,16 +379,10 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	private _createDisclaimer(): { element: HTMLElement; links: readonly HTMLAnchorElement[] } {
 		const defaultChatAgent = this.productService.defaultChatAgent;
 		const disclaimer = append(this.overlay, $('p.sessions-walkthrough-disclaimer.hidden'));
-		const termsStatementUrl = defaultChatAgent?.termsStatementUrl;
-		const privacyStatementUrl = defaultChatAgent?.privacyStatementUrl;
-		const publicCodeMatchesUrl = defaultChatAgent?.publicCodeMatchesUrl;
-		const manageSettingsUrl = defaultChatAgent?.manageSettingsUrl;
-		if (!termsStatementUrl || !privacyStatementUrl || !publicCodeMatchesUrl || !manageSettingsUrl) {
-			return {
-				element: disclaimer,
-				links: []
-			};
-		}
+		const termsStatementUrl = defaultChatAgent?.termsStatementUrl || fallbackChatAgentLinks.termsStatementUrl;
+		const privacyStatementUrl = defaultChatAgent?.privacyStatementUrl || fallbackChatAgentLinks.privacyStatementUrl;
+		const publicCodeMatchesUrl = defaultChatAgent?.publicCodeMatchesUrl || fallbackChatAgentLinks.publicCodeMatchesUrl;
+		const manageSettingsUrl = defaultChatAgent?.manageSettingsUrl || fallbackChatAgentLinks.manageSettingsUrl;
 
 		const termsLink = this._appendDisclaimerLink(termsStatementUrl, localize('walkthrough.disclaimer.terms', "Terms"));
 		const privacyLink = this._appendDisclaimerLink(privacyStatementUrl, localize('walkthrough.disclaimer.privacy', "Privacy Statement"));

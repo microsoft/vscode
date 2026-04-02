@@ -364,7 +364,7 @@ suite('SessionsWelcomeContribution', () => {
 		}
 	});
 
-	test('walkthrough hides disclaimer when required product links are missing', () => {
+	test('walkthrough falls back to default disclaimer links when product links are missing', () => {
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, undefined);
 		mockEntitlementService.sentimentObs.set({ installed: false } as IChatSentiment, undefined);
 
@@ -397,8 +397,16 @@ suite('SessionsWelcomeContribution', () => {
 			const overlay = disposables.add(instantiationService.createInstance(SessionsWalkthroughOverlay, container));
 			const disclaimer = container.querySelector<HTMLElement>('.sessions-walkthrough-disclaimer');
 			assert.ok(disclaimer);
-			assert.strictEqual(disclaimer.classList.contains('hidden'), true);
-			assert.strictEqual(disclaimer.querySelectorAll('a').length, 0);
+			assert.strictEqual(disclaimer.classList.contains('hidden'), false);
+			assert.deepStrictEqual(
+				Array.from(disclaimer.querySelectorAll<HTMLAnchorElement>('a')).map(link => link.getAttribute('href')),
+				[
+					'https://aka.ms/github-copilot-terms-statement',
+					'https://aka.ms/github-copilot-privacy-statement',
+					'https://aka.ms/github-copilot-match-public-code',
+					'https://aka.ms/github-copilot-settings'
+				]
+			);
 
 			overlay.dispose();
 		} finally {
