@@ -902,8 +902,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			const isQuotaExceeded = e instanceof Error && e.name === 'ChatQuotaExceeded';
 			const isRateLimited = e instanceof Error && e.name === 'ChatRateLimited';
-			const { callstack } = packErrorForTelemetry(e);
-			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded, isRateLimited, callstack } };
+			const { callstack: errorCallstack } = packErrorForTelemetry(e);
+			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true, isQuotaExceeded, isRateLimited }, errorCallstack };
 
 		} finally {
 			if (inFlightRequest) {

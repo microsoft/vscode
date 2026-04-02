@@ -62,8 +62,6 @@ export interface IChatResponseErrorDetails {
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 	code?: string;
-	/** Callstack for error telemetry. Not displayed in UI — only sent via telemetry. */
-	callstack?: string;
 }
 
 export interface IChatResponseProgressFileTreeData {
