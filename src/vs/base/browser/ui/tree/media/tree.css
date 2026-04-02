@@ -72,6 +72,15 @@
 	animation: codicon-spin 1.25s steps(30) infinite;
 	/* Ensure rotation happens around exact center to prevent wobble */
 	transform-origin: center center;
+	/* Promote to compositor layer to reduce CPU/GPU overhead */
+	will-change: transform;
+	contain: paint layout;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-tl-twistie.codicon-tree-item-loading::before {
+		animation-duration: 0s;
+	}
 }
 
 .monaco-tree-type-filter {

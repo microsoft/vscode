@@ -87,11 +87,20 @@
 }
 
 .sessions-welcome-spinner .codicon-loading {
-	animation: sessions-spin 1.5s linear infinite;
+	animation: sessions-spin 1.5s steps(30) infinite;
+	transform-origin: center center;
+	will-change: transform;
+	contain: paint layout;
 }
 
 @keyframes sessions-spin {
 	to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sessions-welcome-spinner .codicon-loading {
+		animation-duration: 0s;
+	}
 }
 
 /* ---- Error ---- */

@@ -262,12 +262,21 @@
 	border: 1.5px solid var(--vscode-descriptionForeground);
 	border-top-color: transparent;
 	border-radius: 50%;
-	animation: sessions-chat-picker-spin 0.8s linear infinite;
+	animation: sessions-chat-picker-spin 0.8s steps(16) infinite;
+	transform-origin: center center;
+	will-change: transform;
+	contain: paint layout;
 	flex-shrink: 0;
 }
 
 @keyframes sessions-chat-picker-spin {
 	to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.sessions-chat-picker-slot.loading .action-label::after {
+		animation-duration: 0s;
+	}
 }
 
 .sessions-chat-picker-slot .action-label .codicon {
