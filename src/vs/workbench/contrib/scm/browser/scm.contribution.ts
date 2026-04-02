@@ -36,6 +36,8 @@ import { QuickDiffService } from '../common/quickDiffService.js';
 import { getActiveElement, isActiveElement } from '../../../../base/browser/dom.js';
 import { SCMWorkingSetController } from './workingSet.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { isSCMRepository } from './util.js';
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
@@ -547,6 +549,30 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.forceViewPreviousCommit',
 	when: ContextKeyExpr.has('scmRepository'),
 	primary: KeyMod.Alt | KeyCode.UpArrow
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.revealActiveFile',
+			title: localize2('revealActiveFileInSCM', "Reveal Active File in Source Control View"),
+			f1: true,
+			category: localize2('sourceControl', "Source Control"),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const viewsService = accessor.get(IViewsService);
+
+		const uri = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!uri) {
+			return;
+		}
+
+		const view = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID, false);
+		view?.revealActiveResource();
+	}
 });
 
 CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor, ...providers: ISCMProvider[]) => {
