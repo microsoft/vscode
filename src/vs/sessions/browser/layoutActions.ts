@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from '../../base/browser/ui/aria/aria.js';
+import { getActiveWindow, isHTMLElement } from '../../base/browser/dom.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { Menus } from './menus.js';
+import { clearSidebarToggleFocusRequest, requestSidebarToggleFocus, SidebarToggleFocusTarget } from './sidebarToggleFocus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
@@ -63,6 +65,15 @@ class ToggleSidebarVisibilityAction extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const isCurrentlyVisible = layoutService.isVisible(Parts.SIDEBAR_PART);
+		const targetWindow = getActiveWindow();
+		const activeElement = targetWindow.document.activeElement;
+		const shouldRestoreFocus = isHTMLElement(activeElement) && !!activeElement.closest('.sidebar-toggle-action');
+
+		if (shouldRestoreFocus) {
+			requestSidebarToggleFocus(isCurrentlyVisible ? SidebarToggleFocusTarget.Titlebar : SidebarToggleFocusTarget.Sidebar);
+		} else {
+			clearSidebarToggleFocusRequest();
+		}
 
 		layoutService.setPartHidden(isCurrentlyVisible, Parts.SIDEBAR_PART);
 

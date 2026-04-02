@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableListener, append, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, getActiveWindow, getWindow, reset, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -18,6 +18,8 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -33,6 +35,7 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { consumeSidebarToggleFocusRequest, SidebarToggleFocusTarget } from '../../../browser/sidebarToggleFocus.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -290,11 +293,15 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 /**
  * Custom action view item for the sidebar toggle button.
- * Renders the tasklist icon with an unread session count badge.
+ * Renders the sidebar toggle icon with an unread session count badge.
  */
 class SidebarToggleActionViewItem extends ActionViewItem {
 
 	private _countBadge: HTMLElement | undefined;
+	private _focusTarget: SidebarToggleFocusTarget | undefined;
+	private readonly _renderDisposables = this._register(new DisposableStore());
+	private readonly _sessionsChanged: ReturnType<typeof observableSignalFromEvent>;
+	private readonly _sidebarVisibilityChanged: ReturnType<typeof observableSignalFromEvent>;
 
 	constructor(
 		context: unknown,
@@ -302,14 +309,28 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		options: IBaseActionViewItemOptions | undefined,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 	) {
 		super(context, action, { ...options, icon: true, label: false });
+		this._sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		this._sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART) {
+				handler(e);
+			}
+		}));
 	}
 
 	override render(container: HTMLElement): void {
+		this._renderDisposables.clear();
 		super.render(container);
 
 		container.classList.add('sidebar-toggle-action');
+		this._restoreFocusIfRequested(container);
+		this._renderDisposables.add(this.paneCompositePartService.onDidPaneCompositeOpen(e => {
+			if (e.viewContainerLocation === ViewContainerLocation.Sidebar) {
+				this._restoreFocusIfRequested(container, true);
+			}
+		}));
 
 		// Add badge element for unread session count
 		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
@@ -320,15 +341,9 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		// - session list changes (add/remove) via observableSignalFromEvent
 		// - individual session observable state (status, isRead, isArchived)
 		// - sidebar visibility changes
-		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
-		const sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.SIDEBAR_PART) {
-				handler(e);
-			}
-		}));
-		this._register(autorun(reader => {
-			sessionsChanged.read(reader);
-			sidebarVisibilityChanged.read(reader);
+		this._renderDisposables.add(autorun(reader => {
+			this._sessionsChanged.read(reader);
+			this._sidebarVisibilityChanged.read(reader);
 			for (const session of this.sessionsManagementService.getSessions()) {
 				session.isArchived.read(reader);
 				session.status.read(reader);
@@ -336,6 +351,47 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 			}
 			this.updateClass();
 			this._updateBadge();
+			this._restoreFocusIfRequested(container);
+		}));
+	}
+
+	private _getFocusTarget(container: HTMLElement): SidebarToggleFocusTarget | undefined {
+		const focusTarget = container.closest('.part.sidebar')
+			? SidebarToggleFocusTarget.Sidebar
+			: container.closest('.part.titlebar')
+				? SidebarToggleFocusTarget.Titlebar
+				: this._focusTarget;
+
+		if (focusTarget !== this._focusTarget) {
+			this._focusTarget = focusTarget;
+		}
+
+		return this._focusTarget;
+	}
+
+	private _restoreFocusIfRequested(container: HTMLElement, fromSidebarOpen: boolean = false): void {
+		const focusTarget = this._getFocusTarget(container);
+		if (!focusTarget) {
+			return;
+		}
+
+		if (focusTarget === SidebarToggleFocusTarget.Titlebar) {
+			if (fromSidebarOpen) {
+				return;
+			}
+		} else if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			return;
+		}
+
+		if (!consumeSidebarToggleFocusRequest(focusTarget)) {
+			return;
+		}
+
+		const targetWindow = getWindow(container);
+		this._renderDisposables.add(scheduleAtNextAnimationFrame(targetWindow, () => {
+			this._renderDisposables.add(scheduleAtNextAnimationFrame(targetWindow, () => {
+				this.focus();
+			}));
 		}));
 	}
 
