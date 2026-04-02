@@ -2,7 +2,7 @@
 	"type": "dark",
 	"colors": {
 		"focusBorder": "#bbdaff",
-		"errorForeground": "#a92049",
+		"errorForeground": "#ff9da4",
 		"input.background": "#001733",
 		"dropdown.background": "#001733",
 		"quickInputList.focusBackground": "#ffffff60",
