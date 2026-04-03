@@ -23,6 +23,7 @@ import { ILanguageFeaturesService } from '../../../editor/common/services/langua
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/chat/browser/agentSessions/agentSessions.js';
@@ -41,7 +42,7 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
@@ -131,6 +132,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -270,10 +272,37 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(this._chatSessionService.getSessionOptions(chatSessionResource)),
 					};
 
-					return await this._proxy.$invokeAgent(handle, request, {
+					const rpcResult: IChatAgentInvokeResult | undefined = await this._proxy.$invokeAgent(handle, request, {
 						history,
 						chatSessionContext,
-					}, token) ?? {};
+					}, token);
+
+					if (rpcResult?.errorCallstack) {
+						type ChatAgentErrorEvent = { callstack: string; msg: string; errorName: string; agent: string; agentExtensionId: string };
+						type ChatAgentErrorClassification = {
+							owner: 'bryanchen-d';
+							comment: 'Logged when a chat agent handler throws an error with a callstack.';
+							callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
+							msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+							errorName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error name (e.g. TypeError, ChatQuotaExceeded).' };
+							agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent that threw the error.' };
+							agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
+						};
+						this._telemetryService.publicLogError2<ChatAgentErrorEvent, ChatAgentErrorClassification>('chatAgentError', {
+							callstack: rpcResult.errorCallstack,
+							msg: rpcResult.errorDetails?.message ?? '',
+							errorName: rpcResult.errorName ?? '',
+							agent: id,
+							agentExtensionId: extension.value,
+						});
+					}
+
+					// Strip telemetry-only field before returning to the model layer
+					if (rpcResult) {
+						const { errorCallstack: _, errorName: _2, ...result } = rpcResult;
+						return result;
+					}
+					return {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
