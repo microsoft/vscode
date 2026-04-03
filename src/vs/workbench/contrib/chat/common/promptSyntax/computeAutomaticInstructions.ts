@@ -13,8 +13,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../actions/chatContextKeys.js';
-import { localChatSessionType } from '../chatSessionsService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -188,9 +186,6 @@ export class ComputeAutomaticInstructions {
 			return;
 		}
 
-		const sessionType = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
-		const isNonLocalSession = !!sessionType && sessionType !== localChatSessionType;
-
 		for (const instructionFile of instructionFiles) {
 			if (token.isCancellationRequested) {
 				return;
@@ -198,12 +193,8 @@ export class ComputeAutomaticInstructions {
 
 			const { uri, pattern, when } = instructionFile;
 
-			// Filter by session type: skip in non-local sessions unless when clause matches
-			if (when) {
-				if (!this._contextKeyService.contextMatchesRules(when)) {
-					continue;
-				}
-			} else if (isNonLocalSession) {
+			// If a `when` clause is present, evaluate it; otherwise always include.
+			if (when && !this._contextKeyService.contextMatchesRules(when)) {
 				continue;
 			}
 
@@ -350,9 +341,7 @@ export class ComputeAutomaticInstructions {
 
 		const entries: string[] = [];
 
-		// Compute session type once, used for filtering instructions, skills, and agents
-		const sessionType = this._contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
-		const isNonLocalSession = !!sessionType && sessionType !== localChatSessionType;
+
 
 		if (readTool) {
 
@@ -367,11 +356,7 @@ export class ComputeAutomaticInstructions {
 			entries.push('Make sure to acquire the instructions before working with the codebase.');
 			let hasContent = false;
 			for (const instruction of instructionFiles) {
-				if (instruction.when) {
-					if (!this._contextKeyService.contextMatchesRules(instruction.when)) {
-						continue;
-					}
-				} else if (isNonLocalSession) {
+				if (instruction.when && !this._contextKeyService.contextMatchesRules(instruction.when)) {
 					continue;
 				}
 				entries.push('<instruction>');
@@ -414,14 +399,7 @@ export class ComputeAutomaticInstructions {
 				if (skill.disableModelInvocation) {
 					return false;
 				}
-				if (skill.when) {
-					// Evaluate per-session; a `when` referencing `chatSessionType` will naturally
-					// include or exclude this skill based on the current session.
-					if (!this._contextKeyService.contextMatchesRules(skill.when)) {
-						return false;
-					}
-				} else if (isNonLocalSession) {
-					// Skills without a `when` clause default to local-session-only.
+				if (skill.when && !this._contextKeyService.contextMatchesRules(skill.when)) {
 					return false;
 				}
 				if ((!isDebugLogEnabled || !isFileLoggingEnabled) && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
@@ -497,6 +475,11 @@ export class ComputeAutomaticInstructions {
 				for (const agent of agents) {
 					if (!canUseAgent(agent)) {
 						continue;
+					}
+					if (agent.when) {
+						if (!this._contextKeyService.contextMatchesRules(agent.when)) {
+							continue;
+						}
 					}
 					entries.push('<agent>');
 					entries.push(`<name>${agent.name}</name>`);

@@ -1353,7 +1353,7 @@ suite('ComputeAutomaticInstructions', () => {
 	});
 
 	suite('skill session-type filtering', () => {
-		test('non-local session excludes skills without when', async () => {
+		test('non-local session includes skills without when', async () => {
 			const rootFolderName = 'skill-session-filter-test';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1389,7 +1389,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 			const allEntries = variables.asArray();
 			const skillEntries = allEntries.filter(e => isPromptTextVariableEntry(e) && e.value.includes('<skills>'));
-			assert.strictEqual(skillEntries.length, 0, 'Skills without when should be excluded in non-local sessions');
+			assert.strictEqual(skillEntries.length, 1, 'Skills without when should be included in non-local sessions');
 		});
 
 		test('skills with matching when are included in non-local sessions', async () => {

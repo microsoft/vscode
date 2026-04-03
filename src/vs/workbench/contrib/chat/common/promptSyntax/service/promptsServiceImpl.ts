@@ -510,29 +510,20 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IExtensionPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const settledResults = await Promise.allSettled(this.contributedFiles[type].values());
-		// Note: `when` clauses are intentionally NOT evaluated here (global context)
-		// for most types. They are propagated into the model types (IAgentSkill,
-		// IChatPromptSlashCommand, IInstructionFile) and evaluated later at
-		// session-scoped time:
+		// Note: `when` clauses are intentionally NOT evaluated here (global context).
+		// They are propagated into the model types (IAgentSkill, IChatPromptSlashCommand,
+		// ICustomAgent, IInstructionFile) and evaluated later at session-scoped time:
 		//  - slash commands: per-widget in chatInputCompletions.ts via `c.when`
 		//  - skills: in ComputeAutomaticInstructions using its scoped IContextKeyService
 		//  - instructions: in ComputeAutomaticInstructions using its scoped IContextKeyService
-		// Agents are the exception: their `when` is evaluated here at discovery time
-		// because they are target-agnostic and do not propagate `when` downstream.
+		//  - agents: in modePickerActionItem.ts and ComputeAutomaticInstructions
 		const contributedFiles = settledResults
 			.filter((result): result is PromiseFulfilledResult<IExtensionPromptPath> => result.status === 'fulfilled')
 			.map(result => result.value)
 			.filter(file => {
-				if (!file.when) {
-					return true;
-				}
-				const whenExpr = ContextKeyExpr.deserialize(file.when);
-				if (!whenExpr) {
+				if (file.when && !ContextKeyExpr.deserialize(file.when)) {
 					this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
 					return false;
-				}
-				if (type === PromptsType.agent) {
-					return this.contextKeyService.contextMatchesRules(whenExpr);
 				}
 				return true;
 			});
@@ -810,8 +801,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const target = getTarget(PromptsType.agent, ast.header ?? uri);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
+				const when = isExtensionPromptPath(promptPath) && promptPath.when
+					? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
+					: undefined;
 				if (!ast.header) {
-					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true } };
+					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, when };
 					return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 				}
 				const visibility = {
@@ -838,7 +832,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 
-				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };
+				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, when };
 				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));

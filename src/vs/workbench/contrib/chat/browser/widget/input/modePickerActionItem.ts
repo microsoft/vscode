@@ -166,7 +166,13 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const currentMode = delegate.currentMode.get();
 				const filteredCustomModes = modes.custom.filter(mode => {
 					const target = mode.target.get();
-					return target === customAgentTarget || target === Target.Undefined;
+					if (target !== customAgentTarget && target !== Target.Undefined) {
+						return false;
+					}
+					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+						return false;
+					}
+					return true;
 				});
 				const customModes = groupBy(
 					filteredCustomModes,
@@ -198,6 +204,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const filteredCustomModes = modes.custom.filter(mode => {
 					if (isModeConsideredBuiltIn(mode, this._productService)) {
 						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
+					}
+					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+						return false;
 					}
 					return true;
 				});
