@@ -22,7 +22,8 @@ const $ = dom.$;
 
 /**
  * Widget that displays a status message with an optional action button.
- * Only shown for anonymous and free tier users.
+ * Shown only when chat quota is exceeded and the chat session is empty, and only for
+ * anonymous or free tier users.
  */
 export class ChatStatusWidget extends Disposable implements IChatInputPartWidget {
 
