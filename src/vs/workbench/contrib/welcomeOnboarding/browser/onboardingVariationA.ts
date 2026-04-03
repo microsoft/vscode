@@ -152,7 +152,7 @@ export class OnboardingVariationA extends Disposable {
 		// Header with progress
 		const header = append(this.card, $('.onboarding-a-header'));
 		this.progressContainer = append(header, $('.onboarding-a-progress'));
-		this.stepLabelEl = append(header, $('span.onboarding-a-step-label'));
+		this.stepLabelEl = append(this.progressContainer, $('span.onboarding-a-step-label'));
 		this._renderProgress();
 
 		// Body
@@ -293,6 +293,7 @@ export class OnboardingVariationA extends Disposable {
 			}
 		}
 
+		this.progressContainer.appendChild(this.stepLabelEl);
 		this.stepLabelEl.textContent = localize(
 			'onboarding.stepOf',
 			"{0} of {1}",
@@ -353,7 +354,7 @@ export class OnboardingVariationA extends Disposable {
 
 	private _updateButtonStates(): void {
 		if (this.backButton) {
-			this.backButton.disabled = this.currentStepIndex === 0;
+			this.backButton.style.display = this.currentStepIndex === 0 ? 'none' : '';
 		}
 		if (this.nextButton) {
 			this.nextButton.textContent = this._isLastStep()
@@ -382,7 +383,7 @@ export class OnboardingVariationA extends Disposable {
 		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to VS Code");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to continue with AI-powered development in VS Code.");
+		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to continue with AI-powered development.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
@@ -418,7 +419,7 @@ export class OnboardingVariationA extends Disposable {
 			this._handleEnterpriseSignIn();
 		}));
 
-		const footer = append(content, $('.onboarding-a-signin-footer'));
+		const footer = append(wrapper, $('.onboarding-a-signin-footer'));
 
 		const disclaimer = append(footer, $('.onboarding-a-signin-disclaimer'));
 		disclaimer.append(localize('onboarding.signIn.disclaimer.prefix', "By continuing, you agree to {0}'s ", defaultChat.provider.default.name));
@@ -427,7 +428,9 @@ export class OnboardingVariationA extends Disposable {
 		this._createInlineLink(disclaimer, localize('onboarding.signIn.disclaimer.privacy', "Privacy Statement"), defaultChat.privacyStatementUrl);
 		disclaimer.append(localize('onboarding.signIn.disclaimer.copilotPrefix', ". {0} Copilot may show ", defaultChat.provider.default.name));
 		this._createInlineLink(disclaimer, localize('onboarding.signIn.disclaimer.publicCode', "public code"), defaultChat.publicCodeMatchesUrl);
-		disclaimer.append(localize('onboarding.signIn.disclaimer.settingsPrefix', " suggestions and use your data to improve the product. You can change these "));
+		disclaimer.append(localize('onboarding.signIn.disclaimer.improveSuffix', " suggestions and use your data to improve the product."));
+		disclaimer.appendChild(document.createElement('br'));
+		disclaimer.append(localize('onboarding.signIn.disclaimer.settingsPrefix', "You can change these "));
 		this._createInlineLink(disclaimer, localize('onboarding.signIn.disclaimer.settings', "settings"), defaultChat.manageSettingsUrl);
 		disclaimer.append(localize('onboarding.signIn.disclaimer.suffix', " anytime."));
 	}
@@ -574,6 +577,9 @@ export class OnboardingVariationA extends Disposable {
 		const themeLabel = append(themeSection, $('div.onboarding-a-section-label'));
 		themeLabel.textContent = localize('onboarding.personalize.theme', "Color Theme");
 
+		const themeHint = append(themeSection, $('div.onboarding-a-theme-hint'));
+		themeHint.textContent = localize('onboarding.personalize.themeHint', "You can browse and install more themes later from the Extensions view.");
+
 		const themeGrid = append(themeSection, $('.onboarding-a-theme-grid'));
 		themeGrid.setAttribute('role', 'radiogroup');
 		themeGrid.setAttribute('aria-label', localize('onboarding.personalize.themeLabel', "Choose a color theme"));
@@ -582,9 +588,6 @@ export class OnboardingVariationA extends Disposable {
 		for (const theme of ONBOARDING_THEME_OPTIONS) {
 			this._createThemeCard(themeGrid, theme, themeCards);
 		}
-
-		const themeHint = append(themeSection, $('div.onboarding-a-theme-hint'));
-		themeHint.textContent = localize('onboarding.personalize.themeHint', "You can browse and install more themes later from the Extensions view.");
 
 		// Keyboard Mapping section — only shown when another editor is detected
 		const keymapOptions = this._detectedEditorIds
@@ -1097,10 +1100,12 @@ export class OnboardingVariationA extends Disposable {
 	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): { card: HTMLElement; descEl: HTMLElement } {
 		const card = this._registerStepFocusable(append(parent, $('button.onboarding-a-feature-card')));
 		(card as HTMLButtonElement).type = 'button';
-		card.appendChild(renderIcon(icon));
-		const titleEl = append(card, $('div.onboarding-a-feature-title'));
+		const iconCol = append(card, $('div.onboarding-a-feature-icon'));
+		iconCol.appendChild(renderIcon(icon));
+		const textCol = append(card, $('div.onboarding-a-feature-text'));
+		const titleEl = append(textCol, $('div.onboarding-a-feature-title'));
 		titleEl.textContent = title;
-		const descEl = append(card, $('div.onboarding-a-feature-desc'));
+		const descEl = append(textCol, $('div.onboarding-a-feature-desc'));
 		if (description) {
 			descEl.textContent = description;
 		}
