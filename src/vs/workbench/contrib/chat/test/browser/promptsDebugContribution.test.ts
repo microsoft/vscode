@@ -12,6 +12,7 @@ import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugS
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatAgentService, IChatAgentInvocationEvent } from '../../common/participants/chatAgents.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { PromptsDebugContribution } from '../../browser/promptsDebugContribution.js';
 import { ILocalPromptPath, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -50,6 +51,7 @@ suite('PromptsDebugContribution', () => {
 
 		willInvokeAgentEmitter = disposables.add(new Emitter<IChatAgentInvocationEvent>());
 		instaService.stub(IChatAgentService, { onWillInvokeAgent: willInvokeAgentEmitter.event } as Partial<IChatAgentService>);
+		instaService.stub(IChatService, { onDidDisposeSession: disposables.add(new Emitter()).event } as Partial<IChatService>);
 		promptsService = {
 			getDiscoveryInfo: async type => emptyDiscoveryInfo(type),
 		};
