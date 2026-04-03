@@ -352,7 +352,7 @@ class ChangesViewModel extends Disposable {
 			return activeSessionRepositoryPromise.read(reader);
 		});
 
-		this.activeSessionRepositoryStateObs = derivedOpts({ equalsFn: structuralEquals }, reader => {
+		this.activeSessionRepositoryStateObs = derived(reader => {
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const repositoryState = repository?.state.read(reader);
 
