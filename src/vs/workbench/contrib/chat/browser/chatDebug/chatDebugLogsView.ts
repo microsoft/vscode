@@ -79,6 +79,9 @@ export class ChatDebugLogsView extends Disposable {
 	private readonly progressBar: ProgressBar;
 	private readonly showMoreContainer: HTMLElement;
 	private readonly showMoreDisposables = this._register(new DisposableStore());
+	private showMoreStatusLabel: HTMLElement | undefined;
+	private showMoreBtn: Button | undefined;
+	private showMoreVisible = false;
 	private visibleLimit = PAGE_SIZE;
 
 	constructor(
@@ -368,6 +371,12 @@ export class ChatDebugLogsView extends Disposable {
 		}
 
 		this.updateShowMore(totalFiltered);
+
+		// Re-layout when show-more visibility changed so the list/tree
+		// height accounts for the footer.
+		if (this.currentDimension) {
+			this.layout(this.currentDimension);
+		}
 	}
 
 	addEvent(event: IChatDebugEvent): void {
@@ -444,9 +453,9 @@ export class ChatDebugLogsView extends Disposable {
 			this.cachedExcludeTerms = [];
 			return;
 		}
-		const terms = textOnly.split(/\s*,\s*/).filter(t => t.length > 0);
+		const terms = textOnly.split(',').map(t => t.trim()).filter(t => t.length > 0);
 		this.cachedIncludeTerms = terms.filter(t => !t.startsWith('!'));
-		this.cachedExcludeTerms = terms.filter(t => t.startsWith('!')).map(t => t.slice(1)).filter(t => t.length > 0);
+		this.cachedExcludeTerms = terms.filter(t => t.startsWith('!')).map(t => t.slice(1).trim()).filter(t => t.length > 0);
 	}
 
 	private scheduleRefresh(): void {
@@ -546,29 +555,36 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	private updateShowMore(totalFiltered: number): void {
-		this.showMoreDisposables.clear();
-		DOM.clearNode(this.showMoreContainer);
 		if (totalFiltered <= this.visibleLimit) {
-			DOM.hide(this.showMoreContainer);
+			if (this.showMoreVisible) {
+				DOM.hide(this.showMoreContainer);
+				this.showMoreVisible = false;
+			}
 			return;
 		}
-		DOM.show(this.showMoreContainer);
+
+		// Create the status label and button once, then reuse.
+		if (!this.showMoreStatusLabel) {
+			this.showMoreStatusLabel = DOM.append(this.showMoreContainer, $('span.chat-debug-logs-show-more-status'));
+		}
+		if (!this.showMoreBtn) {
+			this.showMoreBtn = this.showMoreDisposables.add(new Button(this.showMoreContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.showMoreTitle', "Load more events") }));
+			this.showMoreDisposables.add(this.showMoreBtn.onDidClick(() => {
+				this.visibleLimit += PAGE_SIZE;
+				this.refreshList();
+			}));
+		}
 
 		const shown = Math.min(this.visibleLimit, totalFiltered);
 		const remaining = totalFiltered - shown;
 
-		const statusLabel = DOM.append(this.showMoreContainer, $('span.chat-debug-logs-show-more-status'));
-		statusLabel.textContent = localize('chatDebug.showingCount', "Showing {0} of {1} events", shown, totalFiltered);
+		this.showMoreStatusLabel.textContent = localize('chatDebug.showingCount', "Showing {0} of {1} events", shown, totalFiltered);
+		this.showMoreBtn.label = localize('chatDebug.showMore', "Show More ({0})", remaining);
 
-		const showMoreBtn = this.showMoreDisposables.add(new Button(this.showMoreContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.showMoreTitle', "Load more events") }));
-		showMoreBtn.label = localize('chatDebug.showMore', "Show More ({0})", remaining);
-		this.showMoreDisposables.add(showMoreBtn.onDidClick(() => {
-			this.visibleLimit += PAGE_SIZE;
-			this.refreshList();
-			if (this.currentDimension) {
-				this.layout(this.currentDimension);
-			}
-		}));
+		if (!this.showMoreVisible) {
+			DOM.show(this.showMoreContainer);
+			this.showMoreVisible = true;
+		}
 	}
 
 	private toggleViewMode(): void {
