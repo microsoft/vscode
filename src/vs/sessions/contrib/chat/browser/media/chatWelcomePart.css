@@ -236,7 +236,6 @@
 .sessions-chat-picker-slot.disabled .action-label:hover {
 	background-color: transparent;
 	color: var(--vscode-icon-foreground);
-	cursor: default;
 }
 
 .chat-input-picker-item .action-label.disabled {
