@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable } from '../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../github/browser/models/githubPullRequestCIModel.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 
 export class ChecksViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
@@ -25,7 +26,9 @@ export class ChecksViewModel extends Disposable {
 			return session?.resource;
 		});
 
-		this.checksObs = derived(this, reader => {
+		const pullRequestInfoObs = derivedOpts<{ owner: string; repo: string; headRef: string } | undefined>({
+			equalsFn: structuralEquals
+		}, reader => {
 			const session = sessionManagementService.activeSession.read(reader);
 			if (!session) {
 				return undefined;
@@ -42,10 +45,23 @@ export class ChecksViewModel extends Disposable {
 				return undefined;
 			}
 
+			return {
+				owner: gitHubInfo.owner,
+				repo: gitHubInfo.repo,
+				headRef: pr.headSha
+			};
+		});
+
+		this.checksObs = derived(this, reader => {
+			const pullRequestInfo = pullRequestInfoObs.read(reader);
+			if (!pullRequestInfo) {
+				return undefined;
+			}
+
 			// Use the PR's headSha (commit SHA) rather than the branch
 			// name so CI checks can still be fetched after branch deletion
 			// (e.g. after the PR is merged).
-			const ciModel = gitHubService.getPullRequestCI(gitHubInfo.owner, gitHubInfo.repo, pr.headSha);
+			const ciModel = gitHubService.getPullRequestCI(pullRequestInfo.owner, pullRequestInfo.repo, pullRequestInfo.headRef);
 			ciModel.refresh();
 			ciModel.startPolling();
 			reader.store.add({ dispose: () => ciModel.stopPolling() });
