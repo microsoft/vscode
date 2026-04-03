@@ -586,6 +586,7 @@ export class AICustomizationListWidget extends Disposable {
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<string>();
 	private readonly dropdownActionDisposables = this._register(new DisposableStore());
+	private _loadItemsSeq = 0;
 
 	private readonly delayedFilter = new Delayer<void>(200);
 
@@ -1159,9 +1160,12 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Loads items for the current section.
+	 * Uses a sequence counter so that stale results from concurrent
+	 * calls (e.g. overlapping autorun refreshes) are discarded.
 	 */
 	private async loadItems(): Promise<void> {
 		const section = this.currentSection;
+		const seq = ++this._loadItemsSeq;
 		let items: IAICustomizationListItem[];
 		try {
 			items = await this.fetchItemsForSection(section);
@@ -1170,8 +1174,8 @@ export class AICustomizationListWidget extends Disposable {
 			items = [];
 		}
 
-		if (this.currentSection !== section) {
-			return; // section changed while loading
+		if (this.currentSection !== section || this._loadItemsSeq !== seq) {
+			return; // section changed or a newer load started while loading
 		}
 
 		this.allItems = items;
