@@ -537,17 +537,9 @@ class ChangesViewModel extends Disposable {
 		const { isLoading, state } = this._getActiveSessionState();
 		this.activeSessionIsLoadingObs = isLoading;
 		this.activeSessionStateObs = state;
-
-		autorun(reader => {
-			console.log('isLoading', this.activeSessionIsLoadingObs.read(reader));
-			console.log('session state: ', this.activeSessionStateObs.read(reader));
-		});
 	}
 
-	private _getActiveSessionState(): {
-		isLoading: IObservable<boolean>;
-		state: IObservable<ActiveSessionState | undefined>;
-	} {
+	private _getActiveSessionState(): { isLoading: IObservable<boolean>; state: IObservable<ActiveSessionState | undefined> } {
 		const isLoadingObs = derived(reader => {
 			// If there is a git repository, wait for the repository to be opened first,
 			// as there are many context keys that depend on the repository information.
@@ -586,9 +578,10 @@ class ChangesViewModel extends Disposable {
 			}
 
 			// Session state
+			const workspace = activeSession?.workspace.read(reader);
 			const isolationMode = this.activeSessionIsolationModeObs.read(reader);
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			const isMergeBaseBranchProtected = activeSession?.workspace.read(reader)?.repositories[0]?.baseBranchProtected === true;
+			const isMergeBaseBranchProtected = workspace?.repositories[0]?.baseBranchProtected;
 
 			// Pull request state
 			const gitHubInfo = activeSession?.gitHubInfo.read(reader);
