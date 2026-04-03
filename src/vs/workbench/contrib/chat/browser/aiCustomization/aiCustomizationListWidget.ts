@@ -1022,7 +1022,7 @@ export class AICustomizationListWidget extends Disposable {
 				});
 				if (hasWorkspace) {
 					actions.push({
-						label: `$(${Codicon.add.id}) Configure Hooks`,
+						label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 						enabled: true,
 						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
 					});
@@ -1030,9 +1030,9 @@ export class AICustomizationListWidget extends Disposable {
 			} else if (!override?.commandId) {
 				// Sessions / non-local: configure hooks (view + create)
 				actions.push({
-					label: `$(${Codicon.add.id}) Configure Hooks`,
+					label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 					enabled: hasWorkspace,
-					tooltip: hasWorkspace ? undefined : localize('createDisabled', "Open a workspace folder to create customizations."),
+					tooltip: hasWorkspace ? undefined : localize('configureHooksDisabled', "Open a workspace folder to configure hooks."),
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
 				});
 			}
