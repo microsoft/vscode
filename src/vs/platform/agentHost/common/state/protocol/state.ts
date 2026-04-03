@@ -454,18 +454,24 @@ export interface IMarkdownResponsePart {
 
 /**
  * A reference to large content stored outside the state tree.
- *
- * @category Response Parts
  */
 export interface IContentRef {
-	/** Discriminant */
-	kind: ResponsePartKind.ContentRef;
 	/** Content URI */
-	uri: string;
+	uri: URI;
 	/** Approximate size in bytes */
 	sizeHint?: number;
 	/** Content MIME type */
 	contentType?: string;
+}
+
+/**
+ * A content part that's a reference to large content stored outside the state tree.
+ *
+ * @category Response Parts
+ */
+export interface IResourceReponsePart extends IContentRef {
+	/** Discriminant */
+	kind: ResponsePartKind.ContentRef;
 }
 
 /**
@@ -501,7 +507,7 @@ export interface IReasoningResponsePart {
 /**
  * @category Response Parts
  */
-export type IResponsePart = IMarkdownResponsePart | IContentRef | IToolCallResponsePart | IReasoningResponsePart;
+export type IResponsePart = IMarkdownResponsePart | IResourceReponsePart | IToolCallResponsePart | IReasoningResponsePart;
 
 // ─── Tool Call Types ─────────────────────────────────────────────────────────
 
@@ -786,7 +792,8 @@ export interface IToolAnnotations {
  */
 export const enum ToolResultContentType {
 	Text = 'text',
-	Binary = 'binary',
+	EmbeddedResource = 'embeddedResource',
+	Resource = 'resource',
 	FileEdit = 'fileEdit',
 }
 
@@ -804,14 +811,14 @@ export interface IToolResultTextContent {
 }
 
 /**
- * Base64-encoded binary content in a tool result.
+ * Base64-encoded binary content embedded in a tool result.
  *
- * Mirrors MCP `ImageContent` but generalized to any binary content type.
+ * Mirrors MCP `EmbeddedResource` for inline binary data.
  *
  * @category Tool Result Content
  */
-export interface IToolResultBinaryContent {
-	type: ToolResultContentType.Binary;
+export interface IToolResultEmbeddedResourceContent {
+	type: ToolResultContentType.EmbeddedResource;
 	/** Base64-encoded data */
 	data: string;
 	/** Content type (e.g. `"image/png"`, `"application/pdf"`) */
@@ -819,18 +826,40 @@ export interface IToolResultBinaryContent {
 }
 
 /**
+ * A reference to a resource stored outside the tool result.
+ *
+ * Wraps {@link IContentRef} for lazy-loading large results.
+ *
+ * @category Tool Result Content
+ */
+export interface IToolResultResourceContent extends IContentRef {
+	type: ToolResultContentType.Resource;
+}
+
+/**
  * Describes a file modification performed by a tool.
  *
- * Clients can use the `beforeURI`/`afterURI` pair to render a diff view.
+ * Supports creates (only `after`), deletes (only `before`), renames/moves
+ * (different `uri` in `before` and `after`), and edits (same `uri`, different content).
  *
  * @category Tool Result Content
  */
 export interface IToolResultFileEditContent {
 	type: ToolResultContentType.FileEdit;
-	/** URI of the file content before the edit */
-	beforeURI: URI;
-	/** URI of the file content after the edit */
-	afterURI: URI;
+	/** The file state before the edit. Absent for file creations or for in-place file edits. */
+	before?: {
+		/** URI of the file before the edit */
+		uri: URI;
+		/** Reference to the file content before the edit */
+		content: IContentRef;
+	};
+	/** The file state after the edit. Absent for file deletions. */
+	after?: {
+		/** URI of the file after the edit */
+		uri: URI;
+		/** Reference to the file content after the edit */
+		content: IContentRef;
+	};
 	/** Optional diff display metadata */
 	diff?: {
 		/** Number of items added (e.g., lines for text files, cells for notebooks) */
@@ -844,16 +873,16 @@ export interface IToolResultFileEditContent {
  * Content block in a tool result.
  *
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
- * `IContentRef` for lazy-loading large results and `IToolResultFileEditContent`
- * for file edit diffs (AHP extensions).
+ * `IToolResultResourceContent` for lazy-loading large results and
+ * `IToolResultFileEditContent` for file edit diffs (AHP extensions).
  *
  * @category Tool Result Content
  */
 export type IToolResultContent =
 	| IToolResultTextContent
-	| IToolResultBinaryContent
-	| IToolResultFileEditContent
-	| IContentRef;
+	| IToolResultEmbeddedResourceContent
+	| IToolResultResourceContent
+	| IToolResultFileEditContent;
 
 // ─── Customization Types ─────────────────────────────────────────────────────
 

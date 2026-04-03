@@ -604,12 +604,11 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 		const chatSessionType = getChatSessionType(sessionResource);
-		const contribution = this.chatSessionService.getChatSessionContribution(chatSessionType);
 		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
 		const storedPermissionLevel = this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.permissionLevel;
 		let initialData: ISerializedChatDataReference | undefined = undefined;
-		if ((modelId || agentUri) && contribution?.useRequestToPopulateBuiltInPickers) {
+		if ((modelId || agentUri)) {
 			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
 			const modelMetadata = modelId ? this.languageModelsService.lookupLanguageModel(modelId) : undefined;
 			const selectedModel: ISerializableChatModelInputState['selectedModel'] = modelId && modelMetadata ? { identifier: modelId, metadata: modelMetadata } : undefined;
@@ -861,6 +860,8 @@ export class ChatService extends Disposable implements IChatService {
 			attachedContext: options.attachedContext,
 			modelId: options.userSelectedModelId,
 			userSelectedTools: options.userSelectedTools?.get(),
+			isSystemInitiated: options.isSystemInitiated,
+			systemInitiatedLabel: options.systemInitiatedLabel,
 		});
 
 		const deferred = new DeferredPromise<ChatSendResult>();
@@ -1114,7 +1115,7 @@ export class ChatService extends Disposable implements IChatService {
 			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
-				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
+				const hooksInfo = await this.promptsService.getHooks(token);
 				if (hooksInfo) {
 					collectedHooks = hooksInfo.hooks;
 					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
@@ -1127,7 +1128,7 @@ export class ChatService extends Disposable implements IChatService {
 			const agentName = options?.modeInfo?.modeInstructions?.name;
 			if (agentName) {
 				try {
-					const agents = await this.promptsService.getCustomAgents(token, model.sessionResource);
+					const agents = await this.promptsService.getCustomAgents(token);
 					const customAgent = agents.find(a => a.name === agentName);
 					if (customAgent?.hooks) {
 						collectedHooks = mergeHooks(collectedHooks, customAgent.hooks);
@@ -1163,7 +1164,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), undefined, options?.isSystemInitiated, options?.systemInitiatedLabel);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
@@ -1207,6 +1208,7 @@ export class ChatService extends Disposable implements IChatService {
 							editedFileEvents: request.editedFileEvents,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
+							isSystemInitiated: options?.isSystemInitiated,
 						};
 
 						let isInitialTools = true;

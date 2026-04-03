@@ -17,7 +17,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { ISession } from '../../../sessions/common/sessionData.js';
 import { ICodeReviewService, CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion } from '../../browser/codeReviewService.js';
 
@@ -101,7 +101,7 @@ suite('CodeReviewService', () => {
 	class MockSessionsManagementService extends mock<ISessionsManagementService>() {
 		private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 		override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
-		override readonly activeSession: IObservable<ISession | undefined>;
+		override readonly activeSession: IObservable<IActiveSession | undefined>;
 
 		private readonly _sessions = new Map<string, ISession>();
 
@@ -109,7 +109,7 @@ suite('CodeReviewService', () => {
 			super();
 			this._onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
 			this.onDidChangeSessions = this._onDidChangeSessions.event;
-			this.activeSession = observableValue<ISession | undefined>('test.activeSession', undefined);
+			this.activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 		}
 
 		override getSession(resource: URI): ISession | undefined {

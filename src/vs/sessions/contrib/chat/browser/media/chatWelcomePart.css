@@ -40,7 +40,7 @@
 	display: none;
 	width: 100%;
 	max-width: 800px;
-	margin: 0 0 12px 0;
+	margin: 0 0 8px 0;
 	padding: 0;
 	box-sizing: border-box;
 }
@@ -181,6 +181,7 @@
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
 	font-size: 16px;
+	margin: 0;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {

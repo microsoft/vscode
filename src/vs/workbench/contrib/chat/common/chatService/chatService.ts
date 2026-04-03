@@ -818,6 +818,16 @@ export namespace IChatToolInvocation {
 		return state.type === StateKind.Completed || state.type === StateKind.Cancelled;
 	}
 
+	export function isEffectivelyHidden(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
+		if (invocation.presentation === 'hidden') {
+			return true;
+		}
+		if (invocation.presentation === 'hiddenAfterComplete' && isComplete(invocation, reader)) {
+			return true;
+		}
+		return false;
+	}
+
 	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
 		if (invocation.kind === 'toolInvocationSerialized') {
 			return false;
@@ -1396,6 +1406,20 @@ export interface IChatSendRequestOptions {
 	 * The request stays in the queue until `processPendingRequests` is called explicitly.
 	 */
 	pauseQueue?: boolean;
+
+	/**
+	 * When true, the request is rendered as a compact tool-progress-style line
+	 * instead of a full user message bubble. Used for system-initiated notifications
+	 * such as terminal command completion.
+	 */
+	isSystemInitiated?: boolean;
+
+	/**
+	 * Display label for system-initiated requests. When set, the request row renders
+	 * this label as a compact progress-style message instead of the full request text.
+	 */
+	systemInitiatedLabel?: string;
+
 
 }
 

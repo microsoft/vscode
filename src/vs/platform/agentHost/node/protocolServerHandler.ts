@@ -237,8 +237,11 @@ export class ProtocolServerHandler extends Disposable {
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
 		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
-			browseDirectory: (uri) => this._sendReverseRequest(params.clientId, 'browseDirectory', { uri: uri.toString() }),
-			fetchContent: (uri) => this._sendReverseRequest(params.clientId, 'fetchContent', { uri: uri.toString() }),
+			resourceList: (uri) => this._sendReverseRequest(params.clientId, 'resourceList', { uri: uri.toString() }),
+			resourceRead: (uri) => this._sendReverseRequest(params.clientId, 'resourceRead', { uri: uri.toString() }),
+			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
+			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
+			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
 		}));
 
 
@@ -331,12 +334,27 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		createSession: async (_client, params) => {
 			let createdSession: URI;
+			// Resolve fork turnId to a 0-based index using the source session's
+			// turn list in the state manager.
+			let fork: { session: URI; turnIndex: number } | undefined;
+			if (params.fork) {
+				const sourceState = this._stateManager.getSessionState(params.fork.session);
+				if (!sourceState) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);
+				}
+				const turnIndex = sourceState.turns.findIndex(t => t.id === params.fork!.turnId);
+				if (turnIndex < 0) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
+				}
+				fork = { session: URI.parse(params.fork.session), turnIndex };
+			}
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
 					model: params.model,
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
 					session: URI.parse(params.session),
+					fork,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -354,8 +372,8 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeSession(URI.parse(params.session));
 			return null;
 		},
-		writeFile: async (_client, params) => {
-			return this._agentService.writeFile(params);
+		resourceWrite: async (_client, params) => {
+			return this._agentService.resourceWrite(params);
 		},
 		listSessions: async () => {
 			const sessions = await this._agentService.listSessions();
@@ -392,11 +410,20 @@ export class ProtocolServerHandler extends Disposable {
 				hasMore: startIndex > 0,
 			};
 		},
-		browseDirectory: async (_client, params) => {
-			return this._agentService.browseDirectory(URI.parse(params.uri));
+		resourceList: async (_client, params) => {
+			return this._agentService.resourceList(URI.parse(params.uri));
 		},
-		fetchContent: async (_client, params) => {
-			return this._agentService.fetchContent(URI.parse(params.uri));
+		resourceRead: async (_client, params) => {
+			return this._agentService.resourceRead(URI.parse(params.uri));
+		},
+		resourceCopy: async (_client, params) => {
+			return this._agentService.resourceCopy(params);
+		},
+		resourceDelete: async (_client, params) => {
+			return this._agentService.resourceDelete(params);
+		},
+		resourceMove: async (_client, params) => {
+			return this._agentService.resourceMove(params);
 		},
 	};
 

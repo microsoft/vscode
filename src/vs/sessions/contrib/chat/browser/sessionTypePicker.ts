@@ -77,8 +77,8 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (!chat) {
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!session) {
 			return;
 		}
 
@@ -93,7 +93,7 @@ export class SessionTypePicker extends Disposable {
 		const delegate: IActionListDelegate<ISessionType> = {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
-				this.sessionsManagementService.setSessionType(chat, type);
+				this.sessionsManagementService.setSessionType(session, type);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
@@ -114,7 +114,7 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement) {
+		if (!this._triggerElement || !this._slotElement) {
 			return;
 		}
 
@@ -129,7 +129,10 @@ export class SessionTypePicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 
 		const hasMultipleTypes = this._sessionTypes.length > 1;
-		this._slotElement?.classList.toggle('disabled', !hasMultipleTypes);
+		dom.setVisibility(hasMultipleTypes, this._slotElement);
+		this._slotElement.classList.toggle('disabled', false);
+		this._triggerElement.setAttribute('aria-hidden', String(!hasMultipleTypes));
+		this._triggerElement.tabIndex = hasMultipleTypes ? 0 : -1;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
 }

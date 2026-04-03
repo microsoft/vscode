@@ -8,13 +8,14 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -55,8 +56,6 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, matchesWorkspaceSubpath, matchesInstructionFileFilter, ICustomizationSyncProvider } from '../../common/customizationHarnessService.js';
-import { evaluateApplyToPattern } from '../../common/promptSyntax/computeAutomaticInstructions.js';
-import { isInClaudeRulesFolder, getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -970,8 +969,8 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Check for menu-contributed create actions from extensions.
 		// Extensions contribute to AICustomizationManagementCreateMenuId with
-		// when-clauses targeting aiCustomizationManagementHarness and
-		// aiCustomizationManagementSection context keys.
+		// when-clauses targeting chatCustomizationSessionType and
+		// chatCustomizationSection context keys.
 		// When a harness contributes create actions, they REPLACE the built-in ones
 		// for all section types, including hooks.
 		const menuActions = this.menuService.getMenuActions(
@@ -1023,17 +1022,17 @@ export class AICustomizationListWidget extends Disposable {
 				});
 				if (hasWorkspace) {
 					actions.push({
-						label: `$(${Codicon.add.id}) Configure Hooks`,
+						label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 						enabled: true,
 						run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
 					});
 				}
 			} else if (!override?.commandId) {
-				// Sessions / non-local: workspace creation only
+				// Sessions / non-local: configure hooks (view + create)
 				actions.push({
-					label: `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`,
+					label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
 					enabled: hasWorkspace,
-					tooltip: hasWorkspace ? undefined : localize('createDisabled', "Open a workspace folder to create customizations."),
+					tooltip: hasWorkspace ? undefined : localize('configureHooksDisabled', "Open a workspace folder to configure hooks."),
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
 				});
 			}
@@ -1163,7 +1162,13 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private async loadItems(): Promise<void> {
 		const section = this.currentSection;
-		const items = await this.fetchItemsForSection(section);
+		let items: IAICustomizationListItem[];
+		try {
+			items = await this.fetchItemsForSection(section);
+		} catch (err) {
+			onUnexpectedError(err);
+			items = [];
+		}
 
 		if (this.currentSection !== section) {
 			return; // section changed while loading
@@ -1202,12 +1207,12 @@ export class AICustomizationListWidget extends Disposable {
 	 * agent hooks) are left untouched — groupKey overrides are only applied to
 	 * items whose current groupKey is `undefined`.
 	 */
-	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ReadonlyMap<string, { id: ExtensionIdentifier; displayName?: string }>): IAICustomizationListItem[] {
+	private applyBuiltinGroupKeys(items: IAICustomizationListItem[], extensionInfoByUri: ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>): IAICustomizationListItem[] {
 		return items.map(item => {
 			if (item.storage !== PromptsStorage.extension) {
 				return item;
 			}
-			const extInfo = extensionInfoByUri.get(item.uri.toString());
+			const extInfo = extensionInfoByUri.get(item.uri);
 			if (!extInfo) {
 				return item;
 			}
@@ -1228,28 +1233,41 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Fetches and filters items for a given section.
-	 * Shared between `loadItems` (active section) and `computeItemCountForSection` (any section).
+	 * Delegates to the provider path or core path based on the active harness.
 	 */
 	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
 		const promptType = sectionToPromptType(section);
-
-		// When the active harness has an external item provider, delegate to it
-		// instead of querying promptsService and applying filters.
-		// When the harness also has a syncProvider, include local items with
-		// sync toggles alongside the remote items.
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
+
 		if (activeDescriptor.itemProvider && promptType) {
-			const remoteItems = await this.fetchItemsFromProvider(activeDescriptor.itemProvider, promptType);
-			if (!activeDescriptor.syncProvider) {
-				return remoteItems;
-			}
-			const localItems = await this.fetchLocalSyncableItems(promptType, activeDescriptor.syncProvider);
-			return [...remoteItems, ...localItems];
+			return this.fetchProviderItemsForSection(activeDescriptor, promptType);
 		}
 
+		return this.fetchCoreItemsForSection(promptType);
+	}
+
+	/**
+	 * Fetches items from an external customization provider.
+	 * When a syncProvider is present, blends remote items with local sync items.
+	 */
+	private async fetchProviderItemsForSection(descriptor: ReturnType<ICustomizationHarnessService['getActiveDescriptor']>, promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const remoteItems = await this.fetchItemsFromProvider(descriptor.itemProvider!, promptType);
+		if (!descriptor.syncProvider) {
+			return remoteItems;
+		}
+		const localItems = await this.fetchLocalSyncableItems(promptType, descriptor.syncProvider);
+		return [...remoteItems, ...localItems];
+	}
+
+	/**
+	 * Fetches items from the core promptsService with full filtering pipeline.
+	 * This is the legacy path used when no external provider is active.
+	 * TODO: Remove when provider API is the sole code path.
+	 */
+	private async fetchCoreItemsForSection(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const items: IAICustomizationListItem[] = [];
 		const disabledUris = this.promptsService.getDisabledPromptFiles(promptType);
-		const extensionInfoByUri = new Map<string, { id: ExtensionIdentifier; displayName?: string }>();
+		const extensionInfoByUri = new ResourceMap<{ id: ExtensionIdentifier; displayName?: string }>();
 
 
 		if (promptType === PromptsType.agent) {
@@ -1259,7 +1277,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allAgentFiles = await this.promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None);
 			for (const file of allAgentFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			for (const agent of agents) {
@@ -1276,8 +1294,8 @@ export class AICustomizationListWidget extends Disposable {
 					disabled: disabledUris.has(agent.uri),
 				});
 				// Track extension ID for built-in grouping (if not already set from file list)
-				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri.toString())) {
-					extensionInfoByUri.set(agent.uri.toString(), { id: agent.source.extensionId });
+				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri)) {
+					extensionInfoByUri.set(agent.uri, { id: agent.source.extensionId });
 				}
 			}
 		} else if (promptType === PromptsType.skill) {
@@ -1287,7 +1305,7 @@ export class AICustomizationListWidget extends Disposable {
 			const allSkillFiles = await this.promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None);
 			for (const file of allSkillFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
@@ -1340,23 +1358,23 @@ export class AICustomizationListWidget extends Disposable {
 			// Filter out skills since they have their own section
 			const commands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
 			for (const command of commands) {
-				if (command.promptPath.type === PromptsType.skill) {
+				if (command.type === PromptsType.skill) {
 					continue;
 				}
-				const filename = basename(command.promptPath.uri);
+				const filename = basename(command.uri);
 				items.push({
-					id: command.promptPath.uri.toString(),
-					uri: command.promptPath.uri,
+					id: command.uri.toString(),
+					uri: command.uri,
 					name: command.name,
 					filename,
 					description: command.description,
-					storage: command.promptPath.storage,
+					storage: command.storage,
 					promptType,
-					pluginUri: command.promptPath.storage === PromptsStorage.plugin ? command.promptPath.pluginUri : undefined,
-					disabled: disabledUris.has(command.promptPath.uri),
+					pluginUri: command.storage === PromptsStorage.plugin ? command.pluginUri : undefined,
+					disabled: disabledUris.has(command.uri),
 				});
-				if (command.promptPath.extension) {
-					extensionInfoByUri.set(command.promptPath.uri.toString(), { id: command.promptPath.extension.identifier, displayName: command.promptPath.extension.displayName });
+				if (command.extension) {
+					extensionInfoByUri.set(command.uri, { id: command.extension.identifier, displayName: command.extension.displayName });
 				}
 			}
 		} else if (promptType === PromptsType.hook) {
@@ -1463,10 +1481,10 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		} else {
 			// For instructions, group by category: agent instructions, context instructions, on-demand instructions
-			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
-			for (const file of promptFiles) {
+			const instructionFiles = await this.promptsService.getInstructionFiles(CancellationToken.None);
+			for (const file of instructionFiles) {
 				if (file.extension) {
-					extensionInfoByUri.set(file.uri.toString(), { id: file.extension.identifier, displayName: file.extension.displayName });
+					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
 			const agentInstructionFiles = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
@@ -1496,63 +1514,53 @@ export class AICustomizationListWidget extends Disposable {
 			}
 
 			// Parse prompt files to separate into context vs on-demand
-			const promptFilesToParse = promptFiles.filter(item => !agentInstructionUris.has(item.uri));
-			const parseResults = await Promise.all(promptFilesToParse.map(async item => {
-				try {
-					const parsed = await this.promptsService.parseNew(item.uri, CancellationToken.None);
-					return { item, parsed };
-				} catch {
-					// Parse failed — treat as on-demand
-					return { item, parsed: undefined };
+
+			for (const { uri, pattern, name, description, storage, pluginUri } of instructionFiles) {
+				if (agentInstructionUris.has(uri)) {
+					continue; // already added as agent instruction
 				}
-			}));
 
-			for (const { item, parsed } of parseResults) {
-				const applyTo = evaluateApplyToPattern(parsed?.header, isInClaudeRulesFolder(item.uri));
-				const name = parsed?.header?.name;
-				let description = parsed?.header?.description;
-				const friendlyName = this.getFriendlyName(name || item.name || getCleanPromptName(item.uri));
-				description = description || item.description;
+				const friendlyName = this.getFriendlyName(name);
 
-				if (applyTo !== undefined) {
+				if (pattern !== undefined) {
 					// Context instruction
-					const badge = applyTo === '**'
+					const badge = pattern === '**'
 						? localize('alwaysAdded', "always added")
-						: applyTo;
-					const badgeTooltip = applyTo === '**'
+						: pattern;
+					const badgeTooltip = pattern === '**'
 						? localize('alwaysAddedTooltip', "This instruction is automatically included in every interaction.")
-						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", applyTo);
+						: localize('onContextTooltip', "This instruction is automatically included when files matching '{0}' are in context.", pattern);
 					items.push({
-						id: item.uri.toString(),
-						uri: item.uri,
+						id: uri.toString(),
+						uri,
 						name: friendlyName,
-						filename: this.labelService.getUriLabel(item.uri, { relative: true }),
+						filename: this.labelService.getUriLabel(uri, { relative: true }),
 						displayName: friendlyName,
 						badge,
 						badgeTooltip,
-						description: description,
-						storage: item.storage,
+						description,
+						storage,
 						promptType,
-						typeIcon: storageToIcon(item.storage),
+						typeIcon: storageToIcon(storage),
 						groupKey: 'context-instructions',
-						pluginUri: item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
-						disabled: disabledUris.has(item.uri),
+						pluginUri,
+						disabled: disabledUris.has(uri),
 					});
 				} else {
 					// On-demand instruction
 					items.push({
-						id: item.uri.toString(),
-						uri: item.uri,
+						id: uri.toString(),
+						uri,
 						name: friendlyName,
-						filename: basename(item.uri),
+						filename: basename(uri),
 						displayName: friendlyName,
-						description: description,
-						storage: item.storage,
+						description,
+						storage,
 						promptType,
-						typeIcon: storageToIcon(item.storage),
+						typeIcon: storageToIcon(storage),
 						groupKey: 'on-demand-instructions',
-						pluginUri: item.storage === PromptsStorage.plugin ? item.pluginUri : undefined,
-						disabled: disabledUris.has(item.uri),
+						pluginUri,
+						disabled: disabledUris.has(uri),
 					});
 				}
 			}
@@ -1624,20 +1632,67 @@ export class AICustomizationListWidget extends Disposable {
 			return [];
 		}
 
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+
+		// Build a URI→description lookup from promptsService for items the provider
+		// doesn't supply descriptions for (e.g. skills and instructions from ChatResource).
+		const descriptionsByUri = new ResourceMap<string>();
+		if (promptType === PromptsType.skill) {
+			const skills = await this.promptsService.findAgentSkills(CancellationToken.None);
+			for (const s of skills ?? []) {
+				if (s.description) {
+					descriptionsByUri.set(s.uri, s.description);
+				}
+			}
+		}
+
 		return allItems
 			.filter(item => item.type === promptType)
-			.map((item: IExternalCustomizationItem) => ({
-				id: item.uri.toString(),
-				uri: item.uri,
-				name: item.name,
-				filename: basename(item.uri),
-				description: item.description,
-				promptType,
-				disabled: item.enabled === false,
-				status: item.status,
-				statusMessage: item.statusMessage,
-			}))
+			.map((item: IExternalCustomizationItem) => {
+				const { storage, groupKey } = item.groupKey
+					? { storage: undefined, groupKey: item.groupKey }
+					: this._inferStorageAndGroup(item.uri, workspaceFolders);
+				return {
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: item.name,
+					filename: basename(item.uri),
+					description: item.description ?? descriptionsByUri.get(item.uri),
+					promptType,
+					disabled: item.enabled === false,
+					status: item.status,
+					statusMessage: item.statusMessage,
+					groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
+					storage,
+				};
+			})
 			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Infers storage and groupKey from a URI for auto-grouping.
+	 *
+	 * - `file:` URIs under a workspace folder → storage `local` (Workspace group)
+	 * - `file:` URIs elsewhere (e.g. `~/.copilot/`) → storage `user` (User group)
+	 * - Non-file schemes (synthetic URIs, vscode-userdata:, etc.) → groupKey `builtin` (Built-in group)
+	 */
+	private _inferStorageAndGroup(uri: URI, workspaceFolders: readonly { uri: URI }[]): { storage?: PromptsStorage; groupKey?: string } {
+		// Non-file schemes are synthetic/built-in (includes vscode-userdata: for extension-contributed items)
+		if (uri.scheme !== Schemas.file) {
+			return { groupKey: BUILTIN_STORAGE };
+		}
+
+		// file: URI under a workspace folder = workspace (local)
+		for (const folder of workspaceFolders) {
+			if (isEqualOrParent(uri, folder.uri)) {
+				return { storage: PromptsStorage.local };
+			}
+		}
+
+		// file: URI elsewhere = user directory
+		return { storage: PromptsStorage.user };
 	}
 
 	/**
@@ -1690,120 +1745,46 @@ export class AICustomizationListWidget extends Disposable {
 	/**
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
-	private filterItems(): number {
-		let matchedItems: IAICustomizationListItem[];
-
+	/**
+	 * Applies the search query to items, returning matched items with highlight info.
+	 */
+	private applySearchFilter(items: IAICustomizationListItem[]): IAICustomizationListItem[] {
 		if (!this.searchQuery.trim()) {
-			matchedItems = this.allItems.map(item => ({ ...item, nameMatches: undefined, descriptionMatches: undefined }));
-		} else {
-			const query = this.searchQuery.toLowerCase();
-			matchedItems = [];
+			return items.map(item => ({ ...item, nameMatches: undefined, descriptionMatches: undefined }));
+		}
 
-			for (const item of this.allItems) {
-				// Compute matches against the formatted display name so highlight positions
-				// are correct even after .md stripping and title-casing.
-				const displayName = item.displayName ?? formatDisplayName(item.name);
-				const nameMatches = matchesContiguousSubString(query, displayName);
-				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
-				const filenameMatches = matchesContiguousSubString(query, item.filename);
-				const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
+		const query = this.searchQuery.toLowerCase();
+		const matched: IAICustomizationListItem[] = [];
 
-				if (nameMatches || descriptionMatches || filenameMatches || badgeMatches) {
-					matchedItems.push({
-						...item,
-						nameMatches: nameMatches || undefined,
-						descriptionMatches: descriptionMatches || undefined,
-					});
-				}
+		for (const item of items) {
+			const displayName = item.displayName ?? formatDisplayName(item.name);
+			const nameMatches = matchesContiguousSubString(query, displayName);
+			const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
+			const filenameMatches = matchesContiguousSubString(query, item.filename);
+			const badgeMatches = item.badge ? matchesContiguousSubString(query, item.badge) : null;
+
+			if (nameMatches || descriptionMatches || filenameMatches || badgeMatches) {
+				matched.push({
+					...item,
+					nameMatches: nameMatches || undefined,
+					descriptionMatches: descriptionMatches || undefined,
+				});
 			}
 		}
 
-		// When items come from an external provider, skip storage-based grouping
-		// and render a flat list. When a syncProvider is also present, show
-		// remote items first, then local items below with sync checkboxes.
-		// Synced local items sort to the top of the local group; unsynced
-		// items appear greyed out below them.
-		const activeDescriptor = this.harnessService.getActiveDescriptor();
-		if (activeDescriptor.itemProvider) {
-			if (activeDescriptor.syncProvider) {
-				const remoteItems = matchedItems.filter(i => !i.syncable);
-				const localItems = matchedItems.filter(i => i.syncable);
-				const entries: IListEntry[] = [];
+		return matched;
+	}
 
-				// Remote items first (flat, no group header)
-				for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
-					entries.push({ type: 'file-item' as const, item });
-				}
-
-				// Local items below with a group header, synced items first
-				if (localItems.length > 0) {
-					const syncedCount = localItems.filter(i => i.synced).length;
-					entries.push({
-						type: 'group-header' as const,
-						id: 'group-sync-local',
-						groupKey: 'sync-local',
-						label: localize('localGroup', "Local"),
-						icon: Codicon.folder,
-						count: syncedCount,
-						isFirst: remoteItems.length === 0,
-						description: localize('localGroupDescription', "Local customizations available to sync to the remote agent."),
-						collapsed: false,
-					});
-					// Sort: synced items first, then alphabetical within each group
-					const sorted = localItems.sort((a, b) => {
-						if (a.synced !== b.synced) {
-							return a.synced ? -1 : 1;
-						}
-						return a.name.localeCompare(b.name);
-					});
-					for (const item of sorted) {
-						entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });
-					}
-				}
-
-				this.displayEntries = entries;
-			} else {
-				matchedItems.sort((a, b) => a.name.localeCompare(b.name));
-				this.displayEntries = matchedItems.map(item => ({ type: 'file-item' as const, item }));
-			}
-			this.list.splice(0, this.list.length, this.displayEntries);
-			this.updateEmptyState();
-			return matchedItems.length;
-		}
-
-		// Group items by storage
-		const promptType = sectionToPromptType(this.currentSection);
-		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
-		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
-			this.currentSection === AICustomizationManagementSection.Instructions
-				? [
-					{ groupKey: 'agent-instructions', label: localize('agentInstructionsGroup', "Agent Instructions"), icon: instructionsIcon, description: localize('agentInstructionsGroupDescription', "Instruction files automatically loaded for all agent interactions (e.g. AGENTS.md, CLAUDE.md, copilot-instructions.md)."), items: [] },
-					{ groupKey: 'context-instructions', label: localize('contextInstructionsGroup', "Included Based on Context"), icon: instructionsIcon, description: localize('contextInstructionsGroupDescription', "Instructions automatically loaded when matching files are part of the context."), items: [] },
-					{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "Loaded on Demand"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
-				]
-				: [
-					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
-					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
-					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
-					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
-					{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
-				].filter(g => visibleSources.has(g.groupKey as PromptsStorage) || g.groupKey === 'agents');
-
-		for (const item of matchedItems) {
-			const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
-			const group = groups.find(g => g.groupKey === key);
-			if (group) {
-				group.items.push(item);
-			}
-		}
-
+	/**
+	 * Builds grouped display entries from items assigned to groups.
+	 * Empty groups are omitted. Collapsed groups show only their header.
+	 */
+	private buildGroupedEntries(groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[]): void {
 		// Sort items within each group
 		for (const group of groups) {
 			group.items.sort((a, b) => a.name.localeCompare(b.name));
 		}
 
-		// Build display entries: group header + items (hidden if collapsed)
 		this.displayEntries = [];
 		let isFirstGroup = true;
 		for (const group of groups) {
@@ -1832,9 +1813,131 @@ export class AICustomizationListWidget extends Disposable {
 				}
 			}
 		}
+	}
 
+	/**
+	 * Commits the current displayEntries to the list and updates empty state.
+	 */
+	private commitDisplayEntries(): void {
 		this.list.splice(0, this.list.length, this.displayEntries);
 		this.updateEmptyState();
+	}
+
+	/**
+	 * Filters and groups items from an external provider.
+	 * When a syncProvider is present, shows remote items + local sync items.
+	 * Otherwise, groups items by inferred storage/groupKey.
+	 */
+	private filterItemsForProvider(matchedItems: IAICustomizationListItem[]): void {
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+
+		if (activeDescriptor.syncProvider) {
+			// Sync layout: remote items flat, then local items with sync checkboxes
+			const remoteItems = matchedItems.filter(i => !i.syncable);
+			const localItems = matchedItems.filter(i => i.syncable);
+			const entries: IListEntry[] = [];
+
+			for (const item of remoteItems.sort((a, b) => a.name.localeCompare(b.name))) {
+				entries.push({ type: 'file-item' as const, item });
+			}
+
+			if (localItems.length > 0) {
+				const syncedCount = localItems.filter(i => i.synced).length;
+				entries.push({
+					type: 'group-header' as const,
+					id: 'group-sync-local',
+					groupKey: 'sync-local',
+					label: localize('localGroup', "Local"),
+					icon: Codicon.folder,
+					count: syncedCount,
+					isFirst: remoteItems.length === 0,
+					description: localize('localGroupDescription', "Local customizations available to sync to the remote agent."),
+					collapsed: false,
+				});
+				const sorted = localItems.sort((a, b) => {
+					if (a.synced !== b.synced) {
+						return a.synced ? -1 : 1;
+					}
+					return a.name.localeCompare(b.name);
+				});
+				for (const item of sorted) {
+					entries.push({ type: 'file-item' as const, item: item.synced ? item : { ...item, disabled: true } });
+				}
+			}
+
+			this.displayEntries = entries;
+		} else {
+			// Standard provider layout: group by inferred storage/groupKey
+			const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
+				{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+				{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+				{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
+				{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+			];
+
+			for (const item of matchedItems) {
+				const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
+				const group = groups.find(g => g.groupKey === key);
+				if (group) {
+					group.items.push(item);
+				}
+			}
+
+			this.buildGroupedEntries(groups);
+		}
+
+		this.commitDisplayEntries();
+	}
+
+	/**
+	 * Filters and groups items from the core promptsService (static harness path).
+	 * Instructions use semantic categories; other sections use storage-based groups.
+	 */
+	private filterItemsForCore(matchedItems: IAICustomizationListItem[]): void {
+		const promptType = sectionToPromptType(this.currentSection);
+		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
+
+		const groups: { groupKey: string; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] =
+			this.currentSection === AICustomizationManagementSection.Instructions
+				? [
+					{ groupKey: 'agent-instructions', label: localize('agentInstructionsGroup', "Agent Instructions"), icon: instructionsIcon, description: localize('agentInstructionsGroupDescription', "Instruction files automatically loaded for all agent interactions (e.g. AGENTS.md, CLAUDE.md, copilot-instructions.md)."), items: [] },
+					{ groupKey: 'context-instructions', label: localize('contextInstructionsGroup', "Included Based on Context"), icon: instructionsIcon, description: localize('contextInstructionsGroupDescription', "Instructions automatically loaded when matching files are part of the context."), items: [] },
+					{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "Loaded on Demand"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
+				]
+				: [
+					{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+					{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+					{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
+					{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
+					{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
+					{ groupKey: 'agents', label: localize('agentsGroup', "Agents"), icon: agentIcon, description: localize('agentsGroupDescription', "Hooks defined in agent files."), items: [] },
+				].filter(g => g.groupKey === BUILTIN_STORAGE || g.groupKey === 'agents' || visibleSources.has(g.groupKey as PromptsStorage));
+
+		for (const item of matchedItems) {
+			const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
+			const group = groups.find(g => g.groupKey === key);
+			if (group) {
+				group.items.push(item);
+			}
+		}
+
+		this.buildGroupedEntries(groups);
+		this.commitDisplayEntries();
+	}
+
+	/**
+	 * Filters items based on the current search query and builds grouped display entries.
+	 */
+	private filterItems(): number {
+		const matchedItems = this.applySearchFilter(this.allItems);
+		const activeDescriptor = this.harnessService.getActiveDescriptor();
+
+		if (activeDescriptor.itemProvider) {
+			this.filterItemsForProvider(matchedItems);
+		} else {
+			this.filterItemsForCore(matchedItems);
+		}
+
 		return matchedItems.length;
 	}
 
@@ -2016,7 +2119,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.promptsService,
 			this.workspaceService,
 			{ allItems: this.allItems, displayEntries: this.displayEntries },
-			activeDescriptor.itemProvider,
+			activeDescriptor,
 		);
 	}
 }

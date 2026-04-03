@@ -11,6 +11,7 @@ import { IChatDebugEvent } from './chatDebugService.js';
  */
 export const debugEventKindDescriptions: Record<IChatDebugEvent['kind'], string> = {
 	generic: '- generic (category: "discovery"): File discovery for instructions, skills, agents, hooks. Resolving returns a fileList with full file paths, load status, skip reasons, and source folders. Always resolve these for questions about customization files.\n'
+		+ '- generic (category: "customization"): Resolved customizations for a request. Resolving returns per-file resolution logs showing how applyTo patterns matched files, which instructions were referenced, agent instructions added, and customization counts. Always resolve this for questions about why specific instructions were or were not included.\n'
 		+ '- generic (other): Miscellaneous logs. Resolving returns additional text details.',
 	toolCall: '- toolCall: A tool invocation. Resolving returns tool name, input, output, status, and duration.',
 	modelTurn: '- modelTurn: An LLM round-trip. Resolving returns model name, token usage, timing, errors, and prompt sections.',
