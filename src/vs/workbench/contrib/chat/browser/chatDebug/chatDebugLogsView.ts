@@ -69,6 +69,9 @@ export class ChatDebugLogsView extends Disposable {
 	private events: IChatDebugEvent[] = [];
 	private filteredEvents: IChatDebugEvent[] = [];
 	private filterDirty = true;
+	private cachedIncludeTerms: string[] = [];
+	private cachedExcludeTerms: string[] = [];
+	private cachedTextFilter: string | undefined;
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly sessionStateDisposable = this._register(new MutableDisposable());
@@ -417,21 +420,33 @@ export class ChatDebugLogsView extends Disposable {
 			return false;
 		}
 
-		// Text filter
-		const textOnly = this.filterState.textFilterWithoutTimestamps;
-		if (textOnly) {
-			const terms = textOnly.split(/\s*,\s*/).filter(t => t.length > 0);
-			const includeTerms = terms.filter(t => !t.startsWith('!'));
-			const excludeTerms = terms.filter(t => t.startsWith('!')).map(t => t.slice(1)).filter(t => t.length > 0);
-			if (excludeTerms.some(term => debugEventMatchesText(event, term))) {
-				return false;
-			}
-			if (includeTerms.length > 0 && !includeTerms.some(term => debugEventMatchesText(event, term))) {
-				return false;
-			}
+		// Text filter — use cached parsed terms to avoid re-splitting on
+		// every addEvent() call during rapid backfill.
+		this.ensureCachedTerms();
+		if (this.cachedExcludeTerms.length > 0 && this.cachedExcludeTerms.some(term => debugEventMatchesText(event, term))) {
+			return false;
+		}
+		if (this.cachedIncludeTerms.length > 0 && !this.cachedIncludeTerms.some(term => debugEventMatchesText(event, term))) {
+			return false;
 		}
 
 		return true;
+	}
+
+	private ensureCachedTerms(): void {
+		const textOnly = this.filterState.textFilterWithoutTimestamps;
+		if (textOnly === this.cachedTextFilter) {
+			return;
+		}
+		this.cachedTextFilter = textOnly;
+		if (!textOnly) {
+			this.cachedIncludeTerms = [];
+			this.cachedExcludeTerms = [];
+			return;
+		}
+		const terms = textOnly.split(/\s*,\s*/).filter(t => t.length > 0);
+		this.cachedIncludeTerms = terms.filter(t => !t.startsWith('!'));
+		this.cachedExcludeTerms = terms.filter(t => t.startsWith('!')).map(t => t.slice(1)).filter(t => t.length > 0);
 	}
 
 	private scheduleRefresh(): void {
