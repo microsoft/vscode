@@ -1693,8 +1693,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Finalize all active subagent parts (there can be multiple parallel subagents)
+		// Skip subagents that still have tools waiting for confirmation
 		for (const part of templateData.renderedParts) {
-			if (part instanceof ChatSubagentContentPart && part.getIsActive()) {
+			if (part instanceof ChatSubagentContentPart && part.getIsActive() && !part.hasToolsWaitingForConfirmation) {
 				part.markAsInactive();
 			}
 		}
