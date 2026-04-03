@@ -1671,6 +1671,7 @@ export interface ExtHostChatAgentsShape2 {
 	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
 	$acceptInstructions(instructions: IInstructionDto[]): void;
 	$acceptSkills(skills: ISkillDto[]): void;
+	$acceptHooks(hooks: IHookDto[]): void;
 }
 
 export interface ICustomAgentDto {
@@ -1682,6 +1683,10 @@ export interface IInstructionDto {
 }
 
 export interface ISkillDto {
+	uri: UriComponents;
+}
+
+export interface IHookDto {
 	uri: UriComponents;
 }
 
