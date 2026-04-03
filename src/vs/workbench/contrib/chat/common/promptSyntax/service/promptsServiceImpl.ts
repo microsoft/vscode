@@ -1532,7 +1532,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async computeSkillDiscoveryInfo(token: CancellationToken): Promise<IPromptFileDiscoveryResult[]> {
 		const files: IPromptFileDiscoveryResult[] = [];
 		const seenNames = new Set<string>();
-		const seenUris = new Set<string>();
+		const seenUris = new ResourceSet();
 		const nameToUri = new Map<string, URI>();
 
 		// Collect all skills with their metadata for sorting
@@ -1567,12 +1567,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const uri = skill.uri;
 			const promptPath = skill;
 
-			const uriKey = uri.toString();
-			if (seenUris.has(uriKey)) {
-				this.logger.debug(`[computeSkillDiscoveryInfo] Skipping duplicate agent skill URI: ${uri}`);
+			if (seenUris.has(uri)) {
 				continue;
 			}
-			seenUris.add(uriKey);
+			seenUris.add(uri);
 
 			try {
 				const parsedFile = await this.parseNew(uri, token);
