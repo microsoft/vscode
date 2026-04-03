@@ -19,13 +19,15 @@ import {
 import { Widget } from '../widget.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
-import './matchLocationInput.css';
+import './nthMatchInput.css';
 import * as nls from '../../../../nls.js';
 import { DisposableStore, MutableDisposable } from '../../../common/lifecycle.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js'; // TODO: Remove?
+import { IRange } from '../../../common/range.js';
+// import { IScrollEvent } from '../../../../editor/common/editorCommon.js';
 
 
-export interface IMatchLocationInputOptions {
+export interface INthMatchInputOptions {
 	readonly placeholder?: string;
 	readonly width?: number;
 	readonly validation?: IInputValidator;
@@ -33,6 +35,7 @@ export interface IMatchLocationInputOptions {
 	readonly type: 'number';
 	readonly min?: number;
 	readonly max?: number;
+	readonly lastMatchLocation?: number;
 	readonly flexibleHeight?: boolean;
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
@@ -53,12 +56,16 @@ export interface IStepEvent {
 }
 
 export interface IJumpEvent {
-	toIndex: number;
+	// `toMatchLocation` is emitted as a formality and for completion.
+	// However, the consumer (codeEditor.ts --> findController.ts) doesn't need it.
+	// findController.ts calls its own `toFindMatchIndex(value)` method
+	// which handles indexing.
+	toMatchLocation: number;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
-export class MatchLocationInput extends Widget {
+export class NthMatchInput extends Widget {
 
 	// static readonly OPTION_CHANGE: string = 'optionChange';
 
@@ -66,8 +73,6 @@ export class MatchLocationInput extends Widget {
 	private validation?: IInputValidator;
 	private label: string;
 	private type: string;
-	private min: number;
-	private max: number;
 	private readonly showCommonFindToggles: boolean;
 	private fixFocusOnOptionClickEnabled = true;
 	private imeSessionInProgress = false;
@@ -80,6 +85,9 @@ export class MatchLocationInput extends Widget {
 	// protected additionalToggles: Toggle[] = [];
 	public readonly domNode: HTMLElement;
 	public readonly inputBox: InputBox;
+	public lastMatchLocation: number;
+	public min: number;
+	public max: number;
 
 	private readonly _onDidOptionChange = this._register(new Emitter<boolean>());
 	public readonly onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
@@ -109,7 +117,7 @@ export class MatchLocationInput extends Widget {
 	// private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	// public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
-	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IMatchLocationInputOptions) {
+	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: INthMatchInputOptions) {
 		super();
 		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
@@ -117,6 +125,7 @@ export class MatchLocationInput extends Widget {
 		this.type = options.type || 'number';
 		this.min = options.min || 0;
 		this.max = options.max || 0;
+		this.lastMatchLocation = options.lastMatchLocation || 0;
 		this.showCommonFindToggles = !!options.showCommonFindToggles;
 
 		// const appendCaseSensitiveLabel = options.appendCaseSensitiveLabel || '';
@@ -147,114 +156,171 @@ export class MatchLocationInput extends Widget {
 
 		const hoverDelegate = this._register(createInstantHoverDelegate());
 
-		// if (this.showCommonFindToggles) {
-		// this.regex = this._register(new RegexToggle({
-		// 	appendTitle: appendRegexLabel,
-		// 	isChecked: false,
-		// 	hoverDelegate,
-		// 	...options.toggleStyles
-		// }));
-		// this._register(this.regex.onChange(viaKeyboard => {
-		// 	this._onDidOptionChange.fire(viaKeyboard);
-		// 	if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
-		// 		this.inputBox.focus();
-		// 	}
-		// 	this.validate();
-		// }));
-		// this._register(this.regex.onKeyDown(e => {
-		// 	this._onRegexKeyDown.fire(e);
-		// }));
 
-		// this.wholeWords = this._register(new WholeWordsToggle({
-		// 	appendTitle: appendWholeWordsLabel,
-		// 	isChecked: false,
-		// 	hoverDelegate,
-		// 	...options.toggleStyles
-		// }));
-		// this._register(this.wholeWords.onChange(viaKeyboard => {
-		// 	this._onDidOptionChange.fire(viaKeyboard);
-		// 	if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
-		// 		this.inputBox.focus();
-		// 	}
-		// 	this.validate();
-		// }));
+		// TODO: Add scroll listener?
+		//		 Let the user scroll the input value up or down on scroll?
+		// this.onscroll(this.domNode, (event: IScrollEvent) => {
 
-		// this.caseSensitive = this._register(new CaseSensitiveToggle({
-		// 	appendTitle: appendCaseSensitiveLabel,
-		// 	isChecked: false,
-		// 	hoverDelegate,
-		// 	...options.toggleStyles
-		// }));
-		// this._register(this.caseSensitive.onChange(viaKeyboard => {
-		// 	this._onDidOptionChange.fire(viaKeyboard);
-		// 	if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
-		// 		this.inputBox.focus();
-		// 	}
-		// 	this.validate();
-		// }));
-		// this._register(this.caseSensitive.onKeyDown(e => {
-		// 	this._onCaseSensitiveKeyDown.fire(e);
-		// }));
+		// });
 
-		// Arrow-Key support to step the matched location up or down
-		// const indexes = [this.caseSensitive.domNode, this.wholeWords.domNode, this.regex.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 
-			const valueParsedAsInt = parseInt(this.inputBox.value);
+			const currentValueAsInt = parseInt(this.inputBox.value);
+			const isNumericKey = event.keyCode >= KeyCode.Digit0 && event.keyCode <= KeyCode.Digit9;
 
-			if (event.equals(KeyCode.UpArrow)) {
-				const valueAfterChange = (!isNaN(valueParsedAsInt) ? valueParsedAsInt + 1 : 0);
-				if (valueAfterChange > this.max) { // Out of bounds. Not sure by how much so 'jump' inbounds from the right
-					this.inputBox.value = `${this.max || 0}`;
-					this._onJump.fire({ toIndex: this.max });
-				}
-				else {
-					this.inputBox.value = `${valueAfterChange}`;
-					this._onStep.fire({ direction: 'up' });
-				}
+
+			// A numeric key was pressed
+			if (isNumericKey) {
+				// this.inputBox.value = currentValueAsInt > this.max ? `${this.max}` : currentValueAsInt < this.min ? `${this.min}` : `${currentValueAsInt}`;
+
+
+				// if (currentValueAsInt > this.max) {
+				// 	this.inputBox.value = `${this.max}`;
+				// 	// this._onJump.fire({ toMatchLocation: this.max });
+				// }
+				// else if (currentValueAsInt < this.min) {
+				// 	this.inputBox.value = `${this.min}`;
+				// }
+				// // this.inputBox.focus();
+			}
+
+			// Arrow-Key support to step the matched location up or down
+			else if (event.equals(KeyCode.UpArrow)) {
+				// const valueAfterChange = (!isNaN(currentValueAsInt) ? currentValueAsInt + 1 : 0);
+				this._onStep.fire({ direction: 'down' });
+				// this.lastMatchLocation = valueAfterChange;
+
+				// const valueAfterChange = (!isNaN(currentValueAsInt) ? currentValueAsInt + 1 : 0);
+				// if (valueAfterChange > this.max) { // Out of bounds. Not sure by how much so 'jump' inbounds from the right
+				// 	this._onJump.fire({ toMatchLocation: this.min });
+				// 	this.lastMatchLocation = this.min;
+				// }
+				// else {
+				// 	this._onStep.fire({ direction: 'up' });
+				// 	this.lastMatchLocation = valueAfterChange;
+				// }
 			}
 
 			else if (event.equals(KeyCode.DownArrow)) {
-				const valueAfterChange = (!isNaN(valueParsedAsInt) ? valueParsedAsInt - 1 : 0);
-				if (valueAfterChange < this.min) { // Out of bounds. Not sure by how much so 'jump' inbounds from the left
-					this.inputBox.value = `${this.min || 0}`;
-					this._onJump.fire({ toIndex: this.min });
-					// this._onStep.fire({ direction: 'up' });
-				}
-				else {
-					this.inputBox.value = `${valueAfterChange}`;
-					this._onStep.fire({ direction: 'down' });
-				}
-				// assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
+				this._onStep.fire({ direction: 'up' });
+
+
+				// const valueAfterChange = (!isNaN(currentValueAsInt) ? currentValueAsInt /* - 1 */ : 0);
+				// if (valueAfterChange < this.min) { // Out of bounds. Not sure by how much so 'jump' inbounds from the left
+				// 	this._onJump.fire({ toMatchLocation: this.min });
+				// 	this.lastMatchLocation = this.min;
+				// }
+				// else {
+				// 	this._onStep.fire({ direction: 'down' });
+				// 	this.lastMatchLocation = valueAfterChange;
+				// }
 			}
 
-			else if (event.equals(KeyCode.Escape)) {
+			// Arrow-Key support to step the cursor left or right in the input box
+			else if (event.equals(KeyCode.LeftArrow)) {
+				const { start: cursorStart, end: cursorEnd }: IRange = (this.inputBox.getSelection() as IRange);
+
+				if (cursorStart > 0) {
+					this.inputBox.inputElement.selectionStart = (this.inputBox.inputElement.selectionStart || 1) - 1;
+				}
+			}
+
+			else if (event.equals(KeyCode.RightArrow)) {
+				const { start: cursorStart, end: cursorEnd }: IRange = (this.inputBox.getSelection() as IRange);
+
+				if (cursorStart < (this.inputBox.inputElement.selectionEnd || this.inputBox.value.length - 1)) {
+					this.inputBox.inputElement.selectionStart = (this.inputBox.inputElement.selectionStart || 0) + 1;
+				}
+			}
+
+			else if (event.equals(KeyCode.Backspace)) {
+				const charsArr = [...this.inputBox.value];
+				charsArr.pop();
+				this.inputBox.value = `${parseInt(charsArr?.join(''))}`;
+			}
+
+			else if (event.equals(KeyCode.Delete)) {
+				if (!this.inputBox.isSelectionAtEnd()) {
+					const charsArr = [...this.inputBox.value];
+					charsArr.splice(this.inputBox.inputElement.selectionStart || 0, 1);
+					this.inputBox.value = `${parseInt(charsArr?.join(''))}`;
+					// this.inputBox.inputElement.selectionStart =
+				}
+			}
+
+			else if (event.equals(KeyCode.Enter)) {
+				// const destination = (
+				// 	!isNaN(currentValueAsInt) ?
+				// 		Math.max((Math.min(currentValueAsInt, this.max), this.min))
+				// 		: 0
+				// );
+				// this._onJump.fire({ toMatchLocation: destination });
+
+				this._onJump.fire({ toMatchLocation: currentValueAsInt });
+				// this.inputBox.focus();
+			}
+
+			else if (
+				event.equals(KeyCode.Escape) || event.equals(KeyCode.Tab) ||
+				(event.shiftKey && event.keyCode === KeyCode.Tab)
+			) {
+
 				this.inputBox.blur();
+				// document.dispatchEvent(new KeyboardEvent('Tab'));
+			}
+
+			// Select 1 character to the left
+			else if (event.shiftKey && event.code === 'ArrowLeft'/* event.equals(KeyCode.LeftArrow) */) {
+				const selectRange: IRange = {
+					start: (this.inputBox.inputElement.selectionEnd || 1) - 1,
+					end: this.inputBox.inputElement.selectionEnd || 1
+				};
+				this.inputBox.select(selectRange);
+			}
+
+			// Select 1 character to the right
+			else if (event.shiftKey && event.code === 'ArrowRight'/* event.equals(KeyCode.RightArrow) */) {
+				const selectRange: IRange = {
+					start: (this.inputBox.inputElement.selectionStart || 1) + 1,
+					end: this.inputBox.inputElement.selectionEnd || 1
+				};
+				this.inputBox.select(selectRange);
+			}
+
+			// Select 1 word/token to the left
+			else if (event.shiftKey && event.ctrlKey && event.code === 'ArrowLeft' /* event.equals(KeyCode.LeftArrow) */) {
+
+			}
+
+			// Select 1 word/token to the right
+			else if (event.shiftKey && event.ctrlKey && event.code === 'ArrowRight' /* event.equals(KeyCode.RightArrow) */) {
+
+			}
+
+			// Select all input text
+			else if (event.ctrlKey && event.code === 'KeyA' /* event.equals(KeyCode.KeyA) */) {
+				const selectRange: IRange = { start: 0, end: this.inputBox.value.length - 1 };
+				this.inputBox.select(selectRange);
 			}
 
 
-			dom.EventHelper.stop(event, true);
+			// Ctrl+Z (undo)
+
+
+			// Ctrl+Shift+Z or Ctrl+Y(redo)
+
+
+
+
+
+
+
+
+			if (!isNumericKey) {
+				dom.EventHelper.stop(event, true);
+			}
 		});
-		// }
 
-		// this.controls = document.createElement('div');
-		// this.controls.className = 'controls';
-		// this.controls.style.display = this.showCommonFindToggles ? '' : 'none';
-		// if (this.caseSensitive) {
-		// 	this.controls.append(this.caseSensitive.domNode);
-		// }
-		// if (this.wholeWords) {
-		// 	this.controls.appendChild(this.wholeWords.domNode);
-		// }
-		// if (this.regex) {
-		// 	this.controls.appendChild(this.regex.domNode);
-		// }
-
-		// this.setAdditionalToggles(options?.additionalToggles);
-
-		// if (this.controls) {
-		// 	this.domNode.appendChild(this.controls);
-		// }
 
 		parent?.appendChild(this.domNode);
 
@@ -288,25 +354,11 @@ export class MatchLocationInput extends Widget {
 	public enable(): void {
 		this.domNode.classList.remove('disabled');
 		this.inputBox.enable();
-		// this.regex?.enable();
-		// this.wholeWords?.enable();
-		// this.caseSensitive?.enable();
-
-		// for (const toggle of this.additionalToggles) {
-		// 	toggle.enable();
-		// }
 	}
 
 	public disable(): void {
 		this.domNode.classList.add('disabled');
 		this.inputBox.disable();
-		// this.regex?.disable();
-		// this.wholeWords?.disable();
-		// this.caseSensitive?.disable();
-
-		// for (const toggle of this.additionalToggles) {
-		// 	toggle.disable();
-		// }
 	}
 
 	public setFocusInputOnOptionClick(value: boolean): void {
@@ -321,41 +373,11 @@ export class MatchLocationInput extends Widget {
 		}
 	}
 
-	// public setAdditionalToggles(toggles: Toggle[] | undefined): void {
-	// 	for (const currentToggle of this.additionalToggles) {
-	// 		currentToggle.domNode.remove();
-	// 	}
-	// 	this.additionalToggles = [];
-	// 	this.additionalTogglesDisposables.value = new DisposableStore();
-
-	// 	for (const toggle of toggles ?? []) {
-	// 		this.additionalTogglesDisposables.value.add(toggle);
-	// 		this.controls.appendChild(toggle.domNode);
-
-	// 		this.additionalTogglesDisposables.value.add(toggle.onChange(viaKeyboard => {
-	// 			this._onDidOptionChange.fire(viaKeyboard);
-	// 			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
-	// 				this.inputBox.focus();
-	// 			}
-	// 		}));
-
-	// 		this.additionalToggles.push(toggle);
-	// 	}
-
-	// 	if (this.additionalToggles.length > 0) {
-	// 		this.controls.style.display = '';
-	// 	}
-
-	// 	this.updateInputBoxPadding();
-	// }
-
 	private updateInputBoxPadding(controlsHidden = false) {
 		if (controlsHidden) {
 			this.inputBox.paddingRight = 0;
 		} else {
-			this.inputBox.paddingRight =
-				((/* this.caseSensitive?.width() ?? */ 0) + (/* this.wholeWords?.width() ?? */ 0) + (/* this.regex?.width() ?? */ 0))
-				/* + this.additionalToggles.reduce((r, t) => r + t.width(), 0) */;
+			this.inputBox.paddingRight = 0;
 		}
 	}
 
@@ -375,10 +397,6 @@ export class MatchLocationInput extends Widget {
 		}
 	}
 
-	public onSearchSubmit(): void {
-		// this.inputBox.addToHistory();
-	}
-
 	public select(): void {
 		this.inputBox.select();
 	}
@@ -386,45 +404,6 @@ export class MatchLocationInput extends Widget {
 	public focus(): void {
 		this.inputBox.focus();
 	}
-
-	// public getCaseSensitive(): boolean {
-	// 	return this.caseSensitive?.checked ?? false;
-	// }
-
-	// public setCaseSensitive(value: boolean): void {
-	// 	if (this.caseSensitive) {
-	// 		this.caseSensitive.checked = value;
-	// 	}
-	// }
-
-	// public getWholeWords(): boolean {
-	// 	return this.wholeWords?.checked ?? false;
-	// }
-
-	// public setWholeWords(value: boolean): void {
-	// 	if (this.wholeWords) {
-	// 		this.wholeWords.checked = value;
-	// 	}
-	// }
-
-	// public getRegex(): boolean {
-	// 	return this.regex?.checked ?? false;
-	// }
-
-	// public setRegex(value: boolean): void {
-	// 	if (this.regex) {
-	// 		this.regex.checked = value;
-	// 		this.validate();
-	// 	}
-	// }
-
-	// public focusOnCaseSensitive(): void {
-	// 	this.caseSensitive?.focus();
-	// }
-
-	// public focusOnRegex(): void {
-	// 	this.regex?.focus();
-	// }
 
 	private _lastHighlightFindOptions: number = 0;
 	public highlightFindOptions(): void {

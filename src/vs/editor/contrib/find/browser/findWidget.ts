@@ -11,7 +11,7 @@ import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
 import { FindInput } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
-import { MatchLocationInput } from '../../../../base/browser/ui/findinput/matchLocationInput.js';
+import { NthMatchInput } from '../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
@@ -138,7 +138,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
 
-	private _matchLocationInput!: MatchLocationInput;
+	private _nthMatchInput!: NthMatchInput;
 
 	private _toggleReplaceBtn!: SimpleButton;
 	private _matchesCount!: HTMLElement;
@@ -432,19 +432,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			label = NLS_NO_RESULTS;
 		}
 
-		this._matchLocationInput = this.getMatchLocationInput();
+		// this._nthMatchInput = this.getNthMatchInput();
+		this._nthMatchInput.setValue(`${this._state.matchesPosition}`);
+		this._nthMatchInput.min = this._state.matchesCount >= 1 ? 1 : 0;
+		this._nthMatchInput.max = this._state.matchesCount;
 
-
-		this._matchesCount.appendChild(this._matchLocationInput.domNode);
+		this._matchesCount.appendChild(this._nthMatchInput.domNode);
 		this._matchesCount.appendChild(document.createTextNode(' of '));
 		this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
-
-		// const matchesLocationInput = this.getMatchLocationInput();
-		// matchesLocationInput.value = `${this._state.matchesPosition}`;
-
-		// this._matchesCount.appendChild(matchesLocationInput);
-		// this._matchesCount.appendChild(document.createTextNode(' of '));
-		// this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
@@ -453,126 +448,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	// ----- actions
 
 
-	// private getMatchLocationInput(): HTMLInputElement {
-	// 	let inputEl = document.querySelector('.editable-match-location') as HTMLInputElement;
-
-	// 	if (!inputEl) {
-	// 		inputEl = document.createElement('input');
-	// 		// Set input type and upper/lower bounds
-	// 		inputEl.type = 'number';
-	// 		inputEl.max = `${this._state.matchesCount}`;
-	// 		inputEl.min = '1';
-
-	// 		// Keep styling consistent with the surrounding UI.
-	// 		inputEl.classList.add(...['monaco-inputbox', 'editable-match-location']);
-
-	// 		inputEl.addEventListener('focus', () => {
-	// 			inputEl.classList.add(...['synthetic-focus']);
-	// 		});
-
-	// 		inputEl.addEventListener('blur', () => {
-	// 			inputEl.classList.remove(...['synthetic-focus']);
-	// 		});
-
-	// 		inputEl.addEventListener('input', (event: Event) => {
-	// 			console.log('findWidget.ts ---> getMatchLocationInput() ---> input INPUT event', event);
-	// 			const currentValue = validateInput((event?.target as HTMLInputElement).value);
-	// 		});
-
-	// 		inputEl.addEventListener('change', (event: Event) => {
-	// 			console.log('findWidget.ts ---> getMatchLocationInput() ---> input CHANGE event', event);
-	// 			const currentValue = validateInput((event?.target as HTMLInputElement).value);
-
-	// 		});
-
-
-	// 		// inputEl.onfocus = () => {
-	// 		// 	inputEl.classList.add(...['synthetic-focus']);
-	// 		// };
-
-	// 		// inputEl.onblur = () => {
-	// 		// 	inputEl.classList.remove(...['synthetic-focus']);
-	// 		// };
-
-	// 		// inputEl.oninput = (event: InputEvent) => {
-	// 		// 	const currentValue = validateInput(event?.target?);
-	// 		// };
-
-	// 		// inputEl.onchange = (event) => {
-
-	// 		// };
-
-	// 		const validateInput = (inputVal: any) => {
-	// 			// return Math.min(input)
-	// 		}
-	// 	}
-
-	// 	return inputEl;
-	// }
-
-	private getMatchLocationInput(): MatchLocationInput {
-		// let inputEl = document.querySelector('.editable-match-location') as HTMLInputElement;
-
-		// if (!inputEl) {
-		// 	inputEl = document.createElement('input');
-		// 	// Set input type and upper/lower bounds
-		// 	inputEl.type = 'number';
-		// 	inputEl.max = `${this._state.matchesCount}`;
-		// 	inputEl.min = '1';
-
-		// 	// Keep styling consistent with the surrounding UI.
-		// 	inputEl.classList.add(...['monaco-inputbox', 'editable-match-location']);
-
-		// 	inputEl.addEventListener('focus', () => {
-		// 		inputEl.classList.add(...['synthetic-focus']);
-		// 	});
-
-		// 	inputEl.addEventListener('blur', () => {
-		// 		inputEl.classList.remove(...['synthetic-focus']);
-		// 	});
-
-		// 	inputEl.addEventListener('input', (event: Event) => {
-		// 		console.log('findWidget.ts ---> getMatchLocationInput() ---> input INPUT event', event);
-		// 		const currentValue = validateInput((event?.target as HTMLInputElement).value);
-		// 	});
-
-		// 	inputEl.addEventListener('change', (event: Event) => {
-		// 		console.log('findWidget.ts ---> getMatchLocationInput() ---> input CHANGE event', event);
-		// 		const currentValue = validateInput((event?.target as HTMLInputElement).value);
-
-		// 	});
-
-
-		// 	// inputEl.onfocus = () => {
-		// 	// 	inputEl.classList.add(...['synthetic-focus']);
-		// 	// };
-
-		// 	// inputEl.onblur = () => {
-		// 	// 	inputEl.classList.remove(...['synthetic-focus']);
-		// 	// };
-
-		// 	// inputEl.oninput = (event: InputEvent) => {
-		// 	// 	const currentValue = validateInput(event?.target?);
-		// 	// };
-
-		// 	// inputEl.onchange = (event) => {
-
-		// 	// };
-
-		// 	const validateInput = (inputVal: any) => {
-		// 		// return Math.min(input)
-		// 	}
-		// }
-
-		// Match Location Edit Input
-		// Created above during this._updateMatchesCount();
-		const input = new MatchLocationInput(this._domNode, this._contextViewProvider, {
+	private getNthMatchInput(): NthMatchInput {
+		const input = new NthMatchInput(this._domNode, this._contextViewProvider, {
 			placeholder: '',
 			width: 20,
 			validation: undefined,
 			label: '',
 			type: 'number',
-			min: 0,
+			min: this._state.matchesCount >= 1 ? 1 : 0,
 			max: this._state.matchesCount,
 			flexibleHeight: undefined,
 			flexibleWidth: undefined,
@@ -588,13 +471,21 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			else {
 				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
+			input.focus();
 		}));
 
 		this._register(input.onJump((e) => {
-			assertIsDefined(this._codeEditor.getAction(FIND_IDS.GoToMatchFindAction)).run().then(undefined, onUnexpectedError);
+			assertIsDefined(this._codeEditor.getAction(FIND_IDS.GoToEditableNthMatchFindAction)).run().then(undefined, onUnexpectedError);
+			// this._nthMatchInput.focus();
+			input.focus();
 		}));
 
-		input.domNode.classList.add(...['monaco-inputbox', 'editable-match-location']);
+		this._register(input.onInput((e) => {
+			const currentValueAsInt = parseInt(input.getValue());
+			input.setValue(currentValueAsInt > input.max ? `${input.max}` : currentValueAsInt < input.min ? `${input.min}` : `${currentValueAsInt}`);
+		}));
+
+		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
 		input.setValue(`${this._state.matchesPosition}`);
 
 		return input;
@@ -1175,6 +1066,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
+
+		this._nthMatchInput = this.getNthMatchInput();
 
 		this._updateMatchesCount();
 
