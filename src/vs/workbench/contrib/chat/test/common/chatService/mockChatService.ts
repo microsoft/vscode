@@ -20,6 +20,7 @@ export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
+	whenSessionsRevived = Promise.resolve();
 	readonly onDidSubmitRequest = Event.None;
 
 	private readonly _onDidCreateModel = new Emitter<IChatModel>();

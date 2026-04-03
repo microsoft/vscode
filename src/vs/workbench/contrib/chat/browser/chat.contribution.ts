@@ -1725,6 +1725,64 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 	}
 }
 
+type ChatModelsAtStartupEvent = {
+	totalModels: number;
+	modelsOpenInWidgets: number;
+	backgroundModels: number;
+	modelsKeptAliveOnlyForEdits: number;
+};
+
+type ChatModelsAtStartupClassification = {
+	totalModels: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of live chat models after startup revival.' };
+	modelsOpenInWidgets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models that are open in a chat widget or editor.' };
+	backgroundModels: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models kept alive in the background without a widget.' };
+	modelsKeptAliveOnlyForEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models kept alive solely because they have unaccepted edits.' };
+	owner: 'roblourens';
+	comment: 'Tracks chat model counts at startup after reviving sessions with pending edits.';
+};
+
+class ChatModelsAtStartupTelemetry extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatModelsAtStartupTelemetry';
+
+	constructor(
+		@IChatService private readonly chatService: IChatService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
+		this.logTelemetry();
+	}
+
+	private async logTelemetry(): Promise<void> {
+		await this.chatService.whenSessionsRevived;
+
+		const snapshot = this.chatService.getChatModelReferenceDebugInfo();
+
+		let modelsOpenInWidgets = 0;
+		let backgroundModels = 0;
+		let modelsKeptAliveOnlyForEdits = 0;
+
+		for (const model of snapshot.models) {
+			if (this.chatWidgetService.getWidgetBySessionResource(model.sessionResource)) {
+				modelsOpenInWidgets++;
+			} else {
+				backgroundModels++;
+				if (model.hasPendingEdits) {
+					modelsKeptAliveOnlyForEdits++;
+				}
+			}
+		}
+
+		this.telemetryService.publicLog2<ChatModelsAtStartupEvent, ChatModelsAtStartupClassification>('chat.modelsAtStartup', {
+			totalModels: snapshot.totalModels,
+			modelsOpenInWidgets,
+			backgroundModels,
+			modelsKeptAliveOnlyForEdits,
+		});
+	}
+}
+
 
 /**
  * Given builtin and custom modes, returns only the custom mode IDs that should have actions registered.
@@ -1932,6 +1990,7 @@ registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution
 registerWorkbenchContribution2(RenameToolContribution.ID, RenameToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatForegroundSessionCountContribution.ID, ChatForegroundSessionCountContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatModelsAtStartupTelemetry.ID, ChatModelsAtStartupTelemetry, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(HookSchemaAssociationContribution.ID, HookSchemaAssociationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
