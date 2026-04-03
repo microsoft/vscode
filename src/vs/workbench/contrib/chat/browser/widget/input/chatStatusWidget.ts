@@ -9,7 +9,6 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -23,7 +22,7 @@ const $ = dom.$;
 
 /**
  * Widget that displays a status message with an optional action button.
- * Only shown for free tier users when the setting is enabled (experiment controlled via onExP tag).
+ * Only shown for anonymous and free tier users.
  */
 export class ChatStatusWidget extends Disposable implements IChatInputPartWidget {
 
@@ -37,7 +36,6 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -51,7 +49,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isAnonymous = this.chatEntitlementService.anonymous;
 
-		if (isAnonymous && this.configurationService.getValue<boolean>('chat.statusWidget.anonymous')) {
+		if (isAnonymous) {
 			this.createWidgetContent('anonymous');
 		} else if (entitlement === ChatEntitlement.Free) {
 			this.createWidgetContent('free');
