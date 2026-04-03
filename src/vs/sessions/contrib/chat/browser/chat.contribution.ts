@@ -55,8 +55,8 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 100,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext),
+				order: 9,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			}]
 		});
 	}
