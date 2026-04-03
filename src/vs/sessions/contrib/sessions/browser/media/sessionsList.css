@@ -237,6 +237,7 @@
 		border-radius: 4px;
 		background-color: var(--vscode-editor-background);
 		color: var(--vscode-editor-foreground);
+		align-items: center;
 
 		&.visible {
 			display: flex;
