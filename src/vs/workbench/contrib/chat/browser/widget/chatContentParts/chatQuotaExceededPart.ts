@@ -64,6 +64,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 
 		let primaryButtonLabel: string | undefined;
 		switch (chatEntitlementService.entitlement) {
+			case ChatEntitlement.EDU:
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
 				primaryButtonLabel = localize('enableAdditionalUsage', "Manage Paid Premium Requests");

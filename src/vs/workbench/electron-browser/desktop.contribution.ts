@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/co
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing } from './actions/developerActions.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing } from './actions/developerActions.js';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
@@ -116,6 +116,7 @@ import product from '../../platform/product/common/product.js';
 	registerAction2(ShowGPUInfoAction);
 	registerAction2(ShowContentTracingAction);
 	registerAction2(StopTracing);
+	registerAction2(StartTracing);
 })();
 
 // Menu
@@ -455,6 +456,10 @@ import product from '../../platform/product/common/product.js';
 			'remote-debugging-port': {
 				type: 'string',
 				description: localize('argv.remoteDebuggingPort', "Specifies the port to use for remote debugging.")
+			},
+			'js-flags': {
+				type: 'string',
+				description: localize('argv.jsFlags', "Specifies V8 JavaScript engine flags to pass (e.g. \"--max-old-space-size=4096\"). These flags are applied to the main process, renderer and utility processes.")
 			}
 		}
 	};

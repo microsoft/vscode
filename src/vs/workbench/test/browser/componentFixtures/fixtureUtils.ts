@@ -10,6 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { URI } from '../../../../base/common/uri.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
+import '../../../browser/media/style.css';
 
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -83,6 +84,16 @@ import { IUserDataProfile } from '../../../../platform/userDataProfile/common/us
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { TestMenuService } from '../workbenchTestServices.js';
+import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
+import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsManagementService } from '../../../../sessions/contrib/sessions/browser/sessionsManagementService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { constObservable } from '../../../../base/common/observable.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -244,10 +255,11 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return lightThemeStyleSheet;
 	}
 
+	const scopeSelector = '.' + theme.classNames[0];
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
-		':host',
+		scopeSelector,
 		themingRegistry.getThemingParticipants(),
 		mockEnvironmentService
 	);
@@ -261,20 +273,40 @@ function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 	return sheet;
 }
 
-/**
- * Applies theme styling to a shadow DOM container.
- * Adds theme class names and adopts shared stylesheets.
- */
-export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
-	container.classList.add(...theme.classNames);
+let globalStylesInstalled = false;
 
-	const shadowRoot = container.getRootNode() as ShadowRoot;
-	if (shadowRoot.adoptedStyleSheets !== undefined) {
-		shadowRoot.adoptedStyleSheets = [
-			getGlobalStyleSheet(),
-			getIconsStyleSheetCached(),
-			getThemeStyleSheet(theme),
-		];
+function installGlobalStyles(): void {
+	if (globalStylesInstalled) {
+		return;
+	}
+	globalStylesInstalled = true;
+	document.adoptedStyleSheets = [
+		...document.adoptedStyleSheets,
+		getGlobalStyleSheet(),
+		getIconsStyleSheetCached(),
+		getThemeStyleSheet(darkTheme),
+		getThemeStyleSheet(lightTheme),
+	];
+}
+
+export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
+	installGlobalStyles();
+	container.classList.add('monaco-workbench', getPlatformClass(), ...theme.classNames);
+}
+
+function getPlatformClass(): string {
+	const alwaysUseMac = true;
+	if (alwaysUseMac) {
+		return 'mac';
+	} else {
+		const ua = navigator.userAgent;
+		if (ua.includes('Macintosh')) {
+			return 'mac';
+		}
+		if (ua.includes('Linux')) {
+			return 'linux';
+		}
+		return 'windows';
 	}
 }
 
@@ -286,6 +318,8 @@ export function setupTheme(container: HTMLElement, theme: ColorThemeData): void 
 export interface ServiceRegistration {
 	define<T>(id: ServiceIdentifier<T>, ctor: new (...args: never[]) => T): void;
 	defineInstance<T>(id: ServiceIdentifier<T>, instance: T): void;
+	/** Like defineInstance but accepts a partial mock - provides type checking on provided properties */
+	definePartialInstance<T>(id: ServiceIdentifier<T>, instance: Partial<T>): void;
 }
 
 export interface CreateServicesOptions {
@@ -321,6 +355,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 			services.set(id, instance);
 		}
 		serviceIdentifiers.push(id);
+	};
+
+	const definePartialInstance = <T>(id: ServiceIdentifier<T>, instance: Partial<T>) => {
+		defineInstance(id, instance as T);
 	};
 
 	// Base editor services
@@ -394,8 +432,72 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	// User interaction service with focus simulation enabled (all elements appear focused in fixtures)
 	defineInstance(IUserInteractionService, new MockUserInteractionService(true, false));
 
+	defineInstance(IAccessibilitySignalService, {
+		_serviceBrand: undefined,
+		playSignal: async () => { },
+		playSignals: async () => { },
+		playSignalLoop: () => ({ dispose: () => { } }),
+		getEnabledState: () => ({ value: false, onDidChange: Event.None, onChange: () => ({ dispose: () => { } }) }),
+		getDelayMs: () => 0,
+		playSound: async () => { },
+		isSoundEnabled: () => false,
+		isAnnouncementEnabled: () => false,
+		onSoundEnabledChanged: () => Event.None,
+	});
+
+	definePartialInstance(ITextModelService, {
+		_serviceBrand: undefined,
+		registerTextModelContentProvider: () => ({ dispose: () => { } }),
+		canHandleResource: () => false,
+	});
+
+	defineInstance(IAgentFeedbackService, {
+		_serviceBrand: undefined,
+		onDidChangeFeedback: Event.None,
+		onDidChangeNavigation: Event.None,
+		addFeedback: () => undefined!,
+		removeFeedback: () => { },
+		updateFeedback: () => { },
+		getFeedback: () => [],
+		getMostRecentSessionForResource: () => undefined,
+		revealFeedback: async () => { },
+		revealSessionComment: async () => { },
+		getNextFeedback: () => undefined,
+		getNextNavigableItem: () => undefined,
+		setNavigationAnchor: () => { },
+		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
+		clearFeedback: () => { },
+		addFeedbackAndSubmit: async () => { },
+	});
+
+	definePartialInstance(IChatEditingService, {
+		_serviceBrand: undefined,
+		editingSessionsObs: constObservable([]),
+		startOrContinueGlobalEditingSession: () => undefined!,
+		getEditingSession: () => undefined,
+	});
+
+	definePartialInstance(ISessionsManagementService, {
+		_serviceBrand: undefined,
+		getSession: () => undefined,
+		getSessions: () => [],
+	});
+
+	definePartialInstance(ICodeReviewService, {
+		_serviceBrand: undefined,
+		getReviewState: () => constObservable({ kind: CodeReviewStateKind.Idle }),
+		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
+		hasReview: () => false,
+		requestReview: () => { },
+		removeComment: () => { },
+		updateComment: () => { },
+		dismissReview: () => { },
+		resolvePRReviewThread: async () => { },
+		markPRReviewCommentConverted: () => { },
+	});
+
 	// Allow additional services to be registered
-	options?.additionalServices?.({ define, defineInstance });
+	options?.additionalServices?.({ define, defineInstance, definePartialInstance });
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 
@@ -474,6 +576,28 @@ export function createTextModel(
 // Fixture Adapters
 // ============================================================================
 
+export interface ThemedFixtureGroupLabels {
+	readonly kind?: 'screenshot' | 'animated';
+	readonly blocksCi?: true;
+	readonly flaky?: true;
+}
+
+function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
+	const result: string[] = [];
+	if (labels?.kind === 'screenshot') {
+		result.push('.screenshot');
+	} else if (labels?.kind === 'animated') {
+		result.push('animated');
+	}
+	if (labels?.blocksCi) {
+		result.push('blocks-ci');
+	}
+	if (labels?.flaky) {
+		result.push('flaky');
+	}
+	return result;
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
@@ -482,6 +606,7 @@ export interface ComponentFixtureContext {
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	labels?: ThemedFixtureGroupLabels;
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -496,9 +621,8 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
  */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
 	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
-		isolation: 'shadow-dom',
+		isolation: 'none',
 		displayMode: { type: 'component' },
-		properties: [],
 		background: theme === darkTheme ? 'dark' : 'light',
 		render: (container: HTMLElement) => {
 			const disposableStore = new DisposableStore();
@@ -509,18 +633,33 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		},
 	});
 
-	return defineFixtureVariants({
+	const labels = resolveLabels(options.labels);
+	return defineFixtureVariants(labels.length > 0 ? { labels } : {}, {
 		Dark: createFixture(darkTheme),
 		Light: createFixture(lightTheme),
 	});
 }
 
-type ThemedFixtureGroupInput = Record<string, ThemedFixtures>;
+interface ThemedFixtureGroupOptions {
+	readonly path?: string;
+	readonly labels?: ThemedFixtureGroupLabels;
+}
+
+type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures>;
 
 /**
  * Creates a nested fixture group from themed fixtures.
  * E.g., { MergeEditor: { Dark: ..., Light: ... } } becomes a nested group: MergeEditor > Dark/Light
  */
-export function defineThemedFixtureGroup(group: ThemedFixtureGroupInput): ReturnType<typeof defineFixtureGroup> {
-	return defineFixtureGroup(group);
+export function defineThemedFixtureGroup(options: ThemedFixtureGroupOptions, fixtures: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup>;
+export function defineThemedFixtureGroup(fixtures: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup>;
+export function defineThemedFixtureGroup(optionsOrFixtures: ThemedFixtureGroupOptions | ThemedFixtureGroupFixtures, fixtures?: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup> {
+	if (fixtures) {
+		const options = optionsOrFixtures as ThemedFixtureGroupOptions;
+		return defineFixtureGroup({
+			labels: resolveLabels(options.labels),
+			path: options.path,
+		}, fixtures as ThemedFixtureGroupFixtures);
+	}
+	return defineFixtureGroup(optionsOrFixtures as ThemedFixtureGroupFixtures);
 }

@@ -15,44 +15,43 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, hookIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getPromptSourceCounts, getSkillSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
+import { getSourceCounts, getSourceCountsTotal } from './customizationCounts.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 
-import { URI } from '../../../../base/common/uri.js';
-
-interface ICustomizationItemConfig {
+export interface ICustomizationItemConfig {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly section: AICustomizationManagementSection;
 	readonly promptType?: PromptsType;
-	readonly getSourceCounts?: (promptsService: IPromptsService, excludedUserFileRoots: readonly URI[]) => Promise<ISourceCounts>;
-	readonly getCount?: (languageModelsService: ILanguageModelsService, mcpService: IMcpService) => Promise<number>;
+	readonly isMcp?: boolean;
+	readonly isPlugins?: boolean;
 }
 
-const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
+export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
 		id: 'sessions.customization.agents',
 		label: localize('agents', "Agents"),
 		icon: agentIcon,
 		section: AICustomizationManagementSection.Agents,
 		promptType: PromptsType.agent,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.agent, ex),
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -60,7 +59,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
 		promptType: PromptsType.skill,
-		getSourceCounts: (ps, ex) => getSkillSourceCounts(ps, ex),
 	},
 	{
 		id: 'sessions.customization.instructions',
@@ -68,7 +66,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		promptType: PromptsType.instructions,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.instructions, ex),
 	},
 	{
 		id: 'sessions.customization.prompts',
@@ -76,7 +73,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: promptIcon,
 		section: AICustomizationManagementSection.Prompts,
 		promptType: PromptsType.prompt,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.prompt, ex),
 	},
 	{
 		id: 'sessions.customization.hooks',
@@ -84,16 +80,28 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		promptType: PromptsType.hook,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.hook, ex),
 	},
-	// TODO: Re-enable MCP Servers once CLI MCP configuration is unified with VS Code
+	{
+		id: 'sessions.customization.mcpServers',
+		label: localize('mcpServers', "MCP Servers"),
+		icon: mcpServerIcon,
+		section: AICustomizationManagementSection.McpServers,
+		isMcp: true,
+	},
+	{
+		id: 'sessions.customization.plugins',
+		label: localize('plugins', "Plugins"),
+		icon: pluginIcon,
+		section: AICustomizationManagementSection.Plugins,
+		isPlugins: true,
+	},
 ];
 
 /**
  * Custom ActionViewItem for each customization link in the toolbar.
  * Renders icon + label + source count badges, matching the sidebar footer style.
  */
-class CustomizationLinkViewItem extends ActionViewItem {
+export class CustomizationLinkViewItem extends ActionViewItem {
 
 	private readonly _viewItemDisposables: DisposableStore;
 	private _button: Button | undefined;
@@ -109,6 +117,8 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
 		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
+		@IFileService private readonly _fileService: IFileService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -152,6 +162,10 @@ class CustomizationLinkViewItem extends ActionViewItem {
 			this._mcpService.servers.read(reader);
 			this._updateCounts();
 		}));
+		this._viewItemDisposables.add(autorun(reader => {
+			this._agentPluginService.plugins.read(reader);
+			this._updateCounts();
+		}));
 		this._viewItemDisposables.add(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateCounts()));
 		this._viewItemDisposables.add(autorun(reader => {
 			this._activeSessionService.activeSession.read(reader);
@@ -162,50 +176,34 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		this._updateCounts();
 	}
 
+	private _updateCountsRequestId = 0;
+
 	private async _updateCounts(): Promise<void> {
 		if (!this._countContainer) {
 			return;
 		}
 
-		if (this._config.getSourceCounts) {
-			const counts = await this._config.getSourceCounts(this._promptsService, this._workspaceService.excludedUserFileRoots);
-			this._renderSourceCounts(this._countContainer, counts);
-		} else if (this._config.getCount) {
-			const count = await this._config.getCount(this._languageModelsService, this._mcpService);
-			this._renderSimpleCount(this._countContainer, count);
-		}
-	}
+		const requestId = ++this._updateCountsRequestId;
 
-	private _renderSourceCounts(container: HTMLElement, counts: ISourceCounts): void {
-		container.textContent = '';
-		const type = this._config.promptType;
-		const visibleSources = type ? this._workspaceService.getVisibleStorageSources(type) : this._workspaceService.visibleStorageSources;
-		const total = getSourceCountsTotal(counts, this._workspaceService, type ?? PromptsType.prompt);
-		container.classList.toggle('hidden', total === 0);
-		if (total === 0) {
-			return;
-		}
-
-		const visibleSourcesSet = new Set(visibleSources);
-		const sources: { storage: PromptsStorage; count: number; icon: ThemeIcon; title: string }[] = [
-			{ storage: PromptsStorage.local, count: counts.workspace, icon: workspaceIcon, title: localize('workspaceCount', "{0} from workspace", counts.workspace) },
-			{ storage: PromptsStorage.user, count: counts.user, icon: userIcon, title: localize('userCount', "{0} from user", counts.user) },
-		];
-
-		for (const source of sources) {
-			if (source.count === 0 || !visibleSourcesSet.has(source.storage)) {
-				continue;
+		if (this._config.promptType) {
+			const type = this._config.promptType;
+			const filter = this._workspaceService.getStorageSourceFilter(type);
+			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService, this._fileService);
+			if (requestId !== this._updateCountsRequestId) {
+				return;
 			}
-			const badge = append(container, $('span.source-count-badge'));
-			badge.title = source.title;
-			const icon = append(badge, $('span.source-count-icon'));
-			icon.classList.add(...ThemeIcon.asClassNameArray(source.icon));
-			const num = append(badge, $('span.source-count-num'));
-			num.textContent = `${source.count}`;
+			const total = getSourceCountsTotal(counts, filter);
+			this._renderTotalCount(this._countContainer, total);
+		} else if (this._config.isMcp) {
+			const total = this._mcpService.servers.get().length;
+			this._renderTotalCount(this._countContainer, total);
+		} else if (this._config.isPlugins) {
+			const total = this._agentPluginService.plugins.get().length;
+			this._renderTotalCount(this._countContainer, total);
 		}
 	}
 
-	private _renderSimpleCount(container: HTMLElement, count: number): void {
+	private _renderTotalCount(container: HTMLElement, count: number): void {
 		container.textContent = '';
 		container.classList.toggle('hidden', count === 0);
 		if (count > 0) {
@@ -218,7 +216,7 @@ class CustomizationLinkViewItem extends ActionViewItem {
 
 // --- Register actions and view items --- //
 
-class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
+export class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsCustomizationsToolbar';
 

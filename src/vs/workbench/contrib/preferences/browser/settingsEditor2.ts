@@ -44,7 +44,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable, asCssVariableWithDefault, badgeBackground, badgeForeground, contrastBorder, editorForeground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -192,8 +192,6 @@ export class SettingsEditor2 extends EditorPane {
 	private searchInProgress: CancellationTokenSource | null = null;
 	private aiSearchPromise: CancelablePromise<void> | null = null;
 
-	private stopWatch: StopWatch;
-
 	private showAiResultsAction: Action | null = null;
 
 	private searchInputDelayer: Delayer<void>;
@@ -283,7 +281,6 @@ export class SettingsEditor2 extends EditorPane {
 		this.aiResultsAvailable = CONTEXT_AI_SETTING_RESULTS_AVAILABLE.bindTo(contextKeyService);
 
 		this.scheduledRefreshes = new Map<string, DisposableStore>();
-		this.stopWatch = new StopWatch(false);
 
 		this.editorMemento = this.getEditorMemento<ISettingsEditor2State>(editorGroupService, textResourceConfigurationService, SETTINGS_EDITOR_STATE_KEY);
 
@@ -783,15 +780,8 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
-		const headerRightControlsContainer = DOM.append(headerControlsContainer, $('.settings-right-controls'));
-
-		const openSettingsJsonContainer = DOM.append(headerRightControlsContainer, $('.open-settings-json'));
-		const openSettingsJsonButton = this._register(new Button(openSettingsJsonContainer, { secondary: true, title: true, ...defaultButtonStyles }));
-		openSettingsJsonButton.label = localize('openSettingsJson', "Edit as JSON");
-		this._register(openSettingsJsonButton.onDidClick(() => this.openSettingsFile()));
-
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerRightControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
 				this.lastSyncedLabel = lastSyncedLabel;
 				this.updateInputAriaLabel();
@@ -801,9 +791,6 @@ export class SettingsEditor2 extends EditorPane {
 		this.controlsElement = DOM.append(this.searchContainer, DOM.$('.search-container-widgets'));
 
 		this.countElement = DOM.append(this.controlsElement, DOM.$('.settings-count-widget.monaco-count-badge.long'));
-		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
-		this.countElement.style.color = asCssVariable(badgeForeground);
-		this.countElement.style.border = `1px solid ${asCssVariableWithDefault(contrastBorder, asCssVariable(inputBackground))}`;
 
 		this.searchInputActionBar = this._register(new ActionBar(this.controlsElement, {
 			actionViewItemProvider: (action, options) => {
@@ -1406,7 +1393,10 @@ export class SettingsEditor2 extends EditorPane {
 		const additionalGroups: ISettingsGroup[] = [];
 		let setAdditionalGroups = false;
 		const toggleData = await getExperimentalExtensionToggleData(this.chatEntitlementService, this.extensionGalleryService, this.productService);
-		if (toggleData && groups.filter(g => g.extensionInfo).length) {
+		if (toggleData && groups.filter(g => g.extensionInfo).length && Object.keys(toggleData.settingsEditorRecommendedExtensions).length) {
+			// Refresh installed extensions once per onConfigUpdate invocation for performance,
+			// instead of per extension. The installed list may still change while iterating.
+			await this.refreshInstalledExtensionsList();
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extension: IGalleryExtension = toggleData.recommendedExtensionsGalleryInfo[key];
 				if (!extension) {
@@ -1414,8 +1404,6 @@ export class SettingsEditor2 extends EditorPane {
 				}
 
 				const extensionId = extension.identifier.id;
-				// prevent race between extension update handler and this (onConfigUpdate) handler
-				await this.refreshInstalledExtensionsList();
 				const extensionInstalled = this.installedExtensionIds.includes(extensionId);
 
 				// Drill down to see whether the group and setting already exist
@@ -1976,9 +1964,9 @@ export class SettingsEditor2 extends EditorPane {
 			return null;
 		}
 
-		this.stopWatch.reset();
+		const stopWatch = new StopWatch(false);
 		const result = await aiSearchProvider.getLLMRankedResults(token);
-		this.stopWatch.stop();
+		stopWatch.stop();
 
 		if (token.isCancellationRequested) {
 			return null;
@@ -1986,7 +1974,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Only log the elapsed time if there are actual results.
 		if (result && result.filterMatches.length > 0) {
-			const elapsed = this.stopWatch.elapsed();
+			const elapsed = stopWatch.elapsed();
 			this.logSearchPerformance(LLM_RANKED_SEARCH_PROVIDER_NAME, elapsed);
 		}
 
@@ -1995,9 +1983,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async searchWithProvider(type: SearchResultIdx, searchProvider: ISearchProvider, providerName: string, token: CancellationToken): Promise<ISearchResult | null> {
-		this.stopWatch.reset();
+		const stopWatch = new StopWatch(false);
 		const result = await this._searchPreferencesModel(this.defaultSettingsEditorModel, searchProvider, token);
-		this.stopWatch.stop();
+		stopWatch.stop();
 
 		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
@@ -2011,7 +1999,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Only log the elapsed time if there are actual results.
 		if (result && result.filterMatches.length > 0) {
-			const elapsed = this.stopWatch.elapsed();
+			const elapsed = stopWatch.elapsed();
 			this.logSearchPerformance(providerName, elapsed);
 		}
 
@@ -2166,9 +2154,10 @@ class SyncControls extends Disposable {
 	) {
 		super();
 
-		const turnOnSyncButtonContainer = DOM.append(container, $('.turn-on-sync'));
+		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
+		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
 		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true, ...defaultButtonStyles }));
-		this.lastSyncedLabel = DOM.append(container, $('.last-synced-label'));
+		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;

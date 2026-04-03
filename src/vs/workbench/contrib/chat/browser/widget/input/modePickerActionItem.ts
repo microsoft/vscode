@@ -28,7 +28,8 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { PromptsStorage, Target } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -98,7 +99,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				if (mode.uri) {
 					let label, icon, id;
 					if (mode.source?.storage === PromptsStorage.extension) {
-						icon = Codicon.eye;
+						icon = Codicon.file;
 						id = `viewAgent:${mode.id}`;
 						label = localize('viewModeConfiguration', "View {0} agent", mode.label.get());
 					} else {
@@ -165,7 +166,13 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const currentMode = delegate.currentMode.get();
 				const filteredCustomModes = modes.custom.filter(mode => {
 					const target = mode.target.get();
-					return target === customAgentTarget || target === Target.Undefined;
+					if (target !== customAgentTarget && target !== Target.Undefined) {
+						return false;
+					}
+					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+						return false;
+					}
+					return true;
 				});
 				const customModes = groupBy(
 					filteredCustomModes,
@@ -195,6 +202,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					return mode.id !== ChatMode.Agent.id && shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 				});
 				const filteredCustomModes = modes.custom.filter(mode => {
+					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+						return false;
+					}
 					if (isModeConsideredBuiltIn(mode, this._productService)) {
 						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 					}
@@ -260,11 +270,15 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		return menuContributions;
 	}
 
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-mode-picker-item');
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 
 		const currentMode = this.delegate.currentMode.get();
-		const isDefault = currentMode.id === ChatMode.Agent.id;
 		const state = currentMode.label.get();
 		let icon = currentMode.icon.get();
 
@@ -274,13 +288,16 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const labelElements = [];
+		const collapsed = this.pickerOptions.hideChevrons.get();
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		}
-		if (!isDefault || !icon || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
+		if (!collapsed || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
-		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!collapsed) {
+			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(element, ...labelElements);
 		return null;

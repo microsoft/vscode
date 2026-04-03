@@ -20,7 +20,7 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IChatDebugEventFileListContent } from '../../common/chatDebugService.js';
+import { IChatDebugCustomizationLogEntry, IChatDebugEventCustomizationSummaryContent, IChatDebugEventFileListContent } from '../../common/chatDebugService.js';
 import { InlineAnchorWidget } from '../widget/chatContentParts/chatInlineAnchorWidget.js';
 import { setupCollapsibleToggle } from './chatDebugCollapsible.js';
 
@@ -45,11 +45,14 @@ function getSettingsKeyForDiscoveryType(discoveryType: string): string | undefin
  * Extension files show the extension ID,
  * all other files show the relative (or tildified) parent folder path.
  */
-function getFileLocationLabel(file: { uri: URI; storage?: string; extensionId?: string }, labelService: ILabelService): string {
+function getFileLocationLabel(file: { uri: URI; storage?: string; extensionId?: string }, labelService: ILabelService, discoveryType?: string): string {
 	if (file.extensionId) {
 		return file.extensionId;
 	}
-	return labelService.getUriLabel(dirname(file.uri), { relative: true });
+	// Skills live inside individual skill folders (e.g. .github/skills/foo/SKILL.md),
+	// so group by the parent of the skill folder for a more useful label.
+	const parentDir = discoveryType === 'skill' ? dirname(dirname(file.uri)) : dirname(file.uri);
+	return labelService.getUriLabel(parentDir, { relative: true });
 }
 
 /**
@@ -131,29 +134,9 @@ function setupFileListNavigation(listEl: HTMLElement, rows: { element: HTMLEleme
 }
 
 /**
- * Append a location badge to a row. If the file comes from an extension,
- * the badge is a clickable link that opens the extension in the marketplace.
- */
-function appendLocationBadge(row: HTMLElement, file: { extensionId?: string }, badgeText: string, cssClass: string, openerService: IOpenerService, hoverService: IHoverService, disposables: DisposableStore): void {
-	if (file.extensionId) {
-		const link = DOM.append(row, $(`a.${cssClass}.chat-debug-file-list-badge-link`));
-		link.textContent = badgeText;
-		link.tabIndex = -1;
-		disposables.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), link, localize('chatDebug.openExtension', "Open {0} in Extensions", file.extensionId)));
-		disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			openerService.open(URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([file.extensionId]))}`), { allowCommands: true });
-		}));
-	} else {
-		DOM.append(row, $(`span.${cssClass}`, undefined, badgeText));
-	}
-}
-
-/**
  * Render a file list resolved content as a rich HTML element.
  */
-export function renderCustomizationDiscoveryContent(content: IChatDebugEventFileListContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService): { element: HTMLElement; disposables: DisposableStore } {
+export function renderCustomizationDiscoveryContent(content: IChatDebugEventFileListContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService, scrollable?: { scanDomNode(): void }): { element: HTMLElement; disposables: DisposableStore } {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-file-list');
 	container.tabIndex = 0;
@@ -162,66 +145,115 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 	DOM.append(container, $('div.chat-debug-file-list-title', undefined, localize('chatDebug.discoveryResults', "{0} Discovery Results", capitalizedType)));
 	DOM.append(container, $('div.chat-debug-file-list-summary', undefined, localize('chatDebug.totalFiles', "Total files: {0}", content.files.length)));
 
-	// Loaded files
+	// Loaded files - grouped by source location
 	const loaded = content.files.filter(f => f.status === 'loaded');
 	if (loaded.length > 0) {
 		const section = DOM.append(container, $('div.chat-debug-file-list-section'));
 		DOM.append(section, $('div.chat-debug-file-list-section-title', undefined,
 			localize('chatDebug.loadedFiles', "Loaded ({0})", loaded.length)));
 
+		// Group files by location label (extension ID or folder path)
+		const groups = new Map<string, typeof loaded>();
+		for (const file of loaded) {
+			const key = getFileLocationLabel(file, labelService, content.discoveryType);
+			let group = groups.get(key);
+			if (!group) {
+				group = [];
+				groups.set(key, group);
+			}
+			group.push(file);
+		}
+
 		const listEl = DOM.append(section, $('div.chat-debug-file-list-rows'));
 		listEl.setAttribute('role', 'list');
 		listEl.setAttribute('aria-label', localize('chatDebug.loadedFilesList', "Loaded files"));
 
 		const rows: { element: HTMLElement; activate: () => void }[] = [];
-		for (const file of loaded) {
-			const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
-			DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.check)}`));
-			const locationBadgeText = localize('chatDebug.locationBadge', " ({0})", getFileLocationLabel(file, labelService));
-			// Only include location in tooltip when it's an extension ID (path would be redundant)
-			const hoverSuffix = file.extensionId ? locationBadgeText.trim() : undefined;
-			row.appendChild(createInlineFileLink(file.uri, file.name ?? file.uri.path, FileKind.FILE, openerService, modelService, languageService, hoverService, labelService, disposables, hoverSuffix));
-			appendLocationBadge(row, file, locationBadgeText, 'chat-debug-file-list-badge', openerService, hoverService, disposables);
-			const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
-			row.setAttribute('aria-label', relativeLabel);
-			const uri = file.uri;
-			rows.push({ element: row, activate: () => openerService.open(uri) });
+		for (const [locationLabel, files] of groups) {
+			// Group header - show the source location
+			const groupHeader = DOM.append(listEl, $('div.chat-debug-file-list-group-header'));
+			const firstFile = files[0];
+			if (firstFile.extensionId) {
+				const link = DOM.append(groupHeader, $('a.chat-debug-file-list-group-label.chat-debug-file-list-badge-link'));
+				link.textContent = locationLabel;
+				link.tabIndex = -1;
+				disposables.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), link, localize('chatDebug.openExtension', "Open {0} in Extensions", firstFile.extensionId)));
+				disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, (e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					openerService.open(URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([firstFile.extensionId]))}`), { allowCommands: true });
+				}));
+			} else {
+				DOM.append(groupHeader, $('span.chat-debug-file-list-group-label', undefined, locationLabel));
+			}
+
+			for (const file of files) {
+				const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
+				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.check)}`));
+				row.appendChild(createInlineFileLink(file.uri, file.name ?? file.uri.path, FileKind.FILE, openerService, modelService, languageService, hoverService, labelService, disposables));
+				const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
+				row.setAttribute('aria-label', relativeLabel);
+				const uri = file.uri;
+				rows.push({ element: row, activate: () => openerService.open(uri) });
+			}
 		}
 		setupFileListNavigation(listEl, rows, disposables);
 	}
 
-	// Skipped files
+	// Skipped files - grouped by skip reason
 	const skipped = content.files.filter(f => f.status === 'skipped');
 	if (skipped.length > 0) {
 		const section = DOM.append(container, $('div.chat-debug-file-list-section'));
 		DOM.append(section, $('div.chat-debug-file-list-section-title', undefined,
 			localize('chatDebug.skippedFiles', "Skipped ({0})", skipped.length)));
 
+		// Group files by skip reason
+		const groups = new Map<string, typeof skipped>();
+		for (const file of skipped) {
+			const key = file.skipReason ?? localize('chatDebug.unknown', "unknown");
+			let group = groups.get(key);
+			if (!group) {
+				group = [];
+				groups.set(key, group);
+			}
+			group.push(file);
+		}
+
 		const listEl = DOM.append(section, $('div.chat-debug-file-list-rows'));
 		listEl.setAttribute('role', 'list');
 		listEl.setAttribute('aria-label', localize('chatDebug.skippedFilesList', "Skipped files"));
 
 		const rows: { element: HTMLElement; activate: () => void }[] = [];
-		for (const file of skipped) {
-			const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
-			DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.close)}`));
+		for (const [reasonLabel, files] of groups) {
+			// Group header - show the skip reason
+			const groupHeader = DOM.append(listEl, $('div.chat-debug-file-list-group-header'));
+			DOM.append(groupHeader, $('span.chat-debug-file-list-group-label', undefined, reasonLabel));
 
-			let reasonText = ` (${file.skipReason ?? localize('chatDebug.unknown', "unknown")}`;
-			if (file.errorMessage) {
-				reasonText += `: ${file.errorMessage}`;
+			for (const file of files) {
+				const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
+				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.close)}`));
+
+				// Build per-file detail (error message / duplicate info)
+				let detail = '';
+				if (file.errorMessage) {
+					detail += file.errorMessage;
+				}
+				if (file.duplicateOf) {
+					if (detail) {
+						detail += ', ';
+					}
+					detail += localize('chatDebug.duplicateOf', "duplicate of {0}", file.duplicateOf.path);
+				}
+
+				row.appendChild(createInlineFileLink(file.uri, file.name ?? file.uri.path, FileKind.FILE, openerService, modelService, languageService, hoverService, labelService, disposables));
+				if (detail) {
+					DOM.append(row, $('span.chat-debug-file-list-detail', undefined, ` (${detail})`));
+				}
+				const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
+				row.setAttribute('aria-label', relativeLabel);
+				const uri = file.uri;
+				rows.push({ element: row, activate: () => openerService.open(uri) });
 			}
-			if (file.duplicateOf) {
-				reasonText += localize('chatDebug.duplicateOf', ", duplicate of {0}", file.duplicateOf.path);
-			}
-			reasonText += ')';
-			// Only include reason in tooltip when it's an extension file (path-based location is redundant)
-			const skippedHoverSuffix = file.extensionId ? reasonText.trim() : undefined;
-			row.appendChild(createInlineFileLink(file.uri, file.name ?? file.uri.path, FileKind.FILE, openerService, modelService, languageService, hoverService, labelService, disposables, skippedHoverSuffix));
-			appendLocationBadge(row, file, reasonText, 'chat-debug-file-list-detail', openerService, hoverService, disposables);
-			const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
-			row.setAttribute('aria-label', relativeLabel);
-			const uri = file.uri;
-			rows.push({ element: row, activate: () => openerService.open(uri) });
 		}
 		setupFileListNavigation(listEl, rows, disposables);
 	}
@@ -276,7 +308,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 			DOM.append(row, $('span.chat-debug-source-folder-label', undefined, folder.uri.path));
 		}
 
-		setupCollapsibleToggle(chevron, header, contentEl, disposables, /* initiallyCollapsed */ true);
+		setupCollapsibleToggle(chevron, header, contentEl, disposables, /* initiallyCollapsed */ true, scrollable);
 	}
 
 	return { element: container, disposables };
@@ -297,28 +329,58 @@ export function fileListToPlainText(content: IChatDebugEventFileListContent): st
 
 	if (loaded.length > 0) {
 		lines.push(localize('chatDebug.plainText.loaded', "Loaded ({0})", loaded.length));
+		// Group by location
+		const groups = new Map<string, typeof loaded>();
 		for (const f of loaded) {
-			const label = f.name ?? f.uri.path;
-			const locationLabel = f.extensionId ?? dirname(f.uri).path;
-			lines.push(`  \u2713 ${label} - ${f.uri.path} (${locationLabel})`);
+			const parentDir = content.discoveryType === 'skill' ? dirname(dirname(f.uri)) : dirname(f.uri);
+			const key = f.extensionId ?? parentDir.path;
+			let group = groups.get(key);
+			if (!group) {
+				group = [];
+				groups.set(key, group);
+			}
+			group.push(f);
+		}
+		for (const [locationLabel, files] of groups) {
+			lines.push(`  ${locationLabel}`);
+			for (const f of files) {
+				const label = f.name ?? f.uri.path;
+				lines.push(`    \u2713 ${label}`);
+			}
 		}
 		lines.push('');
 	}
 
 	if (skipped.length > 0) {
 		lines.push(localize('chatDebug.plainText.skipped', "Skipped ({0})", skipped.length));
+		// Group by skip reason
+		const skippedGroups = new Map<string, typeof skipped>();
 		for (const f of skipped) {
-			const label = f.name ?? f.uri.path;
-			const reason = f.skipReason ?? localize('chatDebug.plainText.unknown', "unknown");
-			let detail = `  \u2717 ${label} (${reason}`;
-			if (f.errorMessage) {
-				detail += `: ${f.errorMessage}`;
+			const key = f.skipReason ?? localize('chatDebug.plainText.unknown', "unknown");
+			let group = skippedGroups.get(key);
+			if (!group) {
+				group = [];
+				skippedGroups.set(key, group);
 			}
-			if (f.duplicateOf) {
-				detail += localize('chatDebug.plainText.duplicateOf', ", duplicate of {0}", f.duplicateOf.path);
+			group.push(f);
+		}
+		for (const [reasonLabel, files] of skippedGroups) {
+			lines.push(`  ${reasonLabel}`);
+			for (const f of files) {
+				const label = f.name ?? f.uri.path;
+				let detail = `    \u2717 ${label}`;
+				if (f.errorMessage || f.duplicateOf) {
+					const parts: string[] = [];
+					if (f.errorMessage) {
+						parts.push(f.errorMessage);
+					}
+					if (f.duplicateOf) {
+						parts.push(localize('chatDebug.plainText.duplicateOf', "duplicate of {0}", f.duplicateOf.path));
+					}
+					detail += ` (${parts.join(', ')})`;
+				}
+				lines.push(detail);
 			}
-			detail += ')';
-			lines.push(detail);
 		}
 	}
 
@@ -328,6 +390,119 @@ export function fileListToPlainText(content: IChatDebugEventFileListContent): st
 		for (const folder of content.sourceFolders) {
 			lines.push(`  ${folder.uri.path}`);
 		}
+	}
+
+	return lines.join('\n');
+}
+
+/**
+ * Get a human-readable section title for a resolution log category.
+ */
+function getCategorySectionTitle(category: IChatDebugCustomizationLogEntry['category'], count: number): string {
+	switch (category) {
+		case 'applying': return localize('chatDebug.customization.instructions', "Instructions ({0})", count);
+		case 'referenced': return localize('chatDebug.customization.referenced', "Referenced ({0})", count);
+		case 'skill': return localize('chatDebug.customization.skill', "Skills ({0})", count);
+		case 'custom-agent': return localize('chatDebug.customization.customAgent', "Agents ({0})", count);
+		case 'hook': return localize('chatDebug.customization.hook', "Hooks ({0})", count);
+		case 'skipped': return localize('chatDebug.customization.skipped', "Skipped ({0})", count);
+	}
+}
+
+/**
+ * Render a customization summary showing per-file resolution logs
+ * from the instructions context computer.
+ */
+export function renderCustomizationSummaryContent(content: IChatDebugEventCustomizationSummaryContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService, scrollable?: { scanDomNode(): void }): { element: HTMLElement; disposables: DisposableStore } {
+	const disposables = new DisposableStore();
+	const container = $('div.chat-debug-customization-summary');
+	container.tabIndex = 0;
+
+	// Title with counts and duration
+	const mainSection = DOM.append(container, $('div.chat-debug-file-list'));
+	DOM.append(mainSection, $('div.chat-debug-file-list-title', undefined,
+		localize('chatDebug.customizationTitle', "Customization Resolution Results")));
+	DOM.append(mainSection, $('div.chat-debug-file-list-summary', undefined,
+		localize('chatDebug.customizationSummary', "{0} instructions, {1} skills, {2} agents, {3} hooks, {4} skipped in {5}ms",
+			content.counts.instructions, content.counts.skills, content.counts.agents, content.counts.hooks, content.counts.skipped, content.durationInMillis.toFixed(1))));
+
+	// Group entries by display section: instructions (applying+referenced), skills, agents, skipped
+	// Instructions section merges applying + referenced
+	const instructionEntries = content.resolutionLogs.filter(e => e.category === 'applying' || e.category === 'referenced');
+	const skillEntries = content.resolutionLogs.filter(e => e.category === 'skill');
+	const agentEntries = content.resolutionLogs.filter(e => e.category === 'custom-agent');
+	const hookEntries = content.resolutionLogs.filter(e => e.category === 'hook');
+	const skippedEntries = content.resolutionLogs.filter(e => e.category === 'skipped');
+
+	const sections: { title: string; icon: ThemeIcon; entries: readonly IChatDebugCustomizationLogEntry[] }[] = [
+		{ title: getCategorySectionTitle('applying', instructionEntries.length), icon: Codicon.book, entries: instructionEntries },
+		{ title: getCategorySectionTitle('skill', skillEntries.length), icon: Codicon.lightbulb, entries: skillEntries },
+		{ title: getCategorySectionTitle('custom-agent', agentEntries.length), icon: Codicon.agent, entries: agentEntries },
+		{ title: getCategorySectionTitle('hook', hookEntries.length), icon: Codicon.zap, entries: hookEntries },
+		{ title: getCategorySectionTitle('skipped', skippedEntries.length), icon: Codicon.close, entries: skippedEntries },
+	];
+
+	for (const { title, icon, entries } of sections) {
+		if (entries.length === 0) {
+			continue;
+		}
+
+		const section = DOM.append(mainSection, $('div.chat-debug-file-list-section'));
+		DOM.append(section, $('div.chat-debug-file-list-section-title', undefined, title));
+
+		const listEl = DOM.append(section, $('div.chat-debug-file-list-rows'));
+		listEl.setAttribute('role', 'list');
+		listEl.setAttribute('aria-label', title);
+
+		const rows: { element: HTMLElement; activate: () => void }[] = [];
+		for (const entry of entries) {
+			const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
+			DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
+
+			// Hide the reason for skills (e.g. "local") and hooks — it's noise in the UI.
+			const showReason = entry.category !== 'skill' && entry.category !== 'hook' && entry.category !== 'custom-agent';
+
+			if (entry.uri) {
+				row.appendChild(createInlineFileLink(
+					entry.uri, entry.name, FileKind.FILE,
+					openerService, modelService, languageService, hoverService, labelService, disposables,
+					showReason ? entry.reason : undefined
+				));
+				const uri = entry.uri;
+				rows.push({ element: row, activate: () => openerService.open(uri) });
+			} else {
+				DOM.append(row, $('span', undefined, entry.name));
+			}
+
+			if (showReason && entry.reason) {
+				DOM.append(row, $('span.chat-debug-file-list-detail', undefined, ` — ${entry.reason}`));
+			}
+			row.setAttribute('aria-label', entry.reason ? `${entry.name} — ${entry.reason}` : entry.name);
+		}
+		setupFileListNavigation(listEl, rows, disposables);
+	}
+
+	if (content.resolutionLogs.length === 0) {
+		DOM.append(mainSection, $('div.chat-debug-file-list-summary', undefined,
+			localize('chatDebug.noResolutionLogs', "No resolution logs")));
+	}
+
+	return { element: container, disposables };
+}
+
+/**
+ * Serialize a customization summary to plain text for clipboard / full-screen.
+ */
+export function customizationSummaryToPlainText(content: IChatDebugEventCustomizationSummaryContent): string {
+	const lines: string[] = [];
+
+	lines.push(localize('chatDebug.plainText.customizationTitle', "Customization Resolution Results"));
+	lines.push(localize('chatDebug.plainText.customizationSummary', "{0} instructions, {1} skills, {2} agents, {3} hooks, {4} skipped in {5}ms",
+		content.counts.instructions, content.counts.skills, content.counts.agents, content.counts.hooks, content.counts.skipped, content.durationInMillis.toFixed(1)));
+	lines.push('');
+	for (const entry of content.resolutionLogs) {
+		const detail = entry.reason ? `${entry.name} — ${entry.reason}` : entry.name;
+		lines.push(`  [${entry.category}] ${detail}`);
 	}
 
 	return lines.join('\n');

@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -17,11 +18,11 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
@@ -59,7 +60,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
 
 export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';
@@ -140,6 +141,16 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			const inputText = toolSpecificData.input;
 			const outputText = toolSpecificData.output;
 			return localize('simpleToolInvocation', "Input: {0}, Output: {1}", inputText, outputText);
+		}
+		case 'modifiedFilesConfirmation': {
+			if (toolSpecificData.modifiedFiles.length === 0) {
+				return '';
+			}
+
+			return localize('modifiedFilesConfirmation', "Modified files: {0}", toolSpecificData.modifiedFiles.map(file => {
+				const revivedUri = URI.revive(file.uri);
+				return revivedUri.fsPath || revivedUri.path;
+			}).join(', '));
 		}
 		default:
 			return '';
@@ -287,6 +298,25 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					if (text.trim()) {
 						contentParts.push(text);
 					}
+					break;
+				}
+				case 'inlineReference': {
+					const ref = part.inlineReference;
+					let text: string;
+					if (URI.isUri(ref)) {
+						const name = part.name || basename(ref);
+						const path = ref.scheme === 'file' ? ref.path : ref.toString(true);
+						text = name !== path ? `${name} (${path})` : path;
+					} else if (isLocation(ref)) {
+						const name = part.name || basename(ref.uri);
+						const path = ref.uri.scheme === 'file' ? ref.uri.path : ref.uri.toString(true);
+						text = `${name} (${path}:${ref.range.startLineNumber})`;
+					} else {
+						// IWorkspaceSymbol
+						const path = ref.location.uri.scheme === 'file' ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
+						text = `${ref.name} (${path}:${ref.location.range.startLineNumber})`;
+					}
+					contentParts.push(text);
 					break;
 				}
 				case 'elicitation2':

@@ -11,7 +11,8 @@ import {
 	TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
 	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
 	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext,
-	IsAuxiliaryWindowContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically
+	IsAuxiliaryWindowContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, SplitEditorsVertically,
+	IsSessionsWindowContext
 } from '../../../common/contextkeys.js';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from '../../../common/editor/sideBySideEditorInput.js';
 import { TextResourceEditor } from './textResourceEditor.js';
@@ -429,7 +430,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_MAXIMIZE
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('lockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '8_group_operations', order: 10, when: IsAuxiliaryWindowContext.toNegated() /* already a primary action for aux windows */ });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: ConfigureEditorAction.ID, title: localize('configureEditors', "Configure Editors") }, group: '9_configure', order: 10 });
 
-function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpression | undefined, order: number, alternative?: ICommandAction, precondition?: ContextKeyExpression | undefined, enableInCompactMode?: boolean): void {
+function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpression | undefined, order: number, alternative?: ICommandAction, precondition?: ContextKeyExpression | undefined, enableInCompactMode?: boolean, enableInModalMode?: boolean): void {
 	const item: IMenuItem = {
 		command: {
 			id: primary.id,
@@ -454,6 +455,9 @@ function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpressio
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, item);
 	if (enableInCompactMode) {
 		MenuRegistry.appendMenuItem(MenuId.CompactWindowEditorTitle, item);
+	}
+	if (enableInModalMode) {
+		MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, item);
 	}
 }
 
@@ -601,6 +605,7 @@ appendEditorToolItem(
 	10,
 	undefined,
 	EditorContextKeys.hasChanges,
+	true,
 	true
 );
 
@@ -616,6 +621,7 @@ appendEditorToolItem(
 	11,
 	undefined,
 	EditorContextKeys.hasChanges,
+	true,
 	true
 );
 
@@ -684,6 +690,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	submenu: MenuId.MenubarShare,
 	group: '45_share',
 	order: 1,
+	when: IsSessionsWindowContext.negate()
 });
 
 // Layout menu
@@ -691,7 +698,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
 	title: localize({ key: 'miEditorLayout', comment: ['&& denotes a mnemonic'] }, "Editor &&Layout"),
 	submenu: MenuId.MenubarLayoutMenu,
-	order: 2
+	order: 2,
+	when: IsSessionsWindowContext.negate()
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {

@@ -803,6 +803,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
 	setExperimentProperty(): void { }
+	setCommonProperty(): void { }
 	publicLog() { }
 	publicLog2() { }
 	publicLogError() { }
@@ -850,6 +851,10 @@ class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 			return WorkbenchState.FOLDER;
 		}
 		return WorkbenchState.EMPTY;
+	}
+
+	public hasWorkspaceData(): boolean {
+		return this.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {

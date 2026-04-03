@@ -12,7 +12,7 @@ import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider, SourceControlHistoryItemDetailsProvider } from './api/git';
+import type { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider, SourceControlHistoryItemDetailsProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
@@ -690,6 +690,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.info(`[Model][openRepository] Opened repository (path): ${repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (real path): ${repository.rootRealPath ?? repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
+
+			// For repositories that are opened in the sessions app, we want to wait for
+			// the initial `git status` to complete before updating the repository cache
+			// and firing events.
+			if (workspace.isAgentSessionsWorkspace) {
+				await repository.status();
+				this._repositoryCache.update(repository.remotes, [], repository.root);
+
+				return;
+			}
 
 			// Do not await this, we want SCM
 			// to know about the repo asap

@@ -30,6 +30,7 @@ import { IMeteredConnectionService } from '../../meteredConnection/common/metere
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
@@ -69,16 +70,17 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService productService: IProductService,
+		@IApplicationStorageMainService applicationStorageMainService: IApplicationStorageMainService,
 		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService, true);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, telemetryService, applicationStorageMainService, meteredConnectionService, true);
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -99,9 +101,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async initialize(): Promise<void> {
+		// In the embedded app, skip win32-specific setup (cache paths, telemetry)
+		// but still run the base initialization to detect available updates.
 		if ((process as INodeProcess).isEmbeddedApp) {
-			this.setState(State.Disabled(DisablementReason.EmbeddedApp));
-			this.logService.info('update#ctor - updates are disabled from embedded app');
+			this.logService.info('update#ctor - embedded app: checking for updates without auto-download');
+			await super.initialize();
 			return;
 		}
 
@@ -166,8 +170,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
 				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
+				const exeName = basename(exePath);
+				const siblingExeName = this.productService.win32SiblingExeBasename ? `${this.productService.win32SiblingExeBasename}.exe` : '';
 				await new Promise<void>(resolve => {
-					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder], {
+					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder, exeName, siblingExeName], {
 						stdio: ['ignore', 'ignore', 'ignore'],
 						windowsHide: true,
 						timeout: 2 * 60 * 1000
@@ -205,7 +211,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		const headers = getUpdateRequestHeaders(this.productService.version);
-		this.requestService.request({ url, headers }, CancellationToken.None)
+		this.requestService.request({ url, headers, callSite: 'updateService.win32.checkForUpdates' }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
@@ -217,13 +223,20 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						this._overwrite = false;
 						this.setState(State.Ready(this.state.update, this.state.explicit, false));
 					} else {
-						this.setState(State.Idle(updateType));
+						this.setState(State.Idle(updateType, undefined, explicit || undefined));
 					}
 					return Promise.resolve(null);
 				}
 
 				if (updateType === UpdateType.Archive) {
 					this.setState(State.AvailableForDownload(update));
+					return Promise.resolve(null);
+				}
+
+				// In the embedded app, signal that an update exists but can't be installed here.
+				if ((process as INodeProcess).isEmbeddedApp) {
+					this.logService.info('update#doCheckForUpdates - embedded app: update available, skipping download');
+					this.setState(State.AvailableForDownload(update, /* canInstall */ false));
 					return Promise.resolve(null);
 				}
 
@@ -247,7 +260,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 							const downloadPath = `${updatePackagePath}.tmp`;
 
-							return this.requestService.request({ url: update.url }, CancellationToken.None)
+							return this.requestService.request({ url: update.url, callSite: 'updateService.win32.downloadUpdate' }, CancellationToken.None)
 								.then(context => {
 									// Get total size from Content-Length header
 									const contentLengthHeader = context.res.headers['content-length'];
@@ -343,7 +356,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const update = this.state.update;
 		const explicit = this.state.explicit;
-		this.setState(State.Updating(update));
+		this.setState(State.Updating(update, explicit));
 
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
@@ -406,7 +419,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						const maxProgress = parseInt(maxStr, 10);
 						if (!isNaN(currentProgress) && !isNaN(maxProgress) && this.state.type === StateType.Updating) {
 							if (this.state.currentProgress !== currentProgress || this.state.maxProgress !== maxProgress) {
-								this.setState(State.Updating(update, currentProgress, maxProgress));
+								this.setState(State.Updating(update, explicit, currentProgress, maxProgress));
 							}
 						}
 					}
@@ -479,7 +492,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override doQuitAndInstall(): void {
-		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
+		if ((this.state.type !== StateType.Ready && this.state.type !== StateType.Restarting) || !this.availableUpdate) {
 			return;
 		}
 

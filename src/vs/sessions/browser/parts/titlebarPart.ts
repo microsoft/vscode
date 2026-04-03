@@ -18,7 +18,7 @@ import { WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
 import { chatBarTitleBackground, chatBarTitleForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { Color } from '../../../base/common/color.js';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -81,6 +81,10 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 
+	get leftContainer(): HTMLElement { return this.leftContent; }
+	get rightContainer(): HTMLElement { return this.rightContent; }
+	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
+
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
 
@@ -132,7 +136,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
-		this.rootContainer = append(parent, $('.titlebar-container.has-center'));
+		this.rootContainer = append(parent, $('.titlebar-container.sessions-titlebar-container.has-center'));
 
 		// Draggable region
 		prepend(this.rootContainer, $('div.titlebar-drag-region'));
@@ -185,7 +189,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Left toolbar (driven by Menus.TitleBarLeft, rendered after window controls via CSS order)
 		const leftToolbarContainer = append(this.leftContent, $('div.left-toolbar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, leftToolbarContainer, Menus.TitleBarLeft, {
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, leftToolbarContainer, Menus.TitleBarLeftLayout, {
 			contextMenu: Menus.TitleBarContext,
 			telemetrySource: 'titlePart.left',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -203,11 +207,21 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Right toolbar (driven by Menus.TitleBarRight - includes account submenu)
-		const rightToolbarContainer = prepend(this.rightContent, $('div.action-toolbar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRight, {
+		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
+		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-right-layout-container'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
 			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.right',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		// Session title actions toolbar (before right toolbar)
+		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.sessionActions',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
@@ -254,8 +268,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		});
 	}
 
-	private lastLayoutDimension: Dimension | undefined;
-
 	get hasZoomableElements(): boolean {
 		return true; // sessions titlebar always has command center and toolbar actions
 	}
@@ -268,7 +280,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	override layout(width: number, height: number): void {
-		this.lastLayoutDimension = new Dimension(width, height);
 		this.updateLayout();
 		super.layoutContents(width, height);
 	}
@@ -281,24 +292,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		const zoomFactor = getZoomFactor(getWindow(this.element));
 		this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
 		this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
-
-		this.updateCenterOffset();
-	}
-
-	private updateCenterOffset(): void {
-		if (!this.centerContent || !this.lastLayoutDimension) {
-			return;
-		}
-
-		// Center the command center relative to the viewport.
-		// The titlebar only covers the right section (sidebar is to the left),
-		// so we shift the center content left by half the sidebar width
-		// using a negative margin.
-		const windowWidth = this.layoutService.mainContainerDimension.width;
-		const titlebarWidth = this.lastLayoutDimension.width;
-		const leftOffset = windowWidth - titlebarWidth;
-		this.centerContent.style.marginLeft = leftOffset > 0 ? `${-leftOffset / 2}px` : '';
-		this.centerContent.style.marginRight = leftOffset > 0 ? `${leftOffset / 2}px` : '';
 	}
 
 	focus(): void {

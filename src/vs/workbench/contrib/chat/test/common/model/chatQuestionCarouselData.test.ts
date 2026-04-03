@@ -52,6 +52,8 @@ suite('ChatQuestionCarouselData', () => {
 
 	test('toJSON strips the completion promise', () => {
 		const carousel = new ChatQuestionCarouselData(createQuestions(), true, 'test-resolve-id', { q1: 'saved' }, true);
+		carousel.draftAnswers = { q2: 'draft' };
+		carousel.draftCurrentIndex = 1;
 
 		const json = carousel.toJSON();
 
@@ -60,6 +62,8 @@ suite('ChatQuestionCarouselData', () => {
 		assert.deepStrictEqual(json.data, { q1: 'saved' });
 		assert.strictEqual(json.isUsed, true);
 		assert.strictEqual((json as { completion?: unknown }).completion, undefined, 'toJSON should not include completion');
+		assert.strictEqual((json as { draftAnswers?: unknown }).draftAnswers, undefined, 'toJSON should not include draftAnswers');
+		assert.strictEqual((json as { draftCurrentIndex?: unknown }).draftCurrentIndex, undefined, 'toJSON should not include draftCurrentIndex');
 	});
 
 	test('multiple carousels can have independent completion promises', async () => {

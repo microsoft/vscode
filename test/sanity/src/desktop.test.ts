@@ -95,7 +95,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-arm64', ['linux', 'arm64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-arm64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
 		}
@@ -104,7 +104,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-armhf', ['linux', 'arm32', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-armhf');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
 		}
@@ -113,7 +113,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-x64', ['linux', 'x64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-x64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
 		}
@@ -249,12 +249,13 @@ export function setup(context: TestContext) {
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
-		const window = await context.getPage(app.firstWindow());
-
-		await test.run(window);
-
-		context.log('Closing the application');
-		await app.close();
+		try {
+			const window = await context.getPage(app.firstWindow());
+			await test.run(window);
+		} finally {
+			context.log('Closing the application');
+			await app.close();
+		}
 
 		test.validate();
 	}

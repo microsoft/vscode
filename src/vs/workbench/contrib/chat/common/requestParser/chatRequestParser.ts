@@ -12,12 +12,12 @@ import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
+import { IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
-const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
-const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+export const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
+export const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
+export const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -37,11 +37,16 @@ export class ChatRequestParser {
 	) { }
 
 	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
-		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
+		return this.parseChatRequestWithReferences(references, selectedToolAndToolSets, message, location, context);
+	}
+
+	parseChatRequestWithReferences(references: ReadonlyArray<IDynamicVariable>, selectedToolAndToolSets: IToolAndToolSetEnablementMap, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
+		const parts: IParsedChatRequestPart[] = [];
 		const toolsByName = new Map<string, IToolData>();
 		const toolSetsByName = new Map<string, IToolSet>();
-		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionResource)) {
+		for (const [entry, enabled] of selectedToolAndToolSets) {
 			if (enabled) {
 				if (isToolSet(entry)) {
 					toolSetsByName.set(entry.referenceName, entry);
@@ -218,10 +223,14 @@ export class ChatRequestParser {
 			}
 		}
 
-		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities ?? context?.attachmentCapabilities;
-		if (!usedAgent || capabilities?.supportsPromptAttachments) {
-			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
-			const slashCommand = slashCommands.find(c => c.command === command);
+		const capabilities = context?.attachmentCapabilities ?? usedAgent?.capabilities;
+		const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
+		const slashCommand = slashCommands.find(c => c.command === command);
+		// If there is no agent, we allow any slash command.
+		// If there is an agent, we let
+		// * silent ones go through since they are only UI-facing and don't influence chat history
+		// * slash commands that support prompt attachments, since those are meant to be used in conjunction with an agent and we can assume the agent can handle them.
+		if (!usedAgent || slashCommand?.silent || capabilities?.supportsPromptAttachments) {
 			if (slashCommand) {
 				// Valid standalone slash command
 				return new ChatRequestSlashCommandPart(slashRange, slashEditorRange, slashCommand);

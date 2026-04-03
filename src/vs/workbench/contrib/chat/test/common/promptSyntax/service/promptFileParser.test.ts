@@ -49,9 +49,13 @@ suite('PromptFileParser', () => {
 			{ range: new Range(7, 140, 7, 155), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108 },
-			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170 }
+			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108, fullLength: 11 },
+			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170, fullLength: 12 }
 		]);
+		const [ref1, ref2] = result.body.variableReferences;
+		assert.equal(content.substring(ref1.offset, ref1.offset + ref1.fullLength), '#tool:tool1');
+		assert.equal(content.substring(ref2.offset, ref2.offset + ref2.fullLength), '#tool:tool-2');
+
 		assert.deepEqual(result.header.description, 'Agent test');
 		assert.deepEqual(result.header.model, ['GPT 4.1']);
 		assert.ok(result.header.tools);
@@ -165,6 +169,27 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
 	});
 
+	test('handoff with whitespace-only label is skipped', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "   "',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Do something"',
+			/* 07 */'  - label: "Valid"',
+			/* 08 */'    agent: Default',
+			/* 09 */'    prompt: "Also do something"',
+			/* 10 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+		assert.deepStrictEqual(result.header.handOffs, [
+			{ agent: 'Default', label: 'Valid', prompt: 'Also do something' }
+		]);
+	});
+
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [
@@ -230,13 +255,190 @@ suite('PromptFileParser', () => {
 			{ range: new Range(7, 64, 7, 88), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 46, 7, 52), name: 'search', offset: 153 }
+			{ range: new Range(7, 46, 7, 52), name: 'search', offset: 153, fullLength: 12 }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.agent, 'agent');
 		assert.deepEqual(result.header.model, ['GPT 4.1']);
 		assert.ok(result.header.tools);
 		assert.deepEqual(result.header.tools, ['search', 'terminal']);
+	});
+
+	test('ignores links and variables inside inline code and fenced code blocks', async () => {
+		const uri = URI.parse('file:///test/prompt3.md');
+		const content = [
+			'---',
+			`description: "Prompt with markdown code"`,
+			'---',
+			'Outside #tool:outside and [outside](./outside.md).',
+			'Inline code: `#tool:inline and [inline](./inline.md)` should be ignored.',
+			'```ts',
+			'#tool:block and #file:./inside-block.md and [block](./block.md)',
+			'```',
+			'After block #file:./after.md and [after](./after-link.md).',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(reference => ({ content: reference.content, isMarkdownLink: reference.isMarkdownLink })), [
+			{ content: './outside.md', isMarkdownLink: true },
+			{ content: './after.md', isMarkdownLink: false },
+			{ content: './after-link.md', isMarkdownLink: true }
+		]);
+		assert.deepEqual(result.body.variableReferences.map(reference => reference.name), ['outside']);
+	});
+
+	test('ignores references in multiple inline code spans on the same line', async () => {
+		const uri = URI.parse('file:///test/prompt-inline.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'Before `#tool:ignored1` middle #tool:visible `[link](./ignored.md)` after [real](./real.md).',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './real.md', isMarkdownLink: true },
+		]);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+	});
+
+	test('handles fenced code block without language specifier', async () => {
+		const uri = URI.parse('file:///test/prompt-fence.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'```',
+			'#file:./ignored.md',
+			'[link](./ignored-link.md)',
+			'```',
+			'#file:./visible.md',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './visible.md', isMarkdownLink: false },
+		]);
+		assert.deepEqual(result.body.variableReferences, []);
+	});
+
+	test('handles multiple fenced code blocks', async () => {
+		const uri = URI.parse('file:///test/prompt-multi-fence.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'#tool:before',
+			'```js',
+			'#tool:ignored1',
+			'```',
+			'#tool:between',
+			'```python',
+			'#tool:ignored2',
+			'```',
+			'#tool:after',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['before', 'between', 'after']);
+	});
+
+	test('unclosed fenced code block ignores all remaining lines', async () => {
+		const uri = URI.parse('file:///test/prompt-unclosed.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'#tool:visible',
+			'```',
+			'#tool:ignored',
+			'#file:./ignored.md',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+		assert.deepEqual(result.body.fileReferences, []);
+	});
+
+	test('adjacent inline code does not suppress outside references', async () => {
+		const uri = URI.parse('file:///test/prompt-adjacent.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'`code`#tool:attached `more`[link](./file.md)',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		// #tool:attached starts right after the closing backtick, so it's outside inline code
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['attached']);
+		// [link](./file.md) starts after the second inline code span
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './file.md', isMarkdownLink: true },
+		]);
+	});
+
+	test('indented fenced code block is still detected', async () => {
+		const uri = URI.parse('file:///test/prompt-indent.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'  ```ts',
+			'  #tool:ignored',
+			'  ```',
+			'#tool:visible',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+	});
+
+	test('fenced code block with 4 backticks', async () => {
+		const uri = URI.parse('file:///test/prompt-4tick.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'````',
+			'#tool:ignored and [link](./ignored.md)',
+			'````',
+			'#tool:visible',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+		assert.deepEqual(result.body.fileReferences, []);
+	});
+
+	test('fenced code block with tilde fence (~~~)', async () => {
+		const uri = URI.parse('file:///test/prompt-tilde.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'~~~',
+			'#file:./ignored.md and [link](./ignored-link.md)',
+			'#tool:ignored',
+			'~~~',
+			'[real](./real.md)',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './real.md', isMarkdownLink: true },
+		]);
+		assert.deepEqual(result.body.variableReferences, []);
 	});
 
 
@@ -407,10 +609,10 @@ suite('PromptFileParser', () => {
 
 	});
 
-	test('userInvocable getter falls back to deprecated user-invokable', async () => {
+	test('userInvocable getter reads user-invocable attribute', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
 
-		// user-invocable (new spelling) takes precedence
+		// user-invocable works
 		const content1 = [
 			'---',
 			'description: "Test"',
@@ -420,26 +622,15 @@ suite('PromptFileParser', () => {
 		const result1 = new PromptFileParser().parse(uri, content1);
 		assert.strictEqual(result1.header?.userInvocable, true);
 
-		// deprecated user-invokable still works as fallback
+		// user-invocable false
 		const content2 = [
 			'---',
 			'description: "Test"',
-			'user-invokable: false',
+			'user-invocable: false',
 			'---',
 		].join('\n');
 		const result2 = new PromptFileParser().parse(uri, content2);
 		assert.strictEqual(result2.header?.userInvocable, false);
-
-		// user-invocable takes precedence over deprecated user-invokable
-		const content3 = [
-			'---',
-			'description: "Test"',
-			'user-invocable: true',
-			'user-invokable: false',
-			'---',
-		].join('\n');
-		const result3 = new PromptFileParser().parse(uri, content3);
-		assert.strictEqual(result3.header?.userInvocable, true);
 
 		// neither set returns undefined
 		const content4 = [

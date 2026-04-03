@@ -11,7 +11,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
-	PluginPaths = 'chat.plugins.paths',
+	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
 	AgentEnabled = 'chat.agent.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
@@ -22,7 +22,6 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	EditModeHidden = 'chat.editMode.hidden',
-	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
@@ -49,14 +48,25 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	GeneralPurposeAgentEnabled = 'chat.generalPurposeAgent.enabled',
+	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
-	AgentsControlClickBehavior = 'chat.agentsControl.clickBehavior',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
+	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	SignInTitleBarEnabled = 'chat.signInTitleBar.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
-	ChatCustomizationUserStoragePath = 'chat.customizationsMenu.userStoragePath',
+	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
+	AutopilotEnabled = 'chat.autopilot.enabled',
+	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
+	ArtifactsEnabled = 'chat.artifacts.enabled',
+	ArtifactsMode = 'chat.artifacts.mode',
+	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
+	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
+	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
+	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 }
 
 /**
@@ -68,19 +78,24 @@ export enum ChatModeKind {
 	Agent = 'agent'
 }
 
-export function validateChatMode(mode: unknown): ChatModeKind | undefined {
-	switch (mode) {
-		case ChatModeKind.Ask:
-		case ChatModeKind.Edit:
-		case ChatModeKind.Agent:
-			return mode as ChatModeKind;
-		default:
-			return undefined;
-	}
+/**
+ * The permission level controlling tool auto-approval behavior.
+ */
+export enum ChatPermissionLevel {
+	/** Use existing auto-approve settings */
+	Default = 'default',
+	/** Auto-approve all tool calls, auto-retry on error */
+	AutoApprove = 'autoApprove',
+	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
+	Autopilot = 'autopilot'
 }
 
-export function isChatMode(mode: unknown): mode is ChatModeKind {
-	return !!validateChatMode(mode);
+/**
+ * Returns true if the permission level enables auto-approval of all tool calls.
+ * Both {@link ChatPermissionLevel.AutoApprove} and {@link ChatPermissionLevel.Autopilot} enable auto-approval.
+ */
+export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
+	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
 }
 
 // Thinking display modes for pinned content
@@ -100,11 +115,6 @@ export enum ChatNotificationMode {
 	Off = 'off',
 	WindowNotFocused = 'windowNotFocused',
 	Always = 'always',
-}
-
-export enum AgentsControlClickBehavior {
-	Default = 'default',
-	Cycle = 'cycle',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -173,3 +183,9 @@ export const ChatEditorTitleMaxLength = 30;
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
 export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);
+
+/**
+ * The built-in general-purpose agent name. When the model uses this name,
+ * the subagent inherits the parent's system prompt, model, and tools.
+ */
+export const GeneralPurposeAgentName = 'General Purpose';

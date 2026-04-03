@@ -78,6 +78,28 @@ declare module 'vscode' {
 
 	// #endregion
 
+	// #region HookProvider
+
+	/**
+	 * A provider that supplies hook configuration resources (from hooks JSON files).
+	 */
+	export interface ChatHookProvider {
+		/**
+		 * An optional event to signal that hooks have changed.
+		 */
+		readonly onDidChangeHooks?: Event<void>;
+
+		/**
+		 * Provide the list of hook configuration files available.
+		 * @param context Context for the provide call.
+		 * @param token A cancellation token.
+		 * @returns An array of hook resources or a promise that resolves to such.
+		 */
+		provideHooks(context: unknown, token: CancellationToken): ProviderResult<ChatResource[]>;
+	}
+
+	// #endregion
+
 	// #region SkillProvider
 
 	/**
@@ -103,6 +125,61 @@ declare module 'vscode' {
 	// #region Chat Provider Registration
 
 	export namespace chat {
+		/**
+		 * An event that fires when the list of {@link customAgents custom agents} changes.
+		 */
+		export const onDidChangeCustomAgents: Event<void>;
+
+		/**
+		 * The list of currently available custom agents. These are `.agent.md` files
+		 * from all sources (workspace, user, and extension-provided).
+		 */
+		export const customAgents: readonly ChatResource[];
+
+		/**
+		 * An event that fires when the list of {@link instructions instructions} changes.
+		 */
+		export const onDidChangeInstructions: Event<void>;
+
+		/**
+		 * The list of currently available instructions. These are `.instructions.md` files
+		 * from all sources (workspace, user, and extension-provided).
+		 */
+		export const instructions: readonly ChatResource[];
+
+		/**
+		 * An event that fires when the list of {@link skills skills} changes.
+		 */
+		export const onDidChangeSkills: Event<void>;
+
+		/**
+		 * The list of currently available skills. These are `SKILL.md` files
+		 * from all sources (workspace, user, and extension-provided).
+		 */
+		export const skills: readonly ChatResource[];
+
+		/**
+		 * An event that fires when the list of {@link hooks hooks} changes.
+		 */
+		export const onDidChangeHooks: Event<void>;
+
+		/**
+		 * The list of currently available hook configuration files.
+		 * These are JSON files that define lifecycle hooks from all sources
+		 * (workspace, user, and extension-provided).
+		 */
+		export const hooks: readonly ChatResource[];
+
+		/**
+		 * An event that fires when the list of {@link plugins plugins} changes.
+		 */
+		export const onDidChangePlugins: Event<void>;
+
+		/**
+		 * The list of currently installed agent plugins.
+		 */
+		export const plugins: readonly ChatResource[];
+
 		/**
 		 * Register a provider for custom agents.
 		 * @param provider The custom agent provider.
@@ -130,6 +207,13 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
 		export function registerSkillProvider(provider: ChatSkillProvider): Disposable;
+
+		/**
+		 * Register a provider for hooks.
+		 * @param provider The hook provider.
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerHookProvider(provider: ChatHookProvider): Disposable;
 	}
 
 	// #endregion

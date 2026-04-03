@@ -10,6 +10,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { viewFilterSubmenu } from '../../../../browser/parts/views/viewFilter.js';
+import { parseTimeToken, stripTimestampTokens } from '../../common/chatDebugEvents.js';
 import {
 	CHAT_DEBUG_FILTER_ACTIVE,
 	CHAT_DEBUG_KIND_TOOL_CALL, CHAT_DEBUG_KIND_MODEL_TURN, CHAT_DEBUG_KIND_PROMPT_DISCOVERY, CHAT_DEBUG_KIND_SUBAGENT,
@@ -18,7 +19,7 @@ import {
 } from './chatDebugTypes.js';
 
 /**
- * Shared filter state for the Agent Debug Panel.
+ * Shared filter state for the Agent Debug Logs.
  *
  * Both the Logs view and the Flow Chart view read from this single source of
  * truth. Toggle commands modify the state and fire `onDidChange` so every
@@ -38,16 +39,21 @@ export class ChatDebugFilterState extends Disposable {
 	// Text filter
 	textFilter: string = '';
 
+	// Parsed timestamp filters (epoch ms)
+	beforeTimestamp: number | undefined;
+	afterTimestamp: number | undefined;
+
 	isKindVisible(kind: string, category?: string): boolean {
 		switch (kind) {
 			case 'toolCall': return this.filterKindToolCall;
 			case 'modelTurn': return this.filterKindModelTurn;
 			case 'generic':
-				// The "Prompt Discovery" toggle only hides events produced by
-				// the prompt discovery pipeline (category === 'discovery').
+				// The "Chat Customization" toggle hides events produced by
+				// the prompt discovery pipeline (category === 'discovery')
+				// and the customization summary (category === 'customization').
 				// Other generic events (e.g. from external providers) are
 				// always visible and are not affected by this toggle.
-				if (category !== 'discovery') {
+				if (category !== 'discovery' && category !== 'customization') {
 					return true;
 				}
 				return this.filterKindPromptDiscovery;
@@ -70,8 +76,26 @@ export class ChatDebugFilterState extends Disposable {
 		const normalized = text.toLowerCase();
 		if (this.textFilter !== normalized) {
 			this.textFilter = normalized;
+			this.beforeTimestamp = parseTimeToken(normalized, 'before');
+			this.afterTimestamp = parseTimeToken(normalized, 'after');
 			this._onDidChange.fire();
 		}
+	}
+
+	/** Returns the text filter with before:/after: tokens removed. */
+	get textFilterWithoutTimestamps(): string {
+		return stripTimestampTokens(this.textFilter);
+	}
+
+	isTimestampVisible(created: Date): boolean {
+		const time = created.getTime();
+		if (this.beforeTimestamp !== undefined && time > this.beforeTimestamp) {
+			return false;
+		}
+		if (this.afterTimestamp !== undefined && time < this.afterTimestamp) {
+			return false;
+		}
+		return true;
 	}
 
 	fire(): void {

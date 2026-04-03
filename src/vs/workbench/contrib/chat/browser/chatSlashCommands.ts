@@ -6,27 +6,30 @@
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
+import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
-import { globalAutoApproveDescription } from './tools/languageModelToolsService.js';
+import { IChatWidgetService } from './chat.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { Target } from '../common/promptSyntax/promptTypes.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -40,11 +43,11 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IDialogService dialogService: IDialogService,
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat and archive the current one"),
@@ -61,7 +64,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_hooks',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async () => {
 			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
 		}));
@@ -71,7 +75,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_models',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
 		}, async () => {
 			await commandService.executeCommand(OpenModelPickerAction.ID);
 		}));
@@ -81,27 +85,42 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_tools',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async () => {
 			await commandService.executeCommand(ConfigureToolsAction.ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'debug',
-			detail: nls.localize('debug', "Show Chat Debug View"),
-			sortText: 'z3_debug',
+			command: 'plugins',
+			detail: nls.localize('plugins', "Manage plugins"),
+			sortText: 'z3_plugins',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async () => {
-			await commandService.executeCommand('github.copilot.debug.showChatLogView');
+			await commandService.executeCommand(ManagePluginsAction.ID);
 		}));
+		if (!this.environmentService.isSessionsWindow) {
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'debug',
+				detail: nls.localize('debug', "Show Chat Debug View"),
+				sortText: 'z3_debug',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+			}, async () => {
+				await commandService.executeCommand('github.copilot.debug.showChatLogView');
+			}));
+		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',
 			detail: nls.localize('agents', "Configure custom agents"),
 			sortText: 'z3_agents',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async () => {
 			await commandService.executeCommand(OpenModePickerAction.ID);
 		}));
@@ -111,7 +130,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_skills',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
 		}));
@@ -121,7 +141,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_instructions',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
 		}));
@@ -131,7 +152,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_prompts',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
 		}));
@@ -141,7 +163,11 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z2_fork',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			when: ContextKeyExpr.or(
+				ChatContextKeys.lockedToCodingAgent.negate(),
+				ChatContextKeys.chatSessionSupportsFork
+			),
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
 			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
 		}));
@@ -151,104 +177,99 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z2_rename',
 			executeImmediately: false,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			targets: [Target.VSCode]
 		}, async (prompt, _progress, _history, _location, sessionResource) => {
 			const title = prompt.trim();
 			if (title) {
 				chatService.setChatSessionTitle(sessionResource, title);
 			}
 		}));
-		const handleEnableAutoApprove = async () => {
-			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-			if (inspection.policyValue !== undefined) {
-				if (inspection.policyValue === true) {
-					notificationService.info(nls.localize('autoApprove.alreadyEnabled', "Global auto-approve is already enabled."));
-					return;
-				}
-				notificationService.warn(nls.localize('autoApprove.policyBlocked', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
-				return;
+		const setPermissionLevelForSession = (sessionResource: URI, level: ChatPermissionLevel) => {
+			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource) ?? chatWidgetService.lastFocusedWidget;
+			if (widget) {
+				widget.input.setPermissionLevel(level);
 			}
-			if (configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-				notificationService.info(nls.localize('autoApprove.alreadyEnabled', "Global auto-approve is already enabled."));
-				return;
-			}
-			const alreadyOptedIn = storageService.getBoolean('chat.tools.global.autoApprove.optIn', StorageScope.APPLICATION, false);
-			if (!alreadyOptedIn) {
-				const result = await dialogService.prompt({
-					type: Severity.Warning,
-					message: nls.localize('autoApprove.enable.title', 'Enable global auto approve?'),
-					buttons: [
-						{ label: nls.localize('autoApprove.enable.button', 'Enable'), run: () => true },
-						{ label: nls.localize('autoApprove.cancel.button', 'Cancel'), run: () => false },
-					],
-					custom: {
-						markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }) }],
-					}
-				});
-				if (result.result !== true) {
-					return;
-				}
-				storageService.store('chat.tools.global.autoApprove.optIn', true, StorageScope.APPLICATION, StorageTarget.USER);
-			}
-			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, true);
-			notificationService.info(nls.localize('autoApprove.enabled', "Global auto-approve enabled — all tool calls will be approved automatically"));
 		};
-		const handleDisableAutoApprove = async () => {
-			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-			if (inspection.policyValue !== undefined) {
-				if (inspection.policyValue === false) {
-					notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
-					return;
-				}
-				notificationService.warn(nls.localize('autoApprove.policyBlocked', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
-				return;
+		const autoApprovePolicyValue = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
+		if (autoApprovePolicyValue !== false) {
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'autoApprove',
+				detail: nls.localize('autoApprove', "Set permissions to bypass approvals"),
+				sortText: 'z1_autoApprove',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				targets: [Target.VSCode, Target.GitHubCopilot]
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'disableAutoApprove',
+				detail: nls.localize('disableAutoApprove', "Set permissions back to default"),
+				sortText: 'z1_disableAutoApprove',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				targets: [Target.VSCode, Target.GitHubCopilot]
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'yolo',
+				detail: nls.localize('yolo', "Set permissions to bypass approvals"),
+				sortText: 'z1_yolo',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				targets: [Target.VSCode, Target.GitHubCopilot]
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.AutoApprove);
+			}));
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'disableYolo',
+				detail: nls.localize('disableYolo', "Set permissions back to default"),
+				sortText: 'z1_disableYolo',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+				targets: [Target.VSCode, Target.GitHubCopilot]
+			}, async (_prompt, _progress, _history, _location, sessionResource) => {
+				setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+			}));
+			if (configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false) {
+				this._store.add(slashCommandService.registerSlashCommand({
+					command: 'autopilot',
+					detail: nls.localize('autopilot', "Set permissions to autopilot mode"),
+					sortText: 'z1_autopilot',
+					executeImmediately: true,
+					silent: true,
+					locations: [ChatAgentLocation.Chat],
+					targets: [Target.VSCode, Target.GitHubCopilot]
+				}, async (_prompt, _progress, _history, _location, sessionResource) => {
+					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Autopilot);
+				}));
+				this._store.add(slashCommandService.registerSlashCommand({
+					command: 'exitAutopilot',
+					detail: nls.localize('exitAutopilot', "Set permissions back to default"),
+					sortText: 'z1_exitAutopilot',
+					executeImmediately: true,
+					silent: true,
+					locations: [ChatAgentLocation.Chat],
+					targets: [Target.VSCode, Target.GitHubCopilot]
+				}, async (_prompt, _progress, _history, _location, sessionResource) => {
+					setPermissionLevelForSession(sessionResource, ChatPermissionLevel.Default);
+				}));
 			}
-			if (!configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-				notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
-				return;
-			}
-			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
-			notificationService.info(nls.localize('autoApprove.disabled', "Global auto-approve disabled — tools will require approval"));
-		};
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'autoApprove',
-			detail: nls.localize('autoApprove', "Enable global auto-approval of all tool calls"),
-			sortText: 'z1_autoApprove',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat]
-		}, handleEnableAutoApprove));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'disableAutoApprove',
-			detail: nls.localize('disableAutoApprove', "Disable global auto-approval of all tool calls"),
-			sortText: 'z1_disableAutoApprove',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat]
-		}, handleDisableAutoApprove));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'yolo',
-			detail: nls.localize('yolo', "Enable global auto-approval of all tool calls"),
-			sortText: 'z1_yolo',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat]
-		}, handleEnableAutoApprove));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'disableYolo',
-			detail: nls.localize('disableYolo', "Disable global auto-approval of all tool calls"),
-			sortText: 'z1_disableYolo',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat]
-		}, handleDisableAutoApprove));
+		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
-			modes: [ChatModeKind.Ask]
+			modes: [ChatModeKind.Ask],
+			targets: [Target.VSCode]
 		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();

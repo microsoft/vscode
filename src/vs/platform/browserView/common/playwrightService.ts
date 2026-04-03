@@ -4,10 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IPlaywrightService = createDecorator<IPlaywrightService>('playwrightService');
+
+export interface IInvokeFunctionResult {
+	result?: unknown;
+	error?: string;
+	summary: string;
+	/** When present the function did not complete within the timeout. Pass this ID to {@link IPlaywrightService.waitForDeferredResult} to keep waiting. */
+	deferredResultId?: string;
+}
 
 /**
  * A service for using Playwright to connect to and automate the integrated browser.
@@ -63,23 +70,42 @@ export interface IPlaywrightService {
 	getSummary(pageId: string): Promise<string>;
 
 	/**
-	 * Run a function with access to a Playwright page.
+	 * Run a function with access to a Playwright page and return its raw result, or throw an error.
 	 * The first function argument is always the Playwright `page` object, and additional arguments can be passed after.
 	 * @param pageId The browser view ID identifying the page to operate on.
 	 * @param fnDef The function code to execute. Should contain the function definition but not its invocation, e.g. `async (page, arg1, arg2) => { ... }`.
 	 * @param args Additional arguments to pass to the function after the `page` object.
-	 * @returns The result of the function execution, including a page summary.
+	 * @returns The result of the function execution.
 	 */
-	invokeFunction(pageId: string, fnDef: string, ...args: unknown[]): Promise<{ result: unknown; summary: string }>;
+	invokeFunctionRaw<T>(pageId: string, fnDef: string, ...args: unknown[]): Promise<T>;
 
 	/**
-	 * Takes a screenshot of the current page viewport and returns it as a VSBuffer.
-	 * @param pageId The browser view ID identifying the page to capture.
-	 * @param selector Optional Playwright selector to capture a specific element instead of the viewport.
-	 * @param fullPage Whether to capture the full scrollable page instead of just the viewport.
-	 * @returns The screenshot image data.
+	 * Run a function with access to a Playwright page and return a result for tool output, including error handling.
+	 * The first function argument is always the Playwright `page` object, and additional arguments can be passed after.
+	 *
+	 * When {@link timeoutMs} is provided, the call races against that timeout.
+	 * If the timeout fires before the function completes, or the function is otherwise interrupted,
+	 * the in-flight promise is stored as a *deferred result* and the returned object includes a
+	 * {@link deferredResultId} that can be passed to {@link waitForDeferredResult} to resume waiting.
+	 * When {@link timeoutMs} is omitted the function runs to completion with no deferral.
+	 *
+	 * @param pageId The browser view ID identifying the page to operate on.
+	 * @param fnDef The function code to execute. Should contain the function definition but not its invocation, e.g. `async (page, arg1, arg2) => { ... }`.
+	 * @param args Additional arguments to pass to the function after the `page` object.
+	 * @param timeoutMs Maximum time (in ms) to wait for the function to complete before deferring. When omitted the call awaits indefinitely.
+	 * @returns The result of the function execution, including a page summary and optionally a deferredResultId if the call did not complete.
 	 */
-	captureScreenshot(pageId: string, selector?: string, fullPage?: boolean): Promise<VSBuffer>;
+	invokeFunction(pageId: string, fnDef: string, args?: unknown[], timeoutMs?: number): Promise<IInvokeFunctionResult>;
+
+	/**
+	 * Continue waiting for a previously deferred function invocation.
+	 *
+	 * @param deferredResultId The ID returned from a timed-out {@link invokeFunction} call.
+	 * @param timeoutMs Maximum time (in ms) to wait before returning a deferred result again.
+	 * @returns The same shape as {@link invokeFunction}. If the result is still not
+	 * available after the timeout, {@link deferredResultId} is returned again.
+	 */
+	waitForDeferredResult(deferredResultId: string, timeoutMs: number): Promise<IInvokeFunctionResult>;
 
 	/**
 	 * Responds to a file chooser dialog on the given page.

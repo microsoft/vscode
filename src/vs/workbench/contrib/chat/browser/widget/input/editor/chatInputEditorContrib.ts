@@ -8,18 +8,20 @@ import { Disposable, MutableDisposable } from '../../../../../../../base/common/
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
+import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
-import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { inputPlaceholderForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
+import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestParser } from '../../../../common/requestParser/chatRequestParser.js';
+import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
@@ -28,10 +30,12 @@ import { NativeEditContextRegistry } from '../../../../../../../editor/browser/c
 import { TextAreaEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ThrottledDelayer } from '../../../../../../../base/common/async.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
+const clickableSlashPromptTextDecorationType = 'chat-session-clickable-text';
 const variableTextDecorationType = 'chat-variable-text';
 
 function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
@@ -68,6 +72,8 @@ class InputEditorDecorations extends Disposable {
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
+	private clickablePromptSlashCommand: { range: Range; uri: URI } | undefined;
+	private mouseDownPromptSlashCommand: { position: Position; uri: URI; range: Range } | undefined;
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
@@ -81,6 +87,7 @@ class InputEditorDecorations extends Disposable {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -95,6 +102,38 @@ class InputEditorDecorations extends Disposable {
 		}));
 		this._register(this.widget.onDidSubmitAgent((e) => {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
+		}));
+		this._register(this.widget.inputEditor.onMouseDown(e => {
+			this.mouseDownPromptSlashCommand = undefined;
+
+			if (!e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			const clickablePromptSlashCommand = this.clickablePromptSlashCommand;
+			if (!clickablePromptSlashCommand || !clickablePromptSlashCommand.range.containsPosition(e.target.position)) {
+				return;
+			}
+
+			this.mouseDownPromptSlashCommand = {
+				position: Position.lift(e.target.position),
+				uri: clickablePromptSlashCommand.uri,
+				range: clickablePromptSlashCommand.range,
+			};
+		}));
+		this._register(this.widget.inputEditor.onMouseUp(e => {
+			const mouseDownPromptSlashCommand = this.mouseDownPromptSlashCommand;
+			this.mouseDownPromptSlashCommand = undefined;
+
+			if (!mouseDownPromptSlashCommand || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			if (!mouseDownPromptSlashCommand.range.containsPosition(e.target.position) || !Position.equals(mouseDownPromptSlashCommand.position, e.target.position)) {
+				return;
+			}
+
+			void this.editorService.openEditor({ resource: mouseDownPromptSlashCommand.uri });
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.triggerInputEditorDecorationsUpdate()));
@@ -126,6 +165,12 @@ class InputEditorDecorations extends Disposable {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, clickableSlashPromptTextDecorationType, {
+			color: themeColorFromId(chatSlashCommandForeground),
+			backgroundColor: themeColorFromId(chatSlashCommandBackground),
+			borderRadius: '3px',
+			cursor: 'pointer'
 		}));
 		this._register(this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
@@ -252,6 +297,8 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
+		this.clickablePromptSlashCommand = undefined;
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, []);
 
 		const parsedRequest = this.widget.parsedInput.parts;
 
@@ -298,7 +345,21 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart && promptSlashCommand) {
-			textDecorations.push({ range: slashPromptPart.editorRange });
+			this.clickablePromptSlashCommand = {
+				range: Range.lift(slashPromptPart.editorRange),
+				uri: promptSlashCommand.uri,
+			};
+			const promptHoverMessage = new MarkdownString();
+			promptHoverMessage.appendText(localize(
+				'chatInput.promptSlashCommand.open',
+				"Click to open {0}",
+				this.labelService.getUriLabel(promptSlashCommand.uri, { relative: true })
+			));
+			const promptDecoration = {
+				range: slashPromptPart.editorRange,
+				hoverMessage: promptHoverMessage,
+			};
+			this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, [promptDecoration]);
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
@@ -389,59 +450,32 @@ class ChatTokenDeleter extends Disposable {
 
 	constructor(
 		private readonly widget: IChatWidget,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		const parser = this.instantiationService.createInstance(ChatRequestParser);
-		const inputValue = this.widget.inputEditor.getValue();
-		let previousInputValue: string | undefined;
-		let previousSelectedAgent: IChatAgentData | undefined;
 
-		// A simple heuristic to delete the previous token when the user presses backspace.
-		// The sophisticated way to do this would be to have a parse tree that can be updated incrementally.
+		let prevInsertTokenRange: Range | undefined;
+
+		// A simple heuristic to delete the previous insert token when the user presses backspace.
 		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
-			if (!previousInputValue) {
-				previousInputValue = inputValue;
-				previousSelectedAgent = this.widget.lastSelectedAgent;
-			}
+			let insertedTokenRange: Range | undefined;
 
 			// Don't try to handle multi-cursor edits right now
-			const change = e.changes[0];
-
-			// If this was a simple delete, try to find out whether it was inside a token
-			if (!change.text && this.widget.viewModel) {
-				const attachmentCapabilities = previousSelectedAgent?.capabilities ?? this.widget.attachmentCapabilities;
-				const previousParsedValue = parser.parseChatRequest(this.widget.viewModel.sessionResource, previousInputValue, widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind, attachmentCapabilities });
-
-				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
-				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);
-				deletableTokens.forEach(token => {
-					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
-					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math
-					if (deletedRangeOfToken && Range.compareRangesUsingStarts(token.editorRange, change.range) < 0) {
-						// Range.intersectRanges returns an empty range when the deletion happens *exactly* at a boundary.
-						// In that case, only treat this as a token-delete when the deleted character was a space.
-						if (previousInputValue && Range.isEmpty(deletedRangeOfToken)) {
-							const deletedText = previousInputValue.substring(change.rangeOffset, change.rangeOffset + change.rangeLength);
-							if (deletedText !== ' ') {
-								return;
-							}
-						}
-
-						// Assume single line tokens
-						const length = deletedRangeOfToken.endColumn - deletedRangeOfToken.startColumn;
-						const rangeToDelete = new Range(token.editorRange.startLineNumber, token.editorRange.startColumn, token.editorRange.endLineNumber, token.editorRange.endColumn - length);
-						this.widget.inputEditor.executeEdits(this.id, [{
-							range: rangeToDelete,
-							text: '',
-						}]);
-						this.widget.refreshParsedInput();
+			if (e.changes.length === 1) {
+				const change = e.changes[0];
+				if (change.text.length > 0 && change.rangeLength === 1) {
+					// A full slash command or agent reference was just inserted - store it so that if the user immediately deletes it, we can delete the whole thing instead of just one character
+					if (slashReg.test(change.text) || agentReg.test(change.text) || variableReg.test(change.text)) {
+						insertedTokenRange = new Range(change.range.startLineNumber, change.range.startColumn, change.range.endLineNumber, change.range.startColumn + change.text.length);
 					}
-				});
+				} else if (change.text.length === 0 && prevInsertTokenRange && change.range.endColumn === prevInsertTokenRange.endColumn) {
+					this.widget.inputEditor.executeEdits(this.id, [{
+						range: prevInsertTokenRange,
+						text: '',
+					}]);
+					this.widget.refreshParsedInput();
+				}
 			}
-
-			previousInputValue = this.widget.inputEditor.getValue();
-			previousSelectedAgent = this.widget.lastSelectedAgent;
+			prevInsertTokenRange = insertedTokenRange;
 		}));
 	}
 }
