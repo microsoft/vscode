@@ -47,6 +47,12 @@
         "path": "./syntaxes/MagicRegExp.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "python",
+        "path": "./snippets/python.code-snippets"
+      }
+    ],
     "configurationDefaults": {
       "[python]": {
         "diffEditor.ignoreTrimWhitespace": false,
