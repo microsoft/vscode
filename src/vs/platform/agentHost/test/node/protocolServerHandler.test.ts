@@ -9,13 +9,16 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import type { IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../../common/agentService.js';
+import { IResourceReadResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type ICreateSessionParams, type IInitializeResult, type IProtocolMessage, type IAhpNotification, type IReconnectResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IResourceListResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { ProtocolServerHandler, type IProtocolSideEffectHandler } from '../../node/protocolServerHandler.js';
+import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -63,22 +66,49 @@ class MockProtocolServer implements IProtocolServer {
 	}
 }
 
-class MockSideEffectHandler implements IProtocolSideEffectHandler {
+class MockAgentService implements IAgentService {
+	declare readonly _serviceBrand: undefined;
 	readonly handledActions: ISessionAction[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 
-	handleAction(action: ISessionAction): void {
-		this.handledActions.push(action);
+	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').IActionEnvelope>();
+	readonly onDidAction = this._onDidAction.event;
+	private readonly _onDidNotification = new Emitter<import('../../common/state/sessionActions.js').INotification>();
+	readonly onDidNotification = this._onDidNotification.event;
+
+	private _stateManager!: SessionStateManager;
+
+	/** Connect to the state manager so dispatchAction works correctly. */
+	setStateManager(sm: SessionStateManager): void {
+		this._stateManager = sm;
 	}
-	async handleCreateSession(_command: ICreateSessionParams): Promise<void> { /* session created via state manager */ }
-	handleDisposeSession(_session: string): void { }
-	async handleListSessions(): Promise<ISessionSummary[]> { return []; }
-	handleGetResourceMetadata() { return { resources: [] }; }
-	async handleAuthenticate(_params: { resource: string; token: string }) { return { authenticated: true }; }
-	async handleBrowseDirectory(uri: string): Promise<{ entries: { name: string; type: 'file' | 'directory' }[] }> {
-		this.browsedUris.push(URI.parse(uri));
-		const error = this.browseErrors.get(uri);
+
+	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+		this.handledActions.push(action);
+		const origin = { clientId, clientSeq };
+		this._stateManager.dispatchClientAction(action, origin);
+	}
+	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///new-session'); }
+	async disposeSession(_session: URI): Promise<void> { }
+	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
+	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		const snapshot = this._stateManager.getSnapshot(resource.toString());
+		if (!snapshot) {
+			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
+		}
+		return snapshot;
+	}
+	unsubscribe(_resource: URI): void { }
+	async shutdown(): Promise<void> { }
+	async getResourceMetadata(): Promise<IResourceMetadata> { return { resources: [] }; }
+	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
+	async refreshModels(): Promise<void> { }
+	async listAgents(): Promise<IAgentDescriptor[]> { return []; }
+	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
+	async resourceList(uri: URI): Promise<IResourceListResult> {
+		this.browsedUris.push(uri);
+		const error = this.browseErrors.get(uri.toString());
 		if (error) {
 			throw error;
 		}
@@ -89,8 +119,16 @@ class MockSideEffectHandler implements IProtocolSideEffectHandler {
 			],
 		};
 	}
-	getDefaultDirectory(): string {
-		return URI.file('/home/testuser').toString();
+	async resourceRead(_uri: URI): Promise<IResourceReadResult> {
+		throw new Error('Not implemented');
+	}
+	async resourceCopy(): Promise<{}> { return {}; }
+	async resourceDelete(): Promise<{}> { return {}; }
+	async resourceMove(): Promise<{}> { return {}; }
+
+	dispose(): void {
+		this._onDidAction.dispose();
+		this._onDidNotification.dispose();
 	}
 }
 
@@ -123,7 +161,8 @@ suite('ProtocolServerHandler', () => {
 	let disposables: DisposableStore;
 	let stateManager: SessionStateManager;
 	let server: MockProtocolServer;
-	let sideEffects: MockSideEffectHandler;
+	let agentService: MockAgentService;
+	let handler: ProtocolServerHandler;
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
@@ -153,11 +192,15 @@ suite('ProtocolServerHandler', () => {
 		disposables = new DisposableStore();
 		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
-		sideEffects = new MockSideEffectHandler();
-		disposables.add(new ProtocolServerHandler(
+		agentService = new MockAgentService();
+		agentService.setStateManager(stateManager);
+		disposables.add(agentService);
+		disposables.add(handler = new ProtocolServerHandler(
+			agentService,
 			stateManager,
 			server,
-			sideEffects,
+			{ defaultDirectory: URI.file('/home/testuser').toString() },
+			disposables.add(new AgentHostFileSystemProvider()),
 			new NullLogService(),
 		));
 	});
@@ -346,17 +389,17 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(URI.parse(result.defaultDirectory!).path, '/home/testuser');
 	});
 
-	test('browseDirectory routes to side effect handler', async () => {
+	test('resourceList routes to side effect handler', async () => {
 		const transport = connectClient('client-browse');
 		transport.sent.length = 0;
 
 		const dirUri = URI.file('/home/user/project').toString();
 		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		transport.simulateMessage(request(2, 'resourceList', { uri: dirUri }));
 		const resp = await responsePromise;
 
-		assert.strictEqual(sideEffects.browsedUris.length, 1);
-		assert.strictEqual(sideEffects.browsedUris[0].path, '/home/user/project');
+		assert.strictEqual(agentService.browsedUris.length, 1);
+		assert.strictEqual(agentService.browsedUris[0].path, '/home/user/project');
 
 		assert.ok(resp);
 		const result = (resp as unknown as { result: { entries: { name: string; uri: unknown; type: string }[] } }).result;
@@ -367,14 +410,14 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.entries[1].type, 'file');
 	});
 
-	test('browseDirectory returns a JSON-RPC error when the target is invalid', async () => {
+	test('resourceList returns a JSON-RPC error when the target is invalid', async () => {
 		const transport = connectClient('client-browse-error');
 		transport.sent.length = 0;
 
 		const dirUri = URI.file('/missing').toString();
-		sideEffects.browseErrors.set(dirUri, new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri}`));
+		agentService.browseErrors.set(URI.file('/missing').toString(), new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri}`));
 		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		transport.simulateMessage(request(2, 'resourceList', { uri: dirUri }));
 		const resp = await responsePromise as { error?: { code: number; message: string } };
 
 		assert.ok(resp?.error);
@@ -409,9 +452,9 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {
-		// Override handleAuthenticate to throw a ProtocolError with data
-		const origHandler = sideEffects.handleAuthenticate;
-		sideEffects.handleAuthenticate = async () => { throw new ProtocolError(-32007, 'Auth required', { hint: 'sign in' }); };
+		// Override authenticate to throw a ProtocolError with data
+		const origHandler = agentService.authenticate;
+		agentService.authenticate = async () => { throw new ProtocolError(-32007, 'Auth required', { hint: 'sign in' }); };
 
 		const transport = connectClient('client-auth-error');
 		transport.sent.length = 0;
@@ -425,6 +468,47 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.error!.message, 'Auth required');
 		assert.deepStrictEqual(resp.error!.data, { hint: 'sign in' });
 
-		sideEffects.handleAuthenticate = origHandler;
+		agentService.authenticate = origHandler;
+	});
+
+	// ---- Connection count event -----------------------------------------
+
+	test('onDidChangeConnectionCount fires on connect and disconnect', () => {
+		const counts: number[] = [];
+		disposables.add(handler.onDidChangeConnectionCount(c => counts.push(c)));
+
+		const transport = connectClient('client-count-1');
+		connectClient('client-count-2');
+		transport.simulateClose();
+
+		assert.deepStrictEqual(counts, [1, 2, 1]);
+	});
+
+	test('onDidChangeConnectionCount is not decremented by stale reconnect close', () => {
+		const counts: number[] = [];
+		disposables.add(handler.onDidChangeConnectionCount(c => counts.push(c)));
+
+		// Connect
+		const transport1 = connectClient('client-rc');
+		assert.deepStrictEqual(counts, [1]);
+
+		// Reconnect with same clientId (new transport)
+		const transport2 = new MockProtocolTransport();
+		server.simulateConnection(transport2);
+		transport2.simulateMessage(request(1, 'reconnect', {
+			clientId: 'client-rc',
+			lastSeenServerSeq: 0,
+			subscriptions: [],
+		}));
+		// Count is unchanged because same clientId was overwritten
+		assert.deepStrictEqual(counts, [1, 1]);
+
+		// Old transport closes - should NOT decrement since it's stale
+		transport1.simulateClose();
+		assert.deepStrictEqual(counts, [1, 1]);
+
+		// New transport closes - should decrement
+		transport2.simulateClose();
+		assert.deepStrictEqual(counts, [1, 1, 0]);
 	});
 });

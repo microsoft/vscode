@@ -31,13 +31,11 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { BrowserFindWidget, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserFindWidget.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { SiteInfoWidget } from './siteInfoWidget.js';
@@ -51,9 +49,6 @@ export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browse
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
 export const CONTEXT_BROWSER_HAS_ERROR = new RawContextKey<boolean>('browserHasError', false, localize('browser.hasError', "Whether the browser has a load error"));
-
-// Re-export find widget context keys for use in actions
-export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
 
 /**
  * Get the original implementation of HTMLElement focus (without window auto-focusing)
@@ -100,6 +95,17 @@ export abstract class BrowserEditorContribution extends Disposable {
 	 * Contributions can override this getter to provide widgets.
 	 */
 	get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] { return []; }
+
+	/**
+	 * Optional toolbar-like elements to insert into the editor root between the navbar and the
+	 * browser container.  Contributions can override this getter to provide elements.
+	 */
+	get toolbarElements(): readonly HTMLElement[] { return []; }
+
+	/**
+	 * Called when the editor is laid out with a new dimension.
+	 */
+	layout(_width: number): void { }
 }
 
 /**
@@ -342,7 +348,6 @@ export class BrowserEditor extends EditorPane {
 
 	private _overlayVisible = false;
 	private _editorVisible = false;
-	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainerWrapper!: HTMLElement;
@@ -354,8 +359,6 @@ export class BrowserEditor extends EditorPane {
 	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
-	private _findWidgetContainer!: HTMLElement;
-	private _findWidget!: Lazy<BrowserFindWidget>;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _hasUrlContext!: IContextKey<boolean>;
@@ -412,11 +415,11 @@ export class BrowserEditor extends EditorPane {
 		const root = $('.browser-root');
 		parent.appendChild(root);
 
-		// Create toolbar with navigation buttons and URL input
-		const toolbar = $('.browser-toolbar');
+		// Create navbar with navigation buttons and URL input
+		const navbar = $('.browser-navbar');
 
 		// Create navigation bar widget with scoped context
-		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService));
+		this._navigationBar = this._register(new BrowserNavigationBar(this, navbar, this.instantiationService, contextKeyService));
 
 		// Inject URL bar widgets from contributions
 		const allWidgets: IBrowserEditorWidgetContribution[] = [];
@@ -425,27 +428,14 @@ export class BrowserEditor extends EditorPane {
 		}
 		this._navigationBar.addUrlBarWidgets(allWidgets);
 
-		root.appendChild(toolbar);
+		root.appendChild(navbar);
 
-		// Create find widget container (between toolbar and browser container)
-		this._findWidgetContainer = $('.browser-find-widget-wrapper');
-		root.appendChild(this._findWidgetContainer);
-
-		// Create find widget (lazy initialization)
-		this._findWidget = new Lazy(() => {
-			const findWidget = this.instantiationService.createInstance(
-				BrowserFindWidget,
-				this._findWidgetContainer
-			);
-			if (this._model) {
-				findWidget.setModel(this._model);
+		// Collect toolbar elements from contributions (e.g. find widget container)
+		for (const contribution of this._contributionInstances.values()) {
+			for (const element of contribution.toolbarElements) {
+				root.appendChild(element);
 			}
-			findWidget.onDidChangeHeight(() => {
-				this.layoutBrowserContainer();
-			});
-			return findWidget;
-		});
-		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
+		}
 
 		// Create browser container wrapper (flex item that fills remaining space)
 		this._browserContainerWrapper = $('.browser-container-wrapper');
@@ -488,8 +478,14 @@ export class BrowserEditor extends EditorPane {
 			// When the browser container gets focus, make sure the browser view also gets focused.
 			// But only if focus was already in the workbench (and not e.g. clicking back into the workbench from the browser view).
 			if (event.relatedTarget && this._model && this.shouldShowView) {
-				void this._model.focus();
+				this.requestFocus();
 			}
+		}));
+
+		this._register(addDisposableListener(this._browserContainer, EventType.BLUR, () => {
+			// If the container becomes blurred, cancel any scheduled focus call.
+			// This can happen when e.g. a menu closes and focus shifts back to the browser, then immediately focuses another element.
+			this.cancelFocus();
 		}));
 
 		// Register external focus checker so that cross-window focus logic knows when
@@ -503,9 +499,30 @@ export class BrowserEditor extends EditorPane {
 
 	override focus(): void {
 		if (this._model?.url && !this._model.error) {
-			void this._model.focus();
+			this.requestFocus();
 		} else {
 			this.focusUrlInput();
+		}
+	}
+
+	private _focusTimeout: ReturnType<typeof setTimeout> | undefined;
+	private requestFocus(): void {
+		this.ensureBrowserFocus();
+		if (this._focusTimeout) {
+			return;
+		}
+		this._focusTimeout = setTimeout(() => {
+			this._focusTimeout = undefined;
+			if (this._model) {
+				void this._model.focus();
+			}
+		}, 0);
+	}
+
+	private cancelFocus(): void {
+		if (this._focusTimeout) {
+			clearTimeout(this._focusTimeout);
+			this._focusTimeout = undefined;
 		}
 	}
 
@@ -526,9 +543,6 @@ export class BrowserEditor extends EditorPane {
 
 		this._model = model;
 		this._onDidChangeModel.fire(model);
-
-		// Update find widget with new model
-		this._findWidget.rawValue?.setModel(this._model);
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
@@ -655,7 +669,7 @@ export class BrowserEditor extends EditorPane {
 					this._browserContainer.ownerDocument.activeElement === this._browserContainer
 				) {
 					// If the editor is focused, ensure the browser view also gets focus
-					void this._model.focus();
+					this.requestFocus();
 				}
 			} else {
 				this.doScreenshot();
@@ -890,40 +904,6 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Show the find widget, optionally pre-populated with selected text from the browser view
-	 */
-	async showFind(): Promise<void> {
-		// Get selected text from the browser view to pre-populate the search box.
-		const selectedText = (await this._model?.getSelectedText())?.trim();
-
-		// Only use the selected text if it doesn't contain newlines (single line selection)
-		const textToReveal = selectedText && !/[\r\n]/.test(selectedText) ? selectedText : undefined;
-		this._findWidget.value.reveal(textToReveal);
-		this._findWidget.value.layout(this._findWidgetContainer.clientWidth);
-	}
-
-	/**
-	 * Hide the find widget
-	 */
-	hideFind(): void {
-		this._findWidget.rawValue?.hide();
-	}
-
-	/**
-	 * Find the next match
-	 */
-	findNext(): void {
-		this._findWidget.rawValue?.find(false);
-	}
-
-	/**
-	 * Find the previous match
-	 */
-	findPrevious(): void {
-		this._findWidget.rawValue?.find(true);
-	}
-
-	/**
 	 * Update navigation state and context keys
 	 */
 	private updateNavigationState(event: IBrowserViewNavigationEvent): void {
@@ -1007,36 +987,22 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	forwardCurrentEvent(): boolean {
-		if (this._currentKeyDownEvent && this._model) {
-			void this._model.dispatchKeyEvent(this._currentKeyDownEvent);
-			return true;
-		}
-		return false;
-	}
-
 	private async handleKeyEventFromBrowserView(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
-		this._currentKeyDownEvent = keyEvent;
-
 		try {
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 
-			const handled = this.keybindingService.dispatchEvent(standardEvent, this._browserContainer);
-			if (!handled) {
-				this.forwardCurrentEvent();
-			}
+			this.keybindingService.dispatchEvent(standardEvent, this._browserContainer);
 		} catch (error) {
 			this.logService.error('BrowserEditor.handleKeyEventFromBrowserView: Error dispatching key event', error);
-		} finally {
-			this._currentKeyDownEvent = undefined;
 		}
 	}
 
 	override layout(dimension?: Dimension, _position?: IDomPosition): void {
-		// Layout find widget if it exists
-		if (dimension && this._findWidget.rawValue) {
-			this._findWidget.rawValue.layout(dimension.width);
+		if (dimension) {
+			for (const contribution of this._contributionInstances.values()) {
+				contribution.layout(dimension.width);
+			}
 		}
 
 		const whenContainerStylesLoaded = this.layoutService.whenContainerStylesLoaded(this.window);
@@ -1054,7 +1020,7 @@ export class BrowserEditor extends EditorPane {
 	 * Recompute the layout of the browser container and update the model with the new bounds.
 	 * This should generally only be called via layout() to ensure that the container is ready and all necessary styles are loaded.
 	 */
-	private layoutBrowserContainer(): void {
+	layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 
@@ -1076,12 +1042,9 @@ export class BrowserEditor extends EditorPane {
 	override clearInput(): void {
 		this._inputDisposables.clear();
 
-		// Cancel any scheduled screenshots
+		// Cancel any scheduled timers
 		this.cancelScheduledScreenshot();
-
-		// Clear find widget model
-		this._findWidget.rawValue?.setModel(undefined);
-		this._findWidget.rawValue?.hide();
+		this.cancelFocus();
 
 		void this._model?.setVisible(false);
 		this._model = undefined;

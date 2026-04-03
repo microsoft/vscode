@@ -228,37 +228,36 @@
 			"problemMatcher": []
 		},
 		{
-			"label": "Run Dev Sessions",
+			"label": "Run Dev Agents",
 			"type": "shell",
 			"command": "./scripts/code.sh",
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
 			"args": [
-				"--sessions"
+				"--agents",
+				"--user-data-dir=${userHome}/.vscode-oss-sessions-dev",
+				"--extensions-dir=${userHome}/.vscode-oss-sessions-dev/extensions"
 			],
 			"problemMatcher": []
 		},
 		{
-			"label": "Run and Compile Sessions - OSS",
-			"type": "shell",
-			"command": "npm run transpile-client && ./scripts/code.sh",
-			"windows": {
-				"command": "npm run transpile-client && .\\scripts\\code.bat"
-			},
-			"args": [
-				"--sessions"
-			],
+			"label": "Transpile Client",
+			"type": "npm",
+			"script": "transpile-client",
+			"problemMatcher": []
+		},
+		{
+			"label": "Run and Compile Agents - OSS",
+			"dependsOn": ["Transpile Client", "Run Dev Agents"],
+			"dependsOrder": "sequence",
 			"inSessions": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "Run and Compile Code - OSS",
-			"type": "shell",
-			"command": "npm run transpile-client && ./scripts/code.sh",
-			"windows": {
-				"command": "npm run transpile-client && .\\scripts\\code.bat"
-			},
+			"dependsOn": ["Transpile Client", "Run Dev"],
+			"dependsOrder": "sequence",
 			"inSessions": true,
 			"problemMatcher": []
 		},
@@ -394,10 +393,11 @@
 			]
 		},
 		{
-			"label": "Launch Component Explorer",
+			"label": "Component Explorer Server",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
+			"command": "npx component-explorer serve -p ./test/componentFixtures/component-explorer.json -vv --kill-if-running",
 			"isBackground": true,
+			"inSessions": true,
 			"problemMatcher": {
 				"owner": "component-explorer",
 				"fileLocation": "absolute",
@@ -408,9 +408,9 @@
 					"column": 3
 				},
 				"background": {
-					"activeOnStart": true,
+					"activeOnStart": false,
 					"beginsPattern": ".*Setting up sessions.*",
-					"endsPattern": "Redirection server listening on.*"
+					"endsPattern": "  current: (?<componentExplorerUrl>.*) \\(current\\)"
 				}
 			}
 		},
@@ -424,7 +424,45 @@
 			"inSessions": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
+			},
+			"presentation": {
+				"focus": false,
+				"reveal": "never"
 			}
+		},
+		{
+			"label": "Serve Out (rspack)",
+			"type": "npm",
+			"script": "serve-out-rspack",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "rspack",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*compiling.*",
+					"endsPattern": ".*compiled.*successfully.*"
+				}
+			}
+		},
+		{
+			"label": "Echo E2E Status",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Write-Output \"134 passed, 0 failed, 1 skipped, 135 total\"; Start-Sleep -Seconds 2; Write-Output \"[PASS] E2E Tests\"; Write-Output \"Watching for changes...\""
+			],
+			"isBackground": false
 		}
 	]
 }

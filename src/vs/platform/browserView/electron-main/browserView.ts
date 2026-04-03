@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents } from 'electron';
-import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
-import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
+import { IElementData } from '../../browserElements/common/browserElements.js';
+import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
-import { isMacintosh } from '../../../base/common/platform.js';
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
@@ -21,18 +21,7 @@ import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.j
 import { BrowserSession } from './browserSession.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { hasKey } from '../../../base/common/types.js';
-
-/** Key combinations that are used in system-level shortcuts. */
-const nativeShortcuts = new Set([
-	KeyMod.CtrlCmd | KeyCode.KeyA,
-	KeyMod.CtrlCmd | KeyCode.KeyC,
-	KeyMod.CtrlCmd | KeyCode.KeyV,
-	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV,
-	KeyMod.CtrlCmd | KeyCode.KeyX,
-	...(isMacintosh ? [] : [KeyMod.CtrlCmd | KeyCode.KeyY]),
-	KeyMod.CtrlCmd | KeyCode.KeyZ,
-	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ
-]);
+import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
@@ -48,10 +37,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
-	private _debugger: BrowserViewDebugger;
+	private readonly _debugger: BrowserViewDebugger;
+	private readonly _inspector: BrowserViewElementInspector;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
-	private _isSendingKeyEvent = false;
 	private _isDisposed = false;
+
+	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
+	private readonly _consoleLogs: string[] = [];
 
 	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
@@ -106,7 +98,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			sandbox: true,
 			webviewTag: false,
 			session: this.session.electronSession,
-			preload: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath,
 
 			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
 			type: 'browserView'
@@ -163,6 +154,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		this._debugger = new BrowserViewDebugger(this, this.logService);
+		this._inspector = this._register(new BrowserViewElementInspector(this));
 
 		this.setupEventListeners();
 	}
@@ -185,6 +177,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			for (const url of favicons) {
 				if (!this._faviconRequestCache.has(url)) {
 					this._faviconRequestCache.set(url, (async () => {
+						if (url.startsWith('data:image/')) {
+							return url;
+						}
 						const response = await webContents.session.fetch(url, {
 							cache: 'force-cache'
 						});
@@ -192,6 +187,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 							throw new Error(`Failed to fetch favicon: ${response.status} ${response.statusText}`);
 						}
 						const type = await response.headers.get('content-type');
+						if (!type?.startsWith('image/')) {
+							throw new Error(`Favicon is not an image: ${type}`);
+						}
 						const buffer = await response.arrayBuffer();
 
 						return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
@@ -285,10 +283,16 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
-		// Chromium resets the zoom factor to its per-origin default (100%) when
-		// navigating to a new document. Re-apply our stored zoom to override it.
 		webContents.on('did-navigate', () => {
+			// Chromium resets the zoom factor to its per-origin default (100%) when
+			// navigating to a new document. Re-apply our stored zoom to override it.
+			this._consoleLogs.length = 0; // Clear console logs on navigation since they are per-page
 			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+
+			// Enable pinch-to-zoom
+			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+				this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
+			});
 		});
 
 		// Focus events
@@ -300,13 +304,41 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			this._onDidChangeFocus.fire({ focused: false });
 		});
 
-		// Key down events - listen for raw key input events
-		webContents.on('before-input-event', async (event, input) => {
-			if (input.type === 'keyDown' && !this._isSendingKeyEvent) {
-				if (this.tryHandleCommand(input)) {
-					event.preventDefault();
-				}
+		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
+		webContents.ipc.on('vscode:browserView:keydown', (_event, keyEvent: IBrowserViewKeyDownEvent) => {
+			this._onDidKeyCommand.fire(keyEvent);
+		});
+		// If the page won't be able to handle events, forward key down events directly.
+		webContents.on('before-input-event', (event, input) => {
+			if (input.type !== 'keyDown') {
+				return;
 			}
+
+			const pageIsAvailable = this._view.getVisible()
+				&& !webContents.isCrashed()
+				&& !this._debugger.isPaused;
+			if (pageIsAvailable) {
+				return;
+			}
+
+			// This logic should mirror that in preload-browserView.ts.
+			if (!(input.control || input.alt || input.meta) && input.key.length === 1) {
+				return;
+			}
+
+			event.preventDefault();
+
+			const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
+			this._onDidKeyCommand.fire({
+				key: input.key,
+				keyCode: eventKeyCode,
+				code: input.code,
+				ctrlKey: input.control,
+				shiftKey: input.shift,
+				altKey: input.alt,
+				metaKey: input.meta,
+				repeat: input.isAutoRepeat
+			});
 		});
 
 		// Track user gestures for popup blocking logic.
@@ -338,6 +370,14 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				selectionArea: result.selectionArea,
 				finalUpdate: result.finalUpdate
 			});
+		});
+
+		// Capture console messages for sharing with chat
+		this._view.webContents.on('console-message', (event) => {
+			this._consoleLogs.push(`[${event.level}] ${event.message}`);
+			if (this._consoleLogs.length > BrowserView.MAX_CONSOLE_LOG_ENTRIES) {
+				this._consoleLogs.splice(0, this._consoleLogs.length - BrowserView.MAX_CONSOLE_LOG_ENTRIES);
+			}
 		});
 	}
 
@@ -439,6 +479,29 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	}
 
 	/**
+	 * Get captured console logs.
+	 */
+	getConsoleLogs(): string {
+		return this._consoleLogs.join('\n');
+	}
+
+	/**
+	 * Start element inspection mode. Sets up a CDP overlay that highlights elements
+	 * on hover. When the user clicks, the element data is returned and the overlay is removed.
+	 * @param token Cancellation token to abort the inspection.
+	 */
+	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
+		return this._inspector.getElementData(token);
+	}
+
+	/**
+	 * Get element data for the currently focused element.
+	 */
+	async getFocusedElementData(): Promise<IElementData | undefined> {
+		return this._inspector.getFocusedElementData();
+	}
+
+	/**
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
@@ -500,45 +563,27 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const quality = options?.quality ?? 80;
-		const image = await this._view.webContents.capturePage(options?.rect, {
+		if (options?.pageRect) {
+			const zoomFactor = this._view.webContents.getZoomFactor();
+			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
+			const visualViewportScale = await this._inspector.getVisualViewportScale();
+			options.screenRect = {
+				x: options.pageRect.x * visualViewportScale * zoomFactor,
+				y: options.pageRect.y * visualViewportScale * zoomFactor,
+				width: options.pageRect.width * visualViewportScale * zoomFactor,
+				height: options.pageRect.height * visualViewportScale * zoomFactor
+			};
+		}
+		const image = await this._view.webContents.capturePage(options?.screenRect, {
 			stayHidden: true
 		});
 		const buffer = image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
-		if (!options?.rect) {
+		if (!options?.screenRect) {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
-	}
-
-	/**
-	 * Dispatch a keyboard event to this view
-	 */
-	async dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
-		const event: Electron.KeyboardInputEvent = {
-			type: 'keyDown',
-			keyCode: keyEvent.key,
-			modifiers: []
-		};
-		if (keyEvent.ctrlKey) {
-			event.modifiers!.push('control');
-		}
-		if (keyEvent.shiftKey) {
-			event.modifiers!.push('shift');
-		}
-		if (keyEvent.altKey) {
-			event.modifiers!.push('alt');
-		}
-		if (keyEvent.metaKey) {
-			event.modifiers!.push('meta');
-		}
-		this._isSendingKeyEvent = true;
-		try {
-			await this._view.webContents.sendInputEvent(event);
-		} finally {
-			this._isSendingKeyEvent = false;
-		}
 	}
 
 	/**
@@ -671,56 +716,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		}
 
 		super.dispose();
-	}
-
-	/**
-	 * Potentially handle an input event as a VS Code command.
-	 * Returns `true` if the event was forwarded to VS Code and should not be handled natively.
-	 */
-	private tryHandleCommand(input: Electron.Input): boolean {
-		const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
-		const keyCode = EVENT_KEY_CODE_MAP[eventKeyCode] || KeyCode.Unknown;
-
-		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
-		const isNonEditingKey =
-			keyCode === KeyCode.Enter ||
-			keyCode === KeyCode.Escape ||
-			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
-			keyCode >= KeyCode.AudioVolumeMute;
-
-		// Ignore most Alt-only inputs (often used for accented characters or menu accelerators)
-		const isAltOnlyInput = input.alt && !input.control && !input.meta;
-		if (isAltOnlyInput && !isNonEditingKey && !isArrowKey) {
-			return false;
-		}
-
-		// Only reroute if there's a command modifier or it's a non-editing key
-		const hasCommandModifier = input.control || input.alt || input.meta;
-		if (!hasCommandModifier && !isNonEditingKey) {
-			return false;
-		}
-
-		// Ignore Ctrl/Cmd + [A,C,V,X,Z] shortcuts to allow native handling (e.g. copy/paste)
-		const isControlInput = isMacintosh ? input.meta : input.control;
-		const modifiedKeyCode = keyCode |
-			(isControlInput ? KeyMod.CtrlCmd : 0) |
-			(input.shift ? KeyMod.Shift : 0) |
-			(input.alt ? KeyMod.Alt : 0);
-		if (nativeShortcuts.has(modifiedKeyCode)) {
-			return false;
-		}
-
-		this._onDidKeyCommand.fire({
-			key: input.key,
-			keyCode: eventKeyCode,
-			code: input.code,
-			ctrlKey: input.control || false,
-			shiftKey: input.shift || false,
-			altKey: input.alt || false,
-			metaKey: input.meta || false,
-			repeat: input.isAutoRepeat || false
-		});
-		return true;
 	}
 
 	private _windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {

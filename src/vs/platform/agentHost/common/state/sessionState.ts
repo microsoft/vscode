@@ -14,6 +14,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import {
 	SessionLifecycle,
 	ToolResultContentType,
+	IToolResultFileEditContent,
 	type IActiveTurn,
 	type IRootState,
 	type ISessionState,
@@ -34,7 +35,7 @@ export {
 	type IErrorInfo,
 	type IMarkdownResponsePart,
 	type IMessageAttachment,
-	type IPermissionRequest,
+	type IReasoningResponsePart,
 	type IResponsePart,
 	type IRootState,
 	type ISessionActiveClient,
@@ -47,22 +48,28 @@ export {
 	type IToolCallCompletedState,
 	type IToolCallPendingConfirmationState,
 	type IToolCallPendingResultConfirmationState,
+	type IToolCallResponsePart,
 	type IToolCallResult,
 	type IToolCallRunningState,
 	type IToolCallState,
 	type IToolCallStreamingState,
 	type IToolDefinition,
-	type IToolResultBinaryContent,
+	type ICustomizationRef,
+	type ISessionCustomization,
+	type IToolResultEmbeddedResourceContent as IToolResultBinaryContent,
 	type IToolResultContent,
+	type IToolResultFileEditContent,
 	type IToolResultTextContent,
 	type ITurn,
 	type IUsageInfo,
 	type IUserMessage,
+	type IPendingMessage,
 	type StringOrMarkdown,
 	type URI,
 	AttachmentType,
+	CustomizationStatus,
+	PendingMessageKind,
 	PolicyState,
-	PermissionKind,
 	ResponsePartKind,
 	SessionLifecycle,
 	SessionStatus,
@@ -72,6 +79,23 @@ export {
 	ToolResultContentType,
 	TurnState,
 } from './protocol/state.js';
+
+// ---- File edit kind ---------------------------------------------------------
+
+/**
+ * The kind of file edit operation. Derived from the presence/absence of
+ * `before`/`after` in {@link IToolResultFileEditContent}.
+ */
+export const enum FileEditKind {
+	/** Content edit (same file URI, different content). */
+	Edit = 'edit',
+	/** File creation (no before state). */
+	Create = 'create',
+	/** File deletion (no after state). */
+	Delete = 'delete',
+	/** File rename/move (different before and after URIs). */
+	Rename = 'rename',
+}
 
 // ---- Well-known URIs --------------------------------------------------------
 
@@ -114,6 +138,23 @@ export function getToolOutputText(result: IToolCallResult): string | undefined {
 	return textParts.map(p => p.text).join('\n');
 }
 
+/**
+ * Extracts file edit content entries from a tool call result's `content` array.
+ * Returns an empty array if there are no file edit content parts.
+ */
+export function getToolFileEdits(result: IToolCallResult): IToolResultFileEditContent[] {
+	if (!result.content || result.content.length === 0) {
+		return [];
+	}
+	const edits: IToolResultFileEditContent[] = [];
+	for (const c of result.content) {
+		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.FileEdit) {
+			edits.push(c);
+		}
+	}
+	return edits;
+}
+
 // ---- Factory helpers --------------------------------------------------------
 
 export function createRootState(): IRootState {
@@ -136,11 +177,7 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 	return {
 		id,
 		userMessage,
-		streamingText: '',
 		responseParts: [],
-		toolCalls: {},
-		pendingPermissions: {},
-		reasoning: '',
 		usage: undefined,
 	};
 }

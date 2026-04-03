@@ -7,23 +7,26 @@ import * as dom from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { computeProgressPercent, isMajorMinorVersionChange } from '../common/updateUtils.js';
+import { waitForState } from '../../../../base/common/observable.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
 
@@ -64,20 +67,20 @@ registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 export class UpdateTitleBarContribution extends Disposable implements IWorkbenchContribution {
 	private readonly context!: IContextKey<boolean>;
 	private readonly tooltip!: UpdateTooltip;
-	private mode: 'always' | 'detailed' | 'actionable' | 'none' = 'none';
 	private state!: State;
 	private entry: UpdateTitleBarEntry | undefined;
 	private tooltipVisible = false;
+	private readonly pendingShow = this._register(new MutableDisposable());
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IChatService private readonly chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUpdateService updateService: IUpdateService,
 	) {
 		super();
@@ -87,15 +90,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 
 		this.context = UPDATE_TITLE_BAR_CONTEXT.bindTo(contextKeyService);
-		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip, true));
-
-		this.mode = configurationService.getValue<string>('update.titleBar') as typeof this.mode;
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('update.titleBar')) {
-				this.mode = configurationService.getValue<string>('update.titleBar') as typeof this.mode;
-				this.onStateChange();
-			}
-		}));
+		this.tooltip = this._register(instantiationService.createInstance(UpdateTooltip));
 
 		this.state = updateService.state;
 		this._register(updateService.onStateChange((state) => {
@@ -109,7 +104,9 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			(action, options) => {
 				this.entry = instantiationService.createInstance(UpdateTitleBarEntry, action, options, this.tooltip, () => {
 					this.tooltipVisible = false;
-					this.updateContext();
+					if (!ACTIONABLE_STATES.includes(this.state.type) && !DETAILED_STATES.includes(this.state.type)) {
+						this.context.set(false);
+					}
 				});
 				if (this.tooltipVisible) {
 					this.entry.showTooltip();
@@ -118,35 +115,36 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			}
 		));
 
+		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
+
 		void this.onStateChange(true);
 	}
 
-	private updateContext() {
-		switch (this.mode) {
-			case 'always':
-				this.context.set(true);
-				break;
-			case 'detailed':
-				this.context.set(DETAILED_STATES.includes(this.state.type));
-				break;
-			case 'actionable':
-				this.context.set(ACTIONABLE_STATES.includes(this.state.type));
-				break;
-			default:
-				this.context.set(false);
-				break;
+	private async showUpdateInfo(markdown?: string) {
+		const rendered = await this.tooltip.renderPostInstall(markdown);
+		if (rendered) {
+			this.tooltipVisible = true;
+			this.context.set(true);
+			this.entry?.showTooltip(true);
 		}
 	}
 
 	private async onStateChange(startup = false) {
-		this.updateContext();
-		if (this.mode === 'none' || this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+		this.pendingShow.clear();
+		if (ACTIONABLE_STATES.includes(this.state.type)) {
+			await this.setContextWhenChatIdle(true);
+		} else {
+			this.context.set(false);
+		}
+
+		if (this.tooltipVisible || !await this.hostService.hadLastFocus()) {
+			this.tooltip.renderState(this.state);
 			return;
 		}
 
 		let showTooltip = startup && this.detectVersionChange();
-		if (showTooltip) {
-			this.tooltip.renderPostInstall();
+		if (showTooltip && this.configurationService.getValue<boolean>('update.showPostInstallInfo') !== false) {
+			showTooltip = await this.tooltip.renderPostInstall();
 		} else {
 			this.tooltip.renderState(this.state);
 			switch (this.state.type) {
@@ -157,7 +155,15 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 					}
 					break;
 				case StateType.Idle:
-					showTooltip = !!this.state.error || !!this.state.notAvailable;
+					showTooltip = !!this.state.error;
+					break;
+				case StateType.Downloading:
+				case StateType.Updating:
+				case StateType.Overwriting:
+					this.context.set(this.state.explicit);
+					break;
+				case StateType.Restarting:
+					this.context.set(true);
 					break;
 			}
 		}
@@ -166,6 +172,22 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			this.tooltipVisible = true;
 			this.context.set(true);
 			this.entry?.showTooltip();
+		}
+	}
+
+	private async setContextWhenChatIdle(value: boolean) {
+		if (!this.chatService.requestInProgressObs.get()) {
+			this.context.set(value);
+			return;
+		}
+
+		const cts = new CancellationTokenSource();
+		this.pendingShow.value = toDisposable(() => cts.dispose(true));
+		try {
+			await waitForState(this.chatService.requestInProgressObs, inProgress => !inProgress, undefined, cts.token);
+			this.context.set(value);
+		} catch {
+			// cancelled — a newer state change superseded this one
 		}
 	}
 
@@ -188,48 +210,10 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		this.storageService.store(LAST_KNOWN_VERSION_KEY, JSON.stringify(to), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		if (from) {
-			this.trackVersionChange(from, to);
 			return isMajorMinorVersionChange(from.version, to.version);
 		}
 
 		return false;
-	}
-
-	private trackVersionChange(from: ILastKnownVersion, to: ILastKnownVersion) {
-		type VersionChangeEvent = {
-			fromVersion: string | undefined;
-			fromCommit: string | undefined;
-			fromVersionTime: number | undefined;
-			toVersion: string;
-			toCommit: string | undefined;
-			timeToUpdateMs: number | undefined;
-			updateMode: string | undefined;
-			titleBarMode: string | undefined;
-		};
-
-		type VersionChangeClassification = {
-			owner: 'dmitriv';
-			comment: 'Fired when VS Code detects a version change on startup.';
-			fromVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous version of VS Code.' };
-			fromCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the previous version.' };
-			fromVersionTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Timestamp when the previous version was first detected.' };
-			toVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current version of VS Code.' };
-			toCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the current version.' };
-			timeToUpdateMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds between the previous version install and this version install.' };
-			updateMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The update mode configured by the user.' };
-			titleBarMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title bar update indicator mode configured by the user.' };
-		};
-
-		this.telemetryService.publicLog2<VersionChangeEvent, VersionChangeClassification>('update:versionChanged', {
-			fromVersion: from.version,
-			fromCommit: from.commit,
-			fromVersionTime: from.timestamp,
-			toVersion: to.version,
-			toCommit: to.commit,
-			timeToUpdateMs: from.timestamp !== undefined ? to.timestamp - from.timestamp : undefined,
-			updateMode: this.configurationService.getValue<string>('update.mode'),
-			titleBarMode: this.mode
-		});
 	}
 }
 
@@ -270,7 +254,7 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 	}
 
 	public showTooltip(focus = false) {
-		if (!this.content?.isConnected) {
+		if (!this.element?.isConnected) {
 			this.showTooltipOnRender = true;
 			return;
 		}
@@ -278,9 +262,9 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.hoverService.showInstantHover({
 			content: this.tooltip.domNode,
 			target: {
-				targetElements: [this.content],
+				targetElements: [this.element],
 				dispose: () => {
-					if (!!this.content?.isConnected) {
+					if (!!this.element?.isConnected) {
 						this.onUserDismissedTooltip();
 					}
 				}
@@ -325,30 +309,46 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = localize('updateIndicator.update', "Update");
-
 		switch (state.type) {
 			case StateType.Disabled:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('update-disabled');
 				break;
 
 			case StateType.CheckingForUpdates:
+				label.textContent = localize('updateIndicator.checking', "Checking...");
+				this.renderProgressState(this.content);
+				break;
+
 			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.overwriting', "Updating...");
 				this.renderProgressState(this.content);
 				break;
 
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Ready:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
 				break;
 
 			case StateType.Downloading:
+				label.textContent = localize('updateIndicator.downloading', "Downloading...");
 				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
+				label.textContent = localize('updateIndicator.installing', "Installing...");
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
+				break;
+
+			case StateType.Restarting:
+				label.textContent = localize('updateIndicator.restarting', "Restarting...");
+				this.renderProgressState(this.content);
+				break;
+
+			default:
+				label.textContent = localize('updateIndicator.update', "Update");
 				break;
 		}
 	}

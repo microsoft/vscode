@@ -41,12 +41,14 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		this._register(this._connection.onDidNotification(n => {
 			if (n.type === 'notify/sessionAdded' && n.summary.provider === this._provider) {
 				const rawId = AgentSession.id(n.summary.resource);
+				const workingDir = typeof n.summary.workingDirectory === 'string' ? URI.parse(n.summary.workingDirectory) : undefined;
 				const item: IChatSessionItem = {
 					resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
 					label: n.summary.title ?? `Session ${rawId.substring(0, 8)}`,
 					description: this._description,
 					iconPath: getAgentHostIcon(this._productService),
 					status: ChatSessionStatus.Completed,
+					metadata: this._buildMetadata(workingDir),
 					timing: {
 						created: n.summary.createdAt,
 						lastRequestStarted: n.summary.modifiedAt,
@@ -55,7 +57,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				};
 				this._items.push(item);
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
-			} else if (n.type === 'notify/sessionRemoved') {
+			} else if (n.type === 'notify/sessionRemoved' && AgentSession.provider(n.session) === this._provider) {
 				const removedId = AgentSession.id(n.session);
 				const idx = this._items.findIndex(item => item.resource.path === `/${removedId}`);
 				if (idx >= 0) {
@@ -89,6 +91,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				description: this._description,
 				iconPath: getAgentHostIcon(this._productService),
 				status: ChatSessionStatus.Completed,
+				metadata: this._buildMetadata(s.workingDirectory),
 				timing: {
 					created: s.startTime,
 					lastRequestStarted: s.modifiedTime,
@@ -99,5 +102,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._items = [];
 		}
 		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: this._items });
+	}
+
+	private _buildMetadata(workingDirectory?: URI): { readonly [key: string]: unknown } | undefined {
+		if (!this._description) {
+			return undefined;
+		}
+		const result: { [key: string]: unknown } = { remoteAgentHost: this._description };
+		if (workingDirectory) {
+			result.workingDirectoryPath = workingDirectory.fsPath;
+		}
+		return result;
 	}
 }

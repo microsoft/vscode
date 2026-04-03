@@ -27,7 +27,7 @@ import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, ICh
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -552,6 +552,206 @@ suite('Response', () => {
 		const notebookEditGroups = response.value.filter(p => p.kind === 'notebookEditGroup');
 		assert.strictEqual(textEditGroups.length, 0, 'Should not have textEditGroup for cell edits');
 		assert.strictEqual(notebookEditGroups.length, 1, 'Should have notebookEditGroup for cell edits');
+	});
+
+	test('external terminal tool updates preserve toolSpecificData when completing an existing invocation', () => {
+		const response = store.add(new Response([]));
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: { original: 'npm test' },
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-1',
+			toolName: 'run_in_terminal',
+			isComplete: false,
+			invocationMessage: 'Running npm test',
+		});
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-1',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		assert.strictEqual(response.value.length, 1);
+		assert.strictEqual(response.value[0].kind, 'toolInvocation');
+		assert.deepStrictEqual(response.value[0].toolSpecificData, toolSpecificData);
+		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
+	});
+
+	test('external terminal tool updates preserve toolSpecificData when first pushed as complete', () => {
+		const response = store.add(new Response([]));
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: { original: 'npm test' },
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-2',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			invocationMessage: 'Running npm test',
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		assert.strictEqual(response.value.length, 1);
+		assert.strictEqual(response.value[0].kind, 'toolInvocation');
+		assert.deepStrictEqual(response.value[0].toolSpecificData, toolSpecificData);
+		assert.strictEqual(IChatToolInvocation.isComplete(response.value[0]), true);
+	});
+
+	test('response stringification prefers terminal display command over sandbox wrapper', () => {
+		const response = store.add(new Response([]));
+		const sandboxWrappedCommand = `ELECTRON_RUN_AS_NODE=1 TMPDIR="/tmp/vscode" "Code - Insiders" "sandbox-runtime" -c 'npm test'`;
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'bash',
+			commandLine: {
+				original: sandboxWrappedCommand,
+				toolEdited: sandboxWrappedCommand,
+				forDisplay: 'npm test',
+				isSandboxWrapped: true,
+			},
+			terminalCommandOutput: { text: 'all green' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-display-command',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran npm test',
+			toolSpecificData,
+		});
+
+		const responseString = response.toString();
+		assert.strictEqual(responseString, 'Ran terminal command: npm test');
+		assert.ok(!responseString.includes('sandbox-runtime'));
+		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
+	});
+
+	test('response stringification prefers terminal presentation override over display command', () => {
+		const response = store.add(new Response([]));
+		const sandboxWrappedCommand = `ELECTRON_RUN_AS_NODE=1 TMPDIR="/tmp/vscode" "Code - Insiders" "sandbox-runtime" -c 'python -c "print(1)"'`;
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'python',
+			commandLine: {
+				original: sandboxWrappedCommand,
+				toolEdited: sandboxWrappedCommand,
+				forDisplay: 'python -c "print(1)"',
+				isSandboxWrapped: true,
+			},
+			presentationOverrides: {
+				commandLine: 'print(1)',
+				language: 'python',
+			},
+			terminalCommandOutput: { text: '1' },
+			terminalCommandState: { exitCode: 0 },
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-presentation-override',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran python command',
+			toolSpecificData,
+		});
+
+		const responseString = response.toString();
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)');
+		assert.ok(!responseString.includes('sandbox-runtime'));
+		assert.ok(!responseString.includes('python -c "print(1)"'));
+	});
+
+	test('getFinalResponse returns last contiguous markdown after tool call', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Early text'), kind: 'markdownContent' });
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+		response.updateContent({ content: new MarkdownString('Final text'), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'Final text');
+	});
+
+	test('getFinalResponse skips trailing empty markdown and tool calls', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Before tool'), kind: 'markdownContent' });
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+		response.updateContent({ content: new MarkdownString('The answer is 42.'), kind: 'markdownContent' });
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-2',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran another tool',
+		});
+		response.updateContent({ content: new MarkdownString(''), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'The answer is 42.');
+	});
+
+	test('getFinalResponse includes inline references in final block', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+		response.updateContent({ content: new MarkdownString('See '), kind: 'markdownContent' });
+		response.updateContent({ inlineReference: URI.parse('https://example.com/'), kind: 'inlineReference' });
+		response.updateContent({ content: new MarkdownString(' for details.'), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'See https://example.com/ for details.');
+	});
+
+	test('getFinalResponse returns empty string when no markdown', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-1',
+			toolName: 'some_tool',
+			isComplete: true,
+			invocationMessage: 'Ran tool',
+		});
+
+		assert.strictEqual(response.getFinalResponse(), '');
+	});
+
+	test('getFinalResponse returns all markdown when there are no tool calls', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Hello '), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('World'), kind: 'markdownContent' });
+
+		assert.strictEqual(response.getFinalResponse(), 'Hello World');
 	});
 });
 

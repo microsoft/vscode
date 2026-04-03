@@ -1104,7 +1104,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 						const label = `${editor.getName()} + ${selectedEditors.length - 1}`;
 						applyDragImage(e, tab, label);
 					} else {
-						e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
+						const options = this.groupsView.partOptions;
+						const isTabSticky = this.tabsModel.isSticky(tabIndex);
+						const isShrinkSizing = options.tabSizing === 'shrink' || (isTabSticky && options.pinnedTabSizing === 'shrink');
+						if (isShrinkSizing) {
+							// When tab sizing is 'shrink', the tab label may be truncated. Using the tab DOM element
+							// as a drag image can cause parts of the tab header UI to visually drag along.
+							// Instead, use a clean text-only drag image with the editor name.
+							applyDragImage(e, tab, editor.getName());
+						} else {
+							e.dataTransfer.setDragImage(tab, 0, 0); // top left corner of dragged tab set to cursor position to make room for drop-border feedback
+						}
 					}
 				}
 

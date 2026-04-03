@@ -3,25 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostService, AgentHostEnabledSettingId, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ROOT_STATE_URI, type IAgentInfo, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ROOT_STATE_URI, type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
+import { resolveTokenForResource } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
+import { LoggingAgentConnection } from './loggingAgentConnection.js';
+import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -37,10 +50,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
-	private static readonly _outputChannelId = 'agentHostIpc';
-
-	private _outputChannel: IOutputChannel | undefined;
-	private _isChannelRegistered = false;
+	private _loggedConnection: LoggingAgentConnection | undefined;
 	private _clientState: SessionClientState | undefined;
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
@@ -53,9 +63,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ILogService private readonly _logService: ILogService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IOutputService private readonly _outputService: IOutputService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super();
 
@@ -63,13 +76,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			return;
 		}
 
-		this._setupIpcLogging();
+		// Wrap the agent host service with logging to a dedicated output channel
+		this._loggedConnection = this._register(this._instantiationService.createInstance(
+			LoggingAgentConnection,
+			this._agentHostService,
+			'agentHostIpc.local',
+			'Agent Host (Local)'));
+
+		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
 		// Shared client state for protocol reconciliation
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService));
+		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService, () => this._agentHostService.nextClientSeq()));
 
 		// Forward action envelopes from the host to client state
-		this._register(this._agentHostService.onDidAction(envelope => {
+		this._register(this._loggedConnection.onDidAction(envelope => {
 			// Only root actions are relevant here; session actions are
 			// handled by individual session handlers.
 			if (!isSessionAction(envelope.action)) {
@@ -78,7 +98,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		// Forward notifications to client state
-		this._register(this._agentHostService.onDidNotification(n => {
+		this._register(this._loggedConnection.onDidNotification(n => {
 			this._clientState!.receiveNotification(n);
 		}));
 
@@ -90,80 +110,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._initializeAndSubscribe();
 	}
 
-	// ---- IPC output channel (trace-level only) ------------------------------
-
-	private _setupIpcLogging(): void {
-		this._updateOutputChannel();
-		this._register(this._logService.onDidChangeLogLevel(() => this._updateOutputChannel()));
-
-		// Subscribe to action / notification streams for IPC logging
-		this._register(this._agentHostService.onDidAction(e => {
-			this._traceIpc('event', 'onDidAction', e);
-		}));
-		this._register(this._agentHostService.onDidNotification(e => {
-			this._traceIpc('event', 'onDidNotification', e);
-		}));
-	}
-
-	private _updateOutputChannel(): void {
-		const isTrace = this._logService.getLevel() === LogLevel.Trace;
-		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-
-		if (isTrace && !this._isChannelRegistered) {
-			registry.registerChannel({
-				id: AgentHostContribution._outputChannelId,
-				label: 'Agent Host IPC',
-				log: false,
-				languageId: 'log',
-			});
-			this._isChannelRegistered = true;
-			this._outputChannel = undefined; // force re-fetch
-		} else if (!isTrace && this._isChannelRegistered) {
-			registry.removeChannel(AgentHostContribution._outputChannelId);
-			this._isChannelRegistered = false;
-			this._outputChannel = undefined;
-		}
-	}
-
-	private _traceIpc(direction: 'call' | 'result' | 'event', method: string, data?: unknown): void {
-		if (this._logService.getLevel() !== LogLevel.Trace) {
-			return;
-		}
-
-		if (!this._outputChannel) {
-			this._outputChannel = this._outputService.getChannel(AgentHostContribution._outputChannelId);
-			if (!this._outputChannel) {
-				return;
-			}
-		}
-
-		const timestamp = new Date().toISOString();
-		let payload: string;
-		try {
-			payload = data !== undefined ? JSON.stringify(data, (_key, value) => {
-				if (value && typeof value === 'object' && (value as { $mid?: unknown }).$mid !== undefined && (value as { scheme?: unknown }).scheme !== undefined) {
-					return URI.revive(value).toString();
-				}
-				return value;
-			}, 2) : '';
-		} catch {
-			payload = String(data);
-		}
-
-		const arrow = direction === 'call' ? '>>' : direction === 'result' ? '<<' : '**';
-		this._outputChannel.append(`[${timestamp}] [trace] ${arrow} ${method}${payload ? `\n${payload}` : ''}\n`);
-	}
-
 	private async _initializeAndSubscribe(): Promise<void> {
 		try {
-			const snapshot = await this._agentHostService.subscribe(URI.parse(ROOT_STATE_URI));
+			const snapshot = await this._loggedConnection!.subscribe(URI.parse(ROOT_STATE_URI));
 			if (this._store.isDisposed) {
 				return;
 			}
-			// Feed snapshot into client state — fires onDidChangeRootState
+			// Feed snapshot into client state - fires onDidChangeRootState
 			this._clientState!.handleSnapshot(ROOT_STATE_URI, snapshot.state, snapshot.fromSeq);
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to subscribe to root state', err);
+			this._loggedConnection!.logError('subscribe(root)', err);
 		}
 	}
 
@@ -205,11 +162,35 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			capabilities: {
+				supportsCheckpoints: true,
+			},
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined));
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
+
+		// Customization sync provider + bundler + observable
+		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
+		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
+		store.add(this._customizationHarnessService.registerExternalHarness({
+			id: sessionType,
+			label: agent.displayName,
+			icon: ThemeIcon.fromId(Codicon.server.id),
+			hiddenSections: [],
+			hideGenerateButton: true,
+			getStorageSourceFilter: () => ({ sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin] }),
+			syncProvider,
+		}));
+
+		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
+		const updateCustomizations = async () => {
+			const refs = await this._resolveCustomizations(syncProvider, bundler);
+			customizations.set(refs, undefined);
+		};
+		store.add(syncProvider.onDidChange(() => updateCustomizations()));
+		updateCustomizations(); // resolve initial state
 
 		// Session handler
 		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
@@ -218,8 +199,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			sessionType,
 			fullName: agent.displayName,
 			description: agent.description,
-			connection: this._agentHostService,
+			connection: this._loggedConnection!,
+			connectionAuthority: 'local',
 			resolveAuthentication: () => this._resolveAuthenticationInteractively(),
+			customizations,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -234,11 +217,53 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 
 		// Push auth token and refresh models from server
-		this._authenticateWithServer().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ });
+		this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ });
 		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
-			this._authenticateWithServer().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
+			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
 		store.add(this._authenticationService.onDidChangeSessions(() =>
-			this._authenticateWithServer().then(() => this._agentHostService.refreshModels()).catch(() => { /* best-effort */ })));
+			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
+	}
+
+	/**
+	 * Resolves the customizations to include in the active client set.
+	 *
+	 * Classifies sync provider entries as plugins (matched against
+	 * installed plugins) or individual files (bundled into a synthetic
+	 * Open Plugin).
+	 */
+	private async _resolveCustomizations(
+		syncProvider: AgentCustomizationSyncProvider,
+		bundler: SyncedCustomizationBundler,
+	): Promise<ICustomizationRef[]> {
+		const entries = syncProvider.getSelectedEntries();
+		if (entries.length === 0) {
+			return [];
+		}
+
+		const plugins = this._agentPluginService.plugins.get();
+		const refs: ICustomizationRef[] = [];
+		const individualFiles: { uri: URI; type: PromptsType }[] = [];
+
+		for (const entry of entries) {
+			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
+			if (plugin) {
+				refs.push({
+					uri: plugin.uri.toString() as ProtocolURI,
+					displayName: plugin.label,
+				});
+			} else if (entry.type) {
+				individualFiles.push({ uri: entry.uri, type: entry.type });
+			}
+		}
+
+		if (individualFiles.length > 0) {
+			const result = await bundler.bundle(individualFiles);
+			if (result) {
+				refs.push(result.ref);
+			}
+		}
+
+		return refs;
 	}
 
 	/**
@@ -248,20 +273,21 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 */
 	private async _authenticateWithServer(): Promise<void> {
 		try {
-			const metadata = await this._agentHostService.getResourceMetadata();
+			const metadata = await this._loggedConnection!.getResourceMetadata();
 			this._logService.trace(`[AgentHost] Resource metadata: ${metadata.resources.length} resource(s)`);
 			for (const resource of metadata.resources) {
 				const resourceUri = URI.parse(resource.resource);
 				const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
 				if (token) {
 					this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
-					await this._agentHostService.authenticate({ resource: resource.resource, token });
+					await this._loggedConnection!.authenticate({ resource: resource.resource, token });
 				} else {
 					this._logService.info(`[AgentHost] No token resolved for resource: ${resource.resource}`);
 				}
 			}
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
+			this._loggedConnection!.logError('authenticateWithServer', err);
 		}
 	}
 
@@ -269,24 +295,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Resolve a bearer token for a set of authorization servers using the
 	 * standard VS Code authentication service provider resolution.
 	 */
-	private async _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
-		for (const server of authorizationServers) {
-			const serverUri = URI.parse(server);
-			const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceServer);
-			if (!providerId) {
-				this._logService.trace(`[AgentHost] No auth provider found for server: ${server}`);
-				continue;
-			}
-			this._logService.trace(`[AgentHost] Resolved auth provider '${providerId}' for server: ${server}`);
-
-			const sessions = await this._authenticationService.getSessions(providerId, [...scopes], { authorizationServer: serverUri }, true);
-			if (sessions.length > 0) {
-				return sessions[0].accessToken;
-			}
-
-			this._logService.trace(`[AgentHost] No sessions found for provider '${providerId}'`);
-		}
-		return undefined;
+	private _resolveTokenForResource(resourceServer: URI, authorizationServers: readonly string[], scopes: readonly string[]): Promise<string | undefined> {
+		return resolveTokenForResource(resourceServer, authorizationServers, scopes, this._authenticationService, this._logService, '[AgentHost]');
 	}
 
 	/**
@@ -297,7 +307,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 */
 	private async _resolveAuthenticationInteractively(): Promise<boolean> {
 		try {
-			const metadata = await this._agentHostService.getResourceMetadata();
+			const metadata = await this._loggedConnection!.getResourceMetadata();
 			for (const resource of metadata.resources) {
 				for (const server of resource.authorization_servers ?? []) {
 					const serverUri = URI.parse(server);
@@ -314,7 +324,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 						authorizationServer: serverUri,
 					});
 
-					await this._agentHostService.authenticate({
+					await this._loggedConnection!.authenticate({
 						resource: resource.resource,
 						token: session.accessToken,
 					});
@@ -324,6 +334,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 		} catch (err) {
 			this._logService.error('[AgentHost] Interactive authentication failed', err);
+			this._loggedConnection!.logError('resolveAuthenticationInteractively', err);
 		}
 		return false;
 	}

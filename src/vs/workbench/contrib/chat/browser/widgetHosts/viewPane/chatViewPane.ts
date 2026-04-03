@@ -13,6 +13,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -99,6 +100,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+	private readonly _previousModelRef = this._register(new MutableDisposable<IChatModelReference>());
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 
@@ -251,7 +253,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (!this._widget?.viewModel && !this.restoringSession) {
 				const sessionResource = this.getTransferredOrPersistedSessionInfo();
 				this.restoringSession =
-					(sessionResource ? this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None) : Promise.resolve(undefined)).then(async modelRef => {
+					(sessionResource ? this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidChangeAgents') : Promise.resolve(undefined)).then(async modelRef => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -461,9 +463,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Sessions control: stacked
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				newSessionsContainerVisible =
-					!!this.chatEntitlementService.sentiment.installed &&						// chat is installed (otherwise make room for terms and welcome)
+					!!this.chatEntitlementService.sentiment.completed &&																// chat is setup (otherwise make room for terms and welcome)
 					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
-					!this.welcomeController?.isShowingWelcome.get();							// welcome not showing
+					!this.welcomeController?.isShowingWelcome.get();																	// welcome not showing
 			}
 
 			// Sessions control: sidebar
@@ -628,6 +630,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 
+		// When the currently displayed session is archived, start a new session
+		this._register(this.agentSessionsService.model.onDidChangeSessionArchivedState(e => {
+			if (e.isArchived()) {
+				const currentSessionResource = chatWidget.viewModel?.sessionResource;
+				if (currentSessionResource && isEqual(currentSessionResource, e.resource)) {
+					this.clear();
+				}
+			}
+		}));
+
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
@@ -687,19 +699,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async _applyModel(): Promise<void> {
 		const sessionResource = this.getTransferredOrPersistedSessionInfo();
-		const modelRef = sessionResource ? await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None) : undefined;
+		const modelRef = sessionResource ? await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#applyModel') : undefined;
 		await this.showModel(CancellationToken.None, modelRef);
 	}
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
+
+		// Keep the previous model reference alive so its InputModel state (permission level, etc.)
+		// survives until the next session switch. Only the most recent previous session is kept.
+		this._previousModelRef.value = this.modelRef.value;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
 			ref = modelRef ?? (this.chatService.transferredSessionResource
-				? await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token)
-				: this.chatService.startNewLocalSession(ChatAgentLocation.Chat));
+				? await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel')
+				: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' }));
 			if (!ref) {
 				throw new Error('Could not start chat session');
 			}
@@ -712,6 +728,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.modelRef.value = ref;
 		const model = ref?.object;
+
+		// If we're switching back to the previously cached model, clear the cache
+		if (model && this._previousModelRef.value?.object.sessionResource.toString() === model.sessionResource.toString()) {
+			this._previousModelRef.value = undefined;
+		}
 
 		if (model) {
 			await this.updateWidgetLockState(getChatSessionType(model.sessionResource)); // Update widget lock state based on session type
@@ -815,7 +836,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
 
 			try {
-				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token);
+				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession');
 				clearWidget.dispose();
 				await queue;
 
@@ -895,18 +916,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.lastDimensions = { height, width };
 
 		let remainingHeight = height;
-		let remainingWidth = width;
+		const remainingWidth = width;
+
+		// Title Control
+		const titleHeight = this.titleControl?.getHeight() ?? 0;
+		remainingHeight -= titleHeight;
 
 		// Sessions Control
 		const { heightReduction, widthReduction } = this.layoutSessionsControl(remainingHeight, remainingWidth);
-		remainingHeight -= heightReduction;
-		remainingWidth -= widthReduction;
 
-		// Title Control
-		remainingHeight -= this.titleControl?.getHeight() ?? 0;
+		// In stacked mode the sessions viewer sits above the chat widget, so the
+		// widget's layout height is reduced by `heightReduction`. However, the input
+		// part's max-height needs to be based on the full `remainingHeight` (before
+		// the sessions viewer deduction) so the input can grow freely. As the input
+		// grows, an autorun triggers relayout which shrinks the sessions viewer,
+		// giving the widget more space and converging to the right sizes.
+		this._widget.setInputPartMaxHeightOverride(this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked ? remainingHeight : undefined);
 
 		// Chat Widget
-		this._widget.layout(remainingHeight, remainingWidth);
+		this._widget.layout(remainingHeight - heightReduction, remainingWidth - widthReduction);
 
 		// Remember last dimensions per orientation
 		this.lastDimensionsPerOrientation.set(this.sessionsViewerOrientation, { height, width });

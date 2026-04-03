@@ -5,7 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -14,7 +14,7 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -34,9 +34,11 @@ import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plug
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { pluginIcon } from './aiCustomizationIcons.js';
-import { formatDisplayName, truncateToFirstSentence } from './aiCustomizationListWidget.js';
+import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 
 const $ = DOM.$;
 
@@ -103,6 +105,7 @@ class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 
 interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
+	readonly syncCheckboxContainer: HTMLElement;
 	readonly typeIcon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
@@ -113,9 +116,14 @@ interface IPluginInstalledItemTemplateData {
 class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemEntry, IPluginInstalledItemTemplateData> {
 	readonly templateId = 'pluginInstalledItem';
 
+	constructor(
+		private readonly _harnessService: ICustomizationHarnessService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IPluginInstalledItemTemplateData {
 		container.classList.add('mcp-server-item');
 
+		const syncCheckboxContainer = DOM.append(container, $('.item-sync-checkbox'));
 		const typeIcon = DOM.append(container, $('.mcp-server-icon'));
 		typeIcon.classList.add(...ThemeIcon.asClassNameArray(pluginIcon));
 
@@ -124,7 +132,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const description = DOM.append(details, $('.mcp-server-description'));
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, typeIcon, name, description, status, disposables: new DisposableStore() };
+		return { container, syncCheckboxContainer, typeIcon, name, description, status, disposables: new DisposableStore() };
 	}
 
 	renderElement(element: IPluginInstalledItemEntry, _index: number, templateData: IPluginInstalledItemTemplateData): void {
@@ -133,7 +141,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.name.textContent = formatDisplayName(element.item.name);
 
 		if (element.item.description) {
-			templateData.description.textContent = truncateToFirstSentence(element.item.description);
+			templateData.description.textContent = truncateToFirstLine(element.item.description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -152,6 +160,27 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 				templateData.status.classList.add('disabled');
 			}
 		}));
+
+		// Sync checkbox: shown when the active harness has a sync provider
+		const syncProvider = this._harnessService.getActiveDescriptor().syncProvider;
+		if (syncProvider) {
+			templateData.syncCheckboxContainer.style.display = '';
+			const pluginUri = element.item.plugin.uri;
+			const synced = syncProvider.isSelected(pluginUri);
+			const title = synced
+				? localize('unsyncPlugin', "Remove {0} from sync", element.item.name)
+				: localize('syncPlugin', "Add {0} to sync", element.item.name);
+			const checkbox = templateData.disposables.add(
+				new Checkbox(title, synced, defaultCheckboxStyles)
+			);
+			templateData.syncCheckboxContainer.replaceChildren(checkbox.domNode);
+			templateData.disposables.add(checkbox.onChange(() => {
+				syncProvider.toggleUri(pluginUri);
+			}));
+		} else {
+			templateData.syncCheckboxContainer.style.display = 'none';
+			templateData.syncCheckboxContainer.replaceChildren();
+		}
 	}
 
 	disposeTemplate(templateData: IPluginInstalledItemTemplateData): void {
@@ -298,6 +327,8 @@ export class PluginListWidget extends Disposable {
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
+	private lastHeight: number = 0;
+	private lastWidth: number = 0;
 	private readonly collapsedGroups = new Set<string>();
 	private marketplaceCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -314,6 +345,7 @@ export class PluginListWidget extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget'); // reuse MCP list widget CSS
@@ -365,6 +397,15 @@ export class PluginListWidget extends Disposable {
 			this.commandService.executeCommand('workbench.action.chat.installPluginFromSource');
 		}));
 
+		const createPluginButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		createPluginButton.label = `$(${Codicon.save.id})`;
+		createPluginButton.setTitle(localize('createPlugin', "Create Plugin"));
+		createPluginButton.element.classList.add('list-icon-button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), createPluginButton.element, localize('createPluginTooltip', "Create Plugin")));
+		this._register(createPluginButton.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.createPlugin');
+		}));
+
 		// Back to installed link (shown only in browse mode)
 		this.backLink = DOM.append(this.element, $('.mcp-back-link'));
 		this.backLink.setAttribute('role', 'button');
@@ -414,7 +455,7 @@ export class PluginListWidget extends Disposable {
 		// Create list
 		const delegate = new PluginItemDelegate();
 		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IPluginGroupHeaderEntry>('pluginGroupHeader', this.hoverService);
-		const installedRenderer = new PluginInstalledItemRenderer();
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService);
 
 		this.list = this._register(this.instantiationService.createInstance(
@@ -487,6 +528,30 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 
+		// Re-render when the active harness changes (sync checkboxes may appear/disappear)
+		this._register(autorun(reader => {
+			this.harnessService.activeHarness.read(reader);
+			if (!this.browseMode) {
+				this.refresh();
+			}
+		}));
+
+		// Re-render when the active harness's sync provider selection changes
+		const syncChangeDisposable = this._register(new MutableDisposable());
+		this._register(autorun(reader => {
+			this.harnessService.activeHarness.read(reader);
+			const syncProvider = this.harnessService.getActiveDescriptor().syncProvider;
+			if (syncProvider) {
+				syncChangeDisposable.value = syncProvider.onDidChange(() => {
+					if (!this.browseMode) {
+						this.refresh();
+					}
+				});
+			} else {
+				syncChangeDisposable.clear();
+			}
+		}));
+
 		// Initial refresh
 		void this.refresh();
 	}
@@ -518,6 +583,11 @@ export class PluginListWidget extends Disposable {
 			this.marketplaceCts?.dispose(true);
 			this.marketplaceItems = [];
 			this.filterPlugins();
+		}
+
+		// Re-layout to account for the back link height change
+		if (this.lastHeight > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
 		}
 	}
 
@@ -692,31 +762,36 @@ export class PluginListWidget extends Disposable {
 	}
 
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
-		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
+		this.lastHeight = height;
+		this.lastWidth = width;
 
-		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
-		this.list.layout(Math.max(0, listHeight), width);
+		this.element.style.height = `${height}px`;
 
-		if (sectionFooterHeight === 0) {
-			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
-				if (this._store.isDisposed) {
-					return;
-				}
-				const actualFooterHeight = this.sectionHeader.offsetHeight;
-				if (actualFooterHeight > 0) {
-					const correctedHeight = height - actualFooterHeight - searchBarHeight - backLinkHeight;
-					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
-					this.list.layout(Math.max(0, correctedHeight), width);
-				}
-			});
+		// Measure sibling elements to calculate the list height.
+		// When offsetHeight returns 0 the container just became visible
+		// after display:none and the browser hasn't reflowed yet — defer
+		// layout to the next frame so measurements are accurate.
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
+		if (searchBarHeight === 0) {
+			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
+			return;
 		}
+		const footerHeight = this.sectionHeader.offsetHeight;
+		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 	}
 
 	focusSearch(): void {
 		this.searchInput.focus();
+	}
+
+	revealLastItem(): void {
+		if (this.list.length > 0) {
+			this.list.reveal(this.list.length - 1);
+		}
 	}
 
 	focus(): void {
