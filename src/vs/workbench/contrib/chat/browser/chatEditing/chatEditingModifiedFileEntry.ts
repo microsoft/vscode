@@ -24,6 +24,7 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
 
@@ -128,14 +129,21 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		}
 
 		// review mode depends on setting and temporary override
+		const autoAcceptEnabled = observableConfigValue(ChatConfiguration.AutoAccept, false, configService);
 		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
 		this._autoAcceptTimeout = derived(r => {
+			if (autoAcceptEnabled.read(r)) {
+				return 0;
+			}
 			const value = autoAcceptRaw.read(r);
 			return clamp(value, 0, 100);
 		});
 		this.reviewMode = derived(r => {
-			const configuredValue = this._autoAcceptTimeout.read(r);
 			const tempValue = this._reviewModeTempObs.read(r);
+			if (autoAcceptEnabled.read(r)) {
+				return tempValue ?? false;
+			}
+			const configuredValue = this._autoAcceptTimeout.read(r);
 			return tempValue ?? configuredValue === 0;
 		});
 
