@@ -62,6 +62,10 @@ async function main(buildDir?: string) {
 			// @github/copilot/prebuilds/{platform} (pty.node, spawn-helper)
 			crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(base, '@github', 'copilot', 'prebuilds', plat));
 		}
+
+		const copilotExtensionNodeModules = path.join('Contents', 'Resources', 'app', 'extensions', 'copilot', 'node_modules');
+		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'prebuilds', plat));
+		crossCopyPlatformDir(x64AppPath, arm64AppPath, path.join(copilotExtensionNodeModules, '@github', 'copilot', 'sdk', 'ripgrep', 'bin', plat));
 	}
 
 	const filesToSkip = [
