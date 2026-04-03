@@ -11,7 +11,7 @@ import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progress
 import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -24,7 +24,7 @@ import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
-import { filterDebugEventsByText } from '../../common/chatDebugEvents.js';
+import { debugEventMatchesText } from '../../common/chatDebugEvents.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer, getEventCreatedText, getEventNameText, getEventDetailsText } from './chatDebugEventList.js';
@@ -37,6 +37,8 @@ import { Action, Separator } from '../../../../../base/common/actions.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 
 const $ = DOM.$;
+
+const PAGE_SIZE = 1000;
 
 export const enum LogsNavigation {
 	Home = 'home',
@@ -65,11 +67,16 @@ export class ChatDebugLogsView extends Disposable {
 	private currentSessionResource: URI | undefined;
 	private logsViewMode: LogsViewMode = LogsViewMode.Tree;
 	private events: IChatDebugEvent[] = [];
+	private filteredEvents: IChatDebugEvent[] = [];
+	private filterDirty = true;
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly sessionStateDisposable = this._register(new MutableDisposable());
 	private readonly refreshScheduler: RunOnceScheduler;
 	private readonly progressBar: ProgressBar;
+	private readonly showMoreContainer: HTMLElement;
+	private readonly showMoreDisposables = this._register(new DisposableStore());
+	private visibleLimit = PAGE_SIZE;
 
 	constructor(
 		parent: HTMLElement,
@@ -138,6 +145,8 @@ export class ChatDebugLogsView extends Disposable {
 		this._register(this.filterState.onDidChange(() => {
 			syncContextKeys();
 			this.updateMoreFiltersChecked();
+			this.visibleLimit = PAGE_SIZE;
+			this.filterDirty = true;
 			this.refreshList();
 		}));
 
@@ -161,6 +170,10 @@ export class ChatDebugLogsView extends Disposable {
 
 		// Body container
 		this.bodyContainer = DOM.append(mainColumn, $('.chat-debug-logs-body'));
+
+		// "Show More" container (below the body, shown when events exceed the visible limit)
+		this.showMoreContainer = DOM.append(mainColumn, $('.chat-debug-logs-show-more'));
+		DOM.hide(this.showMoreContainer);
 
 		// List container (initially hidden — tree view is default)
 		this.listContainer = DOM.append(this.bodyContainer, $('.chat-debug-list-container'));
@@ -268,6 +281,9 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	setSession(sessionResource: URI): void {
+		if (!this.currentSessionResource || this.currentSessionResource.toString() !== sessionResource.toString()) {
+			this.visibleLimit = PAGE_SIZE;
+		}
 		this.currentSessionResource = sessionResource;
 	}
 
@@ -310,9 +326,10 @@ export class ChatDebugLogsView extends Disposable {
 		const breadcrumbHeight = 22;
 		const headerHeight = this.headerContainer.offsetHeight;
 		const tableHeaderHeight = this.tableHeader.offsetHeight;
+		const showMoreHeight = this.showMoreContainer.offsetHeight;
 		const detailVisible = this.detailPanel.isVisible;
 		const detailWidth = detailVisible ? this.detailPanel.width : 0;
-		const listHeight = dimension.height - breadcrumbHeight - headerHeight - tableHeaderHeight;
+		const listHeight = dimension.height - breadcrumbHeight - headerHeight - tableHeaderHeight - showMoreHeight;
 		const listWidth = dimension.width - detailWidth;
 		if (this.logsViewMode === LogsViewMode.Tree) {
 			this.tree.layout(listHeight, listWidth);
@@ -326,50 +343,95 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	refreshList(): void {
-		let filtered: readonly IChatDebugEvent[] = this.events;
-
-		// Filter by kind toggles (pass category for generic events so only
-		// discovery-category events are affected by the Prompt Discovery toggle)
-		filtered = filtered.filter(e => {
-			const category = e.kind === 'generic' ? e.category : undefined;
-			return this.filterState.isKindVisible(e.kind, category);
-		});
-
-		// Filter by text search and timestamp (before:/after: syntax is handled
-		// inside filterDebugEventsByText)
-		const filterText = this.filterState.textFilter;
-		if (filterText) {
-			filtered = filterDebugEventsByText(filtered, filterText);
+		// Rebuild the filtered list from scratch only when filter criteria
+		// changed or events were bulk-reloaded. During streaming backfill
+		// the filtered list is kept up-to-date incrementally via addEvent(),
+		// making each refresh O(1) instead of O(n).
+		if (this.filterDirty) {
+			this.filteredEvents = this.events.filter(e => this.passesCurrentFilter(e));
+			this.filterDirty = false;
 		}
+
+		// Paginate: show only the first `visibleLimit` events to keep the UI
+		// responsive for large sessions. The "Show More" button loads the
+		// next page.
+		const totalFiltered = this.filteredEvents.length;
+		const display = totalFiltered > this.visibleLimit ? this.filteredEvents.slice(0, this.visibleLimit) : this.filteredEvents;
 
 		if (this.logsViewMode === LogsViewMode.List) {
-			this.list.splice(0, this.list.length, filtered);
+			this.list.splice(0, this.list.length, display);
 		} else {
-			this.refreshTree(filtered);
+			this.refreshTree(display);
 		}
+
+		this.updateShowMore(totalFiltered);
 	}
 
 	addEvent(event: IChatDebugEvent): void {
-		// Binary-insert to maintain chronological order without a full sort.
-		// Events almost always arrive in order, so the insertion point is
-		// typically at the end (O(log n) comparison, O(1) splice).
+		// Binary-insert into the unfiltered array to maintain chronological
+		// order. Events almost always arrive in order, so the insertion
+		// point is typically at the end (O(log n) comparison, O(1) splice).
+		this.binaryInsert(this.events, event);
+
+		// Incrementally update the filtered list so refreshList() does not
+		// need to re-scan the entire events array on every debounced tick.
+		if (!this.filterDirty && this.passesCurrentFilter(event)) {
+			this.binaryInsert(this.filteredEvents, event);
+		}
+
+		this.scheduleRefresh();
+	}
+
+	private binaryInsert(arr: IChatDebugEvent[], event: IChatDebugEvent): void {
 		const time = event.created.getTime();
 		let lo = 0;
-		let hi = this.events.length;
+		let hi = arr.length;
 		while (lo < hi) {
 			const mid = (lo + hi) >>> 1;
-			if (this.events[mid].created.getTime() <= time) {
+			if (arr[mid].created.getTime() <= time) {
 				lo = mid + 1;
 			} else {
 				hi = mid;
 			}
 		}
-		if (lo === this.events.length) {
-			this.events.push(event);
+		if (lo === arr.length) {
+			arr.push(event);
 		} else {
-			this.events.splice(lo, 0, event);
+			arr.splice(lo, 0, event);
 		}
-		this.scheduleRefresh();
+	}
+
+	/**
+	 * Tests whether a single event passes the current kind + text + timestamp
+	 * filters. Used for incremental filtering on each addEvent() call.
+	 */
+	private passesCurrentFilter(event: IChatDebugEvent): boolean {
+		// Kind filter
+		const category = event.kind === 'generic' ? event.category : undefined;
+		if (!this.filterState.isKindVisible(event.kind, category)) {
+			return false;
+		}
+
+		// Timestamp filter
+		if (!this.filterState.isTimestampVisible(event.created)) {
+			return false;
+		}
+
+		// Text filter
+		const textOnly = this.filterState.textFilterWithoutTimestamps;
+		if (textOnly) {
+			const terms = textOnly.split(/\s*,\s*/).filter(t => t.length > 0);
+			const includeTerms = terms.filter(t => !t.startsWith('!'));
+			const excludeTerms = terms.filter(t => t.startsWith('!')).map(t => t.slice(1)).filter(t => t.length > 0);
+			if (excludeTerms.some(term => debugEventMatchesText(event, term))) {
+				return false;
+			}
+			if (includeTerms.length > 0 && !includeTerms.some(term => debugEventMatchesText(event, term))) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private scheduleRefresh(): void {
@@ -380,6 +442,7 @@ export class ChatDebugLogsView extends Disposable {
 
 	private loadEvents(): void {
 		this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
+		this.filterDirty = true;
 
 		const addEventDisposable = this.chatDebugService.onDidAddEvent(e => {
 			if (!this.currentSessionResource || e.sessionResource.toString() === this.currentSessionResource.toString()) {
@@ -391,6 +454,7 @@ export class ChatDebugLogsView extends Disposable {
 		const clearEventsDisposable = this.chatDebugService.onDidClearProviderEvents(sessionResource => {
 			if (!this.currentSessionResource || sessionResource.toString() === this.currentSessionResource.toString()) {
 				this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
+				this.filterDirty = true;
 				this.refreshList();
 			}
 		});
@@ -464,6 +528,32 @@ export class ChatDebugLogsView extends Disposable {
 		};
 
 		return roots.map(toTreeElement);
+	}
+
+	private updateShowMore(totalFiltered: number): void {
+		this.showMoreDisposables.clear();
+		DOM.clearNode(this.showMoreContainer);
+		if (totalFiltered <= this.visibleLimit) {
+			DOM.hide(this.showMoreContainer);
+			return;
+		}
+		DOM.show(this.showMoreContainer);
+
+		const shown = Math.min(this.visibleLimit, totalFiltered);
+		const remaining = totalFiltered - shown;
+
+		const statusLabel = DOM.append(this.showMoreContainer, $('span.chat-debug-logs-show-more-status'));
+		statusLabel.textContent = localize('chatDebug.showingCount', "Showing {0} of {1} events", shown, totalFiltered);
+
+		const showMoreBtn = this.showMoreDisposables.add(new Button(this.showMoreContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.showMoreTitle', "Load more events") }));
+		showMoreBtn.label = localize('chatDebug.showMore', "Show More ({0})", remaining);
+		this.showMoreDisposables.add(showMoreBtn.onDidClick(() => {
+			this.visibleLimit += PAGE_SIZE;
+			this.refreshList();
+			if (this.currentDimension) {
+				this.layout(this.currentDimension);
+			}
+		}));
 	}
 
 	private toggleViewMode(): void {
