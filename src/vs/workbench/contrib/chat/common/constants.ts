@@ -66,6 +66,7 @@ export enum ChatConfiguration {
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
 	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
+	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 }
 
 /**
@@ -75,17 +76,6 @@ export enum ChatModeKind {
 	Ask = 'ask',
 	Edit = 'edit',
 	Agent = 'agent'
-}
-
-export function validateChatMode(mode: unknown): ChatModeKind | undefined {
-	switch (mode) {
-		case ChatModeKind.Ask:
-		case ChatModeKind.Edit:
-		case ChatModeKind.Agent:
-			return mode as ChatModeKind;
-		default:
-			return undefined;
-	}
 }
 
 /**
@@ -106,10 +96,6 @@ export enum ChatPermissionLevel {
  */
 export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
 	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
-}
-
-export function isChatMode(mode: unknown): mode is ChatModeKind {
-	return !!validateChatMode(mode);
 }
 
 // Thinking display modes for pinned content

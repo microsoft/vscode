@@ -132,5 +132,8 @@
   "dependencies": {
     "dompurify": "^3.3.2",
     "mermaid": "^11.12.3"
+  },
+  "overrides": {
+    "lodash-es": "4.18.1"
   }
 }

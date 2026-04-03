@@ -106,7 +106,7 @@ export interface ITerminalSandboxService {
 	isEnabled(): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
 	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string): ITerminalSandboxWrapResult;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
@@ -200,7 +200,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._os;
 	}
 
-	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult {
+	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string): ITerminalSandboxWrapResult {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
@@ -208,7 +208,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const blockedDomainResult = requestUnsandboxedExecution ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
 		if (!requestUnsandboxedExecution && blockedDomainResult.blockedDomains.length > 0) {
 			return {
-				command: this._wrapUnsandboxedCommand(command),
+				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
 				blockedDomains: blockedDomainResult.blockedDomains,
 				deniedDomains: blockedDomainResult.deniedDomains,
@@ -219,7 +219,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
 		if (requestUnsandboxedExecution) {
 			return {
-				command: this._wrapUnsandboxedCommand(command),
+				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
 			};
 		}
@@ -453,8 +453,14 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 
-	private _wrapUnsandboxedCommand(command: string): string {
-		return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
+	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
+		if (!this._tempDir?.path) {
+			return command;
+		}
+		if (!shell) {
+			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})`;
+		}
+		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(command)}`;
 	}
 
 	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
