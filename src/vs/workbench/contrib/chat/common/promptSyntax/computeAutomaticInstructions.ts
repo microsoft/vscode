@@ -178,9 +178,16 @@ export class ComputeAutomaticInstructions {
 			return;
 		}
 
-		for (const { uri, pattern } of instructionFiles) {
+		for (const instructionFile of instructionFiles) {
 			if (token.isCancellationRequested) {
 				return;
+			}
+
+			const { uri, pattern, when } = instructionFile;
+
+			// If a `when` clause is present, evaluate it; otherwise always include.
+			if (when && !this._contextKeyService.contextMatchesRules(when)) {
+				continue;
 			}
 
 			if (!pattern) {
@@ -342,14 +349,17 @@ export class ComputeAutomaticInstructions {
 			entries.push(`If the file is not already available as attachment, use the ${readTool.variable} tool to acquire it.`);
 			entries.push('Make sure to acquire the instructions before working with the codebase.');
 			let hasContent = false;
-			for (const { uri, description, pattern } of instructionFiles) {
-				entries.push('<instruction>');
-				if (description) {
-					entries.push(`<description>${description}</description>`);
+			for (const instruction of instructionFiles) {
+				if (instruction.when && !this._contextKeyService.contextMatchesRules(instruction.when)) {
+					continue;
 				}
-				entries.push(`<file>${filePath(uri)}</file>`);
-				if (pattern) {
-					entries.push(`<applyTo>${pattern}</applyTo>`);
+				entries.push('<instruction>');
+				if (instruction.description) {
+					entries.push(`<description>${instruction.description}</description>`);
+				}
+				entries.push(`<file>${filePath(instruction.uri)}</file>`);
+				if (instruction.pattern) {
+					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
 				}
 				entries.push('</instruction>');
 				hasContent = true;
@@ -440,10 +450,10 @@ export class ComputeAutomaticInstructions {
 			const customAgentsEnabled = !!this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
+					return (agent: ICustomAgent) => agent.visibility.agentInvocable && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
 				} else {
 					const subagents = this._enabledSubagents;
-					return (agent: ICustomAgent) => subagents.includes(agent.name);
+					return (agent: ICustomAgent) => subagents.includes(agent.name) && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
 				}
 			})();
 			const agents = customAgentsEnabled ? await this._promptsService.getCustomAgents(token) : [];
