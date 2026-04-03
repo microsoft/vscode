@@ -3352,7 +3352,19 @@ export class Repository {
 			const result = await fs.readFile(path.join(this.dotGit.path, ref), 'utf8');
 			return result.trim();
 		} catch (err) {
-			this.logger.warn(`[Git][revParse] Unable to read file: ${err.message}`);
+			// For linked worktrees, shared refs (refs/heads/*, refs/remotes/*,
+			// refs/tags/*) live in the common gitdir, not the worktree-specific
+			// gitdir. Try the common path before falling back to git rev-parse.
+			if (/ENOENT/.test(err.message) && this.dotGit.commonPath) {
+				try {
+					const result = await fs.readFile(path.join(this.dotGit.commonPath, ref), 'utf8');
+					return result.trim();
+				} catch (commonErr) {
+					this.logger.warn(`[Git][revParse] Unable to read file: ${commonErr.message}`);
+				}
+			} else {
+				this.logger.warn(`[Git][revParse] Unable to read file: ${err.message}`);
+			}
 		}
 
 		try {
