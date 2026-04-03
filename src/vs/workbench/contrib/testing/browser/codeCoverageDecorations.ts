@@ -939,7 +939,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const result = coverage.fromResult;
 		const previousSelection = testCoverageService.filterToTest.get();
 
-		type TItem = { label: string; testId: TestId | undefined; buttons?: IQuickInputButton[] };
+		type TItem = { label: string; description?: string; testId: TestId | undefined; buttons?: IQuickInputButton[] };
 
 		const buttons: IQuickInputButton[] = [{
 			iconClass: 'codicon-go-to-file',
@@ -948,7 +948,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 		const items: QuickPickInput<TItem>[] = [
 			{ label: coverUtils.labels.allTests, testId: undefined },
 			{ type: 'separator' },
-			...tests.map(id => ({ label: coverUtils.getLabelForItem(result, id, commonPrefix), testId: id, buttons })),
+			...tests.map(id => ({ ...coverUtils.getLabelForItem(result, id, commonPrefix), testId: id, buttons })),
 		];
 
 		// These handle the behavior that reveals the start of coverage when the
