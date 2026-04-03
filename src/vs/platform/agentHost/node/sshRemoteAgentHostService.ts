@@ -50,13 +50,28 @@ interface SSHClient {
 
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
 
+/**
+ * Validate that a quality string is safe for bare interpolation in shell commands.
+ * Quality comes from `productService.quality` (not user input) but we validate
+ * as defense-in-depth since these values end up in unquoted shell paths (the `~`
+ * prefix requires shell expansion, so we cannot single-quote the entire path).
+ */
+function validateShellToken(value: string, label: string): string {
+	if (!/^[a-zA-Z0-9._-]+$/.test(value)) {
+		throw new Error(`Unsafe ${label} value for shell interpolation: ${JSON.stringify(value)}`);
+	}
+	return value;
+}
+
 /** Install location for the VS Code CLI on the remote machine. */
 function getRemoteCLIDir(quality: string): string {
-	return quality === 'stable' || !quality ? '~/.vscode-cli' : `~/.vscode-cli-${quality}`;
+	const q = validateShellToken(quality, 'quality');
+	return q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
 }
 function getRemoteCLIBin(quality: string): string {
-	const binaryName = quality === 'stable' ? 'code' : 'code-insiders';
-	return `${getRemoteCLIDir(quality)}/${binaryName}`;
+	const q = validateShellToken(quality, 'quality');
+	const binaryName = q === 'stable' ? 'code' : 'code-insiders';
+	return `${getRemoteCLIDir(q)}/${binaryName}`;
 }
 
 /** Escape a string for use as a single shell argument (single-quote wrapping). */
@@ -653,7 +668,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		const installCmd = [
 			`mkdir -p ${cliDir}`,
-			`curl -fsSL '${url}' | tar xz -C ${cliDir}`,
+			`curl -fsSL ${shellEscape(url)} | tar xz -C ${cliDir}`,
 			`chmod +x ${cliBin}`,
 		].join(' && ');
 
