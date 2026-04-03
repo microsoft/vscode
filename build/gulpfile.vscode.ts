@@ -100,6 +100,7 @@ const vscodeResourceIncludes = [
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
+	'out-build/vs/sessions/contrib/welcome/browser/media/*.svg',
 	'out-build/vs/sessions/prompts/*.prompt.md',
 	'out-build/vs/sessions/skills/**/SKILL.md',
 
@@ -534,8 +535,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
-				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
-				darwinMiniAppAssetsCar: 'resources/darwin/sessions.car',
+				darwinMiniAppIcon: 'resources/darwin/agents.icns',
+				darwinMiniAppAssetsCar: 'resources/darwin/agents.car',
 				darwinMiniAppBundleURLTypes: [{
 					role: 'Viewer',
 					name: embedded.nameLong,

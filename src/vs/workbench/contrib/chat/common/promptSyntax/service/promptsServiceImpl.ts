@@ -34,7 +34,7 @@ import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAU
 import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand, InstructionsCollectionEvent } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -116,6 +116,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Cached instructions.
 	 */
 	private readonly cachedInstructions: CachedPromise<IInstructionDiscoveryInfo>;
+
+	public lastInstructionsCollectionEvent: InstructionsCollectionEvent | undefined;
 
 	/**
 	 * Cache for parsed prompt files keyed by URI.
@@ -610,7 +612,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
 			try {
 				const parsedPromptFile = await this.parseNew(promptPath.uri, token);
-				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+				const rawName = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+				// For plugin resources, ensure the canonical plugin prefix is always preserved even when the
+				// file's frontmatter overrides the name.
+				const name = promptPath.source === PromptFileSource.Plugin && promptPath.pluginUri
+					? getCanonicalPluginCommandId({ uri: promptPath.pluginUri }, rawName)
+					: rawName;
 				const description = parsedPromptFile?.header?.description ?? promptPath.description;
 				const argumentHint = parsedPromptFile?.header?.argumentHint;
 				const userInvocable = parsedPromptFile?.header?.userInvocable;

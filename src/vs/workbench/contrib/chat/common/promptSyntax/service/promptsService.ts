@@ -19,6 +19,35 @@ import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
 
 /**
+ * A single structured debug detail entry from the instructions context computer.
+ */
+export interface InstructionsCollectionDebugEntry {
+	readonly category: 'applying' | 'skipped' | 'referenced' | 'skill' | 'custom-agent' | 'hook';
+	readonly name: string;
+	readonly uri?: URI;
+	readonly reason?: string;
+}
+
+export type InstructionsCollectionEvent = {
+	applyingInstructionsCount: number;
+	referencedInstructionsCount: number;
+	agentInstructionsCount: number;
+	listedInstructionsCount: number;
+	totalInstructionsCount: number;
+	claudeRulesCount: number;
+	claudeMdCount: number;
+	claudeAgentsCount: number;
+	/** Per-file detail entries for debug logging (not sent as telemetry). */
+	debugDetails: InstructionsCollectionDebugEntry[];
+	/** Total wall-clock time of the collect() call in milliseconds (not sent as telemetry). */
+	durationInMillis: number;
+};
+
+export function newInstructionsCollectionEvent(): InstructionsCollectionEvent {
+	return { applyingInstructionsCount: 0, referencedInstructionsCount: 0, agentInstructionsCount: 0, listedInstructionsCount: 0, totalInstructionsCount: 0, claudeRulesCount: 0, claudeMdCount: 0, claudeAgentsCount: 0, debugDetails: [], durationInMillis: 0 };
+}
+
+/**
  * Activation events for prompt file providers.
  */
 export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
@@ -618,5 +647,11 @@ export interface IPromptsService extends IDisposable {
 	 * Returns the cached discovery info for the given prompt type.
 	 */
 	getDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
+
+	/**
+	 * The last {@link InstructionsCollectionEvent} computed by
+	 * {@link ComputeAutomaticInstructions.collect}.
+	 */
+	lastInstructionsCollectionEvent: InstructionsCollectionEvent | undefined;
 
 }

@@ -134,6 +134,20 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 			}
 			return lines.join('\n');
 		}
+		case 'customizationSummary': {
+			const lines: string[] = [];
+			lines.push(localize('formatResolvedContent.customizationCounts', "Customization: {0} instructions, {1} skills, {2} agents, {3} hooks, {4} skipped", content.counts.instructions, content.counts.skills, content.counts.agents, content.counts.hooks, content.counts.skipped));
+			lines.push(localize('formatResolvedContent.customizationDuration', "Duration: {0}ms", content.durationInMillis.toFixed(1)));
+			if (content.resolutionLogs.length > 0) {
+				lines.push('');
+				lines.push(localize('formatResolvedContent.resolutionLogs', "Resolution logs:"));
+				for (const entry of content.resolutionLogs) {
+					const detail = entry.reason ? `${entry.name} — ${entry.reason}` : entry.name;
+					lines.push(`  [${entry.category}] ${detail}`);
+				}
+			}
+			return lines.join('\n');
+		}
 		default: {
 			const _: never = content;
 			return JSON.stringify(_);

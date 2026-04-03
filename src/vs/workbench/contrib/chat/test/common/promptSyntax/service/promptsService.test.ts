@@ -3742,6 +3742,98 @@ suite('PromptsService', () => {
 			assert.ok(noHeaderSkillInFiltered,
 				'Skill without header should be included when applying userInvocable filter (defaults to true)');
 		});
+
+		test('plugin skills include plugin name prefix in slash command name', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const skillUri = URI.file('/plugins/my-plugin/skills/deploy/SKILL.md');
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'description: "Deploy skill from plugin"',
+						'---',
+						'Deploy skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: URI.file('/plugins/my-plugin'),
+				label: 'my-plugin',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'deploy' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			// Should be prefixed with plugin name
+			const skillCommand = slashCommands.find(cmd => cmd.name === 'my-plugin:deploy');
+			assert.ok(skillCommand, 'Plugin skill should have plugin prefix in slash command name');
+			assert.strictEqual(skillCommand.storage, PromptsStorage.plugin);
+			assert.strictEqual(skillCommand.type, PromptsType.skill);
+
+			testPluginsObservable.set([], undefined);
+		});
+
+		test('plugin skill frontmatter name is qualified with plugin prefix', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const skillUri = URI.file('/plugins/devtools/skills/ci/SKILL.md');
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "run-ci"',
+						'description: "Run CI pipeline"',
+						'---',
+						'CI skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: URI.file('/plugins/devtools'),
+				label: 'devtools',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'ci' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			// Even when SKILL.md has name: "run-ci", it must be prefixed with the plugin name
+			const skillCommand = slashCommands.find(cmd => cmd.name === 'devtools:run-ci');
+			assert.ok(skillCommand, 'Plugin skill frontmatter name should be qualified with plugin prefix');
+			assert.strictEqual(skillCommand.description, 'Run CI pipeline');
+
+			// The unprefixed name should not appear
+			assert.strictEqual(slashCommands.find(cmd => cmd.name === 'run-ci'), undefined,
+				'Unprefixed skill name should not appear as slash command');
+
+			testPluginsObservable.set([], undefined);
+		});
 	});
 
 	suite('hooks', () => {

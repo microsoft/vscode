@@ -860,6 +860,8 @@ export class ChatService extends Disposable implements IChatService {
 			attachedContext: options.attachedContext,
 			modelId: options.userSelectedModelId,
 			userSelectedTools: options.userSelectedTools?.get(),
+			isSystemInitiated: options.isSystemInitiated,
+			systemInitiatedLabel: options.systemInitiatedLabel,
 		});
 
 		const deferred = new DeferredPromise<ChatSendResult>();
@@ -1162,7 +1164,7 @@ export class ChatService extends Disposable implements IChatService {
 				if (agentPart || (defaultAgent && !commandPart)) {
 					const prepareChatAgentRequest = (agent: IChatAgentData, command?: IChatAgentCommand, enableCommandDetection?: boolean, chatRequest?: ChatRequestModel, isParticipantDetected?: boolean): IChatAgentRequest => {
 						const initVariableData: IChatRequestVariableData = { variables: [] };
-						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get());
+						request = chatRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, agent, command, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), undefined, options?.isSystemInitiated, options?.systemInitiatedLabel);
 
 						let variableData: IChatRequestVariableData;
 						let message: string;
@@ -1206,6 +1208,7 @@ export class ChatService extends Disposable implements IChatService {
 							editedFileEvents: request.editedFileEvents,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
+							isSystemInitiated: options?.isSystemInitiated,
 						};
 
 						let isInitialTools = true;
