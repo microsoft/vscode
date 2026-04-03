@@ -9,7 +9,7 @@ import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -151,16 +151,28 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._inner.nextClientSeq();
 	}
 
-	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
-		return this._logCall('browseDirectory', uri, () => this._inner.browseDirectory(uri));
+	async resourceList(uri: URI): Promise<IResourceListResult> {
+		return this._logCall('resourceList', uri, () => this._inner.resourceList(uri));
 	}
 
-	async fetchContent(uri: URI): Promise<IFetchContentResult> {
-		return this._logCall('fetchContent', uri, () => this._inner.fetchContent(uri));
+	async resourceRead(uri: URI): Promise<IResourceReadResult> {
+		return this._logCall('resourceRead', uri, () => this._inner.resourceRead(uri));
 	}
 
-	async writeFile(params: IWriteFileParams): Promise<IWriteFileResult> {
-		return this._logCall('writeFile', params, () => this._inner.writeFile(params));
+	async resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult> {
+		return this._logCall('resourceWrite', params, () => this._inner.resourceWrite(params));
+	}
+
+	async resourceCopy(params: IResourceCopyParams): Promise<IResourceCopyResult> {
+		return this._logCall('resourceCopy', params, () => this._inner.resourceCopy(params));
+	}
+
+	async resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult> {
+		return this._logCall('resourceDelete', params, () => this._inner.resourceDelete(params));
+	}
+
+	async resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult> {
+		return this._logCall('resourceMove', params, () => this._inner.resourceMove(params));
 	}
 
 	// ---- Public logging API for callers' catch blocks -----------------------

@@ -95,8 +95,8 @@ function getCopilotPresentation(
 			source: 'copilot',
 			kind: 'prominent',
 			icon: Codicon.account,
-			label: localize('copilotSignedOut', "Copilot Signed Out"),
-			ariaLabel: localize('copilotSignedOutAria', "GitHub Copilot is signed out"),
+			label: localize('agentsSignedOut', "Agents Signed Out"),
+			ariaLabel: localize('agentsSignedOutAria', "Agents is signed out"),
 		};
 	}
 

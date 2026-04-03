@@ -45,9 +45,10 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { IRemoteAgentService } from '../../../../../../workbench/services/remote/common/remoteAgentService.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { match } from '../../../../../../base/common/glob.js';
-import { ChatModeKind } from '../../../common/constants.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatModeKind, GeneralPurposeAgentName } from '../../../common/constants.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 
@@ -1351,6 +1352,89 @@ suite('ComputeAutomaticInstructions', () => {
 		});
 	});
 
+	suite('skill session-type filtering', () => {
+		test('non-local session includes skills without when', async () => {
+			const rootFolderName = 'skill-session-filter-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const stubSkills: IAgentSkill[] = [
+				{
+					uri: URI.file(`${rootFolder}/.claude/skills/no-when-skill/SKILL.md`),
+					storage: PromptsStorage.local,
+					name: 'no-when-skill',
+					description: 'A skill without when clause',
+					disableModelInvocation: false,
+					userInvocable: true,
+				},
+			];
+			sinon.stub(service, 'findAgentSkills').resolves(stubSkills);
+
+			// Set chatSessionType to a non-local value
+			const mockContextKeyService = new MockContextKeyService();
+			mockContextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'remote-session');
+			instaService.stub(IContextKeyService, mockContextKeyService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_readFile': true },
+				undefined,
+			);
+			const variables = new ChatRequestVariableSet();
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const allEntries = variables.asArray();
+			const skillEntries = allEntries.filter(e => isPromptTextVariableEntry(e) && e.value.includes('<skills>'));
+			assert.strictEqual(skillEntries.length, 1, 'Skills without when should be included in non-local sessions');
+		});
+
+		test('skills with matching when are included in non-local sessions', async () => {
+			const rootFolderName = 'skill-when-match-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const whenExpr = ContextKeyExpr.equals('chatSessionType', 'remote-session');
+			const stubSkills: IAgentSkill[] = [
+				{
+					uri: URI.file(`${rootFolder}/.claude/skills/when-skill/SKILL.md`),
+					storage: PromptsStorage.local,
+					name: 'when-skill',
+					description: 'A skill with matching when clause',
+					disableModelInvocation: false,
+					userInvocable: true,
+					when: whenExpr!,
+				},
+			];
+			sinon.stub(service, 'findAgentSkills').resolves(stubSkills);
+
+			// Set chatSessionType to a non-local value and make contextMatchesRules return true for the when expression
+			const mockContextKeyService = new MockContextKeyService();
+			mockContextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'remote-session');
+			sinon.stub(mockContextKeyService, 'contextMatchesRules').returns(true);
+			instaService.stub(IContextKeyService, mockContextKeyService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_readFile': true },
+				undefined,
+			);
+			const variables = new ChatRequestVariableSet();
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const allEntries = variables.asArray();
+			const skillEntries = allEntries.filter(e => isPromptTextVariableEntry(e) && e.value.includes('<skills>'));
+			assert.strictEqual(skillEntries.length, 1, 'Skills with matching when should be included in non-local sessions');
+		});
+	});
+
 	suite('instructions list variable', () => {
 		function xmlContents(text: string, tag: string): string[] {
 			const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'g');
@@ -1503,6 +1587,87 @@ suite('ComputeAutomaticInstructions', () => {
 
 			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 5');
 			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-5`);
+		});
+
+		test('should include General Purpose agent first when experiment is enabled', async () => {
+			const rootFolderName = 'gp-agents-list-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
+
+			testConfigService.setUserConfiguration('chat.generalPurposeAgent.enabled', true);
+
+			testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, {
+				[AGENTS_SOURCE_FOLDER]: true,
+			});
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 1\'',
+						'---',
+						'Test agent content',
+					]
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_runSubagent': true },
+				['*'],
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for agents list');
+
+			const agentsList = xmlContents(textVariables[0].value, 'agents');
+			assert.equal(agentsList.length, 1, 'There should be one agents list');
+
+			const agents = xmlContents(agentsList[0], 'agent');
+			assert.equal(agents.length, 2, 'There should be two agents (General Purpose + 1 custom)');
+
+			// First agent should always be the built-in General Purpose agent
+			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
+
+			assert.equal(xmlContents(agents[1], 'name')[0], 'test-agent-1');
+			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 1');
+		});
+
+		test('should include General Purpose agent even without custom agents config', async () => {
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/gp-only-test')));
+
+			// Explicitly do NOT set chat.customAgentInSubagent.enabled
+
+			testConfigService.setUserConfiguration('chat.generalPurposeAgent.enabled', true);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_runSubagent': true },
+				['*'],
+			);
+			const variables = new ChatRequestVariableSet();
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const textVariables = variables.asArray().filter(v => isPromptTextVariableEntry(v));
+			assert.equal(textVariables.length, 1, 'There should be one text variable for agents list');
+
+			const agentsList = xmlContents(textVariables[0].value, 'agents');
+			assert.equal(agentsList.length, 1, 'There should be one agents list');
+
+			const agents = xmlContents(agentsList[0], 'agent');
+			assert.equal(agents.length, 1, 'There should be only the GP agent');
+			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
 		});
 
 		test('should include skills list when readFile tool available', async () => {

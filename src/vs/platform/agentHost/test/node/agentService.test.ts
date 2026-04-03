@@ -375,20 +375,20 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- browseDirectory ------------------------------------------------
+	// ---- resourceList ------------------------------------------------
 
-	suite('browseDirectory', () => {
+	suite('resourceList', () => {
 
 		test('throws when the directory does not exist', async () => {
 			await assert.rejects(
-				() => service.browseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
+				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
 				/Directory not found/,
 			);
 		});
 
 		test('throws when the target is not a directory', async () => {
 			await assert.rejects(
-				() => service.browseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
+				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
 				/Not a directory/,
 			);
 		});

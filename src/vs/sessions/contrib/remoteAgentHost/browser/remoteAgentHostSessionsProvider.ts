@@ -22,6 +22,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -209,6 +210,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -407,12 +409,24 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// -- Session Actions --
 
-	async archiveSession(_sessionId: string): Promise<void> {
-		// Agent host sessions don't support archiving
+	async archiveSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			cached.isArchived.set(true, undefined);
+			this._storeArchivedState(rawId, true);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
 	}
 
-	async unarchiveSession(_sessionId: string): Promise<void> {
-		// Agent host sessions don't support unarchiving
+	async unarchiveSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			cached.isArchived.set(false, undefined);
+			this._storeArchivedState(rawId, false);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
@@ -421,6 +435,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		if (cached && rawId && this._connection) {
 			await this._connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
 			this._sessionCache.delete(rawId);
+			this._storeArchivedState(rawId, false);
 			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(cached)], changed: [] });
 		}
 	}
@@ -574,6 +589,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 					changed.push(this._chatToSession(existing));
 				} else {
 					const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+					this._restoreArchivedState(rawId, cached);
 					this._sessionCache.set(rawId, cached);
 					added.push(this._chatToSession(cached));
 				}
@@ -586,6 +602,9 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 					removed.push(this._chatToSession(cached));
 				}
 			}
+
+			// Prune archived IDs that no longer exist on the server
+			this._pruneArchivedIds(currentKeys);
 
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
@@ -650,6 +669,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			workingDirectory: workingDir,
 		};
 		const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+		this._restoreArchivedState(rawId, cached);
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [this._chatToSession(cached)], removed: [], changed: [] });
 	}
@@ -659,6 +679,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			this._sessionCache.delete(rawId);
+			this._storeArchivedState(rawId, false);
 			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(cached)], changed: [] });
 		}
 	}
@@ -669,6 +690,63 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		if (cached) {
 			cached.title.set(title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
+	}
+
+	// -- Private: Archived State Persistence --
+
+	private get _archivedStorageKey(): string {
+		return `remoteAgentHost.archivedSessions.${this.id}`;
+	}
+
+	private _loadArchivedIds(): Set<string> {
+		const raw = this._storageService.get(this._archivedStorageKey, StorageScope.PROFILE);
+		if (!raw) {
+			return new Set();
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			return new Set(Array.isArray(parsed) ? parsed : []);
+		} catch {
+			return new Set();
+		}
+	}
+
+	private _storeArchivedState(rawId: string, archived: boolean): void {
+		const ids = this._loadArchivedIds();
+		if (archived) {
+			ids.add(rawId);
+		} else {
+			ids.delete(rawId);
+		}
+		this._storageService.store(this._archivedStorageKey, JSON.stringify([...ids]), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private _restoreArchivedState(rawId: string, session: RemoteSessionAdapter): void {
+		if (this._loadArchivedIds().has(rawId)) {
+			session.isArchived.set(true, undefined);
+		}
+	}
+
+	/**
+	 * Remove archived IDs that are no longer present on the server.
+	 * Called after a full refresh to prevent unbounded growth of stored IDs.
+	 */
+	private _pruneArchivedIds(validIds: Set<string>): void {
+		const archivedIds = this._loadArchivedIds();
+		let changed = false;
+		for (const id of archivedIds) {
+			if (!validIds.has(id)) {
+				archivedIds.delete(id);
+				changed = true;
+			}
+		}
+		if (changed) {
+			if (archivedIds.size === 0) {
+				this._storageService.remove(this._archivedStorageKey, StorageScope.PROFILE);
+			} else {
+				this._storageService.store(this._archivedStorageKey, JSON.stringify([...archivedIds]), StorageScope.PROFILE, StorageTarget.USER);
+			}
 		}
 	}
 

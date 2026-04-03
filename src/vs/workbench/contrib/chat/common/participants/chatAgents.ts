@@ -181,6 +181,10 @@ export interface IChatAgentRequest {
 	 */
 	parentRequestId?: string;
 
+	/**
+	 * When true, this request was initiated by the system rather than the user.
+	 */
+	isSystemInitiated?: boolean;
 }
 
 export interface IChatQuestion {
