@@ -778,9 +778,6 @@ suite('CopilotChatSessionsProvider', () => {
 		test('stopping a committed session keeps it in the list', async () => {
 			const { provider, commitSession, cancelRequest } = makeCommittableProvider();
 
-			const changes: ISessionChangeEvent[] = [];
-			disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
-
 			const newSession = provider.createNewSession(workspace);
 			const sessionId = newSession.sessionId;
 

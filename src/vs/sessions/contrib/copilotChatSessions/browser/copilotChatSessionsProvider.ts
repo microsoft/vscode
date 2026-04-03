@@ -1600,13 +1600,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * {@link IChatSessionsService.onDidCommitSession} event.
 	 *
 	 * When {@link responseCompletePromise} is provided, the wait is bounded by
-	 * response completion. If the response finishes before the commit event:
-	 * - If the response was **cancelled**, the session was stopped before the
-	 *   agent created the backing resource → throw immediately.
-	 * - If the response completed **normally**, the commit event is legitimately
-	 *   in-flight (the extension fired it mid-turn but the async IPC chain in
-	 *   {@link MainThreadChatSessions.$onDidCommitChatSessionItem} hasn't finished
-	 *   yet) → keep waiting with the safety timeout.
+	 * response completion. If the response finishes before the commit event,
+	 * the commit may still be in-flight (e.g. the user cancelled after the
+	 * worktree was initiated but before the commit IPC finished, or the
+	 * extension fired the commit mid-turn but it hasn't been delivered yet).
+	 * In both cases we wait with the safety timeout. Only if the timeout
+	 * expires *and* the response was cancelled do we throw a
+	 * {@link CancellationError} — signalling that the commit will never come.
 	 */
 	private async _waitForCommittedSession(
 		untitledResource: URI,
@@ -1635,20 +1635,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 
 				// Response finished before the commit event arrived.
-				// Check whether it was cancelled — if so, the commit will never come.
-				const response = await responseCreatedPromise;
-				if (response?.isCanceled) {
-					throw new CancellationError();
-				}
-
-				// Response completed normally — the commit is in-flight (the extension
-				// fired it before the response finished, but the async IPC chain hasn't
-				// delivered it yet). It should arrive in milliseconds; use a short
-				// safety timeout to avoid blocking forever on an IPC failure.
+				// The commit may still be in-flight — the agent could have
+				// initiated the worktree before the user cancelled, and the
+				// async IPC chain hasn't delivered the event yet. Fall through
+				// to the safety timeout to give it a chance to arrive.
 			}
 
 			const result = await raceTimeout(commitPromise, 5_000);
 			if (!result) {
+				// Timed out — check whether this was a cancellation
+				const response = responseCreatedPromise ? await responseCreatedPromise : undefined;
+				if (response?.isCanceled) {
+					throw new CancellationError();
+				}
 				throw new Error('Timed out waiting for session commit');
 			}
 			return result;
