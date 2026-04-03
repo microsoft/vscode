@@ -236,20 +236,20 @@ export interface IProductConfiguration {
 	readonly embedded?: IEmbeddedProductConfiguration;
 }
 
-export interface IEmbeddedProductConfiguration {
-	readonly nameShort: string;
-	readonly nameLong: string;
-	readonly applicationName: string;
-	readonly dataFolderName: string;
-	readonly darwinBundleIdentifier: string;
-	readonly urlProtocol: string;
-	readonly win32AppUserModelId: string;
-	readonly win32MutexName: string;
-	readonly win32RegValueName: string;
-	readonly win32NameVersion: string;
-	readonly win32VersionedUpdate: boolean;
-	readonly win32SiblingExeBasename?: string;
-}
+export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
+	'nameShort' |
+	'nameLong' |
+	'applicationName' |
+	'dataFolderName' |
+	'darwinBundleIdentifier' |
+	'urlProtocol' |
+	'win32AppUserModelId' |
+	'win32MutexName' |
+	'win32RegValueName' |
+	'win32NameVersion' |
+	'win32VersionedUpdate' |
+	'win32SiblingExeBasename'
+>;
 
 export interface ITunnelApplicationConfig {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
