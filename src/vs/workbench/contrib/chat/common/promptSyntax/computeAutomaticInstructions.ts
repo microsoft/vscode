@@ -498,13 +498,6 @@ export class ComputeAutomaticInstructions {
 					if (!canUseAgent(agent)) {
 						continue;
 					}
-					if (agent.when) {
-						if (!this._contextKeyService.contextMatchesRules(agent.when)) {
-							continue;
-						}
-					} else if (isNonLocalSession) {
-						continue;
-					}
 					entries.push('<agent>');
 					entries.push(`<name>${agent.name}</name>`);
 					if (agent.description) {
