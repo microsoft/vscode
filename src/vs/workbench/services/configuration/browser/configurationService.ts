@@ -360,7 +360,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			// Remove the setting, if the value is same as default value and is updated only in user target
 			if (equals(value, inspect.defaultValue) && targets.length === 1 && (targets[0] === ConfigurationTarget.USER || targets[0] === ConfigurationTarget.USER_LOCAL)) {
-				value = undefined;
+				if (!this.getValue<boolean>('workbench.settings.preserveDefaultValues')) {
+					value = undefined;
+				}
 			}
 		}
 

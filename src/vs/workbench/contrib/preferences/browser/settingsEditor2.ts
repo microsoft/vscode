@@ -1216,7 +1216,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// If the user is changing the value back to the default, and we're not targeting a workspace scope, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
-		if (!userPassedInManualReset && inspected.defaultValue === value) {
+		if (!userPassedInManualReset && inspected.defaultValue === value && !this.configurationService.getValue<boolean>('workbench.settings.preserveDefaultValues')) {
 			value = undefined;
 		}
 

@@ -151,7 +151,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		}
 
 		// Remove the setting, if the value is same as default value
-		if (equals(value, inspect.defaultValue)) {
+		if (equals(value, inspect.defaultValue) && !this.getValue<boolean>('workbench.settings.preserveDefaultValues')) {
 			value = undefined;
 		}
 
