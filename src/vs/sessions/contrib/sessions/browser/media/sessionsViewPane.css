@@ -122,7 +122,7 @@
 	}
 
 	/* Compact "New" button in header */
-	.agent-sessions-compact-new-button.monaco-button.default-colors {
+	.agent-sessions-compact-new-button.monaco-button {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -131,7 +131,7 @@
 		font-size: 12px;
 		line-height: 18px;
 		border-radius: var(--vscode-cornerRadius-medium);
-		border: 1px solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 50%, transparent));
+		border: 1px solid var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
 		background-color: transparent;
 		color: var(--vscode-foreground);
 		width: auto;

@@ -6,6 +6,7 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -144,8 +145,9 @@ export class SessionsView extends ViewPane {
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
 
 		// Search & Filter icon buttons (ActionBar with toolbar pattern)
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 		const actionBar = this._register(new ActionBar(headerActions, {
-			hoverDelegate: createInstantHoverDelegate(),
+			hoverDelegate,
 		}));
 		actionBar.push(new Action(
 			'sessionsViewPane.find',
@@ -161,10 +163,14 @@ export class SessionsView extends ViewPane {
 			ThemeIcon.asClassName(Codicon.settings),
 			true,
 			() => {
+				const filterViewItem = actionBar.viewItems[actionBar.viewItems.length - 1];
+				const anchor = filterViewItem instanceof BaseActionViewItem && filterViewItem.element
+					? filterViewItem.element
+					: actionBar.getContainer();
 				const menu = this.menuService.createMenu(SessionsViewFilterSubMenu, this.scopedContextKeyService);
 				this.contextMenuService.showContextMenu({
 					getActions: () => Separator.join(...menu.getActions().map(([, actions]) => actions)),
-					getAnchor: () => actionBar.getContainer(),
+					getAnchor: () => anchor,
 					onHide: () => menu.dispose(),
 				});
 			},
@@ -177,6 +183,7 @@ export class SessionsView extends ViewPane {
 		// Compact New Session Button
 		const newSessionButton = this._register(new Button(headerActions, {
 			...defaultButtonStyles,
+			buttonSecondaryBorder: '',
 			secondary: true,
 			supportIcons: true,
 		}));
