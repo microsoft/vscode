@@ -39,6 +39,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountTitleBarBadgeKey, getAccountTitleBarState } from './accountTitleBarState.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
@@ -181,7 +182,17 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const defaultAccountService = accessor.get(IDefaultAccountService);
-		await defaultAccountService.signOut();
+		const commandService = accessor.get(ICommandService);
+		const defaultAccount = await defaultAccountService.getDefaultAccount();
+		if (!defaultAccount) {
+			return;
+		}
+		await commandService.executeCommand('_signOutOfAccount', {
+			providerId: defaultAccount.authenticationProvider.id,
+			accountLabel: defaultAccount.accountName,
+			dialogMessage: localize('agenticSignOutMessage', "Sign out of the Agents app?"),
+			dialogDetail: localize('agenticSignOutDetail', "This will sign out '{0}' from the Agents app.", defaultAccount.accountName),
+		});
 	}
 });
 

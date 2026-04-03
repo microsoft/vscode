@@ -12,6 +12,13 @@ import { IAuthenticationAccessService } from '../../../../services/authenticatio
 import { IAuthenticationUsageService } from '../../../../services/authentication/browser/authenticationUsageService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
+interface ISignOutOfAccountCommandArgs {
+	readonly providerId: string;
+	readonly accountLabel: string;
+	readonly dialogMessage?: string;
+	readonly dialogDetail?: string;
+}
+
 export class SignOutOfAccountAction extends Action2 {
 	constructor() {
 		super({
@@ -21,7 +28,7 @@ export class SignOutOfAccountAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, { providerId, accountLabel }: { providerId: string; accountLabel: string }): Promise<void> {
+	override async run(accessor: ServicesAccessor, { providerId, accountLabel, dialogMessage, dialogDetail }: ISignOutOfAccountCommandArgs): Promise<void> {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
@@ -38,9 +45,10 @@ export class SignOutOfAccountAction extends Action2 {
 
 		const { confirmed } = await dialogService.confirm({
 			type: Severity.Info,
-			message: accountUsages.length
+			message: dialogMessage ?? (accountUsages.length
 				? localize('signOutMessage', "The account '{0}' has been used by: \n\n{1}\n\n Sign out from these extensions?", accountLabel, accountUsages.map(usage => usage.extensionName).join('\n'))
-				: localize('signOutMessageSimple', "Sign out of '{0}'?", accountLabel),
+				: localize('signOutMessageSimple', "Sign out of '{0}'?", accountLabel)),
+			detail: dialogDetail,
 			primaryButton: localize({ key: 'signOut', comment: ['&& denotes a mnemonic'] }, "&&Sign Out")
 		});
 
