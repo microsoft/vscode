@@ -152,7 +152,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
 			menu: [{
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key), ContextKeyExpr.notEquals(`config.${ChatConfiguration.AutoAccept}`, true)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',
@@ -177,7 +177,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
 			menu: [{
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key), ContextKeyExpr.notEquals(`config.${ChatConfiguration.AutoAccept}`, true)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 2,
 				group: 'navigation',
