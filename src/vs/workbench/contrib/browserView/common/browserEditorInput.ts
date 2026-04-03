@@ -287,6 +287,13 @@ export class BrowserEditorInput extends EditorInput {
 	override dispose(): void {
 		super.dispose(); // Emit `onWillDispose` event first, then clean up the model.
 		if (this._model) {
+			// `toUntyped()` is called after disposal. Store the latest data in `_initialData` so we can still get them there.
+			this._initialData = {
+				id: this._id,
+				url: this._model.url,
+				title: this._model.title,
+				favicon: this._model.favicon
+			};
 			this._model.dispose();
 			this._model = undefined;
 		}
