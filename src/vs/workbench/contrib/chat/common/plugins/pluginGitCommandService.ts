@@ -23,6 +23,7 @@ export interface IPluginGitService {
 	checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken): Promise<void>;
 	revParse(repoDir: URI, ref: string): Promise<string>;
 	fetch(repoDir: URI, token?: CancellationToken): Promise<void>;
+	openRepository(repoDir: URI): Promise<void>;
 	fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void>;
 	revListCount(repoDir: URI, fromRef: string, toRef: string): Promise<number>;
 }

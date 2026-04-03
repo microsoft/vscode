@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import { CancellationError } from '../../../base/common/errors.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { ILocalGitService } from '../common/localGitService.js';
 import { ILogService } from '../../log/common/log.js';
 
@@ -61,7 +62,7 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async revParse(repoPath: string, ref: string): Promise<string> {
-		return (await this._exec('revParse', ['rev-parse', ref], repoPath)).trim();
+		return (await this._exec(generateUuid(), ['rev-parse', ref], repoPath)).trim();
 	}
 
 	async fetch(operationId: string, repoPath: string): Promise<void> {
@@ -69,7 +70,7 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number> {
-		const result = await this._exec('revListCount', ['rev-list', '--count', `${fromRef}..${toRef}`], repoPath);
+		const result = await this._exec(generateUuid(), ['rev-list', '--count', `${fromRef}..${toRef}`], repoPath);
 		return Number(result.trim()) || 0;
 	}
 

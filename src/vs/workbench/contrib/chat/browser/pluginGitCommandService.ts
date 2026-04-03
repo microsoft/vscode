@@ -25,7 +25,6 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 	async checkout(_repoDir: URI, _treeish: string, _detached?: boolean, _token?: CancellationToken): Promise<void> { notSupported(); }
 	async revParse(_repoDir: URI, _ref: string): Promise<string> { notSupported(); }
 	async fetch(_repoDir: URI, _token?: CancellationToken): Promise<void> { notSupported(); }
-	async openRepository(_repoDir: URI): Promise<void> { notSupported(); }
 	async fetchRepository(_repoDir: URI, _token?: CancellationToken): Promise<void> { notSupported(); }
 	async revListCount(_repoDir: URI, _fromRef: string, _toRef: string): Promise<number> { notSupported(); }
 }

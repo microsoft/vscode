@@ -29,7 +29,6 @@ suite('AgentPluginRepositoryService', () => {
 			checkout: async () => { },
 			revParse: async () => '',
 			fetch: async () => { },
-			openRepository: async () => { },
 			fetchRepository: async () => { },
 			revListCount: async () => 0,
 			...overrides,
@@ -254,7 +253,6 @@ suite('AgentPluginRepositoryService', () => {
 	test('updates git plugin source by pulling and checking out requested revision', async () => {
 		const calls: string[] = [];
 		const service = createService(async () => true, undefined, {
-			openRepository: async () => { calls.push('openRepository'); },
 			revParse: async () => { calls.push('revParse'); return ''; },
 			fetch: async () => { calls.push('fetch'); },
 			checkout: async () => { calls.push('checkout'); },

@@ -33,8 +33,9 @@ suite('NativePluginGitCommandService', () => {
 			clone: async (_operationId, url, path, ref) => { calls.push(`clone:${url}:${path}:${ref}`); },
 		}));
 
-		await service.cloneRepository('https://github.com/test/repo.git', URI.file('/tmp/repo'), 'main');
-		assert.deepStrictEqual(calls, ['clone:https://github.com/test/repo.git:/tmp/repo:main']);
+		const targetDir = URI.file('/tmp/repo');
+		await service.cloneRepository('https://github.com/test/repo.git', targetDir, 'main');
+		assert.deepStrictEqual(calls, [`clone:https://github.com/test/repo.git:${targetDir.fsPath}:main`]);
 	});
 
 	test('pull delegates to ILocalGitService and returns result', async () => {
@@ -71,14 +72,9 @@ suite('NativePluginGitCommandService', () => {
 			fetch: async (_operationId, path) => { calls.push(`fetch:${path}`); },
 		}));
 
-		await service.fetch(URI.file('/tmp/repo'));
-		assert.deepStrictEqual(calls, ['fetch:/tmp/repo']);
-	});
-
-	test('openRepository is a no-op', async () => {
-		const service = new NativePluginGitCommandService(createLocalGitStub());
-		// Should not throw
-		await service.openRepository(URI.file('/tmp/repo'));
+		const repoDir = URI.file('/tmp/repo');
+		await service.fetch(repoDir);
+		assert.deepStrictEqual(calls, [`fetch:${repoDir.fsPath}`]);
 	});
 
 	test('fetchRepository delegates to ILocalGitService.fetch', async () => {
@@ -87,8 +83,9 @@ suite('NativePluginGitCommandService', () => {
 			fetch: async (_operationId, path) => { calls.push(`fetch:${path}`); },
 		}));
 
-		await service.fetchRepository(URI.file('/tmp/repo'));
-		assert.deepStrictEqual(calls, ['fetch:/tmp/repo']);
+		const repoDir = URI.file('/tmp/repo');
+		await service.fetchRepository(repoDir);
+		assert.deepStrictEqual(calls, [`fetch:${repoDir.fsPath}`]);
 	});
 
 	test('revListCount delegates to ILocalGitService', async () => {

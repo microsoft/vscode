@@ -43,12 +43,6 @@ function gitRevisionCacheSuffix(ref?: string, sha?: string): string[] {
 	return [];
 }
 
-function showGitOutputAction(commandService: ICommandService): Action {
-	return new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-		commandService.executeCommand('git.showOutput');
-	});
-}
-
 function shellEscapeArg(value: string): string {
 	if (isWindows) {
 		return `"${value.replace(/[`$"]/g, '`$&')}"`;
@@ -128,7 +122,6 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			const doUpdate = async (cts?: CancellationTokenSource) => {
-				await this._pluginGit.openRepository(repoDir);
 				const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 				let changed: boolean;
 				if (git.sha) {
@@ -168,7 +161,6 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				this._notificationService.notify({
 					severity: Severity.Error,
 					message: localize('pullPluginSourceFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-					actions: { primary: [showGitOutputAction(this._commandService)] },
 				});
 			}
 			throw err;
@@ -197,7 +189,6 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: localize('cloneFailed', "Failed to install plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-				actions: { primary: [showGitOutputAction(this._commandService)] },
 			});
 			throw err;
 		} finally {
@@ -223,7 +214,6 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: localize('checkoutPluginSourceFailed', "Failed to checkout plugin '{0}' to requested revision: {1}", failureLabel, err?.message ?? String(err)),
-				actions: { primary: [showGitOutputAction(this._commandService)] },
 			});
 			throw err;
 		}

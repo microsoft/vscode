@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
@@ -24,9 +25,9 @@ export class NativePluginGitCommandService implements IPluginGitService {
 	) { }
 
 	private _withCancel<T>(token: CancellationToken | undefined, fn: (operationId: string) => Promise<T>): Promise<T> {
-		const operationId = crypto.randomUUID();
+		const operationId = generateUuid();
 		const listener = token?.onCancellationRequested(() => {
-			this._localGitService.cancel(operationId);
+			this._localGitService.cancel(operationId).catch(() => { /* ignore */ });
 		});
 		return fn(operationId).finally(() => listener?.dispose());
 	}
@@ -49,10 +50,6 @@ export class NativePluginGitCommandService implements IPluginGitService {
 
 	async fetch(repoDir: URI, token?: CancellationToken): Promise<void> {
 		await this._withCancel(token, id => this._localGitService.fetch(id, repoDir.fsPath));
-	}
-
-	async openRepository(_repoDir: URI): Promise<void> {
-		// No-op: local git does not need repository registration.
 	}
 
 	async fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void> {
