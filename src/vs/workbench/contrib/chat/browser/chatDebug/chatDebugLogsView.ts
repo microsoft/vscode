@@ -32,7 +32,6 @@ import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } f
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 import { IChatWidgetService } from '../chat.js';
-import { createDebugEventsAttachment } from './chatDebugAttachment.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
@@ -132,22 +131,6 @@ export class ChatDebugLogsView extends Disposable {
 
 		const filterContainer = DOM.append(this.headerContainer, $('.viewpane-filter-container'));
 		filterContainer.appendChild(this.filterWidget.element);
-
-		// Troubleshoot button
-		const troubleshootButton = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.troubleshoot', "Add snapshot to Chat") }));
-		troubleshootButton.element.classList.add('chat-debug-troubleshoot-button', 'monaco-text-button');
-		DOM.append(troubleshootButton.element, $(`span${ThemeIcon.asCSSSelector(Codicon.chatSparkle)}`));
-		this._register(troubleshootButton.onDidClick(async () => {
-			if (!this.currentSessionResource) {
-				return;
-			}
-			const widget = await this.chatWidgetService.openSession(this.currentSessionResource);
-			if (widget) {
-				const attachment = await createDebugEventsAttachment(this.currentSessionResource, this.chatDebugService);
-				widget.attachmentModel.addContext(attachment);
-				widget.focusInput();
-			}
-		}));
 
 		this._register(this.filterWidget.onDidChangeFilterText(text => {
 			this.filterState.setTextFilter(text);
