@@ -30,8 +30,9 @@ import { IWorkingCopyService } from '../../../services/workingCopy/common/workin
 import { IWebviewService } from '../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../contrib/chat/common/customizationHarnessService.js';
+import { IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, IAgentInstructionFile, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand } from '../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ParsedPromptFile } from '../../../contrib/chat/common/promptSyntax/promptFileParser.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
@@ -49,7 +50,8 @@ import { IIterativePager } from '../../../../base/common/paging.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { CodeReviewStateKind, ICodeReviewService, ICodeReviewState, IPRReviewState, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { createMockCodeReviewService } from './sessions/mockCodeReviewService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
@@ -94,7 +96,7 @@ function toExtensionInfo(file: IFixtureFile): { identifier: ExtensionIdentifier;
 	};
 }
 
-function createMockPromptsService(files: IFixtureFile[], agentInstructions: IResolvedAgentFile[]): IPromptsService {
+function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAgentInstructionFile[]): IPromptsService {
 	const applyToMap = new ResourceMap<string | undefined>();
 	const descriptionMap = new ResourceMap<string | undefined>();
 	for (const f of files) { applyToMap.set(f.uri, f.applyTo); descriptionMap.set(f.uri, f.description); }
@@ -146,16 +148,18 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 		override async getPromptSlashCommands(): Promise<readonly IChatPromptSlashCommand[]> {
 			const promptFiles = files.filter(f => f.type === PromptsType.prompt);
 			const commands = await Promise.all(promptFiles.map(async f => {
-				const promptPath = { uri: f.uri, storage: f.storage, type: f.type, extension: toExtensionInfo(f) as never };
-				const parsedPromptFile = await this.parseNew(f.uri, CancellationToken.None);
 				return {
+					uri: f.uri,
+					userInvocable: true,
 					name: f.name ?? 'prompt',
 					description: f.description,
 					argumentHint: undefined,
-					promptPath: promptPath as IChatPromptSlashCommand['promptPath'],
-					parsedPromptFile,
+					type: f.type,
+					storage: f.storage,
+					source: undefined,
+					extension: toExtensionInfo(f) as never,
 					when: undefined,
-				};
+				} satisfies IChatPromptSlashCommand;
 			}));
 			return commands;
 		}
@@ -163,7 +167,7 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IRes
 }
 
 function createMockHarnessService(activeHarness: CustomizationHarness, descriptors: readonly IHarnessDescriptor[]): ICustomizationHarnessService {
-	const active = observableValue('activeHarness', activeHarness);
+	const active = observableValue<string>('activeHarness', activeHarness);
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeHarness = active;
 		override readonly availableHarnesses = constObservable(descriptors);
@@ -174,7 +178,8 @@ function createMockHarnessService(activeHarness: CustomizationHarness, descripto
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === active.get()) ?? descriptors[0];
 		}
-		override setActiveHarness(id: CustomizationHarness) { active.set(id, undefined); }
+		override setActiveHarness(id: string) { active.set(id, undefined); }
+		override registerExternalHarness() { return { dispose() { } }; }
 	}();
 }
 
@@ -206,30 +211,6 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 		override clearFeedback(): void { }
 		override removeFeedback(): void { }
 		override async addFeedbackAndSubmit(): Promise<void> { }
-	}();
-}
-
-function createMockCodeReviewService(): ICodeReviewService {
-	return new class extends mock<ICodeReviewService>() {
-		private readonly reviewState = observableValue<ICodeReviewState>('fixture.reviewState', { kind: CodeReviewStateKind.Idle });
-		private readonly prReviewState = observableValue<IPRReviewState>('fixture.prReviewState', { kind: PRReviewStateKind.None });
-
-		override getReviewState() {
-			return this.reviewState;
-		}
-
-		override getPRReviewState() {
-			return this.prReviewState;
-		}
-
-		override hasReview(): boolean {
-			return false;
-		}
-
-		override requestReview(): void { }
-		override removeComment(): void { }
-		override dismissReview(): void { }
-		override async resolvePRReviewThread(): Promise<void> { }
 	}();
 }
 
@@ -288,6 +269,11 @@ const allFiles: IFixtureFile[] = [
 	// Skills - extension (built-in + third-party)
 	{ uri: URI.file('/extensions/github.copilot-chat/skills/workspace/SKILL.md'), storage: PromptsStorage.extension, type: PromptsType.skill, name: 'Workspace Search', description: 'Built-in workspace search skill', extensionId: 'GitHub.copilot-chat', extensionDisplayName: 'GitHub Copilot Chat' },
 	{ uri: URI.file('/extensions/acme.tools/skills/audit/SKILL.md'), storage: PromptsStorage.extension, type: PromptsType.skill, name: 'Audit', description: 'Third-party audit skill', extensionId: 'acme.tools', extensionDisplayName: 'Acme Tools' },
+	// Skills - built-in (sessions bundled skills with UI integrations)
+	{ uri: URI.file('/app/skills/act-on-feedback/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'act-on-feedback', description: 'Act on user feedback attached to the current session' },
+	{ uri: URI.file('/app/skills/generate-run-commands/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'generate-run-commands', description: 'Generate or modify run commands for the current session' },
+	{ uri: URI.file('/app/skills/commit/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'commit', description: 'Commit staged or unstaged changes with an AI-generated commit message' },
+	{ uri: URI.file('/app/skills/create-pr/SKILL.md'), storage: BUILTIN_STORAGE as PromptsStorage, type: PromptsType.skill, name: 'create-pr', description: 'Create a pull request for the current session' },
 	// Prompts — workspace
 	{ uri: URI.file('/workspace/.github/prompts/explain.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Explain', description: 'Explain selected code' },
 	{ uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt, name: 'Review', description: 'Review changes' },
@@ -317,10 +303,10 @@ const allFiles: IFixtureFile[] = [
 	{ uri: URI.file('/home/dev/.copilot/hooks/backup-changes.json'), storage: PromptsStorage.user, type: PromptsType.hook, name: 'Backup Changes', description: 'Auto-stash uncommitted changes' },
 ];
 
-const agentInstructions: IResolvedAgentFile[] = [
-	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentFileType.claudeMd },
-	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+const agentInstructions: IAgentInstructionFile[] = [
+	{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+	{ uri: URI.file('/workspace/CLAUDE.md'), realPath: undefined, type: AgentInstructionFileType.claudeMd },
+	{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 ];
 
 const mcpWorkspaceServers = [
@@ -351,6 +337,7 @@ interface IRenderEditorOptions {
 	readonly scrollToBottom?: boolean;
 	readonly width?: number;
 	readonly height?: number;
+	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 }
 
 async function waitForAnimationFrames(count: number): Promise<void> {
@@ -421,6 +408,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	ctx.container.style.height = `${height}px`;
 
 	const isSessionsWindow = options.isSessionsWindow ?? false;
+	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
@@ -468,8 +456,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override setOverrideProjectRoot() { }
 				override readonly managementSections = managementSections;
 				override async generateCustomization() { }
+				override getSkillUIIntegrations() { return skillUIIntegrations; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
+			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override async getCustomizations() { return undefined; }
+				override getRegisteredChatSessionItemProviders() { return []; }
+				override hasCustomizationsProvider() { return false; }
+			}());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
@@ -635,8 +630,9 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				}
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = observableValue('activeHarness', CustomizationHarness.VSCode);
+				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override registerExternalHarness() { return { dispose() { } }; }
 			}());
 		},
 	});
@@ -801,6 +797,32 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.McpServers,
 				AICustomizationManagementSection.Plugins,
 			],
+		}),
+	}),
+
+	// Sessions Skills tab showing UI Integration badges on built-in skills
+	SessionsSkillsTab: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.CLI,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.Skills,
+			availableHarnesses: [
+				createCliHarnessDescriptor(getCliUserRoots(userHome), [BUILTIN_STORAGE]),
+			],
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Skills,
+				AICustomizationManagementSection.Instructions,
+				AICustomizationManagementSection.Prompts,
+				AICustomizationManagementSection.Hooks,
+				AICustomizationManagementSection.McpServers,
+				AICustomizationManagementSection.Plugins,
+			],
+			skillUIIntegrations: new Map([
+				['act-on-feedback', 'Used by the Submit Feedback button in the Changes toolbar'],
+				['generate-run-commands', 'Used by the Run button in the title bar'],
+			]),
 		}),
 	}),
 

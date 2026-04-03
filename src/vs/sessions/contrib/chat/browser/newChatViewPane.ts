@@ -138,6 +138,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._sessionTypePicker = this._register(this.instantiationService.createInstance(SessionTypePicker));
 
 		// When a workspace is selected, create a new session
+		this._register(this._workspacePicker.onDidChangeSelection(() => {
+			this._renderOptionGroupPickers();
+		}));
 		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
 			await this._onWorkspaceSelected(workspace);
 			this._focusEditor();
@@ -168,15 +171,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		const welcomeElement = dom.append(wrapper, dom.$('.chat-full-welcome'));
 
-		// Watermark letterpress
-		const header = dom.append(welcomeElement, dom.$('.chat-full-welcome-header'));
-		dom.append(header, dom.$('.chat-full-welcome-letterpress'));
+		// Main empty-state content area (folder picker, input, local mode controls)
+		const welcomeContent = dom.append(welcomeElement, dom.$('.chat-full-welcome-content'));
 
 		// Option group pickers (above the input)
-		this._pickersContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-pickers-container'));
+		this._pickersContainer = dom.append(welcomeContent, dom.$('.chat-full-welcome-pickers-container'));
 
 		// Input slot
-		this._inputSlot = dom.append(welcomeElement, dom.$('.chat-full-welcome-inputSlot'));
+		this._inputSlot = dom.append(welcomeContent, dom.$('.chat-full-welcome-inputSlot'));
 
 		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
@@ -193,7 +195,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._inputSlot.appendChild(inputArea);
 
 		// Below-input row: session type picker, permission control, spacer, repository config (right)
-		const belowInputRow = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
+		const belowInputRow = dom.append(welcomeContent, dom.$('.chat-full-welcome-local-mode'));
 		this._sessionTypePicker.render(belowInputRow);
 		const controlContainer = dom.append(belowInputRow, dom.$('.sessions-chat-control-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, controlContainer, Menus.NewSessionControl, {
@@ -438,6 +440,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		dom.clearNode(this._pickersContainer);
 
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
+		const pickersLabel = dom.append(pickersRow, dom.$('.chat-full-welcome-pickers-label'));
+		pickersLabel.textContent = this._workspacePicker.selectedProject
+			? localize('newSessionIn', "New session in")
+			: localize('newSessionChooseWorkspace', "Start by picking a");
 
 		// Project picker (unified folder + repo picker)
 		this._workspacePicker.render(pickersRow);
@@ -557,7 +563,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			if (!session) {
 				return;
 			}
-			await this.sessionsManagementService.sendRequest(session, { query, attachedContext });
+			await this.sessionsManagementService.sendAndCreateChat(session, { query, attachedContext });
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
@@ -645,10 +651,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Requests folder trust if needed and creates a new session.
 	 */
 	private async _onWorkspaceSelected(selection: IWorkspaceSelection): Promise<void> {
-		// Check if the provider's session type requires workspace trust
-		const sessionTypes = this.sessionsProvidersService.getSessionTypesForProvider(selection.providerId);
-		const requiresTrust = sessionTypes.some(t => t.requiresWorkspaceTrust);
-		if (requiresTrust) {
+		if (selection.workspace.requiresWorkspaceTrust) {
 			const workspaceUri = selection.workspace.repositories[0]?.uri;
 			if (workspaceUri && !await this._requestFolderTrust(workspaceUri)) {
 				return;
@@ -676,6 +679,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			model.setValue(text);
 			this._send();
 		}
+	}
+
+	selectWorkspace(workspace: IWorkspaceSelection): void {
+		this._workspacePicker.setSelectedWorkspace(workspace);
 	}
 }
 
@@ -734,6 +741,10 @@ export class NewChatViewPane extends ViewPane {
 
 	sendQuery(text: string): void {
 		this._widget?.sendQuery(text);
+	}
+
+	selectWorkspace(workspace: IWorkspaceSelection): void {
+		this._widget?.selectWorkspace(workspace);
 	}
 
 	override setVisible(visible: boolean): void {

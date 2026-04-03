@@ -5,7 +5,11 @@
 
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -26,29 +30,32 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
-const ACTION_ID_NEW_SESSION = 'workbench.action.chat.newChat';
+const ACTION_ID_NEW_SESSION = 'workbench.action.sessions.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
 export const SessionsViewFilterOptionsSubMenu = new MenuId('SessionsViewPaneFilterOptionsSubMenu');
-export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Repository);
+export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
-export const IsRepositoryGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.repoGroupCapped', true);
+export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 
 export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: SessionsList | undefined;
-	private currentGrouping: SessionsGrouping = SessionsGrouping.Repository;
+	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
+	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 
 	constructor(
@@ -65,6 +72,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -85,6 +93,9 @@ export class SessionsView extends ViewPane {
 		this.groupingContextKey.set(this.currentGrouping);
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
+
+		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
+		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -119,16 +130,62 @@ export class SessionsView extends ViewPane {
 
 		// New Session Button
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
-		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
-		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.sessionsManagementService.openNewSessionView()));
+		const newSessionButton = this._register(new Button(newSessionButtonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+		}));
+		newSessionButton.label = `$(${Codicon.plus.id}) ${localize('sessionLabel', "Session")}`;
+		this._register(newSessionButton.onDidClick(() => {
+			logSessionsInteraction(this.telemetryService, 'newSession');
+			this.sessionsManagementService.openNewSessionView();
+		}));
 
-		// Keybinding hint inside the button
-		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION);
-		if (keybinding) {
-			const keybindingHint = DOM.append(newSessionButton.element, $('span.new-session-keybinding-hint'));
-			keybindingHint.textContent = keybinding.getLabel() ?? '';
-		}
+		const buttonLabel = $('.new-session-button-label');
+		const keybindingHint = $('span.new-session-keybinding-hint');
+		const keybindingHintLabel = this._register(new KeybindingLabel(keybindingHint, OS, {
+			disableTitle: true,
+			keybindingLabelBackground: 'transparent',
+			keybindingLabelForeground: 'inherit',
+			keybindingLabelBorder: 'transparent',
+			keybindingLabelBottomBorder: undefined,
+			keybindingLabelShadow: undefined,
+		}));
+		DOM.append(buttonLabel, ...Array.from(newSessionButton.element.childNodes));
+		DOM.reset(newSessionButton.element, buttonLabel);
+
+		const getNewSessionKeybinding = () => {
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION);
+			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
+			return primaryKeybinding ?? resolvedKeybindings[0];
+		};
+
+		let lastRenderedKeybindingLabel: string | undefined;
+		let lastRenderedKeybindingAriaLabel: string | undefined;
+		const updateNewSessionButtonKeybinding = () => {
+			const keybinding = getNewSessionKeybinding();
+			const keybindingLabel = keybinding?.getLabel() ?? undefined;
+			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
+			if (lastRenderedKeybindingLabel === keybindingLabel && lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
+				return;
+			}
+
+			lastRenderedKeybindingLabel = keybindingLabel;
+			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
+			newSessionButton.element.title = keybindingLabel
+				? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
+				: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
+			newSessionButton.element.setAttribute('aria-label', keybindingAriaLabel
+				? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
+				: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session"));
+
+			DOM.reset(newSessionButton.element, buttonLabel);
+			keybindingHintLabel.set(keybinding);
+			if (keybinding) {
+				DOM.append(newSessionButton.element, keybindingHint);
+			}
+		};
+		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateNewSessionButtonKeybinding));
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
@@ -136,9 +193,12 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
-			onSessionOpen: (resource) => this.sessionsManagementService.openSession(resource),
+			onSessionOpen: (resource, preserveFocus) => this.sessionsManagementService.openSession(resource, { preserveFocus }),
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+
+		// Sync workspace group capped context key with persisted state
+		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 
 		// Register session type filter actions (re-register when session types change)
 		this.registerSessionTypeFilters(sessionsControl);
@@ -177,7 +237,7 @@ export class SessionsView extends ViewPane {
 
 		// AI Customization toolbar (bottom, fixed height)
 		this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
-			onDidToggleCollapse: () => {
+			onDidChangeLayout: () => {
 				if (this.viewPaneContainer) {
 					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
 					this.layoutBody(offsetHeight, offsetWidth);
@@ -275,7 +335,7 @@ export class SessionsView extends ViewPane {
 			constructor() {
 				super({
 					id: 'sessionsViewPane.filterArchived',
-					title: localize('filterArchived', "Archived"),
+					title: localize('filterArchived', "Done"),
 					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
 					menu: [{
 						id: SessionsViewFilterOptionsSubMenu,
@@ -318,6 +378,7 @@ export class SessionsView extends ViewPane {
 
 		// Reset filter action
 		const filterContextKeys = this.filterContextKeys;
+		const workspaceGroupCappedContextKey = this.workspaceGroupCappedContextKey;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -335,6 +396,7 @@ export class SessionsView extends ViewPane {
 				for (const { key, getDefault } of filterContextKeys.values()) {
 					key.set(getDefault());
 				}
+				workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 			}
 		}));
 	}

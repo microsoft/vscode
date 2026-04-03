@@ -42,6 +42,11 @@ export {
 	type ISessionServerToolsChangedAction,
 	type ISessionActiveClientChangedAction,
 	type ISessionActiveClientToolsChangedAction,
+	type ISessionCustomizationsChangedAction,
+	type ISessionCustomizationToggledAction,
+	type ISessionPendingMessageSetAction,
+	type ISessionPendingMessageRemovedAction,
+	type ISessionQueuedMessagesReorderedAction,
 	type IStateAction,
 } from './protocol/actions.js';
 
@@ -63,8 +68,10 @@ import type {
 	ISessionModelChangedAction,
 	ISessionReasoningAction,
 	ISessionResponsePartAction,
+	ISessionToolCallApprovedAction,
 	ISessionToolCallCompleteAction,
 	ISessionToolCallConfirmedAction,
+	ISessionToolCallDeniedAction,
 	ISessionToolCallDeltaAction,
 	ISessionToolCallReadyAction,
 	ISessionToolCallResultConfirmedAction,
@@ -75,6 +82,9 @@ import type {
 	ISessionTurnStartedAction,
 	ISessionUsageAction,
 	IStateAction,
+	ISessionPendingMessageSetAction,
+	ISessionPendingMessageRemovedAction,
+	ISessionQueuedMessagesReorderedAction,
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
@@ -96,8 +106,8 @@ export type IResponsePartAction = ISessionResponsePartAction;
 export type IToolCallStartAction = ISessionToolCallStartAction;
 export type IToolCallDeltaAction = ISessionToolCallDeltaAction;
 export type IToolCallReadyAction = ISessionToolCallReadyAction;
-export type IToolCallApprovedAction = import('./protocol/actions.js').ISessionToolCallApprovedAction;
-export type IToolCallDeniedAction = import('./protocol/actions.js').ISessionToolCallDeniedAction;
+export type IToolCallApprovedAction = ISessionToolCallApprovedAction;
+export type IToolCallDeniedAction = ISessionToolCallDeniedAction;
 export type IToolCallConfirmedAction = ISessionToolCallConfirmedAction;
 export type IToolCallCompleteAction = ISessionToolCallCompleteAction;
 export type IToolCallResultConfirmedAction = ISessionToolCallResultConfirmedAction;
@@ -107,6 +117,12 @@ export type ITitleChangedAction = ISessionTitleChangedAction;
 export type IUsageAction = ISessionUsageAction;
 export type IReasoningAction = ISessionReasoningAction;
 export type IModelChangedAction = ISessionModelChangedAction;
+export type ICustomizationsChangedAction = import('./protocol/actions.js').ISessionCustomizationsChangedAction;
+export type ICustomizationToggledAction = import('./protocol/actions.js').ISessionCustomizationToggledAction;
+
+export type IPendingMessageSetAction = ISessionPendingMessageSetAction;
+export type IPendingMessageRemovedAction = ISessionPendingMessageRemovedAction;
+export type IQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedAction;
 
 // Notifications
 export type INotification = IProtocolNotification;

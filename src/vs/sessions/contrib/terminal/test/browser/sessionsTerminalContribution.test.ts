@@ -14,10 +14,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { ISessionData } from '../../../sessions/common/sessionData.js';
-import { ISessionsChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IChat, ISession } from '../../../sessions/common/sessionData.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -47,64 +47,101 @@ function makeAgentSession(opts: {
 	worktree?: URI;
 	providerType?: string;
 	isArchived?: boolean;
-}): ISessionData {
+}): IActiveSession {
 	const repo = opts.repository || opts.worktree ? {
 		uri: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree,
 		detail: undefined,
+		baseBranchName: undefined,
 		baseBranchProtected: undefined,
 	} : undefined;
-	return {
-		sessionId: 'test:session',
+	const chat: IChat = {
 		resource: URI.parse('file:///session'),
-		providerId: 'test',
-		sessionType: opts.providerType ?? AgentSessionProviders.Local,
-		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
-		loading: observableValue('test.loading', false),
 		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequestUri: observableValue('test.pullRequestUri', undefined),
 	};
+	const session: IActiveSession = {
+		sessionId: 'test:session',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('test.loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		chats: observableValue('test.chats', [chat]),
+		activeChat: observableValue('test.activeChat', chat),
+		mainChat: chat,
+	};
+	return session;
 }
 
-function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISessionData {
+function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISession {
 	const repo = opts.repository || opts.worktree ? {
 		uri: opts.repository ?? opts.worktree!,
 		workingDirectory: opts.worktree,
 		detail: undefined,
+		baseBranchName: undefined,
 		baseBranchProtected: undefined,
 	} : undefined;
-	return {
-		sessionId: 'test:non-agent',
+	const chat: IChat = {
 		resource: URI.parse('file:///session'),
-		providerId: 'test',
-		sessionType: opts.providerType ?? AgentSessionProviders.Local,
-		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo] } : undefined),
 		title: observableValue('test.title', 'Test Session'),
 		updatedAt: observableValue('test.updatedAt', new Date()),
 		status: observableValue('test.status', 0),
 		changes: observableValue('test.changes', []),
 		modelId: observableValue('test.modelId', undefined),
 		mode: observableValue('test.mode', undefined),
-		loading: observableValue('test.loading', false),
 		isArchived: observableValue('test.isArchived', false),
 		isRead: observableValue('test.isRead', true),
 		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
 		description: observableValue('test.description', undefined),
-		pullRequestUri: observableValue('test.pullRequestUri', undefined),
 	};
+	const session: ISession = {
+		sessionId: 'test:non-agent',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('test.loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		chats: observableValue('test.chats', [chat]),
+		mainChat: chat,
+	};
+	return session;
 }
 
 function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
@@ -143,7 +180,7 @@ function addCommandToInstance(instance: ITerminalInstance, timestamp: number): v
 suite('SessionsTerminalContribution', () => {
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
-	let activeSessionObs: ReturnType<typeof observableValue<ISessionData | undefined>>;
+	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	let onDidCreateInstance: Emitter<ITerminalInstance>;
 
@@ -174,7 +211,7 @@ suite('SessionsTerminalContribution', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 
-		activeSessionObs = observableValue<ISessionData | undefined>('activeSession', undefined);
+		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 
@@ -293,7 +330,7 @@ suite('SessionsTerminalContribution', () => {
 
 	test('uses home directory for a non-agent session', async () => {
 		const session = makeNonAgentSession({ repository: URI.file('/repo') });
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(session as IActiveSession, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
@@ -659,6 +696,18 @@ suite('SessionsTerminalContribution', () => {
 
 		// No setActiveInstance calls from visibility update since no commands were run
 		assert.strictEqual(activeInstanceSet.length, activeCountBefore, 'should not call setActiveInstance when no command history exists');
+	});
+
+	// --- Remote agent host sessions ---
+
+	test('falls back to home directory for a background session with a remote agent host repository', async () => {
+		const remoteRepoUri = toAgentHostUri(URI.file('/Users/user/repo'), 'my-server');
+		const session = makeAgentSession({ repository: remoteRepoUri, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the home directory');
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
 	});
 });
 

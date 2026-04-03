@@ -114,7 +114,7 @@ See [LAYOUT.md](LAYOUT.md) for the detailed layout specification.
 
 ## Sessions Provider Architecture
 
-The sessions window uses an extensible provider model to manage sessions. Instead of hardcoding session type logic (CLI, Cloud, Agent Host) throughout the codebase, all session behavior is encapsulated in **sessions providers** that register with a central registry.
+The agent sessions window uses an extensible provider model to manage sessions. Instead of hardcoding session type logic (CLI, Cloud, Agent Host) throughout the codebase, all session behavior is encapsulated in **sessions providers** that register with a central registry.
 
 ### Overview Diagram
 

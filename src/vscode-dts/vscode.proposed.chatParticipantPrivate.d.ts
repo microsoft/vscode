@@ -127,6 +127,14 @@ declare module 'vscode' {
 		 * Whether any hooks are enabled for this request.
 		 */
 		readonly hasHooksEnabled: boolean;
+
+		/**
+		 * When true, this request was initiated by the system (e.g. a terminal
+		 * command completion notification) rather than by the user typing a
+		 * message. Extensions can use this to render the prompt differently
+		 * and skip billing.
+		 */
+		readonly isSystemInitiated?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -415,4 +423,17 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	export interface LanguageModelToolInformation {
+		/**
+		 * The full reference name of this tool as used in agent definition files.
+		 *
+		 * For MCP tools, this is the canonical name in the format `serverShortName/toolReferenceName`
+		 * (e.g., `github/search_issues`). This can be used to map between the tool names specified
+		 * in agent `.md` files and the tool's internal {@link LanguageModelToolInformation.name id}.
+		 *
+		 * This property is only set for MCP tools. For other tool types, it is `undefined`.
+		 */
+		readonly fullReferenceName?: string;
+	}
 }

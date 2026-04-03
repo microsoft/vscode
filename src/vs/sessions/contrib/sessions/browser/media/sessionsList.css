@@ -9,7 +9,11 @@
 	min-height: 0;
 
 	.pane-body & .monaco-scrollable-element {
-		padding: 0 6px;
+		padding: 0 10px;
+	}
+
+	.pane-body & .monaco-tree-sticky-container {
+		padding: 0 10px;
 	}
 
 	.monaco-list-row {
@@ -64,6 +68,21 @@
 			margin-right: 8px;
 		}
 	}
+
+	/* Pinned but not hovered/focused: show only the unpin action */
+	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
+		.session-title-toolbar {
+			display: block;
+
+			.action-item:not(:last-child) {
+				display: none;
+			}
+		}
+
+		.session-title {
+			margin-right: 8px;
+		}
+	}
 }
 
 /* Session Item */
@@ -100,12 +119,7 @@
 			justify-content: center;
 		}
 
-		&.session-icon-active > .codicon {
-			color: var(--vscode-textLink-foreground);
-		}
-
 		&.session-icon-pulse > .codicon {
-			color: var(--vscode-list-warningForeground);
 			animation: session-needs-input-pulse 2s ease-in-out infinite;
 		}
 
@@ -113,23 +127,6 @@
 			&.session-icon-pulse > .codicon {
 				animation: none;
 			}
-		}
-
-		&.session-icon-unread > .codicon {
-			color: var(--vscode-textLink-foreground);
-		}
-
-		&.session-icon-error > .codicon {
-			color: var(--vscode-errorForeground);
-		}
-
-		&.session-icon-pr > .codicon {
-			color: var(--vscode-charts-green);
-		}
-
-		/* Small dot for read sessions — subtle indicator */
-		> .codicon.codicon-circle-small-filled {
-			color: var(--vscode-agentSessionReadIndicator-foreground);
 		}
 	}
 
@@ -168,7 +165,7 @@
 			font-variant-numeric: tabular-nums;
 			overflow: hidden;
 			display: flex;
-			gap: 4px;
+			gap: 2px;
 
 			.session-diff-added {
 				color: var(--vscode-chat-linesAddedForeground);
@@ -205,6 +202,13 @@
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	.session-description p {
+		margin: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.session-description:empty {
@@ -316,13 +320,24 @@
 	padding: 0 6px;
 
 	.session-section-label {
-		flex: 1;
+		flex: 0 1 auto;
 	}
 
 	.session-section-count {
 		opacity: 0.7;
+		margin-left: auto;
 		margin-right: 4px;
 	}
+
+	.session-section-toolbar {
+		margin-left: auto;
+		display: none;
+	}
+}
+
+.monaco-list-row:hover .session-section .session-section-toolbar,
+.monaco-list-row.focused .session-section .session-section-toolbar {
+	display: block;
 }
 
 .sessions-list-control {
