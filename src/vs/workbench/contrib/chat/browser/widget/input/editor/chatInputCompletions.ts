@@ -59,7 +59,6 @@ import {
 	PromptsType,
 	Target
 } from '../../../../common/promptSyntax/promptTypes.js';
-import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
