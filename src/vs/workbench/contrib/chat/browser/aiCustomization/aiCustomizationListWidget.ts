@@ -1028,9 +1028,9 @@ export class AICustomizationListWidget extends Disposable {
 					});
 				}
 			} else if (!override?.commandId) {
-				// Sessions / non-local: workspace creation only
+				// Sessions / non-local: configure hooks (view + create)
 				actions.push({
-					label: `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`,
+					label: `$(${Codicon.add.id}) Configure Hooks`,
 					enabled: hasWorkspace,
 					tooltip: hasWorkspace ? undefined : localize('createDisabled', "Open a workspace folder to create customizations."),
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
