@@ -13,14 +13,11 @@ import { OnboardingVariationA } from './onboardingVariationA.js';
 
 const category = localize2('welcome', "Welcome");
 
-// =========================================================================
-// Variation A — Classic Wizard Modal
-// =========================================================================
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.welcomeOnboardingA',
-			title: localize2('welcomeOnboardingA', "Welcome Onboarding: Variation A (Wizard Modal)"),
+			id: 'workbench.action.welcomeOnboarding2026',
+			title: localize2('welcomeOnboarding2026', "Welcome Onboarding 2026"),
 			category,
 			f1: true,
 		});

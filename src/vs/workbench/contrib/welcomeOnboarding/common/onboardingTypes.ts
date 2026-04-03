@@ -263,71 +263,7 @@ export const ONBOARDING_KEYMAP_OPTIONS: readonly IOnboardingKeymapOption[] = [
 	},
 ];
 
-/**
- * Project starter card for Variation C.
- */
-export interface IProjectStarterCard {
-	readonly id: string;
-	readonly title: string;
-	readonly description: string;
-	readonly prompt: string;
-	readonly icon: string;
-	readonly tags: readonly string[];
-}
 
-/**
- * Starter project cards shown in Variation C.
- */
-export const PROJECT_STARTER_CARDS: readonly IProjectStarterCard[] = [
-	{
-		id: 'snake-game',
-		title: localize('project.snakeGame.title', "Snake Game"),
-		description: localize('project.snakeGame.desc', "Classic arcade game with HTML Canvas"),
-		prompt: 'Create a Snake game using HTML, CSS, and JavaScript with Canvas. Include score tracking, increasing difficulty, and smooth animations. Set up the project structure and make it playable immediately.',
-		icon: 'game',
-		tags: ['HTML', 'JavaScript', 'Canvas'],
-	},
-	{
-		id: 'portfolio',
-		title: localize('project.portfolio.title', "Personal Portfolio"),
-		description: localize('project.portfolio.desc', "Modern responsive portfolio site"),
-		prompt: 'Create a modern personal portfolio website with a hero section, about me, projects gallery with cards, skills section, and contact form. Use HTML, CSS (with CSS Grid and custom properties), and vanilla JavaScript. Make it responsive and add smooth scroll animations.',
-		icon: 'globe',
-		tags: ['HTML', 'CSS', 'Responsive'],
-	},
-	{
-		id: 'rest-api',
-		title: localize('project.restApi.title', "REST API"),
-		description: localize('project.restApi.desc', "Node.js API with Express and TypeScript"),
-		prompt: 'Set up a REST API project with Node.js, Express, and TypeScript. Include a router, controllers, middleware (error handling, logging), and example CRUD endpoints for a "tasks" resource with in-memory storage. Add npm scripts for dev and build.',
-		icon: 'server',
-		tags: ['Node.js', 'TypeScript', 'Express'],
-	},
-	{
-		id: 'data-analysis',
-		title: localize('project.dataAnalysis.title', "Data Explorer"),
-		description: localize('project.dataAnalysis.desc', "Python notebook with visualizations"),
-		prompt: 'Create a Python data analysis project with a Jupyter notebook that loads a sample dataset (generate mock data for sales analytics), performs exploratory data analysis with pandas, and creates visualizations with matplotlib and seaborn. Include a requirements.txt.',
-		icon: 'graph',
-		tags: ['Python', 'Pandas', 'Jupyter'],
-	},
-	{
-		id: 'cli-tool',
-		title: localize('project.cliTool.title', "CLI Tool"),
-		description: localize('project.cliTool.desc', "Command-line utility with Node.js"),
-		prompt: 'Create a Node.js CLI tool that converts markdown files to HTML. Include argument parsing, file watching mode, and colorized terminal output. Set up the project with proper bin entry and make it installable globally via npm link.',
-		icon: 'terminal',
-		tags: ['Node.js', 'CLI', 'npm'],
-	},
-	{
-		id: 'todo-app',
-		title: localize('project.todoApp.title', "Todo App"),
-		description: localize('project.todoApp.desc', "Full-stack app with React and SQLite"),
-		prompt: 'Create a full-stack Todo application with a React frontend (using Vite) and a Node.js backend with SQLite. Include CRUD operations, drag-to-reorder, due dates, and categories. Set up both frontend and backend in a monorepo structure.',
-		icon: 'checklist',
-		tags: ['React', 'Node.js', 'SQLite'],
-	},
-];
 
 /**
  * Storage key for persisting onboarding completion state.
