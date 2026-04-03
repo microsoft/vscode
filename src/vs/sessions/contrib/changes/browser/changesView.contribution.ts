@@ -11,9 +11,9 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
-import './changesViewActions.js';
-import './fixCIChecksAction.js';
 import { ChangesTitleBarContribution } from './changesTitleBarWidget.js';
+import './changesViewActions.js';
+import './checksActions.js';
 
 const changesViewIcon = registerIcon('changes-view-icon', Codicon.gitCompare, localize2('changesViewIcon', 'View icon for the Changes view.').value);
 
@@ -21,7 +21,7 @@ const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContaine
 
 const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	id: CHANGES_VIEW_CONTAINER_ID,
-	title: localize2('artifacts', 'Artifacts'),
+	title: localize2('changes', 'Changes'),
 	ctorDescriptor: new SyncDescriptor(ChangesViewPaneContainer),
 	icon: changesViewIcon,
 	order: 10,
@@ -33,7 +33,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 viewsRegistry.registerViews([{
 	id: CHANGES_VIEW_ID,
-	name: localize2('artifacts', 'Artifacts'),
+	name: localize2('changes', 'Changes'),
 	containerIcon: changesViewIcon,
 	ctorDescriptor: new SyncDescriptor(ChangesViewPane),
 	canToggleVisibility: true,

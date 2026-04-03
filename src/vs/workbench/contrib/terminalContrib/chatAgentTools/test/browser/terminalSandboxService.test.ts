@@ -16,7 +16,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -174,7 +174,7 @@ suite('TerminalSandboxService - network domains', () => {
 		workspaceContextService.setWorkspaceFolders([URI.file('/workspace-one')]);
 
 		// Setup default configuration
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
 
@@ -322,26 +322,40 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test', true).command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; echo test)`);
+		strictEqual(sandboxService.wrapCommand('echo test', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test'`);
 	});
 
 	test('should preserve TMPDIR for piped unsandboxed commands', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test | cat', true).command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; echo test | cat)`);
+		strictEqual(sandboxService.wrapCommand('echo test | cat', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test | cat'`);
+	});
+
+	test('should preserve trailing backslashes for unsandboxed commands', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		strictEqual(sandboxService.wrapCommand('echo test \\', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test \\'`);
+	});
+
+	test('should use fish-compatible wrapping for unsandboxed commands', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		strictEqual(sandboxService.wrapCommand('echo test', true, 'fish').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'fish' -c 'echo test'`);
 	});
 
 	test('should switch to unsandboxed execution when a domain is not allowlisted', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://example.com');
+		const wrapResult = sandboxService.wrapCommand('curl https://example.com', false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Blocked domains should prevent sandbox wrapping');
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains should require unsandbox confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
-		strictEqual(wrapResult.command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; curl https://example.com)`);
+		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
 	});
 
 	test('should allow exact allowlisted domains', async () => {
@@ -406,7 +420,7 @@ suite('TerminalSandboxService - network domains', () => {
 			if (key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled) {
 				return {
 					value: undefined,
-					defaultValue: false,
+					defaultValue: TerminalChatAgentToolsSandboxEnabledValue.Off,
 					userValue: undefined,
 					userLocalValue: undefined,
 					userRemoteValue: undefined,
@@ -416,7 +430,7 @@ suite('TerminalSandboxService - network domains', () => {
 					policyValue: undefined,
 				} as ReturnType<typeof originalInspect<T>>;
 			}
-			if (key === TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) {
+			if (key === TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled) {
 				return {
 					value: true,
 					defaultValue: false,
@@ -437,13 +451,13 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
 	});
 
-	test('should fall back to deprecated settings in user scope', async () => {
+	test('should fall back to deprecated chat.agent.sandbox setting in user scope', async () => {
 		const originalInspect = configurationService.inspect.bind(configurationService);
 		configurationService.inspect = <T>(key: string) => {
 			if (key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled) {
 				return {
 					value: undefined,
-					defaultValue: false,
+					defaultValue: TerminalChatAgentToolsSandboxEnabledValue.Off,
 					userValue: undefined,
 					userLocalValue: undefined,
 					userRemoteValue: undefined,
@@ -453,7 +467,7 @@ suite('TerminalSandboxService - network domains', () => {
 					policyValue: undefined,
 				} as ReturnType<typeof originalInspect<T>>;
 			}
-			if (key === TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) {
+			if (key === TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled) {
 				return {
 					value: true,
 					defaultValue: false,
@@ -471,7 +485,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated settings should still be respected when only the user scope is set');
+		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated chat.agent.sandbox should still be respected when only the user scope is set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {
@@ -523,12 +537,12 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const command = 'echo $HOME $(curl eth0.me) `id`';
-		const wrapResult = sandboxService.wrapCommand(command);
+		const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Commands with blocked domains inside substitutions should not stay sandboxed');
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains inside substitutions should require confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['eth0.me']);
-		strictEqual(wrapResult.command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; ${command})`);
+		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo $HOME $(curl eth0.me) \`id\`'`);
 	});
 
 	test('should escape single-quote breakout payloads in wrapped command argument', async () => {

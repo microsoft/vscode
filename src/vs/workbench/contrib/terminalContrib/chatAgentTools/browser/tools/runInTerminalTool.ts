@@ -27,7 +27,10 @@ import { ICommandDetectionCapability, TerminalCapability } from '../../../../../
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, ChatRequestQueueKind, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { constObservable, type IObservable } from '../../../../../../base/common/observable.js';
+import type { IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
+import type { UserSelectedTools } from '../../../../chat/common/participants/chatAgents.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -83,7 +86,7 @@ const TERMINAL_SANDBOX_DOCUMENTATION_URL = 'https://aka.ms/vscode-sandboxing';
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
-function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, backgroundNotifications: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
 	const parts = [
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
@@ -133,7 +136,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`,
+		`- NEVER run Start-Sleep or similar wait commands.${backgroundNotifications ? ' You will be automatically notified on your next turn when async terminal commands complete or need input.' : ''} Use ${TerminalToolId.GetTerminalOutput} to check output before then`,
 	);
 
 	return parts.join('\n');
@@ -165,7 +168,7 @@ function createSandboxLines(networkDomains?: ITerminalSandboxResolvedNetworkDoma
 	return lines;
 }
 
-function createGenericDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createGenericDescription(isSandboxEnabled: boolean, backgroundNotifications: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const parts = [`
 Command Execution:
 - Use && to chain simple commands on one line
@@ -206,25 +209,25 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. If you need to check on an async process, use ${TerminalToolId.GetTerminalOutput} instead`);
+- NEVER run sleep or similar wait commands in a terminal.${backgroundNotifications ? ' You will be automatically notified on your next turn when async terminal commands complete or need input.' : ''} Use ${TerminalToolId.GetTerminalOutput} to check output before then`);
 
 	return parts.join('');
 }
 
-function createBashModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createBashModelDescription(isSandboxEnabled: boolean, backgroundNotifications: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent bash terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled, networkDomains),
+		createGenericDescription(isSandboxEnabled, backgroundNotifications, networkDomains),
 		'- Use [[ ]] for conditional tests instead of [ ]',
 		'- Prefer $() over backticks for command substitution',
 		'- Use set -e at start of complex commands to exit on errors'
 	].join('\n');
 }
 
-function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createZshModelDescription(isSandboxEnabled: boolean, backgroundNotifications: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent zsh terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled, networkDomains),
+		createGenericDescription(isSandboxEnabled, backgroundNotifications, networkDomains),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use [[ ]] for conditional tests instead of [ ]',
@@ -234,10 +237,10 @@ function createZshModelDescription(isSandboxEnabled: boolean, networkDomains?: I
 	].join('\n');
 }
 
-function createFishModelDescription(isSandboxEnabled: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
+function createFishModelDescription(isSandboxEnabled: boolean, backgroundNotifications: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	return [
 		'This tool allows you to execute shell commands in a persistent fish terminal session, preserving environment variables, working directory, and other context across multiple commands.',
-		createGenericDescription(isSandboxEnabled, networkDomains),
+		createGenericDescription(isSandboxEnabled, backgroundNotifications, networkDomains),
 		'- Use type to check command type (builtin, function, alias)',
 		'- Use jobs, fg, bg for job control',
 		'- Use test expressions for conditionals (no [[ ]] syntax)',
@@ -253,6 +256,7 @@ export async function createRunInTerminalToolData(
 ): Promise<IToolData> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const terminalSandboxService = accessor.get(ITerminalSandboxService);
+	const configurationService = accessor.get(IConfigurationService);
 
 	const profileFetcher = instantiationService.createInstance(TerminalProfileFetcher);
 	const [shell, os, isSandboxEnabled] = await Promise.all([
@@ -262,16 +266,17 @@ export async function createRunInTerminalToolData(
 	]);
 
 	const networkDomains = isSandboxEnabled ? terminalSandboxService.getResolvedNetworkDomains() : undefined;
+	const backgroundNotifications = configurationService.getValue(TerminalChatAgentToolsSettingId.BackgroundNotifications) === true;
 
 	let modelDescription: string;
 	if (shell && os && isPowerShell(shell, os)) {
-		modelDescription = createPowerShellModelDescription(shell, isSandboxEnabled, networkDomains);
+		modelDescription = createPowerShellModelDescription(shell, isSandboxEnabled, backgroundNotifications, networkDomains);
 	} else if (shell && os && isZsh(shell, os)) {
-		modelDescription = createZshModelDescription(isSandboxEnabled, networkDomains);
+		modelDescription = createZshModelDescription(isSandboxEnabled, backgroundNotifications, networkDomains);
 	} else if (shell && os && isFish(shell, os)) {
-		modelDescription = createFishModelDescription(isSandboxEnabled, networkDomains);
+		modelDescription = createFishModelDescription(isSandboxEnabled, backgroundNotifications, networkDomains);
 	} else {
-		modelDescription = createBashModelDescription(isSandboxEnabled, networkDomains);
+		modelDescription = createBashModelDescription(isSandboxEnabled, backgroundNotifications, networkDomains);
 	}
 
 	const sharedProperties: IJSONSchemaMap = {
@@ -304,7 +309,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion up to timeout; if still running, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion up to timeout; if still running, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID.${backgroundNotifications ? `\n\nAsync terminal notifications: When a command finishes in an async terminal, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Use ${TerminalToolId.GetTerminalOutput} to check output before then. Do NOT poll or sleep to wait for completion.` : `\n\nUse ${TerminalToolId.GetTerminalOutput} to check on async terminal output. Do NOT poll or sleep to wait for completion.`}`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -331,30 +336,7 @@ export async function createRunInTerminalToolData(
 					description: 'Timeout in milliseconds that determines how long to wait before returning. Required for mode=sync. Ignored for mode=async. Use 0 for no timeout.',
 				},
 			},
-			required: ['command', 'explanation', 'goal'],
-			anyOf: [
-				{
-					required: ['mode'],
-					allOf: [
-						{
-							if: {
-								properties: {
-									mode: {
-										const: 'sync'
-									}
-								},
-								required: ['mode']
-							},
-							then: {
-								required: ['timeout']
-							}
-						}
-					]
-				},
-				{
-					required: ['isBackground']
-				}
-			]
+			required: ['command', 'explanation', 'goal', 'mode']
 		}
 	};
 }
@@ -901,20 +883,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _getBlockedDomainReason(blockedDomains: string[], deniedDomains: string[] = []): string {
 		if (deniedDomains.length === blockedDomains.length && deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandboxNetwork.deniedDomains or not added to chat.agent.sandboxNetwork.allowedDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (blockedDomains.length === 1) {
-			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0]);
+			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0]);
 		}
-		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandboxNetwork configuration.", blockedDomains[0], blockedDomains.length - 1);
+		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0], blockedDomains.length - 1);
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -1078,7 +1060,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let exitCode: number | undefined;
 		let altBufferResult: IToolResult | undefined;
 		let didTimeout = false;
-		let didMoveToBackground = executionOptions.persistentSession;
+		// Covers both terminals that start as background (persistentSession) and
+		// foreground terminals that later move to background (timeout/continue-in-bg).
+		let isBackgroundExecution = executionOptions.persistentSession;
 		let timeoutPromise: CancelablePromise<void> | undefined;
 		let timeoutRacePromise: Promise<{ type: 'timeout' }> | undefined;
 		let outputMonitor: OutputMonitor | undefined;
@@ -1108,7 +1092,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (sessionId === terminalToolSessionId) {
 					const execution = RunInTerminalTool._activeExecutions.get(termId);
 					execution?.setBackground?.();
-					didMoveToBackground = true;
+					isBackgroundExecution = true;
 					// Resolve the race promise instead of cancelling - this allows the execution
 					// to continue running so it can be awaited later
 					continueInBackgroundResolve?.();
@@ -1144,7 +1128,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				: undefined;
 			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
 				if (!outputMonitor) {
-					outputMonitor = store.add(this._instantiationService.createInstance(
+					outputMonitor = this._instantiationService.createInstance(
 						OutputMonitor,
 						{
 							instance: toolTerminal.instance,
@@ -1155,7 +1139,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						invocation.context,
 						token,
 						command
-					));
+					);
 				}
 			}));
 
@@ -1238,7 +1222,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
 					error = 'timeout';
 					didTimeout = true;
-					didMoveToBackground = true;
+					isBackgroundExecution = true;
 					toolTerminal.isBackground = true;
 					this._sessionTerminalAssociations.delete(chatSessionResource);
 					await this._associateProcessIdWithSession(toolTerminal.instance, chatSessionResource, termId, toolTerminal.shellIntegrationQuality, true);
@@ -1308,7 +1292,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (didTimeout && e instanceof CancellationError) {
 				this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
 				error = 'timeout';
-				didMoveToBackground = true;
+				isBackgroundExecution = true;
 				toolTerminal.isBackground = true;
 				this._sessionTerminalAssociations.delete(chatSessionResource);
 				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
@@ -1338,17 +1322,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		} finally {
 			timeoutPromise?.cancel();
-			if (didMoveToBackground && executionPromise) {
-				// Execution moved to background - attach error handler since we won't await it
+			if (isBackgroundExecution && executionPromise) {
+				// Background terminal (started as bg or moved to bg) - attach error handler since we won't await it
 				executionPromise.catch((e: unknown) => {
 					if (!(e instanceof CancellationError)) {
 						this._logService.error(`RunInTerminalTool: Background execution error`, e);
 					}
 				});
+				// Register a listener to notify the agent when commands complete in this
+				// background terminal, and continue the output monitor for prompt-for-input detection
+				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.BackgroundNotifications)) {
+					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor);
+				} else {
+					outputMonitor?.dispose();
+				}
 			} else {
-				// Foreground completed or error - clean up execution
+				// Foreground completed or error - clean up execution and output monitor
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
 				RunInTerminalTool._activeExecutions.delete(termId);
+				outputMonitor?.dispose();
 			}
 			store.dispose();
 			const timingExecuteMs = Date.now() - timingStart;
@@ -1392,12 +1384,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} else if (didToolEditCommand) {
 				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
 			}
-			if (didMoveToBackground && !executionOptions.persistentSession) {
+			if (isBackgroundExecution && !executionOptions.persistentSession) {
 				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 		}
 		if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
-			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}. Use ${TerminalToolId.GetTerminalOutput} to check its current output, ${TerminalToolId.SendToTerminal} to send further input, or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait.\n\n`);
+			const notificationHint = this._configurationService.getValue(TerminalChatAgentToolsSettingId.BackgroundNotifications)
+				? ' You will be automatically notified on your next turn when it completes.'
+				: '';
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}.${notificationHint} Use ${TerminalToolId.GetTerminalOutput} to check output before then, ${TerminalToolId.SendToTerminal} to send further input, or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait.\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
@@ -1452,15 +1447,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * Returns data content parts for any found images that exist on disk.
 	 */
 	private async _extractImagesFromOutput(output: string, cwd: URI | undefined): Promise<IToolResult['content']> {
-		const normalizedOutput = output.replace(/\r?\n/g, '');
-
-		// Match paths ending with image extensions. A leading / or \ is sufficient
-		// to identify a path segment; the full path up to the extension is captured.
-		const pathPattern = /(?:[^\s]*[\/\\][^\s]*\.(?:png|jpe?g|gif|webp|bmp))/gi;
+		// Match paths containing at least one / or \ and ending with an image
+		// extension. Each atom uses [^\s/\\]* so it cannot consume separators,
+		// which keeps the [/\\] tokens unambiguous and prevents catastrophic
+		// backtracking on long strings.
+		const pathPattern = /[^\s/\\]*(?:[/\\][^\s/\\]*)+\.(?:png|jpe?g|gif|webp|bmp)/gi;
 
 		const matches = new Set<string>();
-		for (const match of normalizedOutput.matchAll(pathPattern)) {
-			matches.add(match[0]);
+		for (const line of output.split(/\r?\n/)) {
+			if (line.length > 10_000) {
+				continue;
+			}
+			for (const match of line.matchAll(pathPattern)) {
+				matches.add(match[0]);
+			}
 		}
 
 		if (matches.size === 0) {
@@ -1753,6 +1753,114 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		for (const termId of executionIdsToRemove) {
 			RunInTerminalTool._activeExecutions.delete(termId);
 		}
+	}
+
+	/**
+	 * Registers a listener for command completion on a background terminal.
+	 * When a command finishes, sends a steering message to the chat session
+	 * so the agent is notified on its next turn.
+	 *
+	 * If an output monitor is provided, it is continued in background mode
+	 * to detect prompts-for-input while the terminal runs in the background.
+	 * The output monitor is cancelled and disposed when a command finishes.
+	 */
+	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor): void {
+		const commandDetection = terminalInstance.capabilities.get(TerminalCapability.CommandDetection);
+		if (!commandDetection) {
+			outputMonitor?.dispose();
+			return;
+		}
+
+		// Acquire a reference to the ChatModel so it stays alive while we wait
+		// for the background terminal to complete. Without this, the model can
+		// be disposed if the user navigates away, and sendRequest would throw.
+		const sessionRef = this._chatService.acquireExistingSession(chatSessionResource, 'RunInTerminalTool#completionNotification');
+		if (!sessionRef) {
+			this._logService.warn(`RunInTerminalTool: Cannot register completion notification for terminal ${termId} - session already disposed`);
+			outputMonitor?.dispose();
+			return;
+		}
+
+		// Capture model/mode/tools from the last request so the steering message
+		// uses the same settings as the original conversation (not defaults).
+		const lastRequest = sessionRef.object.lastRequest;
+		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
+		if (lastRequest) {
+			sendOptions.userSelectedModelId = lastRequest.modelId;
+			sendOptions.modeInfo = lastRequest.modeInfo;
+			if (lastRequest.userSelectedTools) {
+				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
+			}
+		}
+
+		// Continue the output monitor in background mode for prompt-for-input detection.
+		// The monitor wakes only on new terminal data (not on a fixed interval), so
+		// resource cost is proportional to actual terminal activity.
+		let bgCts: CancellationTokenSource | undefined;
+		if (outputMonitor) {
+			bgCts = new CancellationTokenSource();
+			outputMonitor.continueMonitoringAsync(bgCts.token);
+		}
+
+		const listener = commandDetection.onCommandFinished(command => {
+			const execution = RunInTerminalTool._activeExecutions.get(termId);
+			if (!execution) {
+				cleanup();
+				return;
+			}
+
+			// Dispose after first notification to avoid chatty repeated messages
+			// if the user runs additional commands via send_to_terminal.
+			cleanup();
+
+			const exitCode = command.exitCode;
+			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
+			const currentOutput = execution.getOutput();
+			const message = `[Terminal ${termId} notification: command completed${exitCodeText}. Use send_to_terminal to send another command or kill_terminal to stop it.]\nTerminal output:\n${currentOutput}`;
+
+			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
+
+			this._chatService.sendRequest(chatSessionResource, message, {
+				queue: ChatRequestQueueKind.Steering,
+				isSystemInitiated: true,
+				systemInitiatedLabel: localize('backgroundTaskCompleted', "Background task `{0}` completed", commandName),
+				...sendOptions,
+			}).catch(e => {
+				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
+			});
+		});
+
+		// Clean up all background resources when the terminal is disposed
+		// (e.g. user closes the terminal) to avoid leaking listeners and monitors.
+		const disposedListener = terminalInstance.onDisposed(() => {
+			cleanup();
+		});
+
+		// When a checkpoint is restored, requests are removed from the model.
+		// Cancel the background notification and dispose the terminal so that
+		// background processes don't outlive the rolled-back session state.
+		const modelChangeListener = sessionRef.object.onDidChange(e => {
+			if (e.kind === 'removeRequest') {
+				this._logService.debug(`RunInTerminalTool: Request removed from session, cleaning up background terminal ${termId}`);
+				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
+				RunInTerminalTool._activeExecutions.delete(termId);
+				cleanup();
+				terminalInstance.dispose();
+			}
+		});
+
+		const cleanup = () => {
+			listener.dispose();
+			disposedListener.dispose();
+			modelChangeListener.dispose();
+			bgCts?.dispose();
+			outputMonitor?.dispose();
+			sessionRef.dispose();
+		};
+
+		this._register(listener);
+		this._register(disposedListener);
+		this._register(modelChangeListener);
 	}
 	// #endregion
 }

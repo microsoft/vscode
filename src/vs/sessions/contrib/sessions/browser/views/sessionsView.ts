@@ -34,7 +34,9 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -78,6 +80,7 @@ export class SessionsView extends ViewPane {
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -178,7 +181,10 @@ export class SessionsView extends ViewPane {
 			supportIcons: true,
 		}));
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
-		this._register(newSessionButton.onDidClick(() => this.sessionsManagementService.openNewSessionView()));
+		this._register(newSessionButton.onDidClick(() => {
+			logSessionsInteraction(this.telemetryService, 'newSession');
+			this.sessionsManagementService.openNewSessionView();
+		}));
 
 		const buttonLabel = $('.new-session-button-label');
 		const keybindingHint = $('span.new-session-keybinding-hint');
@@ -392,7 +398,7 @@ export class SessionsView extends ViewPane {
 			constructor() {
 				super({
 					id: 'sessionsViewPane.filterArchived',
-					title: localize('filterArchived', "Archived"),
+					title: localize('filterArchived', "Done"),
 					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
 					menu: [{
 						id: SessionsViewFilterOptionsSubMenu,
