@@ -66,7 +66,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		}
 		if (target.type === MouseTargetType.CONTENT_EMPTY) {
 			// handle the case where the mouse is over the empty portion of a line following ghost text
-			if (controller.shouldShowHoverAt(target.range)) {
+			// but not when the mouse is below the last line (isAfterLines)
+			if (!target.detail.isAfterLines && controller.shouldShowHoverAt(target.range)) {
 				return new HoverForeignElementAnchor(1000, this, target.range, mouseEvent.event.posx, mouseEvent.event.posy, false);
 			}
 		}
