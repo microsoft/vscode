@@ -647,11 +647,16 @@ export class AICustomizationListWidget extends Disposable {
 			this.refresh();
 		}));
 
-		// Subscribe to the active provider's onDidChange event
+		// Subscribe to the active provider's onDidChange event.
+		// Read both activeHarness and availableHarnesses so that the
+		// subscription is re-established when a new provider harness
+		// registers (availableHarnesses changes) even if activeHarness
+		// was already set to the harness id from persisted state.
 		const providerChangeDisposable = this._register(new MutableDisposable());
 		const syncChangeDisposable = this._register(new MutableDisposable());
 		this._register(autorun(reader => {
 			this.harnessService.activeHarness.read(reader);
+			this.harnessService.availableHarnesses.read(reader);
 			const activeDescriptor = this.harnessService.getActiveDescriptor();
 			if (activeDescriptor.itemProvider) {
 				providerChangeDisposable.value = activeDescriptor.itemProvider.onDidChange(() => this.refresh());
