@@ -15,6 +15,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 export interface IAgentSessionApprovalInfo {
 	readonly label: string;
 	readonly languageId: string | undefined;
+	readonly since: Date;
 	confirm(): void;
 }
 
@@ -90,8 +91,8 @@ export class AgentSessionApprovalModel extends Disposable {
 			}
 
 			for (const part of lastResponse.response.value) {
-				if (part.kind !== 'toolInvocation') {
-					continue;
+				if (part.kind !== 'toolInvocation' || part.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
+					continue; // unsupported
 				}
 				const state = part.state.read(reader);
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
@@ -112,6 +113,7 @@ export class AgentSessionApprovalModel extends Disposable {
 					setIfChanged({
 						label,
 						languageId,
+						since: new Date(),
 						confirm: () => confirmState.confirm({ type: ToolConfirmKind.UserAction }),
 					});
 					return;

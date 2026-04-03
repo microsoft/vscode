@@ -25,6 +25,8 @@ declare module 'vscode' {
 		static readonly Prompt: ChatSessionCustomizationType;
 		/** Hook customization (event-driven automation). */
 		static readonly Hook: ChatSessionCustomizationType;
+		/** Plugin customization (agent runtime plugins). */
+		static readonly Plugins: ChatSessionCustomizationType;
 
 		/**
 		 * The string identifier for this customization type.
@@ -56,19 +58,11 @@ declare module 'vscode' {
 		readonly iconId?: string;
 
 		/**
-		 * Customization types that this provider does **not** support.
-		 * The corresponding sections will be hidden in the management UI
-		 * when this provider is active.
+		 * Customization types that this provider supports.
+		 * Only the corresponding sections will be shown in the management UI
+		 * when this provider is active. When omitted, all sections are shown.
 		 */
-		readonly unsupportedTypes?: readonly ChatSessionCustomizationType[];
-
-		/**
-		 * Workspace sub-paths that this provider recognizes for customization files.
-		 * When set, only workspace files under these paths are shown in the UI.
-		 * For example, `['.claude']` for Claude or `['.github', '.copilot']` for CLI.
-		 * When `undefined`, all workspace paths are shown.
-		 */
-		readonly workspaceSubpaths?: readonly string[];
+		readonly supportedTypes?: readonly ChatSessionCustomizationType[];
 	}
 
 	/**
@@ -94,6 +88,27 @@ declare module 'vscode' {
 		 * Optional description of this customization.
 		 */
 		readonly description?: string;
+
+		/**
+		 * Optional group key for display grouping. Items sharing the same
+		 * `groupKey` are placed under a shared collapsible header in the
+		 * management UI.
+		 *
+		 * When omitted, items are grouped automatically by their storage
+		 * source (e.g. Workspace, User) based on the item's URI.
+		 */
+		readonly groupKey?: string;
+
+		/**
+		 * Optional inline badge text shown next to the item name
+		 * (e.g. a glob pattern like `src/vs/sessions/**`).
+		 */
+		readonly badge?: string;
+
+		/**
+		 * Optional tooltip text shown when hovering over the badge.
+		 */
+		readonly badgeTooltip?: string;
 	}
 
 	/**

@@ -1705,6 +1705,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.skill, provider);
 			},
+			registerHookProvider(provider: vscode.ChatHookProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.hook, provider);
+			},
 			registerChatDebugLogProvider(provider: vscode.ChatDebugLogProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatDebug');
 				return extHostChatDebug.registerChatDebugLogProvider(provider);
@@ -1736,6 +1740,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeSkills: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeSkills(listener, thisArgs, disposables);
+			},
+			get hooks() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.hooks as readonly vscode.ChatResource[];
+			},
+			onDidChangeHooks: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangeHooks(listener, thisArgs, disposables);
+			},
+			get plugins() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.plugins as readonly vscode.ChatResource[];
+			},
+			onDidChangePlugins: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangePlugins(listener, thisArgs, disposables);
 			},
 			registerChatSessionCustomizationProvider(chatSessionType: string, metadata: vscode.ChatSessionCustomizationProviderMetadata, provider: vscode.ChatSessionCustomizationProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatSessionCustomizationProvider');

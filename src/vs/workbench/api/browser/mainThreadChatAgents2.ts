@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
+import { autorun } from '../../../base/common/observable.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { Schemas } from '../../../base/common/network.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
@@ -23,13 +24,14 @@ import { ILanguageFeaturesService } from '../../../editor/common/services/langua
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/chat/browser/agentSessions/agentSessions.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IPromptFileContext, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
@@ -41,12 +43,13 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IPluginDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -131,6 +134,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -146,7 +151,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				this._proxy.$releaseSession(resource);
 			}
 		}));
@@ -191,6 +196,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._register(this._promptsService.onDidChangeSkills(() => {
 			void this._pushSkills();
 		}));
+
+		// Push hooks to ext host
+		void this._pushHooks();
+		this._register(this._promptsService.onDidChangeHooks(() => {
+			void this._pushHooks();
+		}));
+
+		// Push plugins to ext host (reactive via autorun)
+		this._register(autorun(reader => {
+			const plugins = this._agentPluginService.plugins.read(reader);
+			const dtos: IPluginDto[] = plugins.map(p => ({ uri: p.uri }));
+			this._proxy.$acceptPlugins(dtos);
+		}));
 	}
 
 	private _acceptActiveChatSession(widget: IChatWidget | undefined): void {
@@ -229,6 +247,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 	}
 
+	private async _pushHooks(): Promise<void> {
+		try {
+			const hookFiles = await this._promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			const dtos: IHookDto[] = hookFiles.map(hookFile => ({ uri: hookFile.uri }));
+			this._proxy.$acceptHooks(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push hooks to extension host', error);
+		}
+	}
+
 	$unregisterAgent(handle: number): void {
 		this._agents.deleteAndDispose(handle);
 	}
@@ -263,22 +291,44 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				const chatSession = this._chatService.getSession(request.sessionResource);
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
-					const contributedSession = chatSession?.contributedChatSession;
-					let chatSessionContext: IChatSessionContextDto | undefined;
-					if (contributedSession) {
-						const chatSessionResource = contributedSession.chatSessionResource;
-						const isUntitled = isUntitledChatSession(chatSessionResource);
+					const chatSessionResource = request.sessionResource;
+					const chatSessionContext: IChatSessionContextDto = {
+						chatSessionResource,
+						isUntitled: isUntitledChatSession(chatSessionResource),
+						initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(this._chatSessionService.getSessionOptions(chatSessionResource)),
+					};
 
-						chatSessionContext = {
-							chatSessionResource,
-							isUntitled,
-							initialSessionOptions: ChatSessionOptionsMap.toStrValueArray(contributedSession.initialSessionOptions),
-						};
-					}
-					return await this._proxy.$invokeAgent(handle, request, {
+					const rpcResult: IChatAgentInvokeResult | undefined = await this._proxy.$invokeAgent(handle, request, {
 						history,
 						chatSessionContext,
-					}, token) ?? {};
+					}, token);
+
+					if (rpcResult?.errorCallstack) {
+						type ChatAgentErrorEvent = { callstack: string; msg: string; errorName: string; agent: string; agentExtensionId: string };
+						type ChatAgentErrorClassification = {
+							owner: 'bryanchen-d';
+							comment: 'Logged when a chat agent handler throws an error with a callstack.';
+							callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The callstack of the error.' };
+							msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The error message.' };
+							errorName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The error name (e.g. TypeError, ChatQuotaExceeded).' };
+							agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent that threw the error.' };
+							agentExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the agent.' };
+						};
+						this._telemetryService.publicLogError2<ChatAgentErrorEvent, ChatAgentErrorClassification>('chatAgentError', {
+							callstack: rpcResult.errorCallstack,
+							msg: rpcResult.errorDetails?.message ?? '',
+							errorName: rpcResult.errorName ?? '',
+							agent: id,
+							agentExtensionId: extension.value,
+						});
+					}
+
+					// Strip telemetry-only field before returning to the model layer
+					if (rpcResult) {
+						const { errorCallstack: _, errorName: _2, ...result } = rpcResult;
+						return result;
+					}
+					return {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
@@ -632,32 +682,45 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					type: item.type,
 					name: item.name,
 					description: item.description,
+					groupKey: item.groupKey,
+					badge: item.badge,
+					badgeTooltip: item.badgeTooltip,
 				}));
 			},
 		};
 
-		// Convert metadata to a harness descriptor
-		const hiddenSections = metadata.unsupportedTypes?.map(type => {
-			switch (type) {
-				case 'agent': return AICustomizationManagementSection.Agents;
-				case 'skill': return AICustomizationManagementSection.Skills;
-				case 'instructions': return AICustomizationManagementSection.Instructions;
-				case 'prompt': return AICustomizationManagementSection.Prompts;
-				case 'hook': return AICustomizationManagementSection.Hooks;
-				default: return type;
+		// Convert supportedTypes whitelist to hiddenSections blacklist.
+		// Sections not in the supported list are hidden. When supportedTypes
+		// is omitted, all sections are shown.
+		const typeToSection: Record<string, string> = {
+			'agent': AICustomizationManagementSection.Agents,
+			'skill': AICustomizationManagementSection.Skills,
+			'instructions': AICustomizationManagementSection.Instructions,
+			'prompt': AICustomizationManagementSection.Prompts,
+			'hook': AICustomizationManagementSection.Hooks,
+			'plugins': AICustomizationManagementSection.Plugins,
+		};
+		let hiddenSections: string[] | undefined;
+		if (metadata.supportedTypes) {
+			const supportedSections = new Set<string>();
+			for (const t of metadata.supportedTypes) {
+				const section = typeToSection[t];
+				if (section) {
+					supportedSections.add(section);
+				}
 			}
-		});
+			hiddenSections = Object.values(typeToSection).filter(section => !supportedSections.has(section));
+		}
 
 		const descriptor: IHarnessDescriptor = {
 			id: chatSessionType,
 			label: metadata.label,
 			icon: metadata.iconId ? ThemeIcon.fromId(metadata.iconId) : ThemeIcon.fromId(Codicon.extensions.id),
 			hiddenSections,
-			workspaceSubpaths: metadata.workspaceSubpaths ? [...metadata.workspaceSubpaths] : undefined,
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.
-				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension],
+				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension, BUILTIN_STORAGE],
 			}),
 			itemProvider,
 		};

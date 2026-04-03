@@ -5,9 +5,12 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
+import { alreadyOpenResult, createBrowserPageLink, findExistingPageByHost } from './browserToolHelpers.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
@@ -24,8 +27,12 @@ export const OpenBrowserToolData: IToolData = {
 		properties: {
 			url: {
 				type: 'string',
-				description: 'The full URL to open in the browser.'
+				description: 'The URL to open in the browser. Must be an absolute URI with a scheme such as file:, http:, or https:. For local files, use the canonical absolute form, for example file:///path/to/file.'
 			},
+			forceNew: {
+				type: 'boolean',
+				description: 'Whether to force opening a new page even if a page with the same host already exists. Default is false.'
+			}
 		},
 		required: ['url'],
 	},
@@ -33,11 +40,13 @@ export const OpenBrowserToolData: IToolData = {
 
 export interface IOpenBrowserToolParams {
 	url: string;
+	forceNew?: boolean;
 }
 
 export class OpenBrowserTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@IEditorService private readonly editorService: IEditorService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -64,13 +73,25 @@ export class OpenBrowserTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IOpenBrowserToolParams;
+
+		if (!params.forceNew) {
+			const existing = await findExistingPageByHost(this.editorService, this.playwrightService, params.url);
+			if (existing) {
+				return alreadyOpenResult(existing);
+			}
+		}
+
 		const { pageId, summary } = await this.playwrightService.openPage(params.url);
 
 		return {
 			content: [{
 				kind: 'text',
-				value: `Page ID: ${pageId}\n${summary}`,
+				value: `Page ID: ${pageId}\n\nSummary:\n`,
+			}, {
+				kind: 'text',
+				value: summary,
 			}],
+			toolResultMessage: new MarkdownString(localize('browser.open.result', "Opened {0}", createBrowserPageLink(pageId)))
 		};
 	}
 }

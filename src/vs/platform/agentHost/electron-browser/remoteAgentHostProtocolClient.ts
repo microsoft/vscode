@@ -14,13 +14,18 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
+import { AhpErrorCodes } from '../common/state/protocol/errors.js';
+import { ContentEncoding } from '../common/state/protocol/commands.js';
 import type { ISessionSummary } from '../common/state/sessionState.js';
-import { WebSocketClientTransport } from './webSocketClientTransport.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 /**
  * A protocol-level client for a single remote agent host connection.
@@ -35,7 +40,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _clientId = generateUuid();
-	private readonly _transport: WebSocketClientTransport;
+	private readonly _address: string;
+	private readonly _transport: IProtocolTransport;
+	private readonly _connectionAuthority: string;
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
 	private _defaultDirectory: string | undefined;
@@ -58,7 +65,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	get address(): string {
-		return this._transport['_address'];
+		return this._address;
 	}
 
 	get defaultDirectory(): string | undefined {
@@ -67,11 +74,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	constructor(
 		address: string,
-		connectionToken: string | undefined,
+		transport: IProtocolTransport,
 		@ILogService private readonly _logService: ILogService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
-		this._transport = this._register(new WebSocketClientTransport(address, connectionToken));
+		this._address = address;
+		this._connectionAuthority = agentHostAuthority(address);
+		this._transport = transport;
+		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._onDidClose.fire()));
 	}
@@ -80,7 +91,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Connect to the remote agent host and perform the protocol handshake.
 	 */
 	async connect(): Promise<void> {
-		await this._transport.connect();
+		if (isClientTransport(this._transport)) {
+			await this._transport.connect();
+		}
 
 		const result = await this._sendRequest('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
@@ -132,7 +145,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			session: session.toString(),
 			provider,
 			model: config?.model,
-			workingDirectory: config?.workingDirectory,
+			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 		});
 		return session;
 	}
@@ -189,26 +202,44 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			startTime: s.createdAt,
 			modifiedTime: s.modifiedAt,
 			summary: s.title,
-			workingDirectory: typeof s.workingDirectory === 'string' ? s.workingDirectory : undefined,
+			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
 		}));
 	}
 
 	/**
 	 * List the contents of a directory on the remote host's filesystem.
 	 */
-	async browseDirectory(uri: URI): Promise<ICommandMap['browseDirectory']['result']> {
-		return await this._sendRequest('browseDirectory', { uri: uri.toString() });
+	async resourceList(uri: URI): Promise<ICommandMap['resourceList']['result']> {
+		return await this._sendRequest('resourceList', { uri: uri.toString() });
 	}
 
 	/**
-	 * Fetch the content of a file on the remote host's filesystem.
+	 * Read the content of a resource on the remote host.
 	 */
-	async fetchContent(uri: URI): Promise<ICommandMap['fetchContent']['result']> {
-		return this._sendRequest('fetchContent', { uri: uri.toString() });
+	async resourceRead(uri: URI): Promise<ICommandMap['resourceRead']['result']> {
+		return this._sendRequest('resourceRead', { uri: uri.toString() });
+	}
+
+	async resourceWrite(params: ICommandMap['resourceWrite']['params']): Promise<ICommandMap['resourceWrite']['result']> {
+		return this._sendRequest('resourceWrite', params);
+	}
+
+	async resourceCopy(params: ICommandMap['resourceCopy']['params']): Promise<ICommandMap['resourceCopy']['result']> {
+		return this._sendRequest('resourceCopy', params);
+	}
+
+	async resourceDelete(params: ICommandMap['resourceDelete']['params']): Promise<ICommandMap['resourceDelete']['result']> {
+		return this._sendRequest('resourceDelete', params);
+	}
+
+	async resourceMove(params: ICommandMap['resourceMove']['params']): Promise<ICommandMap['resourceMove']['result']> {
+		return this._sendRequest('resourceMove', params);
 	}
 
 	private _handleMessage(msg: IProtocolMessage): void {
-		if (isJsonRpcResponse(msg)) {
+		if (isJsonRpcRequest(msg)) {
+			this._handleReverseRequest(msg.id, msg.method, msg.params);
+		} else if (isJsonRpcResponse(msg)) {
 			const pending = this._pendingRequests.get(msg.id);
 			if (pending) {
 				this._pendingRequests.delete(msg.id);
@@ -242,6 +273,68 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 		} else {
 			this._logService.warn(`[RemoteAgentHostProtocol] Unrecognized message:`, JSON.stringify(msg));
+		}
+	}
+
+	/**
+	 * Handles reverse RPC requests from the server (e.g. resourceList,
+	 * resourceRead). Reads from the local file service and sends a response.
+	 */
+	private _handleReverseRequest(id: number, method: string, params: unknown): void {
+		const sendResult = (result: unknown) => {
+			this._transport.send({ jsonrpc: '2.0', id, result });
+		};
+		const sendError = (err: unknown) => {
+			const fsCode = toFileSystemProviderErrorCode(err instanceof Error ? err : undefined);
+			let code = -32000;
+			switch (fsCode) {
+				case FileSystemProviderErrorCode.FileNotFound: code = AhpErrorCodes.NotFound; break;
+				case FileSystemProviderErrorCode.NoPermissions: code = AhpErrorCodes.PermissionDenied; break;
+				case FileSystemProviderErrorCode.FileExists: code = AhpErrorCodes.AlreadyExists; break;
+			}
+			this._transport.send({ jsonrpc: '2.0', id, error: { code, message: err instanceof Error ? err.message : String(err) } });
+		};
+		const handle = (fn: () => Promise<unknown>) => {
+			fn().then(sendResult, sendError);
+		};
+
+		const p = params as Record<string, unknown>;
+		switch (method) {
+			case 'resourceList':
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				return handle(async () => {
+					const stat = await this._fileService.resolve(URI.parse(p.uri as string));
+					return { entries: (stat.children ?? []).map(c => ({ name: c.name, type: c.isDirectory ? 'directory' as const : 'file' as const })) };
+				});
+			case 'resourceRead':
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				return handle(async () => {
+					const content = await this._fileService.readFile(URI.parse(p.uri as string));
+					return { data: encodeBase64(content.value), encoding: ContentEncoding.Base64 };
+				});
+			case 'resourceWrite':
+				if (!p.uri || !p.data) { sendError(new Error('Missing uri or data')); return; }
+				return handle(async () => {
+					const writeUri = URI.parse(p.uri as string);
+					const buf = p.encoding === ContentEncoding.Base64
+						? decodeBase64(p.data as string)
+						: VSBuffer.fromString(p.data as string);
+					if (p.createOnly) {
+						await this._fileService.createFile(writeUri, buf, { overwrite: false });
+					} else {
+						await this._fileService.writeFile(writeUri, buf);
+					}
+					return {};
+				});
+			case 'resourceDelete':
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				return handle(() => this._fileService.del(URI.parse(p.uri as string), { recursive: !!p.recursive }).then(() => ({})));
+			case 'resourceMove':
+				if (!p.source || !p.destination) { sendError(new Error('Missing source or destination')); return; }
+				return handle(() => this._fileService.move(URI.parse(p.source as string), URI.parse(p.destination as string), !p.failIfExists).then(() => ({})));
+			default:
+				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
+				sendError(new Error(`Unknown method: ${method}`));
 		}
 	}
 

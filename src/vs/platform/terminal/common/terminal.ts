@@ -123,7 +123,6 @@ export const enum TerminalSettingId {
 	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
 	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
 	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
-	EditorUseEditorBackground = 'terminal.integrated.editorUseEditorBackground',
 
 	// Developer/debug settings
 
@@ -720,6 +719,7 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
 	titleTemplate?: string;

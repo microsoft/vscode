@@ -66,7 +66,6 @@ suite('ObservableChatSession', function () {
 			$provideChatSessionContent: sinon.stub(),
 			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
-			$invokeOptionGroupSearch: sinon.stub().resolves([]),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
@@ -74,6 +73,7 @@ suite('ObservableChatSession', function () {
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
 			$forkChatSession: sinon.stub().resolves(undefined),
+			$provideChatSessionInputState: sinon.stub().resolves(undefined),
 		};
 	});
 
@@ -516,7 +516,6 @@ suite('MainThreadChatSessions', function () {
 			$provideChatSessionContent: sinon.stub(),
 			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
-			$invokeOptionGroupSearch: sinon.stub().resolves([]),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
@@ -524,6 +523,7 @@ suite('MainThreadChatSessions', function () {
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
 			$forkChatSession: sinon.stub().resolves(undefined),
+			$provideChatSessionInputState: sinon.stub().resolves(undefined),
 		};
 
 		const extHostContext = new class implements IExtHostContext {
