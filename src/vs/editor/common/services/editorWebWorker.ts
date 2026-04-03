@@ -5,6 +5,7 @@
 
 import { stringDiff } from '../../../base/common/diff/diff.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isHighSurrogate, isLowSurrogate } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { IWebWorkerServerRequestHandler } from '../../../base/common/worker/webWorker.js';
 import { Position } from '../core/position.js';
@@ -277,10 +278,30 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
 
 			for (const change of changes) {
-				const start = model.positionAt(editOffset + change.originalStart);
-				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
+				let { originalStart, originalLength, modifiedStart, modifiedLength } = change;
+
+				// Adjust boundaries to avoid splitting surrogate pairs.
+				// stringDiff operates on UTF-16 code units, so a change boundary
+				// may land between the high and low surrogate of an astral code
+				// point (e.g. emoji). When that happens we expand the change to
+				// include the full surrogate pair on both the original and
+				// modified side.
+				if (originalStart > 0 && isHighSurrogate(original.charCodeAt(originalStart - 1)) && isLowSurrogate(original.charCodeAt(originalStart))) {
+					originalStart--;
+					originalLength++;
+					modifiedStart--;
+					modifiedLength++;
+				}
+				const originalEnd = originalStart + originalLength;
+				if (originalEnd < original.length && isHighSurrogate(original.charCodeAt(originalEnd - 1)) && isLowSurrogate(original.charCodeAt(originalEnd))) {
+					originalLength++;
+					modifiedLength++;
+				}
+
+				const start = model.positionAt(editOffset + originalStart);
+				const end = model.positionAt(editOffset + originalStart + originalLength);
 				const newEdit: TextEdit = {
-					text: text.substr(change.modifiedStart, change.modifiedLength),
+					text: text.substr(modifiedStart, modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
 				};
 

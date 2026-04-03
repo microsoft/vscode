@@ -181,6 +181,42 @@ suite('EditorWebWorker', () => {
 		});
 	});
 
+
+	test('MoreMinimal, issue #248268 surrogate pairs not split', async function () {
+
+		const model = worker.addModel([
+			'🌟 🌈 🚀 🎉'
+		], '\n');
+
+		const edits = await worker.$computeMoreMinimalEdits(model.uri.toString(), [{
+			text: '🎉 🚀 🌟 🌈',
+			range: new Range(1, 1, 1, 12)
+		}], false);
+
+		// Verify that all edit texts contain only valid surrogate pairs
+		for (const edit of edits) {
+			for (let i = 0; i < edit.text.length; i++) {
+				const code = edit.text.charCodeAt(i);
+				if (code >= 0xD800 && code <= 0xDBFF) {
+					const next = edit.text.charCodeAt(i + 1);
+					assert.ok(next >= 0xDC00 && next <= 0xDFFF, 'High surrogate at ' + i + ' not followed by low surrogate');
+				} else if (code >= 0xDC00 && code <= 0xDFFF) {
+					const prev = i > 0 ? edit.text.charCodeAt(i - 1) : 0;
+					assert.ok(prev >= 0xD800 && prev <= 0xDBFF, 'Low surrogate at ' + i + ' not preceded by high surrogate');
+				}
+			}
+		}
+
+		// Apply edits to original and verify the result is correct
+		let result = model.getValue();
+		for (const edit of [...edits].reverse()) {
+			const startOff = model.offsetAt({ lineNumber: edit.range.startLineNumber, column: edit.range.startColumn });
+			const endOff = model.offsetAt({ lineNumber: edit.range.endLineNumber, column: edit.range.endColumn });
+			result = result.substring(0, startOff) + edit.text + result.substring(endOff);
+		}
+		assert.strictEqual(result, '🎉 🚀 🌟 🌈');
+	});
+
 	async function testEdits(lines: string[], edits: TextEdit[]): Promise<unknown> {
 		const model = worker.addModel(lines);
 
