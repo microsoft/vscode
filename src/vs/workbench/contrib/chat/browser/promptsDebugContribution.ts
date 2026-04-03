@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -128,7 +128,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 				// Also fetch the resolved hooks so they appear in the customization summary.
 				let resolvedHooks: ChatRequestHooks | undefined;
 				try {
-					const hooksInfo = await this.promptsService.getHooks(new CancellationTokenSource().token);
+					const hooksInfo = await this.promptsService.getHooks(CancellationToken.None);
 					resolvedHooks = hooksInfo?.hooks;
 				} catch (error) {
 					logService.warn('Error while fetching hooks for customization debug event', error);
