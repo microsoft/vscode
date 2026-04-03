@@ -1422,7 +1422,7 @@ export interface IChatSendRequestOptions {
 
 	/**
 	 * When set, the chat service will collect automatic instructions
-	 * (`.instructions.md`, skills, hooks) asynchronously after showing
+	 * (for example `.instructions.md` files and skills) asynchronously after showing
 	 * the request in the UI, rather than blocking the UI on collection.
 	 */
 	instructionContext?: {
