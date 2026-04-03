@@ -472,6 +472,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatEditsActionsDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly _renderingChatEdits = this._register(new MutableDisposable());
+	private readonly _cachedDiffMeta = new ResourceMap<{ added: number; removed: number }>();
 
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
@@ -2828,8 +2829,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
 
-		const cachedDiffMeta = new ResourceMap<{ added: number; removed: number }>();
-
 		const editSessionEntries = derived((reader): IChatCollapsibleListItem[] => {
 			const seenEntries = new ResourceSet();
 			const entries: IChatCollapsibleListItem[] = [];
@@ -2845,10 +2844,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const linesRemoved = entry.linesRemoved?.read(reader) ?? 0;
 
 					// Cache diff meta while Modified so it survives auto-accept
-					if (state === ModifiedFileEntryState.Modified || !cachedDiffMeta.has(entry.modifiedURI)) {
-						cachedDiffMeta.set(entry.modifiedURI, { added: linesAdded, removed: linesRemoved });
+					if (state === ModifiedFileEntryState.Modified || !this._cachedDiffMeta.has(entry.modifiedURI)) {
+						this._cachedDiffMeta.set(entry.modifiedURI, { added: linesAdded, removed: linesRemoved });
 					}
-					const diffMeta = cachedDiffMeta.get(entry.modifiedURI) ?? { added: linesAdded, removed: linesRemoved };
+					const diffMeta = this._cachedDiffMeta.get(entry.modifiedURI) ?? { added: linesAdded, removed: linesRemoved };
 
 					entries.push({
 						reference: entry.modifiedURI,
