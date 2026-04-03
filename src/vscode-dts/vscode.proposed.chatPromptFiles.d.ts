@@ -181,6 +181,17 @@ declare module 'vscode' {
 		export const plugins: readonly ChatResource[];
 
 		/**
+		 * An event that fires when the list of {@link promptFiles prompt files} changes.
+		 */
+		export const onDidChangePromptFiles: Event<void>;
+
+		/**
+		 * The list of currently available prompt files. These are `.prompt.md` files
+		 * from all sources (workspace, user, and extension-provided).
+		 */
+		export const promptFiles: readonly ChatResource[];
+
+		/**
 		 * Register a provider for custom agents.
 		 * @param provider The custom agent provider.
 		 * @returns A disposable that unregisters the provider when disposed.
