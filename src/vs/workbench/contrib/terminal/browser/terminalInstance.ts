@@ -126,6 +126,20 @@ const shellIntegrationSupportedShellTypes: (PosixShellType | GeneralShellType | 
 	GeneralShellType.Python,
 ];
 
+/**
+ * Patterns used to detect agent CLIs from the title they set via OSC 0/2 (`\x1b]0;...\x07`).
+ * These CLIs typically run as Node.js processes, so on macOS/Linux the pty's process name only
+ * reports `node` (or version strings) and cannot identify them. The OSC title is the only
+ * reliable cross-platform signal.
+ */
+const agentCliTitlePatterns: ReadonlyMap<GeneralShellType, RegExp> = new Map([
+	[GeneralShellType.Claude, /claude\s*code/i],
+	[GeneralShellType.Copilot, /\bcopilot\b/i],
+	// TODO: Verify the actual OSC titles emitted by these CLIs and add patterns:
+	// [GeneralShellType.Codex, /.../i],
+	// [GeneralShellType.Gemini, /.../i],
+]);
+
 export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
@@ -154,6 +168,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
 	private _shellType: TerminalShellType | undefined;
+	/**
+	 * The agent CLI shell type detected from the OSC title sequence, if any. Used to suppress
+	 * false `Node`/`undefined` shell type reports from the pty while the agent is running, since
+	 * the pty only sees the agent's runtime (Node) as the foreground process.
+	 */
+	private _agentShellTypeFromSequence: GeneralShellType | undefined;
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
@@ -1515,9 +1535,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.ResolvedShellLaunchConfig:
 					this._setResolvedShellLaunchConfig(value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig]);
 					break;
-				case ProcessPropertyType.ShellType:
-					this.setShellType(value as IProcessPropertyMap[ProcessPropertyType.ShellType]);
+				case ProcessPropertyType.ShellType: {
+					const ptyShellType = value as IProcessPropertyMap[ProcessPropertyType.ShellType];
+					if (this._agentShellTypeFromSequence) {
+						// Agent CLI detected via OSC title. The pty's process name will report
+						// `node` (or unrecognized values mapping to undefined) for as long as
+						// the agent is running, so suppress those. Any other value means the
+						// agent has exited and the parent shell is back in the foreground.
+						if (ptyShellType === GeneralShellType.Node || ptyShellType === undefined) {
+							break;
+						}
+						this._agentShellTypeFromSequence = undefined;
+					}
+					this.setShellType(ptyShellType);
 					break;
+				}
 				case ProcessPropertyType.HasChildProcesses:
 					this._onDidChangeHasChildProcesses.fire(value as IProcessPropertyMap[ProcessPropertyType.HasChildProcesses]);
 					break;
@@ -1850,6 +1882,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
+		this._agentShellTypeFromSequence = undefined;
 		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, reset).then(result => {
 			if (result) {
 				if (hasKey(result, { message: true })) {
@@ -1874,6 +1907,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _onTitleChange(title: string): void {
 		if (this.isTitleSetByProcess) {
 			this._setTitle(title, TitleEventSource.Sequence);
+		}
+		// Detect agent CLIs from their OSC title. The pty cannot identify them by process name
+		// (they appear as `node`), so this is the only reliable cross-platform signal. The
+		// resulting shell type is reset when the pty reports a real shell as the foreground
+		// process again (see the ProcessPropertyType.ShellType handler).
+		for (const [shellType, pattern] of agentCliTitlePatterns) {
+			if (pattern.test(title)) {
+				this._agentShellTypeFromSequence = shellType;
+				this.setShellType(shellType);
+				break;
+			}
 		}
 	}
 
