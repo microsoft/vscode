@@ -12,6 +12,7 @@ import { basename, dirname, isEqualOrParent } from '../../../../../base/common/r
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -628,6 +629,35 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 				}
+			}
+		}));
+
+		// Generate Debug Report
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.GenerateDebugReport,
+					title: localize2('generateDebugReport', "Generate Customization Debug Report"),
+					category: Categories.Developer,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					f1: true,
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				// Open the customizations editor if not already open
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const pane = await editorService.openEditor(input, { pinned: true });
+				if (!(pane instanceof AICustomizationManagementEditor)) {
+					return;
+				}
+				const report = await pane.generateDebugReport();
+				await editorService.openEditor({
+					resource: undefined,
+					contents: report,
+					languageId: 'plaintext',
+				});
 			}
 		}));
 

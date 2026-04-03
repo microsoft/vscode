@@ -186,10 +186,22 @@ export async function mapSessionEvents(
 			const edits = storedEdits?.get(d.toolCallId);
 			if (edits) {
 				for (const edit of edits) {
+					const beforeUri = edit.kind === 'rename' && edit.originalPath
+						? URI.file(edit.originalPath).toString()
+						: URI.file(edit.filePath).toString();
+					const afterUri = URI.file(edit.filePath).toString();
+					const hasBefore = edit.kind !== 'create';
+					const hasAfter = edit.kind !== 'delete';
 					content.push({
 						type: ToolResultContentType.FileEdit,
-						beforeURI: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'before'),
-						afterURI: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'after'),
+						before: hasBefore ? {
+							uri: beforeUri,
+							content: { uri: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'before') },
+						} : undefined,
+						after: hasAfter ? {
+							uri: afterUri,
+							content: { uri: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'after') },
+						} : undefined,
 						diff: (edit.addedLines !== undefined || edit.removedLines !== undefined)
 							? { added: edit.addedLines, removed: edit.removedLines }
 							: undefined,
