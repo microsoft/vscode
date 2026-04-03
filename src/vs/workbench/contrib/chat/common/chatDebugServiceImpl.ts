@@ -98,11 +98,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private readonly _onDidClearProviderEvents = this._register(new Emitter<URI>());
 	readonly onDidClearProviderEvents: Event<URI> = this._onDidClearProviderEvents.event;
 
-	private readonly _onDidAttachDebugData = this._register(new Emitter<URI>());
-	readonly onDidAttachDebugData: Event<URI> = this._onDidAttachDebugData.event;
-
-	private readonly _debugDataAttachedSessions = new ResourceMap<boolean>();
-
 	private readonly _providers = new Set<IChatDebugLogProvider>();
 	private readonly _invocationCts = new ResourceMap<CancellationTokenSource>();
 
@@ -196,7 +191,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	clear(): void {
 		this._sessionBuffers.clear();
 		this._sessionOrder.length = 0;
-		this._debugDataAttachedSessions.clear();
 		this._importedSessions.clear();
 		this._importedSessionTitles.clear();
 	}
@@ -206,7 +200,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		this._sessionBuffers.delete(sessionResource);
 		this._importedSessions.delete(sessionResource);
 		this._importedSessionTitles.delete(sessionResource);
-		this._debugDataAttachedSessions.delete(sessionResource);
 		const cts = this._invocationCts.get(sessionResource);
 		if (cts) {
 			cts.cancel();
@@ -305,7 +298,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			cts.dispose();
 			this._invocationCts.delete(sessionResource);
 		}
-		this._debugDataAttachedSessions.delete(sessionResource);
 	}
 
 	private _clearProviderEvents(sessionResource: URI): void {
@@ -314,17 +306,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			buffer.removeWhere(event => this._providerEvents.has(event));
 		}
 		this._onDidClearProviderEvents.fire(sessionResource);
-	}
-
-	markDebugDataAttached(sessionResource: URI): void {
-		if (!this._debugDataAttachedSessions.has(sessionResource)) {
-			this._debugDataAttachedSessions.set(sessionResource, true);
-			this._onDidAttachDebugData.fire(sessionResource);
-		}
-	}
-
-	hasAttachedDebugData(sessionResource: URI): boolean {
-		return this._debugDataAttachedSessions.has(sessionResource);
 	}
 
 	async resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined> {
