@@ -301,6 +301,12 @@ const editorConfiguration: IConfigurationNode = {
 			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
 			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
 		},
+		'multiDiffEditor.maxFileCount': {
+			type: 'integer',
+			default: 100,
+			minimum: 0,
+			description: nls.localize('multiDiffEditor.maxFileCount', "Maximum number of files shown in a multi-file diff editor. Use 0 for no limit."),
+		},
 	}
 };
 
