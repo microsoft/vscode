@@ -28,7 +28,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -500,11 +500,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	readonly onDidChangeSkills = this._onDidChangeSkills.event;
 	private readonly _onDidChangeHooks = this._register(new Emitter<void>());
 	readonly onDidChangeHooks = this._onDidChangeHooks.event;
+	private readonly _onDidChangePlugins = this._register(new Emitter<void>());
+	readonly onDidChangePlugins = this._onDidChangePlugins.event;
 
 	private _customAgents: vscode.ChatResource[] = [];
 	private _instructions: vscode.ChatResource[] = [];
 	private _skills: vscode.ChatResource[] = [];
 	private _hooks: vscode.ChatResource[] = [];
+	private _plugins: vscode.ChatResource[] = [];
 
 	private _activeChatPanelSessionResource: URI | undefined;
 
@@ -531,6 +534,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._hooks;
 	}
 
+	get plugins(): readonly vscode.ChatResource[] {
+		return this._plugins;
+	}
+
 	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
 		this._customAgents = agents.map(a => Object.freeze({ uri: URI.revive(a.uri) }));
 		this._onDidChangeCustomAgents.fire();
@@ -549,6 +556,11 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	$acceptHooks(hooks: IHookDto[]): void {
 		this._hooks = hooks.map(h => Object.freeze({ uri: URI.revive(h.uri) }));
 		this._onDidChangeHooks.fire();
+	}
+
+	$acceptPlugins(plugins: IPluginDto[]): void {
+		this._plugins = plugins.map(p => Object.freeze({ uri: URI.revive(p.uri) }));
+		this._onDidChangePlugins.fire();
 	}
 
 	constructor(

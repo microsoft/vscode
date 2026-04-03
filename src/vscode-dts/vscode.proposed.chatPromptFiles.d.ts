@@ -171,6 +171,16 @@ declare module 'vscode' {
 		export const hooks: readonly ChatResource[];
 
 		/**
+		 * An event that fires when the list of {@link plugins plugins} changes.
+		 */
+		export const onDidChangePlugins: Event<void>;
+
+		/**
+		 * The list of currently installed agent plugins.
+		 */
+		export const plugins: readonly ChatResource[];
+
+		/**
 		 * Register a provider for custom agents.
 		 * @param provider The custom agent provider.
 		 * @returns A disposable that unregisters the provider when disposed.
