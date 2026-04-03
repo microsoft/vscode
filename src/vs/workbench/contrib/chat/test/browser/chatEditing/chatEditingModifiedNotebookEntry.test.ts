@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ObservablePromise, observableValue } from '../../../../../../base/common/observable.js';
+import { ITransaction, ObservablePromise, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
@@ -2121,7 +2121,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 				_waitsForLastEdits: observableValue('waitsForLastEdits', false),
 				_isCurrentlyBeingModifiedByObs: observableValue('isCurrentlyBeingModifiedBy', undefined),
 				_applyEdits: async (operation: () => Promise<void>) => operation(),
-				_resetEditsState(tx: unknown) {
+				_resetEditsState(tx: ITransaction | undefined) {
 					this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
 					this._rewriteRatioObs.set(0, tx);
 					this._waitsForLastEdits.set(false, tx);
