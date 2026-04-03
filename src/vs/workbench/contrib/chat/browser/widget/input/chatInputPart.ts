@@ -24,7 +24,7 @@ import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
@@ -2828,6 +2828,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
 
+		const cachedDiffMeta = new ResourceMap<{ added: number; removed: number }>();
+
 		const editSessionEntries = derived((reader): IChatCollapsibleListItem[] => {
 			const seenEntries = new ResourceSet();
 			const entries: IChatCollapsibleListItem[] = [];
@@ -2839,15 +2841,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				if (!seenEntries.has(entry.modifiedURI)) {
 					seenEntries.add(entry.modifiedURI);
-					const linesAdded = entry.linesAdded?.read(reader);
-					const linesRemoved = entry.linesRemoved?.read(reader);
+					const linesAdded = entry.linesAdded?.read(reader) ?? 0;
+					const linesRemoved = entry.linesRemoved?.read(reader) ?? 0;
+
+					// Cache diff meta while Modified so it survives auto-accept
+					if (state === ModifiedFileEntryState.Modified || !cachedDiffMeta.has(entry.modifiedURI)) {
+						cachedDiffMeta.set(entry.modifiedURI, { added: linesAdded, removed: linesRemoved });
+					}
+					const diffMeta = cachedDiffMeta.get(entry.modifiedURI) ?? { added: linesAdded, removed: linesRemoved };
+
 					entries.push({
 						reference: entry.modifiedURI,
 						state,
 						kind: 'reference',
 						options: {
 							status: undefined,
-							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 },
+							diffMeta,
 							isDeletion: !!entry.isDeletion,
 							originalUri: entry.isDeletion ? entry.originalURI : undefined,
 						}
