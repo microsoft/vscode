@@ -26,6 +26,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -121,6 +122,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -194,6 +196,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					return;
 				}
 
+				logSessionsInteraction(that._telemetryService, 'runPrimaryTask');
+
 				const { tasks, session } = activeState;
 				if (tasks.length === 0) {
 					const task = await that._showConfigureQuickPick(session);
@@ -238,6 +242,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
+					logSessionsInteraction(that._telemetryService, 'addTask');
 					const task = await that._showConfigureQuickPick(session);
 					if (task) {
 						await that._sessionsConfigService.runTask(task, session);
@@ -261,6 +266,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
+					logSessionsInteraction(that._telemetryService, 'generateNewTask');
 					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 				}
 			}));
@@ -504,7 +510,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			this._primaryActionAction.label = this._getPrimaryActionTooltip(runState);
 		}));
 
-		// Dropdown with categorized actions and per-item toolbars
+		// Dropdown with categorized task actions and per-item toolbars
 		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Tasks...")));
 		this._dropdown = this._register(new ChevronActionWidgetDropdown(
 			dropdownAction,
@@ -596,8 +602,8 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		const defaultCategory = { label: '', order: 0, showHeader: false };
 		// Category for worktree-creation tasks
 		const worktreeCategory = { label: localize('worktreeCreationCategory', "Run on Worktree Creation"), order: 1, showHeader: true };
-		// Category for add actions
-		const addCategory = { label: localize('addActionsCategory', "Add"), order: 2, showHeader: true };
+		// Category for task creation and management
+		const tasksCategory = { label: localize('tasksActionsCategory', "Tasks"), order: 2, showHeader: true };
 
 		for (let i = 0; i < tasks.length; i++) {
 			const entry = tasks[i];
@@ -675,7 +681,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			icon: Codicon.add,
 			enabled: canConfigure,
 			class: undefined,
-			category: addCategory,
+			category: tasksCategory,
 			run: async () => {
 				const task = await this._showConfigureQuickPick(session);
 				if (task) {
@@ -696,7 +702,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			icon: Codicon.sparkle,
 			enabled: true,
 			class: undefined,
-			category: addCategory,
+			category: tasksCategory,
 			run: async () => {
 				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 			},
@@ -708,7 +714,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 
 /**
  * {@link ActionWidgetDropdownActionViewItem} that renders a chevron-down icon
- * as its label, used as the dropdown arrow in the split button.
+ * for the split button dropdown in the titlebar.
  */
 class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {

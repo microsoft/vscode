@@ -126,6 +126,8 @@ export interface IChatRequestModel {
 	setShouldBeBlocked(value: boolean): void;
 	readonly modelId?: string;
 	readonly userSelectedTools?: UserSelectedTools;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
 }
 
 export interface ICodeBlockInfo {
@@ -342,6 +344,8 @@ export interface IChatRequestModelParameters {
 	restoredId?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	userSelectedTools?: UserSelectedTools;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -354,6 +358,8 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly modelId?: string;
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
+	public readonly isSystemInitiated?: boolean;
+	public readonly systemInitiatedLabel?: string;
 
 	private readonly _shouldBeBlocked = observableValue<boolean>(this, false);
 	public get shouldBeBlocked(): IObservable<boolean> {
@@ -425,6 +431,8 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
 		this.userSelectedTools = params.userSelectedTools;
+		this.isSystemInitiated = params.isSystemInitiated;
+		this.systemInitiatedLabel = params.systemInitiatedLabel;
 	}
 
 	adoptTo(session: ChatModel) {
@@ -1510,6 +1518,8 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
 	modeInfo?: IChatRequestModeInfo;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -2375,6 +2385,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
 			modeInfo: raw.modeInfo,
+			isSystemInitiated: raw.isSystemInitiated,
+			systemInitiatedLabel: raw.systemInitiatedLabel,
 		});
 		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
@@ -2543,7 +2555,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string, isSystemInitiated?: boolean, systemInitiatedLabel?: string): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
@@ -2561,6 +2573,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			modelId,
 			editedFileEvents: editedFileEvents.length ? editedFileEvents : undefined,
 			userSelectedTools,
+			isSystemInitiated,
+			systemInitiatedLabel,
 		});
 		request.response = new ChatResponseModel({
 			responseContent: [],
@@ -2718,6 +2732,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
 					modeInfo: r.modeInfo,
+					isSystemInitiated: r.isSystemInitiated || undefined,
+					systemInitiatedLabel: r.systemInitiatedLabel,
 					...r.response?.toJSON(),
 				};
 			}),

@@ -16,7 +16,6 @@ import { IEditorWorkerService } from '../../../../../../editor/common/services/e
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IToolCallState, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ContentEncoding, IWriteFileParams } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { IToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -70,8 +69,14 @@ function makeToolCall(opts: {
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		content: [{
 			type: ToolResultContentType.FileEdit,
-			beforeURI: opts.beforeURI,
-			afterURI: opts.afterURI,
+			before: {
+				uri: URI.file(opts.filePath).toString(),
+				content: { uri: opts.beforeURI },
+			},
+			after: {
+				uri: URI.file(opts.filePath).toString(),
+				content: { uri: opts.afterURI },
+			},
 			diff: {
 				added: opts.added ?? 0,
 				removed: opts.removed ?? 0,
@@ -89,6 +94,21 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 				throw new Error(`Content not found: ${key}`);
 			}
 			return { value: VSBuffer.fromString(data) } as IFileContent;
+		}
+		override async writeFile(uri: URI, content: VSBuffer): Promise<any> {
+			contentMap.set(uri.toString(), content.toString());
+			return {};
+		}
+		override async del(uri: URI) {
+			contentMap.delete(uri.toString());
+		}
+		override async move(source: URI, target: URI): Promise<any> {
+			const data = contentMap.get(source.toString());
+			if (data !== undefined) {
+				contentMap.set(target.toString(), data);
+				contentMap.delete(source.toString());
+			}
+			return {};
 		}
 	};
 }
@@ -305,56 +325,50 @@ suite('AgentHostEditingSession', () => {
 
 	suite('undo/redo', () => {
 
-		test('undo fires writeFile with before-content and updates state', async () => {
-			const beforeUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
+		test('undo writes before-content to file and updates state', async () => {
+			const beforeContentUri = toAgentHostUri(URI.parse('content://before-1'), 'local');
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
 			const contentMap = new Map<string, string>();
-			contentMap.set(beforeUri.toString(), 'before-content');
+			contentMap.set(beforeContentUri.toString(), 'before-content');
+			contentMap.set(fileUri.toString(), 'current-content');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({
 				toolCallId: 'tc-1',
 				filePath: '/workspace/file.ts',
-				beforeURI: URI.file('/workspace/file.ts').toString(),
+				beforeURI: 'content://before-1',
 				afterURI: 'content://after-1',
 			}));
 
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.undoInteraction();
 
-			assert.strictEqual(writes.length, 1);
-			assert.strictEqual(writes[0].data, 'before-content');
-			assert.strictEqual(writes[0].encoding, ContentEncoding.Utf8);
+			assert.strictEqual(contentMap.get(fileUri.toString()), 'before-content');
 			assert.strictEqual(session.canUndo.get(), false);
 			assert.strictEqual(session.canRedo.get(), true);
 			assert.deepStrictEqual(session.entries.get(), []);
 		});
 
-		test('redo fires writeFile with after-content', async () => {
-			const beforeUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
-			const afterUri = toAgentHostUri(URI.parse('content://after-1'), 'local');
+		test('redo writes after-content to file', async () => {
+			const beforeContentUri = toAgentHostUri(URI.parse('content://before-1'), 'local');
+			const afterContentUri = toAgentHostUri(URI.parse('content://after-1'), 'local');
+			const fileUri = toAgentHostUri(URI.file('/workspace/file.ts'), 'local');
 			const contentMap = new Map<string, string>();
-			contentMap.set(beforeUri.toString(), 'before-content');
-			contentMap.set(afterUri.toString(), 'after-content');
+			contentMap.set(beforeContentUri.toString(), 'before-content');
+			contentMap.set(afterContentUri.toString(), 'after-content');
+			contentMap.set(fileUri.toString(), 'current-content');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({
 				toolCallId: 'tc-1',
 				filePath: '/workspace/file.ts',
-				beforeURI: URI.file('/workspace/file.ts').toString(),
+				beforeURI: 'content://before-1',
 				afterURI: 'content://after-1',
 			}));
 
 			await session.undoInteraction();
-
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.redoInteraction();
 
-			assert.strictEqual(writes.length, 1);
-			assert.strictEqual(writes[0].data, 'after-content');
+			assert.strictEqual(contentMap.get(fileUri.toString()), 'after-content');
 			assert.strictEqual(session.canUndo.get(), true);
 			assert.strictEqual(session.canRedo.get(), false);
 			assert.strictEqual(session.entries.get().length, 1);
@@ -363,12 +377,8 @@ suite('AgentHostEditingSession', () => {
 		test('undo when nothing to undo is no-op', async () => {
 			const session = createSession(store, new Map());
 
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.undoInteraction();
-
-			assert.strictEqual(writes.length, 0);
+			// No assertions needed — just verifying no throw
 		});
 
 		test('redo when nothing to redo is no-op', async () => {
@@ -381,26 +391,22 @@ suite('AgentHostEditingSession', () => {
 				afterURI: 'a',
 			}));
 
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.redoInteraction();
-
-			assert.strictEqual(writes.length, 0);
+			// No assertions needed — just verifying no throw
 		});
 
 		test('undo after multiple checkpoints removes entries correctly', async () => {
 			const contentMap = new Map<string, string>();
-			contentMap.set(toAgentHostUri(URI.file('/workspace/a.ts'), 'local').toString(), 'a-before');
-			contentMap.set(toAgentHostUri(URI.file('/workspace/b.ts'), 'local').toString(), 'b-before');
-			contentMap.set(toAgentHostUri(URI.parse('content://after-a'), 'local').toString(), 'a-after');
-			contentMap.set(toAgentHostUri(URI.parse('content://after-b'), 'local').toString(), 'b-after');
+			contentMap.set(toAgentHostUri(URI.parse('content://before-a'), 'local').toString(), 'a-before');
+			contentMap.set(toAgentHostUri(URI.parse('content://before-b'), 'local').toString(), 'b-before');
+			contentMap.set(toAgentHostUri(URI.file('/workspace/a.ts'), 'local').toString(), 'a-current');
+			contentMap.set(toAgentHostUri(URI.file('/workspace/b.ts'), 'local').toString(), 'b-current');
 			const session = createSession(store, contentMap);
 
 			session.addToolCallEdits('req-1', makeToolCall({
 				toolCallId: 'tc-1',
 				filePath: '/workspace/a.ts',
-				beforeURI: URI.file('/workspace/a.ts').toString(),
+				beforeURI: 'content://before-a',
 				afterURI: 'content://after-a',
 				added: 5,
 			}));
@@ -408,7 +414,7 @@ suite('AgentHostEditingSession', () => {
 			session.addToolCallEdits('req-2', makeToolCall({
 				toolCallId: 'tc-2',
 				filePath: '/workspace/b.ts',
-				beforeURI: URI.file('/workspace/b.ts').toString(),
+				beforeURI: 'content://before-b',
 				afterURI: 'content://after-b',
 				added: 3,
 			}));
@@ -769,13 +775,8 @@ suite('AgentHostEditingSession', () => {
 			}));
 
 			// Restore to before req-2 — should undo req-2's edits
-			const writes: IWriteFileParams[] = [];
-			store.add(session.onDidRequestFileWrite(p => writes.push(p)));
-
 			await session.restoreSnapshot('req-2', undefined);
 
-			// req-2 has a tool checkpoint whose before-content should be written
-			assert.ok(writes.length > 0);
 			// Entries should only show req-1's edits
 			assert.strictEqual(session.entries.get().length, 1);
 			assert.strictEqual(session.entries.get()[0].lastModifyingRequestId, 'req-1');

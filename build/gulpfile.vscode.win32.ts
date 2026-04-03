@@ -80,7 +80,6 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
 		productJson['target'] = target;
-		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		const definitions: Record<string, unknown> = {
 			NameLong: product.nameLong,
@@ -119,6 +118,12 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			: undefined;
 
 		if (embedded) {
+			// VS Code's sibling is the embedded app.
+			productJson['win32SiblingExeBasename'] = embedded.nameShort;
+			// The embedded app's sibling is VS Code.
+			if (productJson['embedded']) {
+				productJson['embedded']['win32SiblingExeBasename'] = product.nameShort;
+			}
 			definitions['ProxyExeBasename'] = embedded.nameShort;
 			definitions['ProxyAppUserId'] = embedded.win32AppUserModelId;
 			definitions['ProxyNameLong'] = embedded.nameLong;
@@ -130,6 +135,8 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
 			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
 		}
+
+		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		packageInnoSetup(issPath, { definitions }, cb as (err?: Error | null) => void);
 	};
