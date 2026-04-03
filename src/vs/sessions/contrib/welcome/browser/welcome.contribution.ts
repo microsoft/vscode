@@ -7,7 +7,7 @@ import './media/welcomeOverlay.css';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { $, append } from '../../../../base/browser/dom.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -28,6 +28,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
@@ -48,7 +49,7 @@ class SessionsWelcomeOverlay extends Disposable {
 		this.overlay = append(container, $('.sessions-welcome-overlay'));
 		this.overlay.setAttribute('role', 'dialog');
 		this.overlay.setAttribute('aria-modal', 'true');
-		this.overlay.setAttribute('aria-label', localize('welcomeOverlay.aria', "Sign in to use Sessions"));
+		this.overlay.setAttribute('aria-label', localize('welcomeOverlay.aria', "Sign in to use Agents"));
 		this._register(toDisposable(() => this.overlay.remove()));
 
 		const card = append(this.overlay, $('.sessions-welcome-card'));
@@ -57,7 +58,7 @@ class SessionsWelcomeOverlay extends Disposable {
 		const header = append(card, $('.sessions-welcome-header'));
 		const iconEl = append(header, $('span.sessions-welcome-icon'));
 		iconEl.appendChild(renderIcon(Codicon.agent));
-		append(header, $('h2', undefined, localize('welcomeTitle', "Sign in to use Sessions")));
+		append(header, $('h2', undefined, localize('welcomeTitle', "Sign in to use Agents")));
 		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Agent-powered development")));
 
 		// Action area
@@ -93,8 +94,8 @@ class SessionsWelcomeOverlay extends Disposable {
 			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
 				dialogIcon: Codicon.agent,
 				dialogTitle: this.chatEntitlementService.anonymous ?
-					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions"),
+					localize('agents.startUsingAgents', "Start using Agents") :
+					localize('agents.signinRequired', "Sign in to use Agents"),
 			});
 
 			if (success) {
@@ -136,6 +137,14 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 	private readonly overlayRef = this._register(new MutableDisposable<DisposableStore>());
 	private readonly watcherRef = this._register(new MutableDisposable());
 
+	/**
+	 * Tracks whether the user has explicitly signed out. Used to include
+	 * {@link ChatEntitlement.Unknown} in setup checks only after a genuine
+	 * sign-out (account removed), avoiding false positives from token refreshes
+	 * where the account stays non-null.
+	 */
+	private readonly signedOut = observableValue(this, false);
+
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -144,6 +153,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -183,29 +193,39 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 	 * completed. If the user's state changes such that setup is needed again
 	 * (e.g. extension uninstalled/disabled), shows the welcome overlay.
 	 *
-	 * {@link ChatEntitlement.Unknown} is intentionally ignored here: it is
-	 * almost always a transient state caused by a stale OAuth token being
-	 * refreshed after an update. A genuine sign-out will be caught on the
-	 * next app launch via the initial {@link showOverlayIfNeeded} check.
+	 * {@link ChatEntitlement.Unknown} is intentionally ignored unless the
+	 * default account has been removed, which reliably indicates a genuine
+	 * user-initiated sign-out rather than a transient token refresh (where
+	 * the account object stays non-null).
 	 */
 	private watchEntitlementState(): void {
+		this.signedOut.set(false, undefined);
 		let setupComplete = !this._needsChatSetup(false);
-		this.watcherRef.value = autorun(reader => {
+		const store = new DisposableStore();
+
+		store.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			this.signedOut.set(account === null, undefined);
+		}));
+
+		store.add(autorun(reader => {
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
+			const isSignedOut = this.signedOut.read(reader);
 
-			const needsSetup = this._needsChatSetup(false);
+			const needsSetup = this._needsChatSetup(isSignedOut);
 			if (setupComplete && needsSetup) {
 				this.showOverlay();
 			}
 			setupComplete = !needsSetup;
-		});
+		}));
+
+		this.watcherRef.value = store;
 	}
 
 	private _needsChatSetup(includeUnknown: boolean = true): boolean {
 		const { sentiment, entitlement } = this.chatEntitlementService;
 		if (
-			!sentiment?.installed ||						// Extension not installed: run setup to install
+			!sentiment?.completed ||						// Setup not yet completed
 			sentiment?.disabled ||							// Extension disabled: run setup to enable
 			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
 			(
@@ -259,7 +279,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.resetSessionsWelcome',
-			title: localize2('resetSessionsWelcome', "Reset Sessions Welcome"),
+			title: localize2('resetSessionsWelcome', "Reset Agents Welcome"),
 			category: Categories.Developer,
 			f1: true,
 		});

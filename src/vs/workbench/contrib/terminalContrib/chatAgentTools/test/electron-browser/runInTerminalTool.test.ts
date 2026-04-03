@@ -42,7 +42,7 @@ import { ITerminalProfileResolverService } from '../../../../terminal/common/ter
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
 import { createRunInTerminalToolData, RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
-import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
@@ -228,7 +228,6 @@ suite('RunInTerminalTool', () => {
 				command: 'echo hello',
 				explanation: 'Print hello to the console',
 				goal: 'Print hello',
-				isBackground: false,
 				...params
 			} as IRunInTerminalInputParams
 		} as IToolInvocationPreparationContext;
@@ -643,7 +642,7 @@ suite('RunInTerminalTool', () => {
 			if (!confirmationMessage || typeof confirmationMessage === 'string') {
 				throw new Error('Expected markdown confirmation message');
 			}
-			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandboxNetwork.deniedDomains.'));
+			ok(confirmationMessage.value.includes('Reason for leaving the sandbox: This command accesses evil.com, which is blocked by chat.agent.sandbox.deniedNetworkDomains.'));
 		});
 
 		test('should force confirmation for explicit unsandboxed execution requests', async () => {
@@ -734,9 +733,23 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
+				mode: 'async'
+			});
+			assertConfirmationRequired(result, 'Run `bash` command?');
+		});
+
+		test('should support legacy isBackground input as async mode', async () => {
+			setAutoApprove({
+				ls: true
+			});
+
+			const result = await executeToolTest({
+				command: 'npm run watch',
+				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
-			assertConfirmationRequired(result, 'Run `bash` command in background?');
+			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
 
 		test('should auto-approve background commands in allow list', async () => {
@@ -748,7 +761,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
-				isBackground: true
+				mode: 'async'
 			});
 			assertAutoApproved(result);
 		});
@@ -762,7 +775,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
-				isBackground: true
+				mode: 'async'
 			});
 			assertAutoApproved(result);
 
@@ -872,9 +885,9 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching',
 				goal: 'Start watching',
-				isBackground: true
+				mode: 'async'
 			});
-			assertConfirmationRequired(result, 'Run command in `bash` in background?');
+			assertConfirmationRequired(result, 'Run command in `bash`?');
 		});
 
 		test('should use withLanguage title when presenter returns languageDisplayName', async () => {
@@ -891,9 +904,9 @@ suite('RunInTerminalTool', () => {
 				command: 'node -e "console.log(1)"',
 				explanation: 'Run node command',
 				goal: 'Run node command',
-				isBackground: true
+				mode: 'async'
 			});
-			assertConfirmationRequired(result, 'Run `Node.js` command in `bash` in background?');
+			assertConfirmationRequired(result, 'Run `Node.js` command in `bash`?');
 		});
 
 		test('should use withoutLanguage inDirectory title when presenter returns no languageDisplayName with cd prefix', async () => {
@@ -912,7 +925,8 @@ suite('RunInTerminalTool', () => {
 					command: 'cd /tmp && rm file.txt',
 					explanation: 'Remove a file in /tmp',
 					goal: 'Remove a file in /tmp',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
@@ -934,7 +948,8 @@ suite('RunInTerminalTool', () => {
 					command: 'cd /tmp && node -e "console.log(1)"',
 					explanation: 'Run node command in /tmp',
 					goal: 'Run node command in /tmp',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
@@ -1778,7 +1793,8 @@ suite('RunInTerminalTool', () => {
 					command: 'rm dangerous-file.txt',
 					explanation: 'Remove a file',
 					goal: 'Remove a file',
-					isBackground: false
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource
 			} as IToolInvocationPreparationContext;
@@ -1813,7 +1829,8 @@ suite('RunInTerminalTool', () => {
 					command: 'curl https://example.com',
 					explanation: 'Fetch a URL',
 					goal: 'Download content',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
 			} as IToolInvocationPreparationContext, CancellationToken.None);
@@ -1840,7 +1857,8 @@ suite('RunInTerminalTool', () => {
 					command: 'curl https://example.com',
 					explanation: 'Fetch a URL',
 					goal: 'Download content',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
 			} as IToolInvocationPreparationContext, CancellationToken.None);
@@ -1983,7 +2001,8 @@ suite('RunInTerminalTool', () => {
 					command: 'ping google.com',
 					explanation: 'Ping google.com',
 					goal: 'Ping google.com',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 
@@ -2003,7 +2022,8 @@ suite('RunInTerminalTool', () => {
 					command: 'echo hello',
 					explanation: 'Print hello',
 					goal: 'Print hello',
-					isBackground: false,
+					mode: 'sync',
+					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 
@@ -2146,7 +2166,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Enable sandbox and fire config change
 		sandboxEnabled = true;
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
 		configurationService.onDidChangeConfigurationEmitter.fire({
 			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
 			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxEnabled]),

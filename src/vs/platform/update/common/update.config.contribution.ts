@@ -77,6 +77,13 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices']
+		},
+		'update.showPostInstallInfo': {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('showPostInstallInfo', "Show update information tooltip in the title bar after a new version is installed."),
+			included: false,
 		}
 	}
 });
