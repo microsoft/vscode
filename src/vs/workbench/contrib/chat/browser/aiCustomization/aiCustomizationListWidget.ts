@@ -1646,6 +1646,11 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
+		// Hooks: expand file-level items into individual hook entries (matching core path display)
+		if (promptType === PromptsType.hook) {
+			return this._expandProviderHookItems(allItems, workspaceFolders);
+		}
+
 		return allItems
 			.filter(item => item.type === promptType)
 			.map((item: IExternalCustomizationItem) => {
@@ -1669,6 +1674,70 @@ export class AICustomizationListWidget extends Disposable {
 				};
 			})
 			.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	/**
+	 * Expands provider hook items (file-level) into individual hook entries
+	 * with hook type labels and command descriptions, matching the core path display.
+	 */
+	private async _expandProviderHookItems(allItems: readonly IExternalCustomizationItem[], workspaceFolders: readonly { uri: URI }[]): Promise<IAICustomizationListItem[]> {
+		const hookFileItems = allItems.filter(item => item.type === PromptsType.hook);
+		const items: IAICustomizationListItem[] = [];
+		const activeRoot = this.workspaceService.getActiveProjectRoot();
+		const userHomeUri = await this.pathService.userHome();
+		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+
+		for (const item of hookFileItems) {
+			const { storage } = item.groupKey
+				? { storage: undefined }
+				: this._inferStorageAndGroup(item.uri, workspaceFolders);
+
+			let parsedHooks = false;
+			try {
+				const content = await this.fileService.readFile(item.uri);
+				const json = parseJSONC(content.value.toString());
+				const { hooks } = parseHooksFromFile(item.uri, json, activeRoot, userHome);
+
+				if (hooks.size > 0) {
+					parsedHooks = true;
+					for (const [hookType, entry] of hooks) {
+						const hookMeta = HOOK_METADATA[hookType];
+						for (let i = 0; i < entry.hooks.length; i++) {
+							const hook = entry.hooks[i];
+							const cmdLabel = formatHookCommandLabel(hook, OS);
+							const truncatedCmd = cmdLabel.length > 60 ? cmdLabel.substring(0, 57) + '...' : cmdLabel;
+							items.push({
+								id: `${item.uri.toString()}#${entry.originalId}[${i}]`,
+								uri: item.uri,
+								name: hookMeta?.label ?? entry.originalId,
+								filename: basename(item.uri),
+								description: truncatedCmd || localize('hookUnset', "(unset)"),
+								storage,
+								promptType: PromptsType.hook,
+								disabled: item.enabled === false,
+							});
+						}
+					}
+				}
+			} catch {
+				// Parse failed — fall through to show raw file
+			}
+
+			if (!parsedHooks) {
+				items.push({
+					id: item.uri.toString(),
+					uri: item.uri,
+					name: item.name,
+					filename: basename(item.uri),
+					description: item.description,
+					storage,
+					promptType: PromptsType.hook,
+					disabled: item.enabled === false,
+				});
+			}
+		}
+
+		return items;
 	}
 
 	/**
