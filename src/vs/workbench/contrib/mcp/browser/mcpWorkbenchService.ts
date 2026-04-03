@@ -168,6 +168,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private _local: McpWorkbenchServer[] = [];
 	get local(): readonly McpWorkbenchServer[] { return [...this._local]; }
 
+	// Cache to track which server "won" name conflicts to prevent infinite loops
+	private _lastEnabledServersResult: Map<string, string> | undefined = undefined;
+
 	private readonly _onChange = this._register(new Emitter<IWorkbenchMcpServer | undefined>());
 	readonly onChange = this._onChange.event;
 
@@ -429,10 +432,25 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			}
 		}
 
+		// Sort to ensure deterministic conflict resolution (prevents infinite loops)
+		// When multiple workspace folders define servers with the same name, we need
+		// to consistently pick the same winner. Sorting by resource path ensures that
+		// repeated calls return the same result, breaking the update loop.
+		userRemote.sort((a, b) => a.mcpResource.toString().localeCompare(b.mcpResource.toString()));
+		workspace.sort((a, b) => a.mcpResource.toString().localeCompare(b.mcpResource.toString()));
+
+		// Track which server resource path is selected for each name (to detect changes)
+		const newWinners = new Map<string, string>();
+
 		for (const server of userRemote) {
 			const existing = result.get(server.name);
 			if (existing) {
-				this.logService.warn(localize('overwriting', "Overwriting mcp server '{0}' from {1} with {2}.", server.name, server.mcpResource.path, existing.mcpResource.path));
+				// Only log warning if this is a new conflict or the winner changed
+				const previousWinner = this._lastEnabledServersResult?.get(server.name);
+				const newWinner = server.mcpResource.toString();
+				if (previousWinner !== newWinner) {
+					this.logService.warn(localize('overwriting', "Overwriting mcp server '{0}' from {1} with {2}.", server.name, existing.mcpResource.path, server.mcpResource.path));
+				}
 			}
 			result.set(server.name, server);
 		}
@@ -440,10 +458,23 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		for (const server of workspace) {
 			const existing = result.get(server.name);
 			if (existing) {
-				this.logService.warn(localize('overwriting', "Overwriting mcp server '{0}' from {1} with {2}.", server.name, server.mcpResource.path, existing.mcpResource.path));
+				// Only log warning if this is a new conflict or the winner changed
+				const previousWinner = this._lastEnabledServersResult?.get(server.name);
+				const newWinner = server.mcpResource.toString();
+				if (previousWinner !== newWinner) {
+					this.logService.warn(localize('overwriting', "Overwriting mcp server '{0}' from {1} with {2}.", server.name, existing.mcpResource.path, server.mcpResource.path));
+				}
 			}
 			result.set(server.name, server);
 		}
+
+		// Track all final winners (servers that ended up in the result map)
+		for (const server of result.values()) {
+			newWinners.set(server.name, server.mcpResource.toString());
+		}
+
+		// Update the cache with winners from this run
+		this._lastEnabledServersResult = newWinners;
 
 		return [...result.values()];
 	}
