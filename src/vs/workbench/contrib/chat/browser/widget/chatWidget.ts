@@ -2425,6 +2425,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
 		const submittedSessionResource = this.viewModel.sessionResource;
 
+		// For contributed session types, only collect automatic instructions when
+		// the contribution explicitly opts in via autoAttachReferences.
+		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
+		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
+
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
@@ -2437,11 +2442,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
-			instructionContext: {
+			instructionContext: autoAttachEnabled ? {
 				modeKind: this.input.currentModeKind,
 				enabledTools,
 				enabledSubAgents,
-			},
+			} : undefined,
 		});
 
 		if (ChatSendResult.isRejected(result)) {
