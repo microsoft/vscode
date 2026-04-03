@@ -85,7 +85,7 @@ export function getLabelForItem(result: LiveTestResult, testId: TestId, commonPr
 
 	return {
 		label: relevant[relevant.length - 1],
-		description: relevant.slice(0, -1).join(' › '),
+		description: relevant.slice(0, -1).join(' \u203A '),
 	};
 }
 
