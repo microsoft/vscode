@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -1417,10 +1418,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return committedSession;
 		} catch (error) {
-			// Clean up temp session on error
+			this._currentNewSession = undefined;
+
+			if (error instanceof CancellationError) {
+				// Session was stopped before the agent created a worktree.
+				// Keep the temp session in the list so the user can review
+				// whatever content the agent produced before cancellation.
+				session.setStatus(SessionStatus.Completed);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
+				return newSession;
+			}
+
+			// Unexpected error — clean up the temp session entirely
 			this._sessionCache.delete(key);
 			this._sessionGroupCache.delete(session.id);
-			this._currentNewSession = undefined;
 			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(session)], changed: [] });
 			session.dispose();
 			throw error;
@@ -1516,11 +1527,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return updatedSession;
 		} catch (error) {
-			// Clean up on error — fire changed on the parent session group
+			this._currentNewSession = undefined;
+
+			if (error instanceof CancellationError) {
+				// Cancelled before commit — keep the chat in the group so the
+				// user can review the content the agent produced.
+				newChatSession.setStatus(SessionStatus.Completed);
+				this._sessionGroupCache.delete(sessionId);
+				const updatedSession = this._chatToSession(newChatSession);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
+				return updatedSession;
+			}
+
+			// Unexpected error — clean up on error, fire changed on the parent session group
 			this._sessionCache.delete(key);
 			this._groupModel.removeChat(newChatSession.id);
 			this._sessionGroupCache.delete(sessionId);
-			this._currentNewSession = undefined;
 			newChatSession.dispose();
 			// Find the parent session's primary chat to fire a valid changed event
 			const parentChatIds = this._groupModel.getChatIds(sessionId);
@@ -1616,7 +1638,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				// Check whether it was cancelled — if so, the commit will never come.
 				const response = await responseCreatedPromise;
 				if (response?.isCanceled) {
-					throw new Error('Session was cancelled before being committed');
+					throw new CancellationError();
 				}
 
 				// Response completed normally — the commit is in-flight (the extension
