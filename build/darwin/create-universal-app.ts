@@ -76,6 +76,10 @@ async function main(buildDir?: string) {
 		'**/node_modules/@github/copilot/prebuilds/darwin-arm64/**',
 		'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-x64/**',
 		'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-arm64/**',
+		'**/node_modules/@github/copilot/sdk/prebuilds/darwin-x64/**',
+		'**/node_modules/@github/copilot/sdk/prebuilds/darwin-arm64/**',
+		'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-x64/**',
+		'**/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-arm64/**',
 	];
 
 	await makeUniversalApp({
