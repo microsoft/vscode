@@ -411,7 +411,7 @@ export class OnboardingVariationA extends Disposable {
 			this._handleSignIn('apple');
 		}));
 
-		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE.com"), {
+		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
 			textOnly: true,
 			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
 		}));
