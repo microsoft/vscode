@@ -9,7 +9,7 @@ import { product, pkg } from './bootstrap-meta.js';
 import './bootstrap-node.js';
 import * as performance from './vs/base/common/performance.js';
 import { INLSConfiguration } from './vs/nls.js';
-
+// just working on it
 // Install a hook to module resolution to map 'fs' to 'original-fs'
 if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 	const jsCode = `
