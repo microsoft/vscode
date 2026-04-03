@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 
 /**
  * Step identifiers for the onboarding walkthrough.
@@ -12,6 +13,7 @@ export const enum OnboardingStepId {
 	SignIn = 'onboarding.signIn',
 	Personalize = 'onboarding.personalize',
 	Extensions = 'onboarding.extensions',
+	AiPreference = 'onboarding.aiPreference',
 	AgentSessions = 'onboarding.agentSessions',
 }
 
@@ -26,8 +28,10 @@ export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.personalize', "Make It Yours");
 		case OnboardingStepId.Extensions:
 			return localize('onboarding.step.extensions', "Supercharge Your Editor");
+		case OnboardingStepId.AiPreference:
+			return localize('onboarding.step.aiPreference', "Your AI Style");
 		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions', "Meet Your AI Coding Partner");
+			return localize('onboarding.step.agentSessions', "Meet Your Agentic Coding Partner");
 	}
 }
 
@@ -41,9 +45,11 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 		case OnboardingStepId.Personalize:
 			return localize('onboarding.step.personalize.subtitle', "Choose your theme and keyboard mapping");
 		case OnboardingStepId.Extensions:
-			return localize('onboarding.step.extensions.subtitle', "Install popular extensions to enhance your workflow");
+			return localize('onboarding.step.extensions.subtitle', "Install extensions to enhance your workflow");
+		case OnboardingStepId.AiPreference:
+			return localize('onboarding.step.aiPreference.subtitle', "Choose how much AI collaboration fits your workflow");
 		case OnboardingStepId.AgentSessions:
-			return localize('onboarding.step.agentSessions.subtitle', "Code with an AI agent that runs in the background — locally, in the cloud, or both");
+			return localize('onboarding.step.agentSessions.subtitle', "Tip: Press {0} to open Chat", isMacintosh ? '\u2318\u2325I' : 'Ctrl+Alt+I');
 	}
 }
 
@@ -88,49 +94,91 @@ export interface IOnboardingKeymapOption {
 	readonly label: string;
 	readonly extensionId: string | undefined;
 	readonly description: string;
+}
+
+/**
+ * AI collaboration preference for the AI style step.
+ */
+export const enum AiCollaborationMode {
+	CodeFirst = 'code-first',
+	Balanced = 'balanced',
+	AgentForward = 'agent-forward',
+}
+
+/**
+ * AI collaboration preference option.
+ */
+export interface IAiPreferenceOption {
+	readonly id: AiCollaborationMode;
+	readonly label: string;
+	readonly description: string;
 	readonly icon: string;
 }
+
+/**
+ * AI collaboration preference options shown in the AI style step.
+ */
+export const ONBOARDING_AI_PREFERENCE_OPTIONS: readonly IAiPreferenceOption[] = [
+	{
+		id: AiCollaborationMode.CodeFirst,
+		label: localize('onboarding.aiPref.codeFirst', "I Write the Code"),
+		description: localize('onboarding.aiPref.codeFirst.desc', "AI assists with suggestions and answers questions when you ask. You stay in control of every edit."),
+		icon: 'edit',
+	},
+	{
+		id: AiCollaborationMode.Balanced,
+		label: localize('onboarding.aiPref.balanced', "Side by Side"),
+		description: localize('onboarding.aiPref.balanced.desc', "Inline suggestions plus a chat panel for deeper collaboration. A balance of writing and delegating."),
+		icon: 'layoutSidebarRight',
+	},
+	{
+		id: AiCollaborationMode.AgentForward,
+		label: localize('onboarding.aiPref.agentForward', "AI Takes the Lead"),
+		description: localize('onboarding.aiPref.agentForward.desc', "Let the agent drive — describe what you want and review the result. Great for scaffolding and exploration."),
+		icon: 'copilot',
+	},
+];
 
 /**
  * Built-in theme options.
  */
 export const ONBOARDING_THEME_OPTIONS: readonly IOnboardingThemeOption[] = [
 	{
-		id: 'dark-modern',
-		label: localize('onboarding.theme.darkModern', "Dark Modern"),
-		themeId: 'Default Dark Modern',
+		id: 'dark-2026',
+		label: localize('onboarding.theme.dark2026', "Dark 2026"),
+		themeId: 'Dark 2026',
 		type: 'dark',
 		preview: {
-			background: '#1f1f1f',
-			foreground: '#cccccc',
-			keyword: '#569cd6',
-			string: '#ce9178',
-			comment: '#6a9955',
-			function: '#dcdcaa',
-			lineNumber: '#6e7681',
-			selection: '#264f78',
-			sidebarBackground: '#181818',
-			tabBarBackground: '#181818',
-			tabActiveBorder: '#569cd6',
+			background: '#121314',
+			foreground: '#BBBEBF',
+			keyword: '#ff7b72',
+			string: '#a5d6ff',
+			comment: '#8b949e',
+			function: '#d2a8ff',
+			lineNumber: '#858889',
+			selection: '#276782',
+			sidebarBackground: '#191A1B',
+			tabBarBackground: '#191A1B',
+			tabActiveBorder: '#3994BC',
 		},
 	},
 	{
-		id: 'light-modern',
-		label: localize('onboarding.theme.lightModern', "Light Modern"),
-		themeId: 'Default Light Modern',
+		id: 'light-2026',
+		label: localize('onboarding.theme.light2026', "Light 2026"),
+		themeId: 'Light 2026',
 		type: 'light',
 		preview: {
-			background: '#ffffff',
-			foreground: '#3b3b3b',
-			keyword: '#0000ff',
-			string: '#a31515',
-			comment: '#008000',
-			function: '#795e26',
-			lineNumber: '#6e7681',
-			selection: '#add6ff',
-			sidebarBackground: '#f8f8f8',
-			tabBarBackground: '#f8f8f8',
-			tabActiveBorder: '#0000ff',
+			background: '#FFFFFF',
+			foreground: '#202020',
+			keyword: '#cf222e',
+			string: '#0a3069',
+			comment: '#6e7781',
+			function: '#8250df',
+			lineNumber: '#606060',
+			selection: '#0069CC40',
+			sidebarBackground: '#FAFAFD',
+			tabBarBackground: '#FAFAFD',
+			tabActiveBorder: '#000000',
 		},
 	},
 	{
@@ -182,42 +230,36 @@ export const ONBOARDING_KEYMAP_OPTIONS: readonly IOnboardingKeymapOption[] = [
 		label: localize('onboarding.keymap.vscode', "VS Code"),
 		extensionId: undefined,
 		description: localize('onboarding.keymap.vscode.desc', "Default keyboard mapping"),
-		icon: 'code',
 	},
 	{
 		id: 'cursor',
 		label: localize('onboarding.keymap.cursor', "Cursor"),
 		extensionId: 'AntFu.cursor-keymaps',
 		description: localize('onboarding.keymap.cursor.desc', "Keyboard mapping from Cursor"),
-		icon: 'edit',
 	},
 	{
 		id: 'windsurf',
 		label: localize('onboarding.keymap.windsurf', "Windsurf"),
 		extensionId: 'codeium.windsurf-keybindings',
 		description: localize('onboarding.keymap.windsurf.desc', "Keyboard mapping from Windsurf"),
-		icon: 'cloud',
 	},
 	{
 		id: 'sublime',
 		label: localize('onboarding.keymap.sublime', "Sublime Text"),
 		extensionId: 'ms-vscode.sublime-keybindings',
 		description: localize('onboarding.keymap.sublime.desc', "Keyboard mapping from Sublime Text"),
-		icon: 'file-code',
 	},
 	{
 		id: 'intellij',
 		label: localize('onboarding.keymap.intellij', "IntelliJ / JetBrains"),
 		extensionId: 'k--kato.intellij-idea-keybindings',
 		description: localize('onboarding.keymap.intellij.desc', "Keyboard mapping from IntelliJ IDEA"),
-		icon: 'coffee',
 	},
 	{
 		id: 'vim',
 		label: localize('onboarding.keymap.vim', "Vim"),
 		extensionId: 'vscodevim.vim',
 		description: localize('onboarding.keymap.vim.desc', "Vim modal editing"),
-		icon: 'terminal',
 	},
 ];
 
@@ -308,11 +350,25 @@ export interface IOnboardingExtension {
  */
 export const ONBOARDING_RECOMMENDED_EXTENSIONS: readonly IOnboardingExtension[] = [
 	{
-		id: 'esbenp.prettier-vscode',
-		name: localize('ext.prettier', "Prettier"),
-		publisher: 'Prettier',
-		description: localize('ext.prettier.desc', "Code formatter for JavaScript, TypeScript, CSS, and more"),
-		icon: 'wand',
+		id: 'ms-vscode.cpptools',
+		name: localize('ext.cpp', "C/C++"),
+		publisher: 'Microsoft',
+		description: localize('ext.cpp.desc', "IntelliSense, debugging, and code browsing for C and C++"),
+		icon: 'symbol-misc',
+	},
+	{
+		id: 'ms-vscode-remote.remote-containers',
+		name: localize('ext.devContainers', "Dev Containers"),
+		publisher: 'Microsoft',
+		description: localize('ext.devContainers.desc', "Develop inside a container with a full-featured editor"),
+		icon: 'remote-explorer',
+	},
+	{
+		id: 'ms-azuretools.vscode-docker',
+		name: localize('ext.docker', "Docker"),
+		publisher: 'Microsoft',
+		description: localize('ext.docker.desc', "Build, manage, and deploy containerized applications"),
+		icon: 'package',
 	},
 	{
 		id: 'dbaeumer.vscode-eslint',
@@ -322,6 +378,20 @@ export const ONBOARDING_RECOMMENDED_EXTENSIONS: readonly IOnboardingExtension[] 
 		icon: 'lightbulb',
 	},
 	{
+		id: 'GitHub.vscode-pull-request-github',
+		name: localize('ext.ghPr', "GitHub Pull Requests"),
+		publisher: 'GitHub',
+		description: localize('ext.ghPr.desc', "Review and manage GitHub pull requests and issues"),
+		icon: 'git-pull-request',
+	},
+	{
+		id: 'esbenp.prettier-vscode',
+		name: localize('ext.prettier', "Prettier"),
+		publisher: 'Prettier',
+		description: localize('ext.prettier.desc', "Code formatter for JavaScript, TypeScript, CSS, and more"),
+		icon: 'wand',
+	},
+	{
 		id: 'ms-python.python',
 		name: localize('ext.python', "Python"),
 		publisher: 'Microsoft',
@@ -329,17 +399,10 @@ export const ONBOARDING_RECOMMENDED_EXTENSIONS: readonly IOnboardingExtension[] 
 		icon: 'symbol-misc',
 	},
 	{
-		id: 'eamodio.gitlens',
-		name: localize('ext.gitlens', "GitLens"),
-		publisher: 'GitKraken',
-		description: localize('ext.gitlens.desc', "Supercharge Git — visualize history, blame, and more"),
-		icon: 'git-merge',
-	},
-	{
-		id: 'ms-vscode.live-server',
-		name: localize('ext.livePreview', "Live Preview"),
+		id: 'ms-vscode-remote.remote-ssh',
+		name: localize('ext.remoteSsh', "Remote - SSH"),
 		publisher: 'Microsoft',
-		description: localize('ext.livePreview.desc', "Preview HTML files with live reload in the editor"),
-		icon: 'open-preview',
+		description: localize('ext.remoteSsh.desc', "Open folders and files on a remote machine via SSH"),
+		icon: 'remote',
 	},
 ];

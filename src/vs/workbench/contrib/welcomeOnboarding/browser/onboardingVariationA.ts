@@ -7,6 +7,8 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { $, append, addDisposableListener, EventType, clearNode, getActiveWindow } from '../../../../base/browser/dom.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isWindows, isMacintosh, isLinux } from '../../../../base/common/platform.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -15,20 +17,24 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
-import { IAuthenticationCreateSessionOptions, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IGalleryExtension, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import product from '../../../../platform/product/common/product.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 import {
 	OnboardingStepId,
 	ONBOARDING_STEPS,
 	ONBOARDING_THEME_OPTIONS,
 	ONBOARDING_KEYMAP_OPTIONS,
 	ONBOARDING_RECOMMENDED_EXTENSIONS,
+	ONBOARDING_AI_PREFERENCE_OPTIONS,
+	AiCollaborationMode,
 	IOnboardingThemeOption,
 	getOnboardingStepTitle,
 	getOnboardingStepSubtitle,
@@ -84,28 +90,40 @@ export class OnboardingVariationA extends Disposable {
 
 	private readonly footerFocusableElements: HTMLElement[] = [];
 	private readonly stepFocusableElements: HTMLElement[] = [];
-	private selectedThemeId = 'dark-modern';
+	private selectedThemeId = 'dark-2026';
 	private selectedKeymapId = 'vscode';
+	private _detectedEditorIds: Set<string> | undefined;
+	private _galleryExtensions: Map<string, IGalleryExtension> | undefined;
+	private _userSignedIn = false;
+	private selectedAiMode: AiCollaborationMode = AiCollaborationMode.Balanced;
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
 
 		// Detect currently active theme
 		const currentTheme = this.themeService.getColorTheme();
-		const matchingTheme = ONBOARDING_THEME_OPTIONS.find(t => t.themeId === currentTheme.label);
+		const matchingTheme = ONBOARDING_THEME_OPTIONS.find(t => t.themeId === currentTheme.settingsId);
 		if (matchingTheme) {
 			this.selectedThemeId = matchingTheme.id;
 		}
+
+		// Start detecting installed editors early so results are ready by the Personalize step
+		this._detectInstalledEditors().then(ids => { this._detectedEditorIds = ids; });
+
+		// Pre-fetch gallery data so extension icons are ready by the Extensions step
+		this._prefetchGalleryExtensions();
 	}
 
 	get isShowing(): boolean {
@@ -214,7 +232,12 @@ export class OnboardingVariationA extends Disposable {
 		this.overlay.classList.remove('visible');
 		this.overlay.classList.add('exiting');
 
+		let handled = false;
 		const onTransitionEnd = () => {
+			if (handled) {
+				return;
+			}
+			handled = true;
 			this._removeFromDOM();
 			if (reason === 'complete') {
 				this._onDidComplete.fire();
@@ -228,6 +251,10 @@ export class OnboardingVariationA extends Disposable {
 
 	private _nextStep(): void {
 		if (this.currentStepIndex < this.steps.length - 1) {
+			const leavingStep = this.steps[this.currentStepIndex];
+			if (leavingStep === OnboardingStepId.Personalize) {
+				this._applyKeymap(this.selectedKeymapId);
+			}
 			this.currentStepIndex++;
 			this._renderStep();
 			this._renderProgress();
@@ -287,7 +314,13 @@ export class OnboardingVariationA extends Disposable {
 		this.titleEl.style.display = useSignInHero ? 'none' : '';
 		this.subtitleEl.style.display = useSignInHero ? 'none' : '';
 		this.titleEl.textContent = getOnboardingStepTitle(stepId);
-		this.subtitleEl.textContent = getOnboardingStepSubtitle(stepId);
+		if (stepId === OnboardingStepId.AgentSessions) {
+			this._renderAgentSessionsSubtitle(this.subtitleEl);
+		} else if (stepId === OnboardingStepId.Personalize) {
+			this._renderPersonalizeSubtitle(this.subtitleEl);
+		} else {
+			this.subtitleEl.textContent = getOnboardingStepSubtitle(stepId);
+		}
 
 		clearNode(this.contentEl);
 
@@ -300,6 +333,9 @@ export class OnboardingVariationA extends Disposable {
 				break;
 			case OnboardingStepId.Extensions:
 				this._renderExtensionsStep(this.contentEl);
+				break;
+			case OnboardingStepId.AiPreference:
+				this._renderAiPreferenceStep(this.contentEl);
 				break;
 			case OnboardingStepId.AgentSessions:
 				this._renderAgentSessionsStep(this.contentEl);
@@ -337,8 +373,8 @@ export class OnboardingVariationA extends Disposable {
 		const wrapper = append(container, $('.onboarding-a-signin'));
 		const brand = append(wrapper, $('.onboarding-a-signin-brand'));
 		const brandIcon = append(brand, $('span.onboarding-a-signin-brand-icon'));
-		brandIcon.setAttribute('aria-hidden', 'true');
-		brandIcon.appendChild(renderIcon(Codicon.vscode));
+		brandIcon.setAttribute('role', 'img');
+		brandIcon.setAttribute('aria-label', product.nameLong);
 
 		const content = append(wrapper, $('.onboarding-a-signin-content'));
 		const contentMain = append(content, $('.onboarding-a-signin-content-main'));
@@ -350,12 +386,12 @@ export class OnboardingVariationA extends Disposable {
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
-		const githubBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github', localize('onboarding.signIn.githubCopilot', "Continue with GitHub Copilot"), {
+		const githubBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github', localize('onboarding.signIn.github', "Continue with GitHub"), {
 			emphasized: true,
-			label: localize('onboarding.signIn.githubCopilot.aria', "Continue with GitHub Copilot")
+			label: localize('onboarding.signIn.github.aria', "Continue with GitHub")
 		}));
 		this.stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => {
-			this._handleSignIn('github', ['user:email']);
+			this._handleSignIn();
 		}));
 
 		const googleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'google', localize('onboarding.signIn.google', "Continue with Google"), {
@@ -363,7 +399,7 @@ export class OnboardingVariationA extends Disposable {
 			label: localize('onboarding.signIn.google', "Continue with Google")
 		}));
 		this.stepDisposables.add(addDisposableListener(googleBtn, EventType.CLICK, () => {
-			this._handleSignIn('github', ['user:email'], { provider: 'google' });
+			this._handleSignIn('google');
 		}));
 
 		const appleBtn = this._registerStepFocusable(this._createSignInButton(actions, 'apple', localize('onboarding.signIn.apple', "Continue with Apple"), {
@@ -371,16 +407,18 @@ export class OnboardingVariationA extends Disposable {
 			label: localize('onboarding.signIn.apple', "Continue with Apple")
 		}));
 		this.stepDisposables.add(addDisposableListener(appleBtn, EventType.CLICK, () => {
-			this._handleSignIn('github', ['user:email'], { provider: 'apple' });
+			this._handleSignIn('apple');
+		}));
+
+		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE.com"), {
+			textOnly: true,
+			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
+		}));
+		this.stepDisposables.add(addDisposableListener(gheBtn, EventType.CLICK, () => {
+			this._handleEnterpriseSignIn();
 		}));
 
 		const footer = append(content, $('.onboarding-a-signin-footer'));
-		const enterpriseLink = this._registerStepFocusable(append(footer, $<HTMLButtonElement>('button.onboarding-a-signin-inline-link')));
-		enterpriseLink.type = 'button';
-		enterpriseLink.textContent = localize('onboarding.signIn.enterpriseLink', "Sign in with GitHub Enterprise (ghe.com)");
-		this.stepDisposables.add(addDisposableListener(enterpriseLink, EventType.CLICK, () => {
-			this._handleEnterpriseSignIn();
-		}));
 
 		const disclaimer = append(footer, $('.onboarding-a-signin-disclaimer'));
 		disclaimer.append(localize('onboarding.signIn.disclaimer.prefix', "By continuing, you agree to {0}'s ", defaultChat.provider.default.name));
@@ -394,8 +432,9 @@ export class OnboardingVariationA extends Disposable {
 		disclaimer.append(localize('onboarding.signIn.disclaimer.suffix', " anytime."));
 	}
 
-	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'google' | 'apple', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; label?: string }): HTMLButtonElement {
-		const btn = append(parent, $<HTMLButtonElement>(options?.iconOnly ? 'button.onboarding-a-signin-icon-btn' : 'button.onboarding-a-signin-btn'));
+	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
+		const isCompact = options?.iconOnly || options?.textOnly;
+		const btn = append(parent, $<HTMLButtonElement>(isCompact ? 'button.onboarding-a-signin-icon-btn' : 'button.onboarding-a-signin-btn'));
 		btn.type = 'button';
 		btn.title = options?.label ?? label;
 		btn.setAttribute('aria-label', options?.label ?? label);
@@ -403,11 +442,13 @@ export class OnboardingVariationA extends Disposable {
 			btn.classList.add('primary');
 		}
 
-		const mark = append(btn, $('span.onboarding-a-provider-mark'));
-		mark.classList.add(providerClass);
-		mark.setAttribute('aria-hidden', 'true');
-		if (providerClass === 'github') {
-			mark.appendChild(renderIcon(Codicon.github));
+		if (!options?.textOnly) {
+			const mark = append(btn, $('span.onboarding-a-provider-mark'));
+			mark.classList.add(providerClass);
+			mark.setAttribute('aria-hidden', 'true');
+			if (providerClass === 'github' || providerClass === 'github-enterprise') {
+				mark.appendChild(renderIcon(Codicon.github));
+			}
 		}
 
 		if (!options?.iconOnly) {
@@ -418,10 +459,14 @@ export class OnboardingVariationA extends Disposable {
 		return btn;
 	}
 
-	private async _handleSignIn(providerId: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<void> {
+	private async _handleSignIn(socialProvider?: string): Promise<void> {
 		try {
-			const session = await this.authenticationService.createSession(providerId, scopes, options);
-			if (session) {
+			const account = await this.defaultAccountService.signIn({
+				extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
+				provider: socialProvider,
+			});
+			if (account) {
+				this._userSignedIn = true;
 				this._nextStep();
 			}
 		} catch (error) {
@@ -443,8 +488,11 @@ export class OnboardingVariationA extends Disposable {
 				return;
 			}
 
-			const session = await this.authenticationService.createSession(defaultChat.provider.enterprise.id, ['user:email']);
-			if (session) {
+			const account = await this.defaultAccountService.signIn({
+				extraAuthorizeParameters: { get_started_with: 'copilot-vscode' },
+			});
+			if (account) {
+				this._userSignedIn = true;
 				this._nextStep();
 			}
 		} catch (error) {
@@ -538,48 +586,67 @@ export class OnboardingVariationA extends Disposable {
 		const themeHint = append(themeSection, $('div.onboarding-a-theme-hint'));
 		themeHint.textContent = localize('onboarding.personalize.themeHint', "You can browse and install more themes later from the Extensions view.");
 
-		// Keyboard Mapping section
-		const keymapSection = append(wrapper, $('div.onboarding-a-personalize-section.onboarding-a-personalize-section-keymap'));
-		const keymapLabel = append(keymapSection, $('div.onboarding-a-section-label'));
-		keymapLabel.textContent = localize('onboarding.personalize.keymap', "Keyboard Mapping");
+		// Keyboard Mapping section — only shown when another editor is detected
+		const keymapOptions = this._detectedEditorIds
+			? ONBOARDING_KEYMAP_OPTIONS.filter(k => this._detectedEditorIds!.has(k.id))
+			: [];
+		const hasOtherEditors = this._hasOtherEditors();
 
-		const keymapHint = append(keymapSection, $('div.onboarding-a-theme-hint'));
-		keymapHint.textContent = localize('onboarding.personalize.keymapHint', "Coming from another editor? Import your keyboard mapping to feel right at home.");
+		if (hasOtherEditors) {
+			const keymapSection = append(wrapper, $('div.onboarding-a-personalize-section.onboarding-a-personalize-section-keymap'));
+			const keymapLabel = append(keymapSection, $('div.onboarding-a-section-label'));
+			keymapLabel.textContent = localize('onboarding.personalize.keymap', "Keyboard Mapping");
 
-		const keymapList = append(keymapSection, $('.onboarding-a-keymap-list'));
-		keymapList.setAttribute('role', 'radiogroup');
-		keymapList.setAttribute('aria-label', localize('onboarding.personalize.keymapLabel', "Choose a keyboard mapping"));
+			const keymapHint = append(keymapSection, $('div.onboarding-a-theme-hint'));
+			keymapHint.textContent = localize('onboarding.personalize.keymapHint', "Coming from another editor? Import your keyboard mapping to feel right at home.");
 
-		const keymapPills: HTMLButtonElement[] = [];
-		for (const keymap of ONBOARDING_KEYMAP_OPTIONS) {
-			const pill = this._registerStepFocusable(append(keymapList, $<HTMLButtonElement>('button.onboarding-a-keymap-pill')));
-			pill.type = 'button';
-			pill.setAttribute('role', 'radio');
-			pill.setAttribute('aria-checked', keymap.id === this.selectedKeymapId ? 'true' : 'false');
-			pill.title = keymap.description;
-			keymapPills.push(pill);
+			const keymapList = append(keymapSection, $('.onboarding-a-keymap-list'));
+			keymapList.setAttribute('role', 'radiogroup');
+			keymapList.setAttribute('aria-label', localize('onboarding.personalize.keymapLabel', "Choose a keyboard mapping"));
 
-			// Icon + label
-			pill.appendChild(renderIcon(this._getKeymapIcon(keymap.icon)));
-			const labelSpan = append(pill, $('span'));
-			labelSpan.textContent = keymap.label;
+			const keymapPills: HTMLButtonElement[] = [];
+			for (const keymap of keymapOptions) {
+				const pill = this._registerStepFocusable(append(keymapList, $<HTMLButtonElement>('button.onboarding-a-keymap-pill')));
+				pill.type = 'button';
+				pill.setAttribute('role', 'radio');
+				pill.setAttribute('aria-checked', keymap.id === this.selectedKeymapId ? 'true' : 'false');
+				pill.title = keymap.description;
+				keymapPills.push(pill);
 
-			if (keymap.id === this.selectedKeymapId) {
-				pill.classList.add('selected');
-			}
+				const labelSpan = append(pill, $('span'));
+				labelSpan.textContent = keymap.label;
 
-			this.stepDisposables.add(addDisposableListener(pill, EventType.CLICK, () => {
-				this.selectedKeymapId = keymap.id;
-				this._applyKeymap(keymap.id);
-
-				for (const p of keymapPills) {
-					p.classList.remove('selected');
-					p.setAttribute('aria-checked', 'false');
+				if (keymap.id === this.selectedKeymapId) {
+					pill.classList.add('selected');
 				}
-				pill.classList.add('selected');
-				pill.setAttribute('aria-checked', 'true');
-			}));
+
+				this.stepDisposables.add(addDisposableListener(pill, EventType.CLICK, () => {
+					this.selectedKeymapId = keymap.id;
+
+					for (const p of keymapPills) {
+						p.classList.remove('selected');
+						p.setAttribute('aria-checked', 'false');
+					}
+					pill.classList.add('selected');
+					pill.setAttribute('aria-checked', 'true');
+				}));
+			}
 		}
+
+	}
+
+	private _renderPersonalizeSubtitle(container: HTMLElement): void {
+		clearNode(container);
+		const modifier = isMacintosh ? 'Cmd' : 'Ctrl';
+		container.append(
+			localize('onboarding.personalize.tip.prefix', "Tip: Press "),
+			this._createKbd(localize({ key: 'onboarding.personalize.tip.modifier', comment: ['This is a keyboard modifier key, Ctrl on Windows/Linux or Cmd on Mac'] }, "{0}", modifier)),
+			'+',
+			this._createKbd(localize('onboarding.personalize.tip.shift', "Shift")),
+			'+',
+			this._createKbd(localize('onboarding.personalize.tip.p', "P")),
+			localize('onboarding.personalize.tip.suffix', " to access all VS Code commands."),
+		);
 	}
 
 	private _createThemeCard(parent: HTMLElement, theme: IOnboardingThemeOption, allCards: HTMLElement[]): void {
@@ -668,19 +735,6 @@ export class OnboardingVariationA extends Disposable {
 		}
 	}
 
-	/** Maps keymap icon name strings to codicons. */
-	private _getKeymapIcon(iconName: string): ThemeIcon {
-		switch (iconName) {
-			case 'code': return Codicon.vscode;
-			case 'edit': return Codicon.edit;
-			case 'cloud': return Codicon.cloud;
-			case 'file-code': return Codicon.fileCode;
-			case 'coffee': return Codicon.coffee;
-			case 'terminal': return Codicon.terminal;
-			default: return Codicon.keyboard;
-		}
-	}
-
 	// =====================================================================
 	// Step: Extensions
 	// =====================================================================
@@ -690,11 +744,16 @@ export class OnboardingVariationA extends Disposable {
 
 		const extList = append(wrapper, $('div.onboarding-a-ext-list'));
 
+		// Build a map of icon elements so we can update them once gallery data arrives
+		const iconElements = new Map<string, HTMLElement>();
+
 		for (const ext of ONBOARDING_RECOMMENDED_EXTENSIONS) {
 			const row = append(extList, $('div.onboarding-a-ext-row'));
 
 			const iconEl = append(row, $('div.onboarding-a-ext-icon'));
+			// Start with a codicon placeholder
 			iconEl.appendChild(renderIcon(this._getExtIcon(ext.icon)));
+			iconElements.set(ext.id.toLowerCase(), iconEl);
 
 			const info = append(row, $('div.onboarding-a-ext-info'));
 			const nameRow = append(info, $('div.onboarding-a-ext-name-row'));
@@ -710,10 +769,68 @@ export class OnboardingVariationA extends Disposable {
 			installBtn.textContent = localize('onboarding.ext.install', "Install");
 
 			this.stepDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
-				installBtn.textContent = localize('onboarding.ext.installed', "Installed");
+				installBtn.textContent = localize('onboarding.ext.installing', "Installing...");
 				installBtn.disabled = true;
-				installBtn.classList.add('installed');
+				this._installExtension(ext.id).then(
+					() => {
+						installBtn.textContent = localize('onboarding.ext.installed', "Installed");
+						installBtn.classList.add('installed');
+					},
+					() => {
+						installBtn.textContent = localize('onboarding.ext.install', "Install");
+						installBtn.disabled = false;
+					}
+				);
 			}));
+		}
+
+		// Apply gallery icons — if prefetch finished, icons render immediately; otherwise they swap in once ready
+		this._applyExtensionIcons(iconElements);
+	}
+
+	private async _prefetchGalleryExtensions(): Promise<void> {
+		try {
+			const ids = ONBOARDING_RECOMMENDED_EXTENSIONS.map(ext => ({ id: ext.id }));
+			const extensions = await this.extensionGalleryService.getExtensions(ids, CancellationToken.None);
+			const map = new Map<string, IGalleryExtension>();
+			for (const ext of extensions) {
+				map.set(ext.identifier.id.toLowerCase(), ext);
+			}
+			this._galleryExtensions = map;
+		} catch {
+			// Gallery unavailable — icons will stay as codicon placeholders
+		}
+	}
+
+	private async _applyExtensionIcons(iconElements: Map<string, HTMLElement>): Promise<void> {
+		// Wait for prefetch if it hasn't completed yet
+		if (!this._galleryExtensions) {
+			await this._prefetchGalleryExtensions();
+		}
+		if (!this._galleryExtensions) {
+			return;
+		}
+		for (const [id, galleryExt] of this._galleryExtensions) {
+			const iconAsset = galleryExt.assets.icon;
+			if (!iconAsset) {
+				continue;
+			}
+			const iconEl = iconElements.get(id);
+			if (!iconEl) {
+				continue;
+			}
+			const img = $<HTMLImageElement>('img.onboarding-a-ext-icon-img');
+			img.alt = '';
+			img.src = iconAsset.uri;
+			this.stepDisposables.add(addDisposableListener(img, EventType.ERROR, () => {
+				if (iconAsset.fallbackUri) {
+					img.src = iconAsset.fallbackUri;
+				}
+			}, { once: true }));
+			this.stepDisposables.add(addDisposableListener(img, EventType.LOAD, () => {
+				clearNode(iconEl);
+				iconEl.appendChild(img);
+			}, { once: true }));
 		}
 	}
 
@@ -722,15 +839,33 @@ export class OnboardingVariationA extends Disposable {
 			case 'wand': return Codicon.wand;
 			case 'lightbulb': return Codicon.lightbulb;
 			case 'symbol-misc': return Codicon.symbolMisc;
-			case 'git-merge': return Codicon.gitMerge;
-			case 'open-preview': return Codicon.openPreview;
+			case 'git-pull-request': return Codicon.gitPullRequest;
 			default: return Codicon.extensions;
 		}
 	}
 
-	private _selectTheme(theme: IOnboardingThemeOption): void {
+	private async _selectTheme(theme: IOnboardingThemeOption): Promise<void> {
 		this.selectedThemeId = theme.id;
-		this.themeService.setColorTheme(theme.themeId, undefined);
+		const allThemes = await this.themeService.getColorThemes();
+		const match = allThemes.find(t => t.settingsId === theme.themeId);
+		if (match) {
+			this.themeService.setColorTheme(match.id, ConfigurationTarget.USER);
+		}
+	}
+
+	private async _installExtension(extensionId: string): Promise<void> {
+		try {
+			const gallery = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
+			if (gallery.length > 0) {
+				await this.extensionManagementService.installFromGallery(gallery[0], { context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true } });
+			}
+		} catch (err) {
+			this.notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('onboarding.ext.installError', "Could not install extension. You can install it later from the Extensions view."),
+			});
+			throw err;
+		}
 	}
 
 	private async _applyKeymap(keymapId: string): Promise<void> {
@@ -742,7 +877,7 @@ export class OnboardingVariationA extends Disposable {
 		try {
 			const gallery = await this.extensionGalleryService.getExtensions([{ id: keymap.extensionId }], CancellationToken.None);
 			if (gallery.length > 0) {
-				await this.extensionManagementService.installFromGallery(gallery[0]);
+				await this.extensionManagementService.installFromGallery(gallery[0], { context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true } });
 			}
 		} catch {
 			this.notificationService.notify({
@@ -752,49 +887,230 @@ export class OnboardingVariationA extends Disposable {
 		}
 	}
 
+	private _hasOtherEditors(): boolean {
+		const keymapOptions = this._detectedEditorIds
+			? ONBOARDING_KEYMAP_OPTIONS.filter(k => this._detectedEditorIds!.has(k.id))
+			: [];
+		return keymapOptions.some(k => k.id !== 'vscode');
+	}
+
+	/**
+	 * Checks common install paths for known editors and returns the set of
+	 * keymap option IDs whose editors are found on this machine.
+	 * Always includes 'vscode' (the default). In web environments or on
+	 * unknown platforms, returns only 'vscode'.
+	 */
+	private async _detectInstalledEditors(): Promise<Set<string>> {
+		const detected = new Set<string>(['vscode']);
+		const home = this.pathService.userHome({ preferLocal: true });
+
+		interface EditorCheck { id: string; paths: URI[] }
+		const checks: EditorCheck[] = [];
+
+		if (isWindows) {
+			const localAppData = URI.joinPath(home, 'AppData', 'Local');
+			checks.push(
+				{ id: 'cursor', paths: [URI.joinPath(localAppData, 'Programs', 'cursor', 'Cursor.exe')] },
+				{ id: 'windsurf', paths: [URI.joinPath(localAppData, 'Programs', 'windsurf', 'Windsurf.exe')] },
+				{ id: 'sublime', paths: [URI.file('C:\\Program Files\\Sublime Text\\sublime_text.exe'), URI.file('C:\\Program Files\\Sublime Text 3\\sublime_text.exe')] },
+				{ id: 'intellij', paths: [URI.joinPath(localAppData, 'JetBrains', 'Toolbox')] },
+				{ id: 'vim', paths: [URI.joinPath(home, '_vimrc'), URI.joinPath(localAppData, 'nvim', 'init.vim'), URI.joinPath(localAppData, 'nvim', 'init.lua')] },
+			);
+		} else if (isMacintosh) {
+			checks.push(
+				{ id: 'cursor', paths: [URI.file('/Applications/Cursor.app')] },
+				{ id: 'windsurf', paths: [URI.file('/Applications/Windsurf.app')] },
+				{ id: 'sublime', paths: [URI.file('/Applications/Sublime Text.app')] },
+				{ id: 'intellij', paths: [URI.file('/Applications/IntelliJ IDEA.app'), URI.file('/Applications/IntelliJ IDEA CE.app')] },
+				{ id: 'vim', paths: [URI.joinPath(home, '.vimrc'), URI.joinPath(home, '.config', 'nvim', 'init.vim'), URI.joinPath(home, '.config', 'nvim', 'init.lua')] },
+			);
+		} else if (isLinux) {
+			checks.push(
+				{ id: 'cursor', paths: [URI.file('/usr/bin/cursor'), URI.file('/usr/local/bin/cursor')] },
+				{ id: 'windsurf', paths: [URI.file('/usr/bin/windsurf'), URI.file('/usr/local/bin/windsurf')] },
+				{ id: 'sublime', paths: [URI.file('/usr/bin/subl'), URI.file('/opt/sublime_text/sublime_text')] },
+				{ id: 'intellij', paths: [URI.joinPath(home, '.local', 'share', 'JetBrains', 'Toolbox'), URI.file('/opt/idea')] },
+				{ id: 'vim', paths: [URI.joinPath(home, '.vimrc'), URI.joinPath(home, '.config', 'nvim', 'init.vim'), URI.joinPath(home, '.config', 'nvim', 'init.lua')] },
+			);
+		}
+
+		await Promise.all(checks.map(async check => {
+			for (const path of check.paths) {
+				try {
+					if (await this.fileService.exists(path)) {
+						detected.add(check.id);
+						return;
+					}
+				} catch {
+					// Path not accessible — skip
+				}
+			}
+		}));
+
+		return detected;
+	}
+
+	// =====================================================================
+	// Step: AI Preference
+	// =====================================================================
+
+	private _renderAiPreferenceStep(container: HTMLElement): void {
+		const wrapper = append(container, $('.onboarding-a-ai-pref'));
+
+		const cards = append(wrapper, $('.onboarding-a-ai-pref-cards'));
+
+		const allCards: HTMLButtonElement[] = [];
+		for (const option of ONBOARDING_AI_PREFERENCE_OPTIONS) {
+			const card = this._registerStepFocusable(append(cards, $<HTMLButtonElement>('button.onboarding-a-ai-pref-card')));
+			card.type = 'button';
+			card.dataset.id = option.id;
+			allCards.push(card);
+
+			if (option.id === this.selectedAiMode) {
+				card.classList.add('selected');
+			}
+
+			const iconEl = append(card, $('span.onboarding-a-ai-pref-card-icon'));
+			iconEl.setAttribute('aria-hidden', 'true');
+			const icon = Codicon[option.icon as keyof typeof Codicon] ?? Codicon.sparkle;
+			iconEl.appendChild(renderIcon(icon));
+
+			const titleEl = append(card, $('div.onboarding-a-ai-pref-card-title'));
+			titleEl.textContent = option.label;
+
+			const descEl = append(card, $('div.onboarding-a-ai-pref-card-desc'));
+			descEl.textContent = option.description;
+
+			this.stepDisposables.add(addDisposableListener(card, EventType.CLICK, () => {
+				this.selectedAiMode = option.id;
+				for (const c of allCards) {
+					c.classList.toggle('selected', c.dataset.id === option.id);
+				}
+				this._applyAiPreference(option.id);
+			}));
+		}
+
+		const hint = append(wrapper, $('div.onboarding-a-ai-pref-hint'));
+		hint.textContent = localize('onboarding.aiPref.hint', "You can change this anytime in Settings.");
+	}
+
+	private _applyAiPreference(mode: AiCollaborationMode): void {
+		switch (mode) {
+			case AiCollaborationMode.CodeFirst:
+				this.configurationService.updateValue('chat.agent.autoFix', false, ConfigurationTarget.USER);
+				break;
+			case AiCollaborationMode.Balanced:
+				this.configurationService.updateValue('chat.agent.autoFix', true, ConfigurationTarget.USER);
+				break;
+			case AiCollaborationMode.AgentForward:
+				this.configurationService.updateValue('chat.agent.autoFix', true, ConfigurationTarget.USER);
+				break;
+		}
+	}
+
 	// =====================================================================
 	// Step: Agent Sessions
 	// =====================================================================
+
+	private _renderAgentSessionsSubtitle(el: HTMLElement): void {
+		clearNode(el);
+		const keys = isMacintosh
+			? ['\u2318', '\u2325', 'I']  // ⌘, ⌥, I
+			: ['Ctrl', 'Alt', 'I'];
+		const shortcut = keys.map(k => this._createKbd(k));
+		el.append(
+			localize('onboarding.step.agentSessions.subtitle.before', "Tip: Press "),
+		);
+		for (let i = 0; i < shortcut.length; i++) {
+			if (i > 0) {
+				el.append(' + ');
+			}
+			el.append(shortcut[i]);
+		}
+		el.append(
+			localize('onboarding.step.agentSessions.subtitle.after', " to open Chat"),
+		);
+	}
 
 	private _renderAgentSessionsStep(container: HTMLElement): void {
 		const wrapper = append(container, $('.onboarding-a-sessions'));
 
 		const features = append(wrapper, $('.onboarding-a-sessions-features'));
 
-		// Clickable feature cards that launch sessions
-		const cloudCard = this._createFeatureCard(features, Codicon.cloud, localize('onboarding.sessions.cloud', "Cloud Sessions"), localize('onboarding.sessions.cloud.desc', "Run agents in the cloud. Code keeps running even when you close the window."));
-		this.stepDisposables.add(addDisposableListener(cloudCard, EventType.CLICK, () => {
-			this._dismiss('complete');
-			this.commandService.executeCommand('workbench.action.chat.open');
-		}));
-
-		const localCard = this._createFeatureCard(features, Codicon.deviceDesktop, localize('onboarding.sessions.local', "Local Sessions"), localize('onboarding.sessions.local.desc', "Run agents locally with full access to your machine and tools."));
+		// Left column: Local + Cloud — Right column: Copilot CLI + Inline
+		const { card: localCard } = this._createFeatureCard(features, Codicon.deviceDesktop, localize('onboarding.sessions.local', "Local Sessions"), localize('onboarding.sessions.local.desc', "Run agents locally with full access to your machine and tools."));
 		this.stepDisposables.add(addDisposableListener(localCard, EventType.CLICK, () => {
 			this._dismiss('complete');
-			this.commandService.executeCommand('workbench.action.chat.open');
+			this.commandService.executeCommand('workbench.action.chat.openNewChatSessionInPlace.local', 'sidebar');
 		}));
 
-		const parallelCard = this._createFeatureCard(features, Codicon.gitBranch, localize('onboarding.sessions.worktree', "Worktree Sessions"), localize('onboarding.sessions.worktree.desc', "Branch off and work in parallel with isolated worktrees."));
+		const { card: parallelCard } = this._createFeatureCard(features, Codicon.worktree, localize('onboarding.sessions.worktree', "Copilot CLI"), localize('onboarding.sessions.worktree.desc', "Branch off and work in parallel with isolated worktrees."));
 		this.stepDisposables.add(addDisposableListener(parallelCard, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.openNewChatSessionInPlace.copilotcli', 'sidebar');
+		}));
+
+		const { card: cloudCard } = this._createFeatureCard(features, Codicon.cloud, localize('onboarding.sessions.cloud', "Cloud Sessions"), localize('onboarding.sessions.cloud.desc', "Run agents in the cloud. Code keeps running even when you close the window."));
+		this.stepDisposables.add(addDisposableListener(cloudCard, EventType.CLICK, () => {
+			this._dismiss('complete');
+			this.commandService.executeCommand('workbench.action.chat.openNewChatSessionInPlace.copilot-cloud-agent', 'sidebar');
+		}));
+
+		const { card: inlineCard, descEl: inlineDesc } = this._createFeatureCard(features, Codicon.keyboardTab, localize('onboarding.sessions.inline', "Inline Suggestions"));
+		inlineDesc.append(
+			localize('onboarding.sessions.inline.desc1', "As you type, AI suggests code inline. Press "),
+			this._createKbd(localize('onboarding.sessions.inline.tab', "Tab")),
+			localize('onboarding.sessions.inline.desc2', " to accept or "),
+			this._createKbd(localize('onboarding.sessions.inline.esc', "Esc")),
+			localize('onboarding.sessions.inline.desc3', " to dismiss."),
+		);
+		this.stepDisposables.add(addDisposableListener(inlineCard, EventType.CLICK, () => {
 			this._dismiss('complete');
 			this.commandService.executeCommand('workbench.action.chat.open');
 		}));
 
-		// Doc links
+		// Doc links + optional sign-in nudge on the same row
 		const docs = append(wrapper, $('.onboarding-a-sessions-docs'));
-		this._createDocLink(docs, localize('onboarding.sessions.learnMore', "Learn about agent sessions"), 'https://code.visualstudio.com/docs/copilot/agent-sessions');
-		this._createDocLink(docs, localize('onboarding.sessions.github', "GitHub integration docs"), 'https://code.visualstudio.com/docs/copilot/github');
+		this._createDocLink(docs, localize('onboarding.sessions.videoTutorials', "Watch video tutorials"), 'https://aka.ms/vscode-getting-started-video');
+
+		// Conditional sign-in nudge if user skipped sign-in on step 1
+		if (!this._userSignedIn) {
+			this._renderSignInNudge(docs);
+		}
 	}
 
-	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description: string): HTMLElement {
+	private _renderSignInNudge(parent: HTMLElement): void {
+		const nudge = append(parent, $('.onboarding-a-signin-nudge'));
+
+		const btn = this._registerStepFocusable(append(nudge, $<HTMLButtonElement>('button.onboarding-a-signin-nudge-btn')));
+		btn.type = 'button';
+		btn.textContent = localize('onboarding.sessions.signInNudge', "Sign in for AI Powered Features");
+		this.stepDisposables.add(addDisposableListener(btn, EventType.CLICK, async () => {
+			await this._handleSignIn();
+			if (this._userSignedIn) {
+				// Remove nudge after successful sign-in and re-render
+				nudge.remove();
+			}
+		}));
+	}
+
+	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): { card: HTMLElement; descEl: HTMLElement } {
 		const card = this._registerStepFocusable(append(parent, $('button.onboarding-a-feature-card')));
 		(card as HTMLButtonElement).type = 'button';
 		card.appendChild(renderIcon(icon));
 		const titleEl = append(card, $('div.onboarding-a-feature-title'));
 		titleEl.textContent = title;
 		const descEl = append(card, $('div.onboarding-a-feature-desc'));
-		descEl.textContent = description;
-		return card;
+		if (description) {
+			descEl.textContent = description;
+		}
+		return { card, descEl };
+	}
+
+	private _createKbd(label: string): HTMLElement {
+		const kbd = $('kbd.onboarding-a-kbd');
+		kbd.textContent = label;
+		return kbd;
 	}
 
 	private _createDocLink(parent: HTMLElement, label: string, href: string): void {

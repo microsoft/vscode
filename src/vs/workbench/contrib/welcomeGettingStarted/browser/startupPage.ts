@@ -31,6 +31,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import { OnboardingVariationA } from '../../welcomeOnboarding/browser/onboardingVariationA.js';
+import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -91,7 +93,8 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.run().then(undefined, onUnexpectedError);
@@ -138,7 +141,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					await this.openGettingStarted(true);
+					this.tryShowOnboarding();
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -224,6 +227,23 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		}
 
 		return true; // do not steal focus
+	}
+
+	private tryShowOnboarding(): boolean {
+		if (this.storageService.get(ONBOARDING_STORAGE_KEY, StorageScope.PROFILE)) {
+			return false; // onboarding already completed
+		}
+
+		const modal = this.instantiationService.createInstance(OnboardingVariationA);
+		modal.show();
+
+		const listener = modal.onDidDismiss(() => {
+			this.storageService.store(ONBOARDING_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+			listener.dispose();
+			modal.dispose();
+		});
+
+		return true;
 	}
 }
 

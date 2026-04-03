@@ -29,6 +29,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const instantiationService = accessor.get(IInstantiationService);
 		const modal = instantiationService.createInstance(OnboardingVariationA);
+		modal.onDidDismiss(() => modal.dispose());
 		modal.show();
 	}
 });
