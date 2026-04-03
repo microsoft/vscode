@@ -10,10 +10,9 @@
  *  Section 2: Root node_modules ClearlyDefined gaps (LICENSE on disk but not in CG output)
  *
  *  Usage:
- *    node scan-licenses.js --repo <path> [--cg-notice <path>] --output <path>
+ *    node scan-licenses.js --repo <path> --output <path>
  *
  *  --repo         Path to the vscode repo root
- *  --cg-notice    Optional: CG-generated NOTICE file. Packages already covered will be skipped.
  *  --output       Path to write the supplemental NOTICE entries
  *--------------------------------------------------------------------------------------------*/
 
@@ -31,40 +30,18 @@ interface LicenseEntry {
 }
 
 /**
- * Parse a CG NOTICE file to extract the set of package names already covered.
+ * The OSS tool validates that LICENSE text contains a copyright statement.
+ * This regex matches the same patterns: "copyright", "(c)", or the copyright symbol.
+ * See: vscode-build-tools/distro-tools/lib/item.ts resolveLicense()
  */
-function parseCoveredNames(noticePath: string): Set<string> {
-	const names = new Set<string>();
-	if (!fs.existsSync(noticePath)) {
-		return names;
-	}
-	const content = fs.readFileSync(noticePath, 'utf8');
-	const lines = content.split('\n');
-	const sepRe = /^-{50,}$/;
+// allow-any-unicode-next-line
+const COPYRIGHT_PATTERN = /copyright|(\(c\)|©)/i;
 
-	for (let i = 0; i < lines.length; i++) {
-		if (!sepRe.test(lines[i].trim())) {
-			continue;
-		}
-		for (let j = i + 1; j < lines.length; j++) {
-			const line = lines[j].trim();
-			if (!line) {
-				continue;
-			}
-			if (sepRe.test(line)) {
-				break;
-			}
-			// Extract package name (first token before version/dash)
-			const match = line.match(/^(.+?)\s+[\d]/);
-			if (match) {
-				names.add(match[1].toLowerCase());
-			} else {
-				names.add(line.split(' ')[0].toLowerCase());
-			}
-			break;
-		}
+function validateCopyright(name: string, licenseText: string, source: string): void {
+	if (!COPYRIGHT_PATTERN.test(licenseText)) {
+		// allow-any-unicode-next-line
+		console.warn(`  MISSING COPYRIGHT: ${name} (${source}) \u2014 license found but no copyright statement`);
 	}
-	return names;
 }
 
 /**
@@ -145,22 +122,46 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
 	return packages;
 }
 
+/**
+ * Recursively find all cgmanifest.json files in the repo (excluding node_modules).
+ */
+function findCgManifestFiles(repoRoot: string): string[] {
+	const results: string[] = [];
+
+	function walk(dir: string, depth: number): void {
+		if (depth > 5) {
+			return;
+		}
+		try {
+			for (const entry of fs.readdirSync(dir)) {
+				if (entry === 'node_modules' || entry === '.git' || entry === 'out' || entry === 'test') {
+					continue;
+				}
+				const full = path.join(dir, entry);
+				if (entry === 'cgmanifest.json') {
+					results.push(full);
+				} else if (fs.statSync(full).isDirectory()) {
+					walk(full, depth + 1);
+				}
+			}
+		} catch { /* skip */ }
+	}
+
+	walk(repoRoot, 0);
+	return results;
+}
+
 function main(): void {
 	const args = parseArgs(process.argv.slice(2));
 	const repoRoot = args['repo'];
-	const cgNoticePath = args['cg-notice'];
 	const outputPath = args['output'];
 
 	if (!repoRoot || !outputPath) {
-		console.error('Usage: scan-extension-licenses.js --repo <path> [--cg-notice <path>] --output <path>');
+		console.error('Usage: scan-licenses.js --repo <path> --output <path>');
 		process.exit(1);
 	}
 
-	// Step 1: Parse CG NOTICE to know what's already covered
-	const coveredNames = cgNoticePath ? parseCoveredNames(cgNoticePath) : new Set<string>();
-	console.log(`CG already covers ${coveredNames.size} unique package names`);
-
-	// Step 2: Find all built-in extensions
+	// Step 1: Find all built-in extensions
 	const extensionsDir = path.join(repoRoot, 'extensions');
 	if (!fs.existsSync(extensionsDir)) {
 		console.error(`ERROR: extensions directory not found at ${extensionsDir}`);
@@ -221,7 +222,6 @@ function main(): void {
 	// Step 3: Scan each extension's node_modules
 	const entries = new Map<string, LicenseEntry>();
 	let scanned = 0;
-	let skippedCovered = 0;
 	let noLicense = 0;
 
 	for (const ext of extensions) {
@@ -240,12 +240,6 @@ function main(): void {
 				const resolvedName = pkgInfo?.name || pkgName;
 				const key = resolvedName.toLowerCase();
 
-				// Skip if CG already covers it
-				if (coveredNames.has(key)) {
-					skippedCovered++;
-					continue;
-				}
-
 				// Skip if we already found it from another extension
 				if (entries.has(key)) {
 					continue;
@@ -256,6 +250,7 @@ function main(): void {
 
 				if (licenseFilePath) {
 					const licenseText = fs.readFileSync(licenseFilePath, 'utf8').trim();
+					validateCopyright(resolvedName, licenseText, `extension: ${ext}`);
 					entries.set(key, {
 						name: resolvedName,
 						version: pkgInfo?.version || '',
@@ -294,7 +289,6 @@ function main(): void {
 	console.log('');
 
 	let rootScanned = 0;
-	let rootSkipped = 0;
 	let rootNoLicense = 0;
 
 	const rootNmDir = path.join(repoRoot, 'node_modules');
@@ -307,12 +301,6 @@ function main(): void {
 			const resolvedName = pkgInfo?.name || pkgName;
 			const key = resolvedName.toLowerCase();
 
-			// Skip if CG already covers it
-			if (coveredNames.has(key)) {
-				rootSkipped++;
-				continue;
-			}
-
 			// Skip if already found from extension scan
 			if (entries.has(key)) {
 				continue;
@@ -323,6 +311,7 @@ function main(): void {
 
 			if (licenseFilePath) {
 				const licenseText = fs.readFileSync(licenseFilePath, 'utf8').trim();
+				validateCopyright(resolvedName, licenseText, 'root node_modules');
 				entries.set(key, {
 					name: resolvedName,
 					version: pkgInfo?.version || '',
@@ -339,9 +328,97 @@ function main(): void {
 	}
 
 	console.log(`  Root packages scanned: ${rootScanned}`);
-	console.log(`  Root skipped (CG covers): ${rootSkipped}`);
-	console.log(`  Root LICENSE found: ${entries.size - scanned}`);
+	console.log(`  Root LICENSE found: ${rootScanned - rootNoLicense}`);
 	console.log(`  Root NO LICENSE: ${rootNoLicense}`);
+
+	// =========================================================================
+	// SECTION 3: Extract licenses from cgmanifest.json entries
+	//
+	// Language grammars, vendored code (chromium, electron, nodejs), and other
+	// manually declared components are registered in cgmanifest.json files
+	// throughout the repo. These are not npm packages — they don't exist in
+	// node_modules. The license text is stored inline in a custom
+	// "licenseDetail" field (an array of strings, one per line).
+	//
+	// This is the same field that the manual OSS tool read. CG ignores it —
+	// licenseDetail is not part of the CG schema.
+	// =========================================================================
+	console.log('');
+	console.log('=========================================================================');
+	console.log('SECTION 3: Extracting licenses from cgmanifest.json licenseDetail');
+	console.log('  Why: Language grammars, vendored code, and other manually declared');
+	console.log('  components have license text inline in cgmanifest.json. CG ignores');
+	console.log('  this field — it is a VS Code custom extension.');
+	console.log('=========================================================================');
+	console.log('');
+
+	let cgManifestFound = 0;
+	let cgManifestNoDetail = 0;
+
+	const cgManifestFiles = findCgManifestFiles(repoRoot);
+	console.log(`  Found ${cgManifestFiles.length} cgmanifest.json files`);
+
+	for (const manifestPath of cgManifestFiles) {
+		try {
+			const data = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+			const registrations = data.registrations || data.Registrations || [];
+
+			for (const reg of registrations) {
+				const comp = reg.component;
+				if (!comp) {
+					continue;
+				}
+
+				const inner = comp.git || comp.npm || comp.other || {};
+				const name = (inner as { name?: string }).name || '';
+				if (!name) {
+					continue;
+				}
+
+				const key = name.toLowerCase();
+
+				// Skip if already found from extension or root scan
+				if (entries.has(key)) {
+					continue;
+				}
+
+				// Extract licenseDetail if available
+				if (reg.licenseDetail && reg.licenseDetail.length > 0) {
+					let licenseText: string;
+					if (Array.isArray(reg.licenseDetail[0])) {
+						// Nested array format
+						licenseText = (reg.licenseDetail[0] as string[]).join('\n');
+					} else {
+						licenseText = (reg.licenseDetail as string[]).join('\n');
+					}
+
+					const url = comp.git?.repositoryUrl || comp.other?.downloadUrl || '';
+					const version = reg.version || comp.git?.commitHash?.substring(0, 7) || '';
+					const license = typeof reg.license === 'string' ? reg.license : '';
+					const relPath = path.relative(repoRoot, manifestPath);
+					validateCopyright(name, licenseText, `cgmanifest: ${relPath}`);
+
+					entries.set(key, {
+						name,
+						version,
+						license,
+						url,
+						licenseText,
+						fromExtension: `(cgmanifest: ${relPath})`,
+					});
+					cgManifestFound++;
+				} else {
+					cgManifestNoDetail++;
+					console.warn(`  NO LICENSE DETAIL: ${name} (${path.relative(repoRoot, manifestPath)})`);
+				}
+			}
+		} catch {
+			console.warn(`  WARN: Could not parse ${manifestPath}`);
+		}
+	}
+
+	console.log(`  Entries with licenseDetail: ${cgManifestFound}`);
+	console.log(`  Entries without licenseDetail: ${cgManifestNoDetail}`);
 
 	// Step 4: Sort and write output
 	const sorted = [...entries.values()].sort((a, b) =>
@@ -384,14 +461,16 @@ function main(): void {
 	console.log(`  Section 1 — Extensions:`);
 	console.log(`    Extensions scanned:        ${extensions.length}`);
 	console.log(`    Packages found:            ${scanned}`);
-	console.log(`    Skipped (CG covers):       ${skippedCovered}`);
 	console.log(`    LICENSE found:             ${scanned - noLicense}`);
 	console.log(`    NO LICENSE:                ${noLicense}`);
 	console.log(`  Section 2 — Root node_modules:`);
 	console.log(`    Packages found:            ${rootScanned}`);
-	console.log(`    Skipped (CG covers):       ${rootSkipped}`);
 	console.log(`    LICENSE found:             ${rootScanned - rootNoLicense}`);
 	console.log(`    NO LICENSE:                ${rootNoLicense}`);
+	console.log(`  Section 3 — cgmanifest.json:`);
+	console.log(`    Files scanned:             ${cgManifestFiles.length}`);
+	console.log(`    Entries with licenseDetail: ${cgManifestFound}`);
+	console.log(`    Entries without:           ${cgManifestNoDetail}`);
 	console.log(`  Total entries in output:     ${entries.size}`);
 	console.log(`  Output: ${outputPath}`);
 }
