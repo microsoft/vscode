@@ -2021,6 +2021,68 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex);
 		}
 
+		// For non-subagent tools waiting for confirmation, show above the input in a carousel
+		// Only use the carousel when there are multiple parallel tool calls waiting for confirmation.
+		// A single tool call uses the existing inline confirmation part.
+		// Gated behind the confirmationCarousel setting (disabled on stable).
+		if (this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
+			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) && toolInvocation.presentation !== 'hidden') {
+			const state = toolInvocation.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
+				const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+				if (widget) {
+					const otherWaitingTools = context.element.response.value.filter((part): part is IChatToolInvocation =>
+						part.kind === 'toolInvocation' &&
+						part.toolCallId !== toolInvocation.toolCallId &&
+						part.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation
+					);
+					const hasCarouselOrMultipleWaiting = widget.input.hasActiveToolConfirmationCarousel || otherWaitingTools.length > 0;
+
+					if (hasCarouselOrMultipleWaiting) {
+						const factory = (tool: IChatToolInvocation) => this.instantiationService.createInstance(
+							ChatToolInvocationPart, tool, context,
+							this.chatContentMarkdownRenderer, this._contentReferencesListPool,
+							this._toolEditorPool, () => this._currentLayoutWidth.get(),
+							this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys,
+							codeBlockStartIndex
+						);
+
+						// When creating a new carousel, also absorb any other waiting tools
+						// that were already rendered inline
+						if (!widget.input.hasActiveToolConfirmationCarousel) {
+							for (const otherTool of otherWaitingTools) {
+								widget.input.addToolToConfirmationCarousel(otherTool, factory);
+
+								// Hide the inline-rendered part and replace with a no-content sentinel
+								const renderedParts = templateData.renderedParts;
+								if (renderedParts) {
+									for (let i = 0; i < renderedParts.length; i++) {
+										const rp = renderedParts[i];
+										if (rp instanceof ChatToolInvocationPart && rp.toolCallId === otherTool.toolCallId) {
+											rp.domNode?.remove();
+											rp.dispose();
+											renderedParts[i] = this.renderNoContent((other) =>
+												other.kind === 'toolInvocation' && widget.input.hasToolInConfirmationCarousel(otherTool.toolCallId)
+											);
+											break;
+										}
+									}
+								}
+							}
+						}
+
+						widget.input.renderToolConfirmationCarousel(toolInvocation, factory);
+						return this.renderNoContent((other) => {
+							if (other.kind !== 'toolInvocation') {
+								return false;
+							}
+							return widget.input.hasToolInConfirmationCarousel(toolInvocation.toolCallId);
+						});
+					}
+				}
+			}
+		}
+
 		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
 		const { part } = createToolPart();
 

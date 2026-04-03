@@ -206,8 +206,13 @@
 }
 
 @keyframes mcpDownloadFadeIn {
-	from { opacity: 0; }
-	to { opacity: 1; }
+	from {
+		opacity: 0;
+	}
+
+	to {
+		opacity: 1;
+	}
 }
 
 .chat-confirmation-widget2 {
@@ -220,6 +225,7 @@
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	padding: 4px 8px;
 	display: flex;
+	align-items: center;
 	justify-content: space-between;
 	column-gap: 10px;
 
@@ -228,6 +234,10 @@
 
 		p {
 			margin: 0 !important;
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 0 4px;
 		}
 
 		.codicon {
@@ -407,8 +417,11 @@
 }
 
 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {
-	margin-bottom: 0 !important;
+	margin: 4px 0px !important;
 	padding: 4px 8px 0 8px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
 }
 
 .chat-confirmation-widget-container.hideButtons .chat-confirmation-widget-buttons,
@@ -475,8 +488,10 @@
 			font-size: 12px;
 		}
 
-		&:hover  {
-			p, .rendered-markdown {
+		&:hover {
+
+			p,
+			.rendered-markdown {
 				color: var(--vscode-foreground);
 			}
 
@@ -487,7 +502,9 @@
 	}
 
 	.chat-confirmation-widget:not(.collapsed) .chat-confirmation-widget-title {
-		p, .rendered-markdown {
+
+		p,
+		.rendered-markdown {
 			color: var(--vscode-foreground);
 		}
 	}
