@@ -139,7 +139,7 @@ suite('Sessions - Account Title Bar State', () => {
 			kind: state.kind,
 		}, {
 			source: 'copilot',
-			label: 'Copilot Signed Out',
+			label: 'Agents Signed Out',
 			kind: 'prominent',
 		});
 	});
