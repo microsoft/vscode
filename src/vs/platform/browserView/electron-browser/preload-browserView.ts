@@ -27,6 +27,20 @@
 	// ###                                                                 ###
 	// #######################################################################
 
+	// Ctrl/Cmd keybindings that correspond to native editing shortcuts and should be handled by the browser / OS and not forwarded to the workbench.
+	const nativeCtrlCmdKeybindings = {
+		mac: {
+			always: new Set(['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'backspace', 'delete']),
+			noShift: new Set(['a', 'c', 'v', 'x', 'z']),
+			withShift: new Set(['v', 'z']),
+		},
+		nonMac: {
+			always: new Set(['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'home', 'end', 'backspace', 'delete']),
+			noShift: new Set(['a', 'c', 'v', 'x', 'z', 'y']),
+			withShift: new Set(['v', 'z']),
+		}
+	};
+
 	// Listen for keydown events that the page did not handle and forward them for shortcut handling.
 	window.addEventListener('keydown', (event) => {
 		// Require that the event is trusted -- i.e. user-initiated.
@@ -51,6 +65,11 @@
 			return;
 		}
 
+		// Never handle plain modifier key presses as keybindings
+		if (event.key === 'Control' || event.key === 'Shift' || event.key === 'Alt' || event.key === 'Meta') {
+			return;
+		}
+
 		const isMac = navigator.platform.indexOf('Mac') >= 0;
 
 		// Alt+Key special character handling (Alt + Numpad keys on Windows/Linux, Alt + any key on Mac)
@@ -60,18 +79,20 @@
 			}
 		}
 
-		// Allow native shortcuts (copy, paste, cut, undo, redo, select all) to be handled by the browser
+		// Allow native shortcuts to be handled by the browser
 		const ctrlCmd = isMac ? event.metaKey : event.ctrlKey;
 		if (ctrlCmd && !event.altKey) {
 			const key = event.key.toLowerCase();
-			if (!event.shiftKey && (key === 'a' || key === 'c' || key === 'v' || key === 'x' || key === 'z')) {
+			const keySetsToCheck = [
+				nativeCtrlCmdKeybindings[isMac ? 'mac' : 'nonMac'].always,
+				nativeCtrlCmdKeybindings[isMac ? 'mac' : 'nonMac'][event.shiftKey ? 'withShift' : 'noShift'],
+			];
+			if (keySetsToCheck.some(set => set.has(key))) {
 				return;
 			}
-			if (event.shiftKey && (key === 'v' || key === 'z')) {
-				return;
-			}
-			// Ctrl+Y is redo on Windows/Linux
-			if (!event.shiftKey && key === 'y' && !isMac) {
+
+			// Emoji picker on Mac
+			if (isMac && event.ctrlKey && !event.shiftKey && key === ' ') {
 				return;
 			}
 		}

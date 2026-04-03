@@ -24,6 +24,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -333,8 +334,15 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 				session.status.read(reader);
 				session.isRead.read(reader);
 			}
+			this.updateClass();
 			this._updateBadge();
 		}));
+	}
+
+	protected override getClass(): string | undefined {
+		return this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			? ThemeIcon.asClassName(Codicon.layoutSidebarLeft)
+			: ThemeIcon.asClassName(Codicon.layoutSidebarLeftOff);
 	}
 
 	private _updateBadge(): void {

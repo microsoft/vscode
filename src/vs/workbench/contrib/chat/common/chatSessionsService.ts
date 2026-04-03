@@ -53,8 +53,6 @@ export interface IChatSessionProviderOptionGroup {
 	readonly description?: string;
 	readonly selected?: IChatSessionProviderOptionItem;
 	readonly items: readonly IChatSessionProviderOptionItem[];
-	readonly searchable?: boolean;
-	readonly onSearch?: (query: string, token: CancellationToken) => Thenable<IChatSessionProviderOptionItem[]>;
 	/**
 	 * A context key expression that controls visibility of this option group picker.
 	 * When specified, the picker is only visible when the expression evaluates to true.
@@ -105,10 +103,6 @@ export interface IChatSessionsExtensionPoint {
 	 * for this session type. Defaults to false when not specified.
 	 */
 	readonly autoAttachReferences?: boolean;
-	/**
-	 * When true, uses the incoming request's mode instructions to populate the built-in pickers such as Agent and Model pickers. When false, the pickers are populated based on the session type as they have been before. This is useful for testing the new ChatRequestTurn2-based flow for populating pickers.
-	 */
-	readonly useRequestToPopulateBuiltInPickers?: boolean;
 }
 
 export interface IChatSessionItem {
@@ -165,11 +159,6 @@ export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { 
  * The session type used for local agent chat sessions.
  */
 export const localChatSessionType = 'local';
-
-/**
- * The option ID used for selecting the agent in chat sessions.
- */
-export const agentOptionId = 'agent';
 
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
@@ -441,7 +430,7 @@ export interface IChatSessionsService {
 	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
-	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
+	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: readonly IChatSessionProviderOptionGroup[]): void;
 
 	/**
 	 * Get the default options for new sessions of this type, derived from option groups'

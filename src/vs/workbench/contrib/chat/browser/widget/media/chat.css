@@ -3067,6 +3067,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
+	/* System-initiated requests render as compact progress-style messages, not bubbles */
+	.interactive-item-container.interactive-request.system-initiated-request {
+		align-items: flex-start;
+	}
+
+	.interactive-item-container.interactive-request.system-initiated-request .value .rendered-markdown {
+		background-color: transparent;
+		border-radius: 0;
+		padding: 0;
+		max-width: 100%;
+		margin-left: 0;
+		width: auto;
+	}
+
 
 	.request-hover {
 		position: absolute;

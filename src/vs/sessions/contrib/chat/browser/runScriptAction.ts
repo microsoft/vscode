@@ -510,7 +510,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			this._primaryActionAction.label = this._getPrimaryActionTooltip(runState);
 		}));
 
-		// Dropdown with categorized actions and per-item toolbars
+		// Dropdown with categorized task actions and per-item toolbars
 		const dropdownAction = this._register(new Action('agentSessions.runScriptDropdown', localize('runDropdown', "More Tasks...")));
 		this._dropdown = this._register(new ChevronActionWidgetDropdown(
 			dropdownAction,
@@ -602,8 +602,8 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		const defaultCategory = { label: '', order: 0, showHeader: false };
 		// Category for worktree-creation tasks
 		const worktreeCategory = { label: localize('worktreeCreationCategory', "Run on Worktree Creation"), order: 1, showHeader: true };
-		// Category for add actions
-		const addCategory = { label: localize('addActionsCategory', "Add"), order: 2, showHeader: true };
+		// Category for task creation and management
+		const tasksCategory = { label: localize('tasksActionsCategory', "Tasks"), order: 2, showHeader: true };
 
 		for (let i = 0; i < tasks.length; i++) {
 			const entry = tasks[i];
@@ -681,7 +681,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			icon: Codicon.add,
 			enabled: canConfigure,
 			class: undefined,
-			category: addCategory,
+			category: tasksCategory,
 			run: async () => {
 				const task = await this._showConfigureQuickPick(session);
 				if (task) {
@@ -702,7 +702,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			icon: Codicon.sparkle,
 			enabled: true,
 			class: undefined,
-			category: addCategory,
+			category: tasksCategory,
 			run: async () => {
 				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 			},
@@ -714,7 +714,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 
 /**
  * {@link ActionWidgetDropdownActionViewItem} that renders a chevron-down icon
- * as its label, used as the dropdown arrow in the split button.
+ * for the split button dropdown in the titlebar.
  */
 class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {

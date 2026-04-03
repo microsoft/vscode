@@ -7,7 +7,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
-import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
+import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IToolResult } from '../../../chat/common/tools/languageModelToolsService.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -42,6 +42,9 @@ export async function playwrightInvokeRaw<TArgs extends unknown[], TReturn>(
 /**
  * Shared helper for running a Playwright function against a page and returning
  * a tool result. Handles success/error formatting.
+ *
+ * Calls {@link IPlaywrightService.invokeFunction} without a timeout so the
+ * action runs to completion — no deferred results are ever produced.
  */
 export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
 	playwrightService: IPlaywrightService,
@@ -50,16 +53,42 @@ export async function playwrightInvoke<TArgs extends unknown[], TReturn>(
 	...args: TArgs
 ): Promise<IToolResult> {
 	try {
-		const result = await playwrightService.invokeFunction(pageId, fn.toString(), ...args);
-		return {
-			content: [
-				{ kind: 'text', value: result.result ? JSON.stringify(result.result) : 'Script executed successfully' },
-				{ kind: 'text', value: result.summary }
-			]
-		};
+		const result = await playwrightService.invokeFunction(pageId, fn.toString(), args);
+		return invokeFunctionResultToToolResult(result);
 	} catch (e) {
 		return errorResult(e instanceof Error ? e.message : String(e));
 	}
+}
+
+/**
+ * Convert an {@link IInvokeFunctionResult} to an {@link IToolResult},
+ * including any {@link IInvokeFunctionResult.deferredResultId}.
+ */
+export function invokeFunctionResultToToolResult(result: IInvokeFunctionResult, code?: string): IToolResult {
+	const content: IToolResult['content'] = [];
+	if (result.result !== undefined) {
+		content.push({ kind: 'text', value: `Result: ${JSON.stringify(result.result)}` });
+	}
+	if (result.error) {
+		content.push({ kind: 'text', value: result.error });
+	}
+	if (result.deferredResultId) {
+		content.push({ kind: 'text', value: `[deferredResultId=${result.deferredResultId}] The code has not finished executing yet. Call run_playwright_code again with this deferredResultId and the same pageId (no code) to continue waiting.` });
+	}
+	content.push({ kind: 'text', value: result.summary });
+	return {
+		content,
+		...(code ? {
+			toolResultDetails: {
+				input: code,
+				inputLanguage: 'javascript',
+				output: result.result || result.error
+					? [{ type: 'embed' as const, isText: true, value: JSON.stringify(result.result ?? result.error, null, 2) }]
+					: [],
+				isError: !!result.error,
+			},
+		} : {}),
+	};
 }
 
 export function errorResult(message: string): IToolResult {
