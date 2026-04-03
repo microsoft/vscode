@@ -866,6 +866,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 		const anonymous = this.chatEntitlementService.anonymous;
 		const free = this.chatEntitlementService.entitlement === ChatEntitlement.Free;
+		const pro = this.chatEntitlementService.entitlement === ChatEntitlement.Pro;
 
 		let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 		let primaryActionTitle = localize('toggleChat', "Toggle Chat");
@@ -877,9 +878,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				primaryActionId = CHAT_SETUP_ACTION_ID;
 				primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
 				primaryActionIcon = Codicon.chatSparkleError;
-			} else if (chatQuotaExceeded && free) {
+			} else if (chatQuotaExceeded && (free || pro)) {
 				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-				primaryActionTitle = localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.");
+				primaryActionTitle = free
+					? localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.")
+					: localize('chatQuotaExceededButtonPro', "GitHub Copilot Pro plan chat messages quota reached. Click for details.");
 				primaryActionIcon = Codicon.chatSparkleWarning;
 			}
 		}
