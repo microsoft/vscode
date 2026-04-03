@@ -18,7 +18,6 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IChatAgentService } from '../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
@@ -51,11 +50,11 @@ export class ChatInputCompletions extends Disposable {
 	constructor(
 		private readonly _editor: CodeEditorWidget,
 		private readonly _contextAttachments: NewChatContextAttachments,
+		private readonly _getWorkspaceFolderUri: () => URI | undefined,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ISearchService private readonly searchService: ISearchService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -192,32 +191,33 @@ export class ChatInputCompletions extends Disposable {
 
 		// Search workspace files
 		if (pattern) {
+			const folderUri = this._getWorkspaceFolderUri();
+			if (!folderUri) {
+				return;
+			}
+
 			const cacheKey = this._getOrCreateCacheKey();
-			const workspaces = this.workspaceContextService.getWorkspace().folders.map(f => f.uri);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			const excludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folderUri }));
 
-			for (const workspace of workspaces) {
-				if (token.isCancellationRequested) {
-					return;
+			try {
+				const fileResults = await this.searchService.fileSearch({
+					folderQueries: [{ folder: folderUri, disregardIgnoreFiles: false }],
+					type: QueryType.File,
+					filePattern: pattern,
+					excludePattern,
+					sortByScore: true,
+					maxResults: 30,
+					cacheKey: cacheKey.key,
+				}, token);
+
+				for (const file of fileResults.results) {
+					result.suggestions.push(makeCompletionItem(file.resource, FileKind.FILE));
 				}
-				const excludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: workspace }));
-
-				try {
-					const fileResults = await this.searchService.fileSearch({
-						folderQueries: [{ folder: workspace, disregardIgnoreFiles: false }],
-						type: QueryType.File,
-						filePattern: pattern,
-						excludePattern,
-						sortByScore: true,
-						maxResults: 30,
-						cacheKey: cacheKey.key,
-					}, token);
-
-					for (const file of fileResults.results) {
-						result.suggestions.push(makeCompletionItem(file.resource, FileKind.FILE));
-					}
-				} catch {
-					// Search may fail for virtual filesystems
-				}
+			} catch {
+				// Search may fail for virtual filesystems
 			}
 		}
 	}

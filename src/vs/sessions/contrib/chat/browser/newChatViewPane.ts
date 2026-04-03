@@ -370,7 +370,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._slashCommandHandler = this._register(this.instantiationService.createInstance(SlashCommandHandler, this._editor));
 
 		// @ and # completions (agents, files)
-		this._register(this.instantiationService.createInstance(ChatInputCompletions, this._editor, this._contextAttachments));
+		this._register(this.instantiationService.createInstance(ChatInputCompletions, this._editor, this._contextAttachments, () => this._getContextFolderUri()));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
