@@ -232,6 +232,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					targetChatSessionType: m.targetChatSessionType,
 					configurationSchema: m.configurationSchema as IJSONSchema | undefined,
 					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
+					vendorPriority: m.vendorPriority,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
 						editTools: m.capabilities.editTools,

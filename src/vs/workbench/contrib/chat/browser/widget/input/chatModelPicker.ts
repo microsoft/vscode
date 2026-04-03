@@ -339,13 +339,23 @@ export function buildModelPickerItems(
 				}
 			}
 
-			// Render promoted section: available first, then sorted alphabetically by name
+			// Render promoted section: available first, then by vendor priority, then alphabetically by name
 			if (promotedItems.length > 0) {
 				promotedItems.sort((a, b) => {
 					const aAvail = a.kind === 'available' ? 0 : 1;
 					const bAvail = b.kind === 'available' ? 0 : 1;
 					if (aAvail !== bAvail) {
 						return aAvail - bAvail;
+					}
+					// Use vendorPriority if available
+					const aVP = a.kind === 'available' ? a.model.metadata.vendorPriority : undefined;
+					const bVP = b.kind === 'available' ? b.model.metadata.vendorPriority : undefined;
+					if (aVP !== undefined || bVP !== undefined) {
+						const aPrio = aVP ?? Number.MAX_SAFE_INTEGER;
+						const bPrio = bVP ?? Number.MAX_SAFE_INTEGER;
+						if (aPrio !== bPrio) {
+							return aPrio - bPrio;
+						}
 					}
 					const aName = a.kind === 'available' ? a.model.metadata.name : a.entry.label;
 					const bName = b.kind === 'available' ? b.model.metadata.name : b.entry.label;
@@ -371,6 +381,16 @@ export function buildModelPickerItems(
 					const bAvail = bEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, bEntry.minVSCodeVersion) ? 1 : 0;
 					if (aAvail !== bAvail) {
 						return aAvail - bAvail;
+					}
+					// Use vendorPriority if available on either model
+					const aVP = a.metadata.vendorPriority;
+					const bVP = b.metadata.vendorPriority;
+					if (aVP !== undefined || bVP !== undefined) {
+						const aPrio = aVP ?? Number.MAX_SAFE_INTEGER;
+						const bPrio = bVP ?? Number.MAX_SAFE_INTEGER;
+						if (aPrio !== bPrio) {
+							return aPrio - bPrio;
+						}
 					}
 					const aCopilot = a.metadata.vendor === 'copilot' ? 0 : 1;
 					const bCopilot = b.metadata.vendor === 'copilot' ? 0 : 1;
@@ -434,6 +454,16 @@ export function buildModelPickerItems(
 		const sortedModels = models
 			.filter(m => m !== autoModel)
 			.sort((a, b) => {
+				// Use vendorPriority if available on either model
+				const aVP = a.metadata.vendorPriority;
+				const bVP = b.metadata.vendorPriority;
+				if (aVP !== undefined || bVP !== undefined) {
+					const aPrio = aVP ?? Number.MAX_SAFE_INTEGER;
+					const bPrio = bVP ?? Number.MAX_SAFE_INTEGER;
+					if (aPrio !== bPrio) {
+						return aPrio - bPrio;
+					}
+				}
 				const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
