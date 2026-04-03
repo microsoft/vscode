@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
-import { CancellationToken, DocumentLink, DocumentLinkProvider, l10n, Range, TabInputText, TextDocument, Uri, window, workspace } from 'vscode';
+import { CancellationToken, commands, DocumentLink, DocumentLinkProvider, l10n, Range, TabInputText, TextDocument, Uri, window, workspace } from 'vscode';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { ITerminalEnvironmentProvider } from './terminal';
 import { EmptyDisposable, IDisposable } from './util';
@@ -39,6 +39,16 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 			const uri = Uri.file(commitMessagePath);
 			const doc = await workspace.openTextDocument(uri);
 			await window.showTextDocument(doc, { preview: false });
+
+			const commit = l10n.t('Commit');
+			window.showInformationMessage(
+				l10n.t('Edit your commit message, then close this tab or use the toolbar Commit button to finish the commit.'),
+				commit
+			).then(choice => {
+				if (choice === commit) {
+					commands.executeCommand('git.commitMessageAccept', uri);
+				}
+			});
 
 			return new Promise((c) => {
 				const onDidClose = window.tabGroups.onDidChangeTabs(async (tabs) => {
