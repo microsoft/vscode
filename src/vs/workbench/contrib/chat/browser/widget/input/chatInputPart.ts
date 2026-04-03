@@ -2813,6 +2813,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._lastEditingSessionResource = chatEditingSession.chatSessionResource;
 		}
 
+		const autoAcceptEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutoAccept);
+
 		const modifiedEntries = derivedOpts<IModifiedFileEntry[]>({ equalsFn: arraysEqual }, r => {
 			// Background chat sessions render the working set based on the session files, and not the editing session
 			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
@@ -2820,6 +2822,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return [];
 			}
 
+			if (autoAcceptEnabled) {
+				return chatEditingSession?.entries.read(r) || [];
+			}
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
 
@@ -2827,7 +2832,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const seenEntries = new ResourceSet();
 			const entries: IChatCollapsibleListItem[] = [];
 			for (const entry of modifiedEntries.read(reader)) {
-				if (entry.state.read(reader) !== ModifiedFileEntryState.Modified) {
+				const state = entry.state.read(reader);
+				if (!autoAcceptEnabled && state !== ModifiedFileEntryState.Modified) {
 					continue;
 				}
 
@@ -2837,7 +2843,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const linesRemoved = entry.linesRemoved?.read(reader);
 					entries.push({
 						reference: entry.modifiedURI,
-						state: ModifiedFileEntryState.Modified,
+						state,
 						kind: 'reference',
 						options: {
 							status: undefined,
