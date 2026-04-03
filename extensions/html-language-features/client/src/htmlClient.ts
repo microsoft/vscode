@@ -170,7 +170,23 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 				function updateRanges(item: CompletionItem) {
 					const range = item.range;
 					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range = { inserting: new Range(range.start, position), replacing: range };
+						// Clamp the replacing range so it does not extend past the current
+						// line or past an opening angle bracket. When completing inside an
+						// unclosed attribute string (e.g. <input type="che</th>), the HTML
+						// scanner treats everything after the opening quote as part of the
+						// attribute value, which causes the replace range to span across
+						// HTML tags and eat content the user did not intend to replace.
+						// See https://github.com/microsoft/vscode/issues/273226
+						let replacingEnd = range.end;
+						if (replacingEnd.line > position.line) {
+							replacingEnd = document.lineAt(position.line).range.end;
+						}
+						const textAfterCursor = document.getText(new Range(position, replacingEnd));
+						const angleBracketIndex = textAfterCursor.indexOf('<');
+						if (angleBracketIndex !== -1) {
+							replacingEnd = position.translate(0, angleBracketIndex);
+						}
+						item.range = { inserting: new Range(range.start, position), replacing: new Range(range.start, replacingEnd) };
 					}
 				}
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
