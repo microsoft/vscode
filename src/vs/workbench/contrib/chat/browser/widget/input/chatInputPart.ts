@@ -2823,7 +2823,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			if (autoAcceptEnabled) {
-				return chatEditingSession?.entries.read(r) || [];
+				return [...(chatEditingSession?.entries.read(r) || [])];
 			}
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
