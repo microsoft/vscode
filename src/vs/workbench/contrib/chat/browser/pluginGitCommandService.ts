@@ -3,51 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IPluginGitCommandService } from '../common/plugins/pluginGitCommandService.js';
+import { localize } from '../../../../nls.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
+
+function notSupported(): never {
+	throw new Error(localize('pluginsNotSupported', 'Agent plugins are not available in this environment'));
+}
 
 /**
- * Default implementation of {@link IPluginGitCommandService} that delegates
- * all git operations to the git extension via {@link ICommandService}. Used
- * on the web and as the non-remote fallback on desktop.
+ * Stub implementation of {@link IPluginGitService} that throws on
+ * every call. On desktop the native implementation is registered instead;
+ * this exists only so the browser layer has a default registration.
  */
-export class ExtensionPluginGitCommandService implements IPluginGitCommandService {
+export class BrowserPluginGitCommandService implements IPluginGitService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(
-		@ICommandService protected readonly _commandService: ICommandService,
-	) { }
-
-	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string): Promise<void> {
-		await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, targetDir.fsPath, ref);
-	}
-
-	async pull(repoDir: URI): Promise<boolean> {
-		return !!(await this._commandService.executeCommand<boolean>('_git.pull', repoDir.fsPath));
-	}
-
-	async checkout(repoDir: URI, treeish: string, detached?: boolean): Promise<void> {
-		await this._commandService.executeCommand('_git.checkout', repoDir.fsPath, treeish, detached || undefined);
-	}
-
-	async revParse(repoDir: URI, ref: string): Promise<string> {
-		return await this._commandService.executeCommand<string>('_git.revParse', repoDir.fsPath, ref) ?? '';
-	}
-
-	async fetch(repoDir: URI): Promise<void> {
-		await this._commandService.executeCommand('git.fetch', repoDir.fsPath);
-	}
-
-	async openRepository(repoDir: URI): Promise<void> {
-		await this._commandService.executeCommand('git.openRepository', repoDir.fsPath);
-	}
-
-	async fetchRepository(repoDir: URI): Promise<void> {
-		await this._commandService.executeCommand('_git.fetchRepository', repoDir.fsPath);
-	}
-
-	async revListCount(repoDir: URI, fromRef: string, toRef: string): Promise<number> {
-		return await this._commandService.executeCommand<number>('_git.revListCount', repoDir.fsPath, fromRef, toRef) ?? 0;
-	}
+	async cloneRepository(_cloneUrl: string, _targetDir: URI, _ref?: string, _token?: CancellationToken): Promise<void> { notSupported(); }
+	async pull(_repoDir: URI, _token?: CancellationToken): Promise<boolean> { notSupported(); }
+	async checkout(_repoDir: URI, _treeish: string, _detached?: boolean, _token?: CancellationToken): Promise<void> { notSupported(); }
+	async revParse(_repoDir: URI, _ref: string): Promise<string> { notSupported(); }
+	async fetch(_repoDir: URI, _token?: CancellationToken): Promise<void> { notSupported(); }
+	async openRepository(_repoDir: URI): Promise<void> { notSupported(); }
+	async fetchRepository(_repoDir: URI, _token?: CancellationToken): Promise<void> { notSupported(); }
+	async revListCount(_repoDir: URI, _fromRef: string, _toRef: string): Promise<number> { notSupported(); }
 }

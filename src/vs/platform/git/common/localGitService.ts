@@ -15,10 +15,11 @@ export const ILocalGitService = createDecorator<ILocalGitService>('localGitServi
 export interface ILocalGitService {
 	readonly _serviceBrand: undefined;
 
-	clone(cloneUrl: string, targetPath: string, ref?: string): Promise<void>;
-	pull(repoPath: string): Promise<boolean>;
-	checkout(repoPath: string, treeish: string, detached?: boolean): Promise<void>;
+	clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string): Promise<void>;
+	pull(operationId: string, repoPath: string): Promise<boolean>;
+	checkout(operationId: string, repoPath: string, treeish: string, detached?: boolean): Promise<void>;
 	revParse(repoPath: string, ref: string): Promise<string>;
-	fetch(repoPath: string): Promise<void>;
+	fetch(operationId: string, repoPath: string): Promise<void>;
 	revListCount(repoPath: string, fromRef: string, toRef: string): Promise<number>;
+	cancel(operationId: string): Promise<void>;
 }

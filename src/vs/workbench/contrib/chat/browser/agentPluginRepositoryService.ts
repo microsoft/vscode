@@ -5,6 +5,7 @@
 
 import { Action } from '../../../../base/common/actions.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
@@ -22,7 +23,7 @@ import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
-import { IPluginGitCommandService } from '../common/plugins/pluginGitCommandService.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { GitHubPluginSource, GitUrlPluginSource, NpmPluginSource, PipPluginSource, RelativePathPluginSource } from './pluginSources.js';
 
 const MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
@@ -51,7 +52,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IPluginGitCommandService private readonly _pluginGit: IPluginGitCommandService,
+		@IPluginGitService private readonly _pluginGit: IPluginGitService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
@@ -143,22 +144,24 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		const updateLabel = options?.pluginName ?? marketplace.displayLabel;
 
 		try {
-			const doPull = async () => {
-				return await this._pluginGit.pull(repoDir);
-			};
-
 			if (options?.silent) {
-				return await doPull();
+				return await this._pluginGit.pull(repoDir);
 			}
 
-			return await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
-					cancellable: false,
-				},
-				doPull,
-			);
+			const cts = new CancellationTokenSource();
+			try {
+				return await this._progressService.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
+						cancellable: true,
+					},
+					() => this._pluginGit.pull(repoDir, cts.token),
+					() => cts.dispose(true),
+				);
+			} finally {
+				cts.dispose();
+			}
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to update ${marketplace.displayLabel}:`, err);
 			if (!options?.silent) {
@@ -234,17 +237,19 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string): Promise<void> {
+		const cts = new CancellationTokenSource();
 		try {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
 					title: progressTitle,
-					cancellable: false,
+					cancellable: true,
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref);
-				}
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token);
+				},
+				() => cts.dispose(true),
 			);
 		} catch (err) {
 			this._logService.error(`[AgentPluginRepositoryService] Failed to clone ${cloneUrl}:`, err);
@@ -258,6 +263,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				},
 			});
 			throw err;
+		} finally {
+			cts.dispose();
 		}
 	}
 

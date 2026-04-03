@@ -5,6 +5,7 @@
 
 import { Action } from '../../../../base/common/actions.js';
 import { CancelablePromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -22,7 +23,7 @@ import { ITerminalInstance, ITerminalService } from '../../terminal/browser/term
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, IPluginSourceDescriptor, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
-import { IPluginGitCommandService } from '../common/plugins/pluginGitCommandService.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -71,7 +72,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		@IFileService protected readonly _fileService: IFileService,
 		@ILogService protected readonly _logService: ILogService,
 		@INotificationService protected readonly _notificationService: INotificationService,
-		@IPluginGitCommandService protected readonly _pluginGit: IPluginGitCommandService,
+		@IPluginGitService protected readonly _pluginGit: IPluginGitService,
 		@IProgressService protected readonly _progressService: IProgressService,
 	) { }
 
@@ -126,19 +127,19 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		const failureLabel = options?.failureLabel ?? updateLabel;
 
 		try {
-			const doUpdate = async () => {
+			const doUpdate = async (cts?: CancellationTokenSource) => {
 				await this._pluginGit.openRepository(repoDir);
 				const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 				let changed: boolean;
 				if (git.sha) {
 					const headBefore = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
-					await this._pluginGit.fetch(repoDir);
-					await this._checkoutRevision(repoDir, descriptor, failureLabel);
+					await this._pluginGit.fetch(repoDir, cts?.token);
+					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
 					const headAfter = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
 					changed = headBefore !== headAfter;
 				} else {
-					changed = await this._pluginGit.pull(repoDir);
-					await this._checkoutRevision(repoDir, descriptor, failureLabel);
+					changed = await this._pluginGit.pull(repoDir, cts?.token);
+					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
 				}
 				return changed;
 			};
@@ -147,14 +148,20 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				return await doUpdate();
 			}
 
-			return await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
-					cancellable: false,
-				},
-				doUpdate,
-			);
+			const cts = new CancellationTokenSource();
+			try {
+				return await this._progressService.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
+						cancellable: true,
+					},
+					() => doUpdate(cts),
+					() => cts.dispose(true),
+				);
+			} finally {
+				cts.dispose();
+			}
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to update plugin source '${updateLabel}':`, err);
 			if (!options?.silent) {
@@ -171,17 +178,19 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 	// -- internal helpers ---
 
 	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string): Promise<void> {
+		const cts = new CancellationTokenSource();
 		try {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
 					title: progressTitle,
-					cancellable: false,
+					cancellable: true,
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref);
-				}
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token);
+				},
+				() => cts.dispose(true),
 			);
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to clone ${cloneUrl}:`, err);
@@ -191,10 +200,12 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				actions: { primary: [showGitOutputAction(this._commandService)] },
 			});
 			throw err;
+		} finally {
+			cts.dispose();
 		}
 	}
 
-	private async _checkoutRevision(repoDir: URI, descriptor: IPluginSourceDescriptor, failureLabel: string): Promise<void> {
+	private async _checkoutRevision(repoDir: URI, descriptor: IPluginSourceDescriptor, failureLabel: string, token?: CancellationToken): Promise<void> {
 		const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 		if (!git.sha && !git.ref) {
 			return;
@@ -202,11 +213,11 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			if (git.sha) {
-				await this._pluginGit.checkout(repoDir, git.sha, true);
+				await this._pluginGit.checkout(repoDir, git.sha, true, token);
 				return;
 			}
 			// git.ref is guaranteed non-nullish by the guard above
-			await this._pluginGit.checkout(repoDir, git.ref!);
+			await this._pluginGit.checkout(repoDir, git.ref!, undefined, token);
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to checkout revision for '${failureLabel}':`, err);
 			this._notificationService.notify({

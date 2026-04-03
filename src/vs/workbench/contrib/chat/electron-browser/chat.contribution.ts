@@ -41,7 +41,7 @@ import { ChatViewPane } from '../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatModeKind } from '../common/constants.js';
-import { IPluginGitCommandService } from '../common/plugins/pluginGitCommandService.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
@@ -49,9 +49,9 @@ import { OpenAgentsWindowAction } from './agentSessions/agentSessionsActions.js'
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
 
-// Override the browser PluginGitCommandService with the native one that supports
-// routing git operations to the local machine when connected to a remote.
-registerSingleton(IPluginGitCommandService, NativePluginGitCommandService, InstantiationType.Delayed);
+// Override the browser PluginGitCommandService with the native one that always
+// runs git locally via the shared process.
+registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
 registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
 class ChatCommandLineHandler extends Disposable {

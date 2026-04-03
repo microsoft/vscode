@@ -3,98 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from '../../../../base/common/network.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILocalGitService } from '../../../../platform/git/common/localGitService.js';
-import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { ExtensionPluginGitCommandService } from '../browser/pluginGitCommandService.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
 /**
- * Desktop implementation that routes git operations to the local machine
- * when connected to a remote and the target URI is a local file path
- * (the plugin cache is always local). Falls back to the extension-based
- * commands from {@link ExtensionPluginGitCommandService} otherwise.
+ * Desktop implementation that always runs git locally via the shared process.
+ * The plugin cache is always on the local machine, so there is no need to
+ * delegate to the git extension (which may be running on a remote host).
+ *
+ * Cancellation tokens are mapped to operation IDs so that cancel requests
+ * survive the IPC boundary to the shared process (tokens don't serialise).
  */
-export class NativePluginGitCommandService extends ExtensionPluginGitCommandService {
+export class NativePluginGitCommandService implements IPluginGitService {
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@ICommandService commandService: ICommandService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ILocalGitService private readonly _localGitService: ILocalGitService,
-	) {
-		super(commandService);
+	) { }
+
+	private _withCancel<T>(token: CancellationToken | undefined, fn: (operationId: string) => Promise<T>): Promise<T> {
+		const operationId = crypto.randomUUID();
+		const listener = token?.onCancellationRequested(() => {
+			this._localGitService.cancel(operationId);
+		});
+		return fn(operationId).finally(() => listener?.dispose());
 	}
 
-	/**
-	 * Returns `true` when the target URI is a local file path but the git
-	 * extension is running on a remote host — meaning we must run git
-	 * locally instead of delegating to the extension.
-	 */
-	private _shouldUseLocalGit(uri: URI): boolean {
-		return uri.scheme === Schemas.file
-			&& this._remoteAgentService.getConnection() !== null;
+	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, id => this._localGitService.clone(id, cloneUrl, targetDir.fsPath, ref));
 	}
 
-	override async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string): Promise<void> {
-		if (this._shouldUseLocalGit(targetDir)) {
-			await this._localGitService.clone(cloneUrl, targetDir.fsPath, ref);
-			return;
-		}
-		return super.cloneRepository(cloneUrl, targetDir, ref);
+	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
+		return this._withCancel(token, id => this._localGitService.pull(id, repoDir.fsPath));
 	}
 
-	override async pull(repoDir: URI): Promise<boolean> {
-		if (this._shouldUseLocalGit(repoDir)) {
-			return this._localGitService.pull(repoDir.fsPath);
-		}
-		return super.pull(repoDir);
+	async checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, id => this._localGitService.checkout(id, repoDir.fsPath, treeish, detached));
 	}
 
-	override async checkout(repoDir: URI, treeish: string, detached?: boolean): Promise<void> {
-		if (this._shouldUseLocalGit(repoDir)) {
-			await this._localGitService.checkout(repoDir.fsPath, treeish, detached);
-			return;
-		}
-		return super.checkout(repoDir, treeish, detached);
+	async revParse(repoDir: URI, ref: string): Promise<string> {
+		return this._localGitService.revParse(repoDir.fsPath, ref);
 	}
 
-	override async revParse(repoDir: URI, ref: string): Promise<string> {
-		if (this._shouldUseLocalGit(repoDir)) {
-			return this._localGitService.revParse(repoDir.fsPath, ref);
-		}
-		return super.revParse(repoDir, ref);
+	async fetch(repoDir: URI, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, id => this._localGitService.fetch(id, repoDir.fsPath));
 	}
 
-	override async fetch(repoDir: URI): Promise<void> {
-		if (this._shouldUseLocalGit(repoDir)) {
-			await this._localGitService.fetch(repoDir.fsPath);
-			return;
-		}
-		return super.fetch(repoDir);
+	async openRepository(_repoDir: URI): Promise<void> {
+		// No-op: local git does not need repository registration.
 	}
 
-	override async openRepository(repoDir: URI): Promise<void> {
-		// When using local git, there is no need to register the repository
-		// with the remote git extension — it cannot see local paths anyway.
-		if (this._shouldUseLocalGit(repoDir)) {
-			return;
-		}
-		return super.openRepository(repoDir);
+	async fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void> {
+		await this._withCancel(token, id => this._localGitService.fetch(id, repoDir.fsPath));
 	}
 
-	override async fetchRepository(repoDir: URI): Promise<void> {
-		if (this._shouldUseLocalGit(repoDir)) {
-			await this._localGitService.fetch(repoDir.fsPath);
-			return;
-		}
-		return super.fetchRepository(repoDir);
-	}
-
-	override async revListCount(repoDir: URI, fromRef: string, toRef: string): Promise<number> {
-		if (this._shouldUseLocalGit(repoDir)) {
-			return this._localGitService.revListCount(repoDir.fsPath, fromRef, toRef);
-		}
-		return super.revListCount(repoDir, fromRef, toRef);
+	async revListCount(repoDir: URI, fromRef: string, toRef: string): Promise<number> {
+		return this._localGitService.revListCount(repoDir.fsPath, fromRef, toRef);
 	}
 }
