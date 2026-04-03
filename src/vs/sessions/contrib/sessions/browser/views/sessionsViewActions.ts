@@ -64,15 +64,6 @@ KeybindingsRegistry.registerKeybindingRule({
 
 //  View Title Menu
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-	submenu: SessionsViewFilterSubMenu,
-	title: localize2('filterSessions', "Filter Sessions"),
-	group: 'navigation',
-	order: 3,
-	icon: Codicon.settings,
-	when: ContextKeyExpr.equals('view', SessionsViewId)
-});
-
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
 	submenu: SessionsViewFilterOptionsSubMenu,
 	title: localize2('filter', "Filter"),
@@ -224,12 +215,6 @@ registerAction2(class FindSessionAction extends Action2 {
 			title: localize2('find', "Find Session"),
 			icon: Codicon.search,
 			category: SessionsCategories.Sessions,
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.equals('view', SessionsViewId),
-			}]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
