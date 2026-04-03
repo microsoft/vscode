@@ -14,7 +14,7 @@ import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browse
 import { ISCMResourceGroup, ISCMResource, ISCMRepository, ISCMInput, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ViewMode, ISCMRepositorySelectionMode } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -33,7 +33,7 @@ import { ResourceTree, IResourceNode } from '../../../../base/common/resourceTre
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/tree/objectTree.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { FuzzyScore, createMatches, IMatch } from '../../../../base/common/filters.js';
@@ -1723,7 +1723,17 @@ export class SCMViewPane extends ViewPane {
 						preserveFocus: true,
 					});
 				} else {
-					await this.commandService.executeCommand(e.element.command.id, ...(e.element.command.arguments || []), e);
+					if (e.element.command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID && this.configurationService.getValue<boolean>('scm.allowOpenInModalEditor')) {
+						const [original, modified, label] = (e.element.command.arguments || []) as [UriComponents, UriComponents, string | undefined];
+						await this.editorService.openEditor({
+							original: { resource: URI.from(original, true) },
+							modified: { resource: URI.from(modified, true) },
+							label,
+							options: e.editorOptions
+						}, MODAL_GROUP);
+					} else {
+						await this.commandService.executeCommand(e.element.command.id, ...(e.element.command.arguments || []), e);
+					}
 				}
 			} else {
 				await e.element.open(!!e.editorOptions.preserveFocus);

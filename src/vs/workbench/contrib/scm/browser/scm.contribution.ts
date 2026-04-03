@@ -427,6 +427,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('scm.graph.showOutgoingChanges', "Controls whether to show outgoing changes in the Source Control Graph view."),
 			default: true
+		},
+		'scm.allowOpenInModalEditor': {
+			type: 'boolean',
+			description: localize('scm.allowOpenInModalEditor', "Controls whether Source Control diff editors open in a modal editor overlay."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		}
 	}
 });
@@ -703,7 +712,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.hidden.negate(),
 					ChatContextKeys.Setup.disabled.negate(),
-					ChatContextKeys.Setup.completed.negate(),
+					ChatContextKeys.Setup.installed.negate(),
 					ContextKeyExpr.in(ResourceContextKey.Resource.key, 'git.mergeChanges'),
 					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
 				)
