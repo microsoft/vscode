@@ -350,6 +350,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		return this.isActive;
 	}
 
+	public get hasToolsWaitingForConfirmation(): boolean {
+		return this.toolsWaitingForConfirmation > 0;
+	}
+
 	public markAsInactive(): void {
 		this.isActive = false;
 		this.domNode.classList.remove('chat-thinking-active');
