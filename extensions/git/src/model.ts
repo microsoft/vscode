@@ -918,6 +918,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return repositories[0].repository;
 		}
 
+		// Sort repositories by workspace folder order
+		const workspaceFolders = workspace.workspaceFolders ?? [];
+		repositories.sort((a, b) => {
+			const aIndex = workspaceFolders.findIndex(f => isDescendant(f.uri.fsPath, a.repository.root));
+			const bIndex = workspaceFolders.findIndex(f => isDescendant(f.uri.fsPath, b.repository.root));
+			return (aIndex === -1 ? Infinity : aIndex) - (bIndex === -1 ? Infinity : bIndex);
+		});
+
 		const active = window.activeTextEditor;
 		const picks = repositories.map((e, index) => new RepositoryPick(e.repository, index));
 		const repository = active && this.getRepository(active.document.fileName);
