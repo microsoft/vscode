@@ -14,7 +14,7 @@ A typical TypeScript-based built-in extension has the following structure:
 
 TypeScript-based extensions have the following output structure:
 
-- `out`: Output directory for development builds
+- `out`: Output directory for development builds.
 - `dist`: Output directory for production builds.
 
 
