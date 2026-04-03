@@ -971,7 +971,7 @@ export class ChangesViewPane extends ViewPane {
 			dom.clearNode(this.actionsContainer);
 
 			// Bind context keys
-			this._bindContextKeys();
+			this._bindContextKeys(topLevelStats);
 
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
 			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
@@ -1231,11 +1231,17 @@ export class ChangesViewPane extends ViewPane {
 		}));
 	}
 
-	private _bindContextKeys(): void {
+	private _bindContextKeys(topLevelStats: IObservable<{ files: number }>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
 			const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
+		}));
+
+		// Has changes (can be updated independently since it only affects action enablement, and not visibility)
+		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
+			const { files } = topLevelStats.read(reader);
+			return files > 0;
 		}));
 
 		// Bulk update the context keys
