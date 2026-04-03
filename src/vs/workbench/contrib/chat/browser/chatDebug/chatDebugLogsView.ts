@@ -31,7 +31,6 @@ import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRende
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
-import { IChatWidgetService } from '../chat.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
@@ -79,7 +78,6 @@ export class ChatDebugLogsView extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {

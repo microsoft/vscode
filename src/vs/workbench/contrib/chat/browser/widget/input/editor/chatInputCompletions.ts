@@ -64,7 +64,6 @@ import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
-
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';

@@ -236,20 +236,6 @@ export interface IChatDebugService extends IDisposable {
 	 */
 	getImportedSessionTitle(sessionResource: URI): string | undefined;
 
-	/**
-	 * Fired when debug data is attached to a session.
-	 */
-	readonly onDidAttachDebugData: Event<URI>;
-
-	/**
-	 * Mark a session as having debug data attached.
-	 */
-	markDebugDataAttached(sessionResource: URI): void;
-
-	/**
-	 * Check whether a session has had debug data attached.
-	 */
-	hasAttachedDebugData(sessionResource: URI): boolean;
 }
 
 /**

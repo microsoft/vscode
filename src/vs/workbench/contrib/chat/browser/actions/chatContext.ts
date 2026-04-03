@@ -28,7 +28,6 @@ import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
-
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
