@@ -24,7 +24,7 @@ import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
@@ -472,7 +472,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatEditsActionsDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly _renderingChatEdits = this._register(new MutableDisposable());
-	private readonly _cachedDiffMeta = new ResourceMap<{ added: number; removed: number }>();
 
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
@@ -2840,14 +2839,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				if (!seenEntries.has(entry.modifiedURI)) {
 					seenEntries.add(entry.modifiedURI);
-					const linesAdded = entry.linesAdded?.read(reader) ?? 0;
-					const linesRemoved = entry.linesRemoved?.read(reader) ?? 0;
-
-					// Cache diff meta while Modified so it survives auto-accept
-					if (state === ModifiedFileEntryState.Modified || !this._cachedDiffMeta.has(entry.modifiedURI)) {
-						this._cachedDiffMeta.set(entry.modifiedURI, { added: linesAdded, removed: linesRemoved });
-					}
-					const diffMeta = this._cachedDiffMeta.get(entry.modifiedURI) ?? { added: linesAdded, removed: linesRemoved };
+					const snapshotAdded = entry.snapshotLinesAdded?.read(reader);
+					const snapshotRemoved = entry.snapshotLinesRemoved?.read(reader);
+					const linesAdded = snapshotAdded ?? entry.linesAdded?.read(reader) ?? 0;
+					const linesRemoved = snapshotRemoved ?? entry.linesRemoved?.read(reader) ?? 0;
 
 					entries.push({
 						reference: entry.modifiedURI,
@@ -2855,7 +2850,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						kind: 'reference',
 						options: {
 							status: undefined,
-							diffMeta,
+							diffMeta: { added: linesAdded, removed: linesRemoved },
 							isDeletion: !!entry.isDeletion,
 							originalUri: entry.isDeletion ? entry.originalURI : undefined,
 						}

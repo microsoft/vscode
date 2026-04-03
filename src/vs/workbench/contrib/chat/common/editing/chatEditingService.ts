@@ -419,6 +419,16 @@ export interface IModifiedFileEntry {
 	 */
 	readonly linesRemoved?: IObservable<number>;
 
+	/**
+	 * Snapshot of lines added, captured before accept resets the diff.
+	 */
+	readonly snapshotLinesAdded?: IObservable<number | undefined>;
+
+	/**
+	 * Snapshot of lines removed, captured before accept resets the diff.
+	 */
+	readonly snapshotLinesRemoved?: IObservable<number | undefined>;
+
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
 	/**
 	 * Gets the document diff info, waiting for any ongoing promises to flush.
