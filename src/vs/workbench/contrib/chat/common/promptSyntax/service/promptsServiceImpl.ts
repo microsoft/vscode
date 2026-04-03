@@ -366,7 +366,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this._pluginPromptFilesByType.get(type) ?? [],
 		]);
 
-		return prompts.flat();
+		const seen = new ResourceSet();
+		return prompts.flat().filter(p => {
+			if (seen.has(p.uri)) {
+				return false;
+			}
+			seen.add(p.uri);
+			return true;
+		});
 	}
 
 	/**
