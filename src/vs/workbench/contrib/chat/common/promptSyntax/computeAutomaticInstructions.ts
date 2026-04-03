@@ -473,23 +473,24 @@ export class ComputeAutomaticInstructions {
 				}
 
 				for (const agent of agents) {
-					if (!canUseAgent(agent)) {
-						continue;
-					}
-					entries.push('<agent>');
-					entries.push(`<name>${agent.name}</name>`);
-					if (agent.description) {
-						entries.push(`<description>${agent.description}</description>`);
-					}
-					if (agent.argumentHint) {
-						entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
-					}
-					entries.push('</agent>');
-					if (isInClaudeAgentsFolder(agent.uri)) {
-						telemetryEvent.claudeAgentsCount++;
+					if (canUseAgent(agent)) {
+						entries.push('<agent>');
+						entries.push(`<name>${agent.name}</name>`);
+						if (agent.description) {
+							entries.push(`<description>${agent.description}</description>`);
+						}
+						if (agent.argumentHint) {
+							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+						}
+						entries.push('</agent>');
+						telemetryEvent.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });
+						if (isInClaudeAgentsFolder(agent.uri)) {
+							telemetryEvent.claudeAgentsCount++;
+						}
+					} else {
+						telemetryEvent.debugDetails.push({ category: 'skipped', name: agent.name, uri: agent.uri, reason: localize('debugDetail.agentNotInvocable', 'not invocable by model') });
 					}
 				}
-				entries.push('</agents>', '', ''); // add trailing newline
 			}
 		}
 		if (entries.length === 0) {
