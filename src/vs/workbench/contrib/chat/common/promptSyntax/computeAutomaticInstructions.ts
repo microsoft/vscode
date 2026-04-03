@@ -450,10 +450,10 @@ export class ComputeAutomaticInstructions {
 			const customAgentsEnabled = !!this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
+					return (agent: ICustomAgent) => agent.visibility.agentInvocable && agent.when && !this._contextKeyService.contextMatchesRules(agent.when);
 				} else {
 					const subagents = this._enabledSubagents;
-					return (agent: ICustomAgent) => subagents.includes(agent.name);
+					return (agent: ICustomAgent) => subagents.includes(agent.name) && agent.when && !this._contextKeyService.contextMatchesRules(agent.when);
 				}
 			})();
 			const agents = customAgentsEnabled ? await this._promptsService.getCustomAgents(token) : [];
@@ -475,11 +475,6 @@ export class ComputeAutomaticInstructions {
 				for (const agent of agents) {
 					if (!canUseAgent(agent)) {
 						continue;
-					}
-					if (agent.when) {
-						if (!this._contextKeyService.contextMatchesRules(agent.when)) {
-							continue;
-						}
 					}
 					entries.push('<agent>');
 					entries.push(`<name>${agent.name}</name>`);
