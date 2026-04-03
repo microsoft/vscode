@@ -339,6 +339,19 @@ export function buildModelPickerItems(
 				}
 			}
 
+			// Vendor-priority-based promotion: models with vendorPriority are auto-promoted
+			for (const model of models) {
+				if (model.metadata.vendorPriority !== undefined && !placed.has(model.identifier) && !placed.has(model.metadata.id)) {
+					markPlaced(model.identifier, model.metadata.id);
+					const entry = controlModels[model.metadata.id];
+					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+						promotedItems.push({ kind: 'unavailable', id: model.metadata.id, entry, reason: 'update' });
+					} else {
+						promotedItems.push({ kind: 'available', model });
+					}
+				}
+			}
+
 			// Render promoted section: available first, then by vendor priority, then alphabetically by name
 			if (promotedItems.length > 0) {
 				promotedItems.sort((a, b) => {
