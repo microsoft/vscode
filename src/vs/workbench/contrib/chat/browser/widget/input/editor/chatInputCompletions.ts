@@ -257,13 +257,6 @@ class SlashCommandCompletions extends Disposable {
 				const userInvocableCommands = promptCommands
 					.filter(c => {
 						if (widget.lockedAgentId) {
-							// Extension-provided prompt files are hidden in locked agent mode unless
-							// they declare a `when` clause that references `chatSessionType` —
-							// that clause is then evaluated per-widget below.
-							const whenReferencesSessionType = c.when?.keys().includes(ChatContextKeys.chatSessionType.key);
-							if (c.extension && !whenReferencesSessionType) {
-								return false;
-							}
 							// Exclude hooks as those don't work in locked agent scenarios.
 							try {
 								const promptType = getPromptFileType(c.uri);
