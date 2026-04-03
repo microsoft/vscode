@@ -202,11 +202,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					return mode.id !== ChatMode.Agent.id && shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 				});
 				const filteredCustomModes = modes.custom.filter(mode => {
-					if (isModeConsideredBuiltIn(mode, this._productService)) {
-						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
-					}
 					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
 						return false;
+					}
+					if (isModeConsideredBuiltIn(mode, this._productService)) {
+						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 					}
 					return true;
 				});
