@@ -700,6 +700,33 @@ suite('ConfigurationModel', () => {
 		assert.strictEqual(testObject.inspect('a').overrides, undefined);
 	});
 
+	test('Bug #168411: multi-language workspace setting should override single-language user setting', () => {
+		// User configuration with single-language override [javascript]
+		const userConfig = new ConfigurationModel(
+			{},
+			[],
+			[{ identifiers: ['javascript'], contents: { 'editor': { 'tabSize': 2 } }, keys: ['editor.tabSize'] }],
+			undefined,
+			new NullLogService()
+		);
+
+		// Workspace configuration with multi-language override [javascript][typescript]
+		const workspaceConfig = new ConfigurationModel(
+			{},
+			[],
+			[{ identifiers: ['javascript', 'typescript'], contents: { 'editor': { 'tabSize': 4 } }, keys: ['editor.tabSize'] }],
+			undefined,
+			new NullLogService()
+		);
+
+		// Merge user then workspace (workspace should have higher priority)
+		const merged = userConfig.merge(workspaceConfig);
+
+		// When getting the value for javascript, workspace setting (4) should win over user setting (2)
+		const result = merged.override('javascript');
+		assert.strictEqual(result.getValue('editor.tabSize'), 4, 'Workspace multi-language setting should override user single-language setting');
+	});
+
 });
 
 suite('CustomConfigurationModel', () => {
