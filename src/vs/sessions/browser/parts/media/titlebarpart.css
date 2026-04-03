@@ -64,7 +64,7 @@
 	content: '';
 	width: 1px;
 	height: 16px;
-	margin: 0 4px;
+	margin: 0 8px;
 	background-color: var(--vscode-disabledForeground);
 }
 
