@@ -1751,7 +1751,7 @@ class ChatModelsAtStartupTelemetry extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
-		this.logTelemetry();
+		void this.logTelemetry();
 	}
 
 	private async logTelemetry(): Promise<void> {
@@ -1768,7 +1768,7 @@ class ChatModelsAtStartupTelemetry extends Disposable implements IWorkbenchContr
 				modelsOpenInWidgets++;
 			} else {
 				backgroundModels++;
-				if (model.hasPendingEdits) {
+				if (model.hasPendingEdits && model.referenceCount === 1) {
 					modelsKeptAliveOnlyForEdits++;
 				}
 			}

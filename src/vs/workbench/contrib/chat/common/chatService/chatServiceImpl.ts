@@ -209,7 +209,9 @@ export class ChatService extends Disposable implements IChatService {
 			this._transferredSessionResource = transferredData;
 		}
 
-		this.whenSessionsRevived = this.reviveSessionsWithEdits();
+		this.whenSessionsRevived = this.reviveSessionsWithEdits().catch(error => {
+			this.logService.error('Failed to revive chat sessions with edits', error);
+		});
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 
