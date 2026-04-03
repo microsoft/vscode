@@ -2558,26 +2558,63 @@ export class Repository implements Disposable {
 
 	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
-			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
-			const textToAppend = files
-				.map(uri => relativePath(this.repository.root, uri.fsPath)
-					.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
-				.join('\n');
+			// Group files by their closest .gitignore file
+			const repoRoot = this.repository.root;
+			const filesByIgnoreFile = new Map<string, Uri[]>();
 
-			const document = await new Promise(c => fs.exists(ignoreFile, c))
-				? await workspace.openTextDocument(ignoreFile)
-				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
+			for (const file of files) {
+				const ignoreFile = await this.findClosestGitignore(file.fsPath, repoRoot);
+				const group = filesByIgnoreFile.get(ignoreFile);
+				if (group) {
+					group.push(file);
+				} else {
+					filesByIgnoreFile.set(ignoreFile, [file]);
+				}
+			}
 
-			await window.showTextDocument(document);
+			for (const [ignoreFile, groupedFiles] of filesByIgnoreFile) {
+				const ignoreFileDir = path.dirname(ignoreFile);
+				const textToAppend = groupedFiles
+					.map(uri => relativePath(ignoreFileDir, uri.fsPath)
+						.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
+					.join('\n');
 
-			const edit = new WorkspaceEdit();
-			const lastLine = document.lineAt(document.lineCount - 1);
-			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+				const document = await new Promise(c => fs.exists(ignoreFile, c))
+					? await workspace.openTextDocument(ignoreFile)
+					: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
 
-			edit.insert(document.uri, lastLine.range.end, text);
-			await workspace.applyEdit(edit);
-			await document.save();
+				await window.showTextDocument(document);
+
+				const edit = new WorkspaceEdit();
+				const lastLine = document.lineAt(document.lineCount - 1);
+				const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+
+				edit.insert(document.uri, lastLine.range.end, text);
+				await workspace.applyEdit(edit);
+				await document.save();
+			}
 		});
+	}
+
+	private async findClosestGitignore(filePath: string, repoRoot: string): Promise<string> {
+		const rootGitignore = `${repoRoot}${path.sep}.gitignore`;
+
+		// Start from the file's parent directory and walk up to the repo root
+		let currentDir = path.dirname(filePath);
+		while (isDescendant(repoRoot, currentDir) && currentDir.length >= repoRoot.length) {
+			const candidate = `${currentDir}${path.sep}.gitignore`;
+			if (await new Promise<boolean>(c => fs.exists(candidate, c))) {
+				return candidate;
+			}
+
+			const parentDir = path.dirname(currentDir);
+			if (parentDir === currentDir) {
+				break;
+			}
+			currentDir = parentDir;
+		}
+
+		return rootGitignore;
 	}
 
 	async rebaseAbort(): Promise<void> {
