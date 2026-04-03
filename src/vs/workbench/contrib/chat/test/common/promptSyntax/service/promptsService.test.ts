@@ -2927,6 +2927,55 @@ suite('PromptsService', () => {
 			registered.dispose();
 		});
 
+		test('should deduplicate skills by URI when Agent Skills Location overlaps with Plugin Locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			const pluginPath = '/plugins/my-plugin';
+			const skillUri = URI.file(`${pluginPath}/skills/sdd-init/SKILL.md`);
+
+			// Configure SKILLS_LOCATION_KEY to point to the plugin's skills folder (overlapping with plugin location)
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, { [`${pluginPath}/skills`]: true });
+
+			workspaceContextService.setWorkspace(testWorkspace(URI.file('/workspace')));
+
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "sdd-init"',
+						'description: "Initialize Spec-Driven Development"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: URI.file(pluginPath),
+				label: 'my-plugin',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'sdd-init' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			const allResult = await service.findAgentSkills(CancellationToken.None);
+
+			assert.ok(allResult, 'Should return results');
+			assert.strictEqual(allResult.length, 1, 'Should find exactly 1 skill (not duplicated) when Agent Skills Location overlaps with Plugin Locations');
+			assert.strictEqual(allResult[0].name, 'sdd-init');
+
+			testPluginsObservable.set([], undefined);
+		});
+
 		test('should include contributed skill files in findAgentSkills', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
