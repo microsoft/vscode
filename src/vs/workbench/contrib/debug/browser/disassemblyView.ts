@@ -208,18 +208,21 @@ export class DisassemblyView extends EditorPane {
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry> {
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
+				const hasSymbol = !!row.instruction.symbol;
+				const symbolLines = hasSymbol ? 1 : 0;
+
 				if (thisOM.isSourceCodeRender && row.showSourceLocation && row.instruction.location?.path && row.instruction.line) {
-					// instruction line + source lines
+					// instruction line + source lines + optional symbol label
 					if (row.instruction.endLine) {
-						return lineHeight * Math.max(2, (row.instruction.endLine - row.instruction.line + 2));
+						return lineHeight * Math.max(2 + symbolLines, (row.instruction.endLine - row.instruction.line + 2 + symbolLines));
 					} else {
 						// source is only a single line.
-						return lineHeight * 2;
+						return lineHeight * (2 + symbolLines);
 					}
 				}
 
-				// just instruction line
-				return lineHeight;
+				// instruction line + optional symbol label
+				return lineHeight * (1 + symbolLines);
 			}
 		};
 
@@ -852,6 +855,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.currentElement.element = element;
 		const instruction = element.instruction;
 		templateData.sourcecode.innerText = '';
+		const symbolPrefix = instruction.symbol ? instruction.symbol + ':\n' : '';
 		const sb = new StringBuilder(1000);
 
 		if (this._disassemblyView.isSourceCodeRender && element.showSourceLocation && instruction.location?.path && instruction.line !== undefined) {
@@ -885,9 +889,14 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 						break;
 					}
 
-					templateData.sourcecode.innerText = sourceSB.build();
+					templateData.sourcecode.innerText = symbolPrefix + sourceSB.build();
 				}
 			}
+		}
+
+		// Show symbol label even when source code rendering is disabled
+		if (symbolPrefix && !templateData.sourcecode.innerText) {
+			templateData.sourcecode.innerText = instruction.symbol + ':';
 		}
 
 		let spacesToAppend = 10;
@@ -1000,6 +1009,9 @@ class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledI
 		const instruction = element.instruction;
 		if (instruction.address !== '-1') {
 			label += `${localize('instructionAddress', "Address")}: ${instruction.address}`;
+		}
+		if (instruction.symbol) {
+			label += `, ${localize('instructionSymbol', "Symbol")}: ${instruction.symbol}`;
 		}
 		if (instruction.instructionBytes) {
 			label += `, ${localize('instructionBytes', "Bytes")}: ${instruction.instructionBytes}`;
