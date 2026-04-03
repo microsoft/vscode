@@ -23,7 +23,7 @@ import { IChatService, type ChatSendResult } from '../../../../../workbench/cont
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
-import { CopilotCLISessionType } from '../../../sessions/browser/sessionTypes.js';
+
 import { SessionStatus } from '../../../sessions/common/sessionData.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 
@@ -164,7 +164,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.id, 'local-agent-host');
 		assert.ok(provider.label.length > 0);
 		assert.strictEqual(provider.sessionTypes.length, 1);
-		assert.strictEqual(provider.sessionTypes[0].id, CopilotCLISessionType.id);
+		assert.strictEqual(provider.sessionTypes[0].id, 'agent-host-copilot');
 	});
 
 	// ---- Workspace resolution -------
@@ -421,7 +421,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const types = provider.getSessionTypes('any-id');
 
 		assert.strictEqual(types.length, 1);
-		assert.strictEqual(types[0].id, CopilotCLISessionType.id);
+		assert.strictEqual(types[0].id, 'agent-host-copilot');
 	});
 
 	// ---- Session data adapter -------

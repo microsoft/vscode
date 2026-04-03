@@ -9,8 +9,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -23,9 +23,8 @@ import { IChatSendRequestOptions, IChatService } from '../../../../workbench/con
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionsBrowseAction, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
-import { ISession, IChat, ISessionWorkspace, SessionStatus, type IGitHubInfo } from '../../sessions/common/sessionData.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionsBrowseAction, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus, type IGitHubInfo } from '../../sessions/common/sessionData.js';
 
 const LOCAL_PROVIDER_ID = 'local-agent-host';
 
@@ -40,6 +39,13 @@ const DEFAULT_AGENT_PROVIDER = 'copilot';
 function sessionTypeForProvider(provider: string): string {
 	return `agent-host-${provider}`;
 }
+
+/** Session type for the local agent host. ID matches the targetChatSessionType on language models. */
+const LocalAgentHostSessionType: ISessionType = {
+	id: sessionTypeForProvider(DEFAULT_AGENT_PROVIDER),
+	label: localize('localAgentHost', "Local Agent Host"),
+	icon: Codicon.vm,
+};
 
 /**
  * Adapts agent host session metadata into an {@link ISession} for the
@@ -80,7 +86,7 @@ class LocalSessionAdapter implements ISession {
 		logicalSessionType: string,
 	) {
 		const rawId = AgentSession.id(metadata.session);
-		this.agentProvider = AgentSession.provider(metadata.session) ?? 'copilot';
+		this.agentProvider = AgentSession.provider(metadata.session) ?? DEFAULT_AGENT_PROVIDER;
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
 		this.sessionId = `${providerId}:${this.resource.toString()}`;
 		this.providerId = providerId;
@@ -89,7 +95,7 @@ class LocalSessionAdapter implements ISession {
 		this.title = observableValue('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
-		this.description = observableValue('description', new MarkdownString().appendText(localize('localAgentHost', "Local")));
+		this.description = observableValue('description', new MarkdownString().appendText(localize('localAgentHostDescription', "Local")));
 		this.workspace = observableValue('workspace', metadata.workingDirectory
 			? LocalAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory)
 			: undefined);
@@ -111,10 +117,29 @@ class LocalSessionAdapter implements ISession {
 		this.chats = constObservable([this.mainChat]);
 	}
 
-	update(metadata: IAgentSessionMetadata): void {
-		this.title.set(metadata.summary ?? this.title.get(), undefined);
-		this.updatedAt.set(new Date(metadata.modifiedTime), undefined);
-		this.lastTurnEnd.set(metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined, undefined);
+	update(metadata: IAgentSessionMetadata): boolean {
+		let didChange = false;
+
+		const summary = metadata.summary;
+		if (summary !== undefined && summary !== this.title.get()) {
+			this.title.set(summary, undefined);
+			didChange = true;
+		}
+
+		const modifiedTime = metadata.modifiedTime;
+		if (this.updatedAt.get().getTime() !== modifiedTime) {
+			this.updatedAt.set(new Date(modifiedTime), undefined);
+			didChange = true;
+		}
+
+		const currentLastTurnEndTime = this.lastTurnEnd.get()?.getTime();
+		const nextLastTurnEndTime = modifiedTime ? modifiedTime : undefined;
+		if (currentLastTurnEndTime !== nextLastTurnEndTime) {
+			this.lastTurnEnd.set(nextLastTurnEndTime !== undefined ? new Date(nextLastTurnEndTime) : undefined, undefined);
+			didChange = true;
+		}
+
+		return didChange;
 	}
 }
 
@@ -174,7 +199,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
-		this.sessionTypes = [CopilotCLISessionType];
+		this.sessionTypes = [LocalAgentHostSessionType];
 
 		this.browseActions = [{
 			label: localize('folders', "Folders"),
@@ -394,6 +419,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			modelRef.dispose();
 		}
 
+		this._ensureSessionCache();
 		const existingKeys = new Set(this._sessionCache.keys());
 
 		const result = await this._chatService.sendRequest(session.resource, query, sendOptions);
@@ -450,8 +476,9 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 
 				const existing = this._sessionCache.get(rawId);
 				if (existing) {
-					existing.update(meta);
-					changed.push(existing);
+					if (existing.update(meta)) {
+						changed.push(existing);
+					}
 				} else {
 					const cached = new LocalSessionAdapter(meta, this.id, sessionTypeForProvider(provider), this.sessionTypes[0].id);
 					this._sessionCache.set(rawId, cached);
