@@ -64,7 +64,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { GitDiffChange, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { GitDiffChange, GitRepositoryState, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { CIStatusWidget } from './checksWidget.js';
 import { arrayEqualsC, structuralEquals } from '../../../../base/common/equals.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../sessions/common/sessionData.js';
@@ -256,6 +256,7 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionBaseBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
+	readonly activeSessionRepositoryStateObs: IObservableWithChange<GitRepositoryState | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
@@ -351,10 +352,24 @@ class ChangesViewModel extends Disposable {
 			return activeSessionRepositoryPromise.read(reader);
 		});
 
+		this.activeSessionRepositoryStateObs = derivedOpts({ equalsFn: structuralEquals }, reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const repositoryState = repository?.state.read(reader);
+
+			// If the repository has no HEAD, it is likely not fully loaded yet.
+			// Treat it as undefined to avoid showing incorrect information to
+			// the user.
+			if (!repositoryState?.HEAD) {
+				return undefined;
+			}
+
+			return repositoryState;
+		});
+
 		// Active session branch name
 		this.activeSessionBranchNameObs = derived(reader => {
 			const repository = activeSessionRepositoryObs.read(reader);
-			const repositoryState = this.activeSessionRepositoryObs.read(reader)?.state.read(reader);
+			const repositoryState = this.activeSessionRepositoryStateObs.read(reader);
 
 			return repository?.detail ?? repositoryState?.HEAD?.name;
 		});
@@ -797,7 +812,7 @@ export class ChangesViewPane extends ViewPane {
 			// If there is a git repository, wait for the repository to be opened first,
 			// as there are many context keys that depend on the repository information.
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-			if (hasGitRepository && this.viewModel.activeSessionRepositoryObs.read(reader) === undefined) {
+			if (hasGitRepository && this.viewModel.activeSessionRepositoryStateObs.read(reader) === undefined) {
 				return true;
 			}
 
@@ -887,16 +902,19 @@ export class ChangesViewPane extends ViewPane {
 			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
 			this.renderDisposables.add(scopedInstantiationService);
 
-			const outgoingChangesObs = derived(reader => {
-				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-				const repositoryState = repository?.state.read(reader);
+			const outgoingChangesObs = derivedObservableWithCache<number>(this, (reader, lastValue) => {
+				const isLoadingChanges = isLoadingChangesObs.read(reader);
+				if (isLoadingChanges) {
+					return lastValue ?? 0;
+				}
 
+				const repositoryState = this.viewModel.activeSessionRepositoryStateObs.read(reader);
 				return repositoryState?.HEAD?.ahead ?? 0;
 			});
 
 			this.renderDisposables.add(autorun(reader => {
-				const outgoingChanges = outgoingChangesObs.read(reader);
 				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
+				const outgoingChanges = outgoingChangesObs.read(reader);
 
 				// Read code review state to update the button label dynamically
 				let reviewCommentCount: number | undefined;
@@ -1172,7 +1190,7 @@ export class ChangesViewPane extends ViewPane {
 				}
 
 				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
+				const repositoryState = this.viewModel.activeSessionRepositoryStateObs.read(reader);
 
 				// Changes state
 				const { files } = topLevelStats.read(reader);
@@ -1191,7 +1209,6 @@ export class ChangesViewPane extends ViewPane {
 						gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
 
 				// Repository state
-				const repositoryState = repository?.state.read(reader);
 				const hasIncomingChanges = (repositoryState?.HEAD?.behind ?? 0) > 0;
 				const hasOutgoingChanges = (repositoryState?.HEAD?.ahead ?? 0) > 0;
 				const hasUncommittedChanges = (repositoryState?.mergeChanges.length ?? 0) > 0 ||
