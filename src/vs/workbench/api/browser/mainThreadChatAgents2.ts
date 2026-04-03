@@ -30,7 +30,7 @@ import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/ch
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IPromptFileContext, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
-import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
@@ -42,7 +42,7 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
@@ -193,6 +193,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._register(this._promptsService.onDidChangeSkills(() => {
 			void this._pushSkills();
 		}));
+
+		// Push hooks to ext host
+		void this._pushHooks();
+		this._register(this._promptsService.onDidChangeHooks(() => {
+			void this._pushHooks();
+		}));
 	}
 
 	private _acceptActiveChatSession(widget: IChatWidget | undefined): void {
@@ -228,6 +234,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			this._proxy.$acceptSkills(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push skills to extension host', error);
+		}
+	}
+
+	private async _pushHooks(): Promise<void> {
+		try {
+			const hookFiles = await this._promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			const dtos: IHookDto[] = hookFiles.map(hookFile => ({ uri: hookFile.uri }));
+			this._proxy.$acceptHooks(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push hooks to extension host', error);
 		}
 	}
 
