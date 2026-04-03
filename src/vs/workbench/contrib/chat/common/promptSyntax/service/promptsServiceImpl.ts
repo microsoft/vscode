@@ -805,7 +805,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
 					: undefined;
 				if (!ast.header) {
-					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, when };
+					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, ...(when !== undefined ? { when } : undefined) };
 					return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 				}
 				const visibility = {
@@ -832,7 +832,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 
-				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, when };
+				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, ...(when !== undefined ? { when } : undefined) };
 				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));
