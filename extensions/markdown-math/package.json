@@ -43,7 +43,7 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "latex"
+          "meta.embedded.math.string.markdown": "latex"
         }
       },
       {
@@ -53,7 +53,7 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "latex",
+          "meta.embedded.math.string.markdown": "latex",
           "punctuation.definition.math.end.markdown": "latex"
         }
       },
@@ -64,7 +64,7 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "latex"
+          "meta.embedded.math.string.markdown": "latex"
         }
       }
     ],

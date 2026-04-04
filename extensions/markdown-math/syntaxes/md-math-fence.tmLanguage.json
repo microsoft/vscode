@@ -14,7 +14,7 @@
                 {
                     "begin": "(^|\\G)(\\s*)(.*)",
                     "while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-                    "contentName": "meta.embedded.math.markdown",
+                    "contentName": "meta.embedded.math.string.markdown",
                     "patterns": [
                         {
                             "include": "text.html.markdown.math#math"

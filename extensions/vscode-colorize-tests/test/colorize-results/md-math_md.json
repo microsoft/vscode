@@ -65,7 +65,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -81,7 +81,7 @@
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -193,7 +193,7 @@
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -209,7 +209,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -241,7 +241,7 @@
 	},
 	{
 		"c": "%",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex comment.line.math.tex punctuation.definition.comment.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex comment.line.math.tex punctuation.definition.comment.math.tex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -257,7 +257,7 @@
 	},
 	{
 		"c": " comment",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex comment.line.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex comment.line.math.tex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -369,7 +369,7 @@
 	},
 	{
 		"c": "relax",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -385,7 +385,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -401,7 +401,7 @@
 	},
 	{
 		"c": "x",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -417,7 +417,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -433,7 +433,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -449,7 +449,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -465,7 +465,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -481,7 +481,7 @@
 	},
 	{
 		"c": " = ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -497,7 +497,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -513,7 +513,7 @@
 	},
 	{
 		"c": "int_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -529,7 +529,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -545,7 +545,7 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -561,7 +561,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -577,7 +577,7 @@
 	},
 	{
 		"c": "infty",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -593,7 +593,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -609,7 +609,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -625,7 +625,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -641,7 +641,7 @@
 	},
 	{
 		"c": "infty",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -657,7 +657,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -673,7 +673,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -689,7 +689,7 @@
 	},
 	{
 		"c": "hat",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -705,7 +705,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -721,7 +721,7 @@
 	},
 	{
 		"c": "xi",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -737,7 +737,7 @@
 	},
 	{
 		"c": "\\,e",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -753,7 +753,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -769,7 +769,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -785,7 +785,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -801,7 +801,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -817,7 +817,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -833,7 +833,7 @@
 	},
 	{
 		"c": "pi",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -849,7 +849,7 @@
 	},
 	{
 		"c": " i ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -865,7 +865,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -881,7 +881,7 @@
 	},
 	{
 		"c": "xi",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -897,7 +897,7 @@
 	},
 	{
 		"c": " x",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -913,7 +913,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -929,7 +929,7 @@
 	},
 	{
 		"c": "    \\,d",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -945,7 +945,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -961,7 +961,7 @@
 	},
 	{
 		"c": "xi",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -977,7 +977,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -993,7 +993,7 @@
 	},
 	{
 		"c": "%",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown comment.line.math.tex punctuation.definition.comment.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown comment.line.math.tex punctuation.definition.comment.math.tex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -1009,7 +1009,7 @@
 	},
 	{
 		"c": " comment",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown comment.line.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown comment.line.math.tex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -1105,7 +1105,7 @@
 	},
 	{
 		"c": "x = ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1121,7 +1121,7 @@
 	},
 	{
 		"c": "1.1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1137,7 +1137,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1153,7 +1153,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1169,7 +1169,7 @@
 	},
 	{
 		"c": "int_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1185,7 +1185,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1201,7 +1201,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1217,7 +1217,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1313,7 +1313,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1329,7 +1329,7 @@
 	},
 	{
 		"c": "begin",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1345,7 +1345,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1361,7 +1361,7 @@
 	},
 	{
 		"c": "smallmatrix",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1377,7 +1377,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1393,7 +1393,7 @@
 	},
 	{
 		"c": "   ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1409,7 +1409,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1425,7 +1425,7 @@
 	},
 	{
 		"c": " & ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1441,7 +1441,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1457,7 +1457,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1473,7 +1473,7 @@
 	},
 	{
 		"c": "\\\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown line.separator.math.tex punctuation.line.separator.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown line.separator.math.tex punctuation.line.separator.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1489,7 +1489,7 @@
 	},
 	{
 		"c": "   ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1505,7 +1505,7 @@
 	},
 	{
 		"c": "4",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1521,7 +1521,7 @@
 	},
 	{
 		"c": " & ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1537,7 +1537,7 @@
 	},
 	{
 		"c": "3",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1553,7 +1553,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1569,7 +1569,7 @@
 	},
 	{
 		"c": "end",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1585,7 +1585,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1601,7 +1601,7 @@
 	},
 	{
 		"c": "smallmatrix",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1617,7 +1617,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1665,7 +1665,7 @@
 	},
 	{
 		"c": "x = a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1681,7 +1681,7 @@
 	},
 	{
 		"c": "_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1697,7 +1697,7 @@
 	},
 	{
 		"c": "0",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1713,7 +1713,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1729,7 +1729,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1745,7 +1745,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1761,7 +1761,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1777,7 +1777,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1793,7 +1793,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1809,7 +1809,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1825,7 +1825,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1841,7 +1841,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1857,7 +1857,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1873,7 +1873,7 @@
 	},
 	{
 		"c": "_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1889,7 +1889,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1905,7 +1905,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1921,7 +1921,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1937,7 +1937,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -1953,7 +1953,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1969,7 +1969,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1985,7 +1985,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2001,7 +2001,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2017,7 +2017,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2033,7 +2033,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2049,7 +2049,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2065,7 +2065,7 @@
 	},
 	{
 		"c": "_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2081,7 +2081,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2097,7 +2097,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2113,7 +2113,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2129,7 +2129,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2145,7 +2145,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2161,7 +2161,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2177,7 +2177,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2193,7 +2193,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2209,7 +2209,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2225,7 +2225,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2241,7 +2241,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2257,7 +2257,7 @@
 	},
 	{
 		"c": "_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2273,7 +2273,7 @@
 	},
 	{
 		"c": "3",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2289,7 +2289,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2305,7 +2305,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2321,7 +2321,7 @@
 	},
 	{
 		"c": " a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2337,7 +2337,7 @@
 	},
 	{
 		"c": "_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2353,7 +2353,7 @@
 	},
 	{
 		"c": "4",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2369,7 +2369,7 @@
 	},
 	{
 		"c": "}}}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2417,7 +2417,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2433,7 +2433,7 @@
 	},
 	{
 		"c": "displaystyle",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2449,7 +2449,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2465,7 +2465,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2481,7 +2481,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2497,7 +2497,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2513,7 +2513,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2529,7 +2529,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2545,7 +2545,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2561,7 +2561,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2577,7 +2577,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2593,7 +2593,7 @@
 	},
 	{
 		"c": "q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2609,7 +2609,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex meta.function.math.tex punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2625,7 +2625,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2641,7 +2641,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2657,7 +2657,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2673,7 +2673,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.begin.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.math.begin.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2689,7 +2689,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2705,7 +2705,7 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2721,7 +2721,7 @@
 	},
 	{
 		"c": "q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2737,7 +2737,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.end.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.math.end.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2753,7 +2753,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2769,7 +2769,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2785,7 +2785,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -2801,7 +2801,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2817,7 +2817,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2833,7 +2833,7 @@
 	},
 	{
 		"c": "q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2849,7 +2849,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2865,7 +2865,7 @@
 	},
 	{
 		"c": "6",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2881,7 +2881,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2897,7 +2897,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2913,7 +2913,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2929,7 +2929,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -2945,7 +2945,7 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2961,7 +2961,7 @@
 	},
 	{
 		"c": "q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2977,7 +2977,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -2993,7 +2993,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3009,7 +3009,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3025,7 +3025,7 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3041,7 +3041,7 @@
 	},
 	{
 		"c": "q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3057,7 +3057,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3073,7 +3073,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3089,7 +3089,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3105,7 +3105,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3121,7 +3121,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3137,7 +3137,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3153,7 +3153,7 @@
 	},
 	{
 		"c": "cdots",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3169,7 +3169,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3185,7 +3185,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3201,7 +3201,7 @@
 	},
 	{
 		"c": "= ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3217,7 +3217,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -3233,7 +3233,7 @@
 	},
 	{
 		"c": "prod_",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3249,7 +3249,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3265,7 +3265,7 @@
 	},
 	{
 		"c": "j=",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3281,7 +3281,7 @@
 	},
 	{
 		"c": "0",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3297,7 +3297,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3313,7 +3313,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3329,7 +3329,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3345,7 +3345,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3361,7 +3361,7 @@
 	},
 	{
 		"c": "infty",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3377,7 +3377,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3393,7 +3393,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -3409,7 +3409,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3425,7 +3425,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3441,7 +3441,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3457,7 +3457,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3473,7 +3473,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3489,7 +3489,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3505,7 +3505,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3521,7 +3521,7 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3537,7 +3537,7 @@
 	},
 	{
 		"c": "q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3553,7 +3553,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3569,7 +3569,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3585,7 +3585,7 @@
 	},
 	{
 		"c": "5",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3601,7 +3601,7 @@
 	},
 	{
 		"c": "j",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3617,7 +3617,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3633,7 +3633,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3649,7 +3649,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3665,7 +3665,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3681,7 +3681,7 @@
 	},
 	{
 		"c": "(",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3697,7 +3697,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3713,7 +3713,7 @@
 	},
 	{
 		"c": "-",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3729,7 +3729,7 @@
 	},
 	{
 		"c": "q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3745,7 +3745,7 @@
 	},
 	{
 		"c": "^",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3761,7 +3761,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3777,7 +3777,7 @@
 	},
 	{
 		"c": "5",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3793,7 +3793,7 @@
 	},
 	{
 		"c": "j",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3809,7 +3809,7 @@
 	},
 	{
 		"c": "+",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3825,7 +3825,7 @@
 	},
 	{
 		"c": "3",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -3841,7 +3841,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3857,7 +3857,7 @@
 	},
 	{
 		"c": ")",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.round",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.round",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3873,7 +3873,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3889,7 +3889,7 @@
 	},
 	{
 		"c": ", ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3905,7 +3905,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3921,7 +3921,7 @@
 	},
 	{
 		"c": "quad",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3937,7 +3937,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3953,7 +3953,7 @@
 	},
 	{
 		"c": "quad",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -3969,7 +3969,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -3985,7 +3985,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -4001,7 +4001,7 @@
 	},
 	{
 		"c": "text",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -4017,7 +4017,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4033,7 +4033,7 @@
 	},
 	{
 		"c": "for ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4049,7 +4049,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4065,7 +4065,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4081,7 +4081,7 @@
 	},
 	{
 		"c": "lvert",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4097,7 +4097,7 @@
 	},
 	{
 		"c": " q",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4113,7 +4113,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4129,7 +4129,7 @@
 	},
 	{
 		"c": "rvert",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4145,7 +4145,7 @@
 	},
 	{
 		"c": "<",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4161,7 +4161,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -4177,7 +4177,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4353,7 +4353,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4369,7 +4369,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4385,7 +4385,7 @@
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4401,7 +4401,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4593,7 +4593,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4609,7 +4609,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4625,7 +4625,7 @@
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4641,7 +4641,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4753,7 +4753,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4769,7 +4769,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4785,7 +4785,7 @@
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4801,7 +4801,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4849,7 +4849,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4865,7 +4865,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -4881,7 +4881,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4897,7 +4897,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4913,7 +4913,7 @@
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
@@ -4929,7 +4929,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4945,7 +4945,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -4961,7 +4961,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -4977,7 +4977,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -4993,7 +4993,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -5537,7 +5537,7 @@
 	},
 	{
 		"c": "aa a ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -5553,7 +5553,7 @@
 	},
 	{
 		"c": "**",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -5569,7 +5569,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -5585,7 +5585,7 @@
 	},
 	{
 		"c": "**",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6145,7 +6145,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -6161,7 +6161,7 @@
 	},
 	{
 		"c": "begin",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6177,7 +6177,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6193,7 +6193,7 @@
 	},
 	{
 		"c": "aligned",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6209,7 +6209,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6241,7 +6241,7 @@
 	},
 	{
 		"c": "    &",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6257,7 +6257,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -6273,7 +6273,7 @@
 	},
 	{
 		"c": "text",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6289,7 +6289,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6305,7 +6305,7 @@
 	},
 	{
 		"c": "Any equation",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6321,7 +6321,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6353,7 +6353,7 @@
 	},
 	{
 		"c": "    ",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6369,7 +6369,7 @@
 	},
 	{
 		"c": "\\\\",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown line.separator.math.tex punctuation.line.separator.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown line.separator.math.tex punctuation.line.separator.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6401,7 +6401,7 @@
 	},
 	{
 		"c": "    &",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6417,7 +6417,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -6433,7 +6433,7 @@
 	},
 	{
 		"c": "text",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6449,7 +6449,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6465,7 +6465,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6481,7 +6481,7 @@
 	},
 	{
 		"c": "Inconsistent KaTeX keyword highlighting",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6497,7 +6497,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6529,7 +6529,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -6545,7 +6545,7 @@
 	},
 	{
 		"c": "end",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6561,7 +6561,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6577,7 +6577,7 @@
 	},
 	{
 		"c": "aligned",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6593,7 +6593,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.list.unnumbered.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6769,7 +6769,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -6785,7 +6785,7 @@
 	},
 	{
 		"c": "text",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6801,7 +6801,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6817,7 +6817,7 @@
 	},
 	{
 		"c": "stuff",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6833,7 +6833,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6849,7 +6849,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -6865,7 +6865,7 @@
 	},
 	{
 		"c": "text",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -6881,7 +6881,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6897,7 +6897,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6913,7 +6913,7 @@
 	},
 	{
 		"c": "stuff",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -6929,7 +6929,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7121,7 +7121,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7137,7 +7137,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7153,7 +7153,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7169,7 +7169,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7185,7 +7185,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7201,7 +7201,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7217,7 +7217,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7233,7 +7233,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7249,7 +7249,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7265,7 +7265,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7281,7 +7281,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7297,7 +7297,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7313,7 +7313,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7329,7 +7329,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7345,7 +7345,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7361,7 +7361,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7377,7 +7377,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7473,7 +7473,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7489,7 +7489,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7505,7 +7505,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7521,7 +7521,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7537,7 +7537,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7553,7 +7553,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7569,7 +7569,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7585,7 +7585,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7601,7 +7601,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7617,7 +7617,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7633,7 +7633,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7649,7 +7649,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7665,7 +7665,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7681,7 +7681,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7697,7 +7697,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7713,7 +7713,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7729,7 +7729,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7889,7 +7889,7 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7905,7 +7905,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -7921,7 +7921,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -7937,7 +7937,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7953,7 +7953,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7969,7 +7969,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -7985,7 +7985,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -8001,7 +8001,7 @@
 	},
 	{
 		"c": "vec",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8017,7 +8017,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8033,7 +8033,7 @@
 	},
 	{
 		"c": "a",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8049,7 +8049,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8065,7 +8065,7 @@
 	},
 	{
 		"c": " = [",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8081,7 +8081,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -8097,7 +8097,7 @@
 	},
 	{
 		"c": ", ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8113,7 +8113,7 @@
 	},
 	{
 		"c": "3",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -8129,7 +8129,7 @@
 	},
 	{
 		"c": "] ",
-		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown markup.math.block.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8321,7 +8321,7 @@
 	},
 	{
 		"c": "**",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8337,7 +8337,7 @@
 	},
 	{
 		"c": "b",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8353,7 +8353,7 @@
 	},
 	{
 		"c": "**",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.operator.latex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.operator.latex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8529,7 +8529,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -8545,7 +8545,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8561,7 +8561,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8577,7 +8577,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -8593,7 +8593,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8609,7 +8609,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8625,7 +8625,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -8641,7 +8641,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8913,7 +8913,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -8929,7 +8929,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -8945,7 +8945,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8961,7 +8961,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -8977,7 +8977,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -8993,7 +8993,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -9009,7 +9009,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -9025,7 +9025,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -9217,7 +9217,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex punctuation.definition.function.math.tex",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -9233,7 +9233,7 @@
 	},
 	{
 		"c": "frac",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex storage.type.function.math.tex entity.name.function.math.tex",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -9249,7 +9249,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.begin.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -9265,7 +9265,7 @@
 	},
 	{
 		"c": "1",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -9281,7 +9281,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown meta.function.math.tex punctuation.definition.arguments.end.math.tex",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -9297,7 +9297,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.begin.bracket.curly",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.begin.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -9313,7 +9313,7 @@
 	},
 	{
 		"c": "2",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.numeric.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown constant.numeric.math.tex",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -9329,7 +9329,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown punctuation.math.end.bracket.curly",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown punctuation.math.end.bracket.curly",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -9569,7 +9569,7 @@
 	},
 	{
 		"c": " \\% Should not be highlighted ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.string.markdown",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
