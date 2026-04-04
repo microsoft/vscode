@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
-import { CancellationToken, commands, DocumentLink, DocumentLinkProvider, l10n, Range, TabInputText, TextDocument, Uri, window, workspace } from 'vscode';
+import { CancellationToken, CodeLens, CodeLensProvider, DocumentLink, DocumentLinkProvider, Event, EventEmitter, l10n, languages, Range, TabInputText, TextDocument, Uri, window, workspace } from 'vscode';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { ITerminalEnvironmentProvider } from './terminal';
 import { EmptyDisposable, IDisposable } from './util';
@@ -21,7 +21,7 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 
 	readonly featureDescription = 'git editor';
 
-	constructor(ipc?: IIPCServer) {
+	constructor(private readonly _codeLensProvider: GitEditorCodeLensProvider, ipc?: IIPCServer) {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('git-editor', this);
 		}
@@ -40,19 +40,12 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 			const doc = await workspace.openTextDocument(uri);
 			await window.showTextDocument(doc, { preview: false });
 
-			const commit = l10n.t('Commit');
-			window.showInformationMessage(
-				l10n.t('Edit your commit message, then close this tab or use the toolbar Commit button to finish the commit.'),
-				commit
-			).then(choice => {
-				if (choice === commit) {
-					commands.executeCommand('git.commitMessageAccept', uri);
-				}
-			});
+			this._codeLensProvider.addUri(uri);
 
 			return new Promise((c) => {
 				const onDidClose = window.tabGroups.onDidChangeTabs(async (tabs) => {
 					if (tabs.closed.some(t => t.input instanceof TabInputText && t.input.uri.toString() === uri.toString())) {
+						this._codeLensProvider.removeUri(uri);
 						onDidClose.dispose();
 						return c(true);
 					}
@@ -75,6 +68,61 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 
 	dispose(): void {
 		this.disposable.dispose();
+	}
+}
+
+export class GitEditorCodeLensProvider implements CodeLensProvider, IDisposable {
+
+	private readonly _activeUris = new Set<string>();
+	private readonly _onDidChangeCodeLenses = new EventEmitter<void>();
+	private readonly _disposables: IDisposable[] = [];
+
+	readonly onDidChangeCodeLenses: Event<void> = this._onDidChangeCodeLenses.event;
+
+	constructor() {
+		this._disposables.push(
+			languages.registerCodeLensProvider({ language: 'git-commit' }, this),
+			this._onDidChangeCodeLenses
+		);
+	}
+
+	addUri(uri: Uri): void {
+		this._activeUris.add(uri.toString());
+		this._onDidChangeCodeLenses.fire();
+	}
+
+	removeUri(uri: Uri): void {
+		this._activeUris.delete(uri.toString());
+		this._onDidChangeCodeLenses.fire();
+	}
+
+	provideCodeLenses(document: TextDocument, _token: CancellationToken): CodeLens[] {
+		if (!this._activeUris.has(document.uri.toString())) {
+			return [];
+		}
+
+		const range = new Range(0, 0, 0, 0);
+
+		const commitCommand = {
+			command: 'git.commitMessageAccept',
+			title: l10n.t('$(check) Commit'),
+			arguments: [document.uri]
+		};
+
+		const discardCommand = {
+			command: 'git.commitMessageDiscard',
+			title: l10n.t('$(x) Cancel'),
+			arguments: [document.uri]
+		};
+
+		return [
+			new CodeLens(range, commitCommand),
+			new CodeLens(range, discardCommand),
+		];
+	}
+
+	dispose(): void {
+		this._disposables.forEach(d => d.dispose());
 	}
 }
 
