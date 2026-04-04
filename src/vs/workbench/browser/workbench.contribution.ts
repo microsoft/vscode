@@ -665,6 +665,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.activityBar.iconClickBehavior.focus', "Focus the Primary Side Bar if the clicked item is already visible.")
 				]
 			},
+			'workbench.activityBar.dragAndDrop.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription':
+					localize('workbench.activityBar.dragAndDrop.enabled', "Controls whether Activity Bar drag and drop is enabled.")
+			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
 				'default': false,
