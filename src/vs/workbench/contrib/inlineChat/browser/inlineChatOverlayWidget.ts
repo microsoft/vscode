@@ -198,6 +198,9 @@ export class InlineChatInputWidget extends Disposable {
 			this._container.style.width = `${totalWidth}px`;
 			this._inputContainer.style.width = `${inputWidth}px`;
 			this._input.layout({ width: inputWidth, height });
+			if (this._position.get() !== null) {
+				this._updatePosition();
+			}
 		}));
 
 		// Toggle focus class on the container
@@ -332,10 +335,9 @@ export class InlineChatInputWidget extends Disposable {
 			allowEditorOverflow: true,
 		}));
 
-		// If anchoring above, adjust position after render to account for widget height
-		if (anchorAbove) {
-			this._updatePosition();
-		}
+		// Re-adjust position after render to account for widget dimensions (offsetWidth/offsetHeight
+		// are only available after the widget is added to the DOM)
+		this._updatePosition();
 
 		// Update position on scroll, hide if anchor line is out of view (only when input is empty)
 		this._showStore.add(this._editorObs.editor.onDidScrollChange(() => {
@@ -349,6 +351,11 @@ export class InlineChatInputWidget extends Disposable {
 			} else {
 				this._updatePosition();
 			}
+		}));
+
+		// Update position when the editor resizes (e.g. sidebar toggle, window resize)
+		this._showStore.add(this._editorObs.editor.onDidLayoutChange(() => {
+			this._updatePosition();
 		}));
 
 		// Focus the input editor
@@ -377,15 +384,19 @@ export class InlineChatInputWidget extends Disposable {
 		const stickyScrollHeight = this._stickyScrollHeight.get();
 		const layoutInfo = editor.getLayoutInfo();
 		const widgetHeight = this._domNode.offsetHeight;
+		const widgetWidth = this._domNode.offsetWidth;
 		const minTop = stickyScrollHeight;
 		const maxTop = layoutInfo.height - widgetHeight;
+		const padding = 8;
+		const maxLeft = layoutInfo.width - layoutInfo.verticalScrollbarWidth - layoutInfo.minimap.minimapWidth - widgetWidth - padding;
 
 		const clampedTop = Math.max(minTop, Math.min(adjustedTop, maxTop));
-		const isClamped = clampedTop !== adjustedTop;
+		const clampedLeft = Math.max(0, Math.min(this._anchorLeft, maxLeft));
+		const isClamped = clampedTop !== adjustedTop || clampedLeft !== this._anchorLeft;
 		this._domNode.classList.toggle('clamped', isClamped);
 
 		this._position.set({
-			preference: { top: clampedTop, left: this._anchorLeft },
+			preference: { top: clampedTop, left: clampedLeft },
 			stackOrdinal: 10000,
 		}, undefined);
 	}
