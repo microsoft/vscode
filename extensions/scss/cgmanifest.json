@@ -1,18 +1,68 @@
 {
-	"registrations": [
-		{
-			"component": {
-				"type": "git",
-				"git": {
-					"name": "atom/language-sass",
-					"repositoryUrl": "https://github.com/atom/language-sass",
-					"commitHash": "f52ab12f7f9346cc2568129d8c4419bd3d506b47"
-				}
-			},
-			"license": "MIT",
-			"description": "The file syntaxes/scss.json was derived from the Atom package https://github.com/atom/language-sass which was originally converted from the TextMate bundle https://github.com/alexsancho/SASS.tmbundle.",
-			"version": "0.62.1"
-		}
-	],
-	"version": 1
+  "registrations": [
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "name": "atom/language-sass",
+          "repositoryUrl": "https://github.com/atom/language-sass",
+          "commitHash": "f52ab12f7f9346cc2568129d8c4419bd3d506b47"
+        }
+      },
+      "license": "MIT",
+      "description": "The file syntaxes/scss.json was derived from the Atom package https://github.com/atom/language-sass which was originally converted from the TextMate bundle https://github.com/alexsancho/SASS.tmbundle.",
+      "version": "0.62.1",
+      "licenseDetail": [
+        "Copyright (c) 2014 GitHub Inc.",
+        "",
+        "Permission is hereby granted, free of charge, to any person obtaining",
+        "a copy of this software and associated documentation files (the",
+        "\"Software\"), to deal in the Software without restriction, including",
+        "without limitation the rights to use, copy, modify, merge, publish,",
+        "distribute, sublicense, and/or sell copies of the Software, and to",
+        "permit persons to whom the Software is furnished to do so, subject to",
+        "the following conditions:",
+        "",
+        "The above copyright notice and this permission notice shall be",
+        "included in all copies or substantial portions of the Software.",
+        "",
+        "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,",
+        "EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF",
+        "MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND",
+        "NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE",
+        "LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION",
+        "OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION",
+        "WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.",
+        "",
+        "--------------------------------------------------------------------",
+        "",
+        "This package was derived from a TextMate bundle located at",
+        "https://github.com/alexsancho/Sass.tmbundle and distributed under the following",
+        "license, located in `LICENSE.md`:",
+        "",
+        "Copyright (c) 2012 Alex Sancho, http://alexsancho.name/",
+        "",
+        "Permission is hereby granted, free of charge, to any person obtaining",
+        "a copy of this software and associated documentation files (the",
+        "\"Software\"), to deal in the Software without restriction, including",
+        "without limitation the rights to use, copy, modify, merge, publish,",
+        "distribute, sublicense, and/or sell copies of the Software, and to",
+        "permit persons to whom the Software is furnished to do so, subject to",
+        "the following conditions:",
+        "",
+        "The above copyright notice and this permission notice shall be",
+        "included in all copies or substantial portions of the Software.",
+        "",
+        "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,",
+        "EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF",
+        "MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND",
+        "NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE",
+        "LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION",
+        "OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION",
+        "WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.",
+        ""
+      ]
+    }
+  ],
+  "version": 1
 }

@@ -1,18 +1,70 @@
 {
-	"registrations": [
-		{
-			"component": {
-				"type": "git",
-				"git": {
-					"name": "atom/language-coffee-script",
-					"repositoryUrl": "https://github.com/atom/language-coffee-script",
-					"commitHash": "0f6db9143663e18b1ad00667820f46747dba495e"
-				}
-			},
-			"license": "MIT",
-			"description": "The file syntaxes/coffeescript.tmLanguage.json was derived from the Atom package https://github.com/atom/language-coffee-script which was originally converted from the TextMate bundle https://github.com/jashkenas/coffee-script-tmbundle.",
-			"version": "0.49.3"
-		}
-	],
-	"version": 1
+  "registrations": [
+    {
+      "component": {
+        "type": "git",
+        "git": {
+          "name": "atom/language-coffee-script",
+          "repositoryUrl": "https://github.com/atom/language-coffee-script",
+          "commitHash": "0f6db9143663e18b1ad00667820f46747dba495e"
+        }
+      },
+      "license": "MIT",
+      "description": "The file syntaxes/coffeescript.tmLanguage.json was derived from the Atom package https://github.com/atom/language-coffee-script which was originally converted from the TextMate bundle https://github.com/jashkenas/coffee-script-tmbundle.",
+      "version": "0.49.3",
+      "licenseDetail": [
+        "Copyright (c) 2014 GitHub Inc.",
+        "",
+        "Permission is hereby granted, free of charge, to any person obtaining",
+        "a copy of this software and associated documentation files (the",
+        "\"Software\"), to deal in the Software without restriction, including",
+        "without limitation the rights to use, copy, modify, merge, publish,",
+        "distribute, sublicense, and/or sell copies of the Software, and to",
+        "permit persons to whom the Software is furnished to do so, subject to",
+        "the following conditions:",
+        "",
+        "The above copyright notice and this permission notice shall be",
+        "included in all copies or substantial portions of the Software.",
+        "",
+        "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,",
+        "EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF",
+        "MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND",
+        "NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE",
+        "LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION",
+        "OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION",
+        "WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.",
+        "",
+        "--------------------------------------------------------------------",
+        "",
+        "This package was derived from a TextMate bundle located at",
+        "https://github.com/jashkenas/coffee-script-tmbundle and distributed under the",
+        "following license, located in `LICENSE`:",
+        "",
+        "Copyright (c) 2009-2014 Jeremy Ashkenas",
+        "",
+        "Permission is hereby granted, free of charge, to any person",
+        "obtaining a copy of this software and associated documentation",
+        "files (the \"Software\"), to deal in the Software without",
+        "restriction, including without limitation the rights to use,",
+        "copy, modify, merge, publish, distribute, sublicense, and/or sell",
+        "copies of the Software, and to permit persons to whom the",
+        "Software is furnished to do so, subject to the following",
+        "conditions:",
+        "",
+        "The above copyright notice and this permission notice shall be",
+        "included in all copies or substantial portions of the Software.",
+        "",
+        "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND,",
+        "EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES",
+        "OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND",
+        "NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT",
+        "HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,",
+        "WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING",
+        "FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR",
+        "OTHER DEALINGS IN THE SOFTWARE.",
+        ""
+      ]
+    }
+  ],
+  "version": 1
 }
