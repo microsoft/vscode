@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"incremental": true,
 		"module": "nodenext",
 		"moduleResolution": "nodenext",
 		"moduleDetection": "legacy",

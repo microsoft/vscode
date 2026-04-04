@@ -1,6 +1,8 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"incremental": true,
+		"tsBuildInfoFile": "../out/tsconfig.tsbuildinfo",
 		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,

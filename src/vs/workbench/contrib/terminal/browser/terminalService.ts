@@ -231,6 +231,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, mainWindow.document.head)));
 	}
 
+	override dispose(): void {
+		for (const disposables of this._backgroundedTerminalDisposables.values()) {
+			dispose(disposables);
+		}
+		this._backgroundedTerminalDisposables.clear();
+		super.dispose();
+	}
+
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		const quickPick = this._instantiationService.createInstance(TerminalProfileQuickpick);
 		const result = await quickPick.showAndGetResult(type);

@@ -185,22 +185,31 @@ export default defineConfig({
 			}
 		}
 	},
-	root: '../..', // To support /out/... paths
+	root: '../..',
 	build: {
 		outDir: join(__dirname, 'dist'),
+		minify: 'esbuild',
+		sourcemap: true,
 		rollupOptions: {
 			input: {
-				//index: path.resolve(__dirname, 'index.html'),
 				workbench: path.resolve(__dirname, 'workbench-vite.html'),
-			}
-		}
+			},
+			output: {
+				manualChunks: {
+					vendor: ['vscode-textmate', 'vscode-oniguruma', 'katex'],
+					xterm: ['@xterm/xterm', '@xterm/addon-clipboard', '@xterm/addon-search'],
+				},
+			},
+		},
+		commonjsOptions: {
+			include: [/node_modules/],
+		},
 	},
 	server: {
 		cors: true,
 		port: 5199,
 		fs: {
 			allow: [
-				// To allow loading from sources, not needed when loading monaco-editor from npm package
 				join(import.meta.dirname, '../../../')
 			]
 		}
