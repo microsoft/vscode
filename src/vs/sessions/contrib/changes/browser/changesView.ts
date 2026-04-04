@@ -30,7 +30,7 @@ import { MenuId, Action2, MenuItemAction, registerAction2 } from '../../../../pl
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -75,47 +75,13 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 
 const $ = dom.$;
 
 // --- Constants
 
-export const CHANGES_VIEW_CONTAINER_ID = 'workbench.view.agentSessions.changesContainer';
-export const CHANGES_VIEW_ID = 'workbench.view.agentSessions.changes';
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
-
-// --- View Mode
-
-export const enum ChangesViewMode {
-	List = 'list',
-	Tree = 'tree'
-}
-
-const changesViewModeContextKey = new RawContextKey<ChangesViewMode>('changesViewMode', ChangesViewMode.List);
-
-// --- Versions Mode
-
-const enum ChangesVersionMode {
-	BranchChanges = 'branchChanges',
-	OutgoingChanges = 'outgoingChanges',
-	AllChanges = 'allChanges',
-	LastTurn = 'lastTurn'
-}
-
-const enum IsolationMode {
-	Workspace = 'workspace',
-	Worktree = 'worktree'
-}
-
-const changesVersionModeContextKey = new RawContextKey<ChangesVersionMode>('sessions.changesVersionMode', ChangesVersionMode.BranchChanges);
-const isMergeBaseBranchProtectedContextKey = new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false);
-const isolationModeContextKey = new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace);
-const hasGitRepositoryContextKey = new RawContextKey<boolean>('sessions.hasGitRepository', true);
-const hasPullRequestContextKey = new RawContextKey<boolean>('sessions.hasPullRequest', false);
-const hasOpenPullRequestContextKey = new RawContextKey<boolean>('sessions.hasOpenPullRequest', false);
-const hasIncomingChangesContextKey = new RawContextKey<boolean>('sessions.hasIncomingChanges', false);
-const hasOutgoingChangesContextKey = new RawContextKey<boolean>('sessions.hasOutgoingChanges', false);
-const hasUncommittedChangesContextKey = new RawContextKey<boolean>('sessions.hasUncommittedChanges', true);
 
 // --- List Item
 
@@ -736,22 +702,22 @@ export class ChangesViewPane extends ViewPane {
 		this._register(this.viewModel);
 
 		// Context keys
-		this.isMergeBaseBranchProtectedContextKey = isMergeBaseBranchProtectedContextKey.bindTo(this.scopedContextKeyService);
-		this.isolationModeContextKey = isolationModeContextKey.bindTo(this.scopedContextKeyService);
-		this.hasGitRepositoryContextKey = hasGitRepositoryContextKey.bindTo(this.scopedContextKeyService);
-		this.hasIncomingChangesContextKey = hasIncomingChangesContextKey.bindTo(this.scopedContextKeyService);
-		this.hasOutgoingChangesContextKey = hasOutgoingChangesContextKey.bindTo(this.scopedContextKeyService);
-		this.hasUncommittedChangesContextKey = hasUncommittedChangesContextKey.bindTo(this.scopedContextKeyService);
-		this.hasPullRequestContextKey = hasPullRequestContextKey.bindTo(this.scopedContextKeyService);
-		this.hasOpenPullRequestContextKey = hasOpenPullRequestContextKey.bindTo(this.scopedContextKeyService);
+		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
+		this.isolationModeContextKey = ActiveSessionContextKeys.IsolationMode.bindTo(this.scopedContextKeyService);
+		this.hasGitRepositoryContextKey = ActiveSessionContextKeys.HasGitRepository.bindTo(this.scopedContextKeyService);
+		this.hasIncomingChangesContextKey = ActiveSessionContextKeys.HasIncomingChanges.bindTo(this.scopedContextKeyService);
+		this.hasOutgoingChangesContextKey = ActiveSessionContextKeys.HasOutgoingChanges.bindTo(this.scopedContextKeyService);
+		this.hasUncommittedChangesContextKey = ActiveSessionContextKeys.HasUncommittedChanges.bindTo(this.scopedContextKeyService);
+		this.hasPullRequestContextKey = ActiveSessionContextKeys.HasPullRequest.bindTo(this.scopedContextKeyService);
+		this.hasOpenPullRequestContextKey = ActiveSessionContextKeys.HasOpenPullRequest.bindTo(this.scopedContextKeyService);
 
 		// Version mode
-		this._register(bindContextKey(changesVersionModeContextKey, this.scopedContextKeyService, reader => {
+		this._register(bindContextKey(ChangesContextKeys.VersionMode, this.scopedContextKeyService, reader => {
 			return this.viewModel.versionModeObs.read(reader);
 		}));
 
 		// View mode
-		this._register(bindContextKey(changesViewModeContextKey, this.scopedContextKeyService, reader => {
+		this._register(bindContextKey(ChangesContextKeys.ViewMode, this.scopedContextKeyService, reader => {
 			return this.viewModel.viewModeObs.read(reader);
 		}));
 
@@ -1625,11 +1591,11 @@ class ChangesTreeRenderer implements ICompressibleTreeRenderer<ChangesTreeElemen
 			return activeSession?.sessionType ?? '';
 		}));
 
-		templateDisposables.add(bindContextKey(hasGitRepositoryContextKey, contextKeyService, reader => {
+		templateDisposables.add(bindContextKey(ActiveSessionContextKeys.HasGitRepository, contextKeyService, reader => {
 			return this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
 		}));
 
-		templateDisposables.add(bindContextKey(changesVersionModeContextKey, contextKeyService, reader => {
+		templateDisposables.add(bindContextKey(ChangesContextKeys.VersionMode, contextKeyService, reader => {
 			return this.viewModel.versionModeObs.read(reader);
 		}));
 
@@ -1846,7 +1812,7 @@ class SetChangesListViewModeAction extends ViewAction<ChangesViewPane> {
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
 			icon: Codicon.listTree,
-			toggled: changesViewModeContextKey.isEqualTo(ChangesViewMode.List),
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
 				group: '1_viewmode',
@@ -1869,7 +1835,7 @@ class SetChangesTreeViewModeAction extends ViewAction<ChangesViewPane> {
 			viewId: CHANGES_VIEW_ID,
 			f1: false,
 			icon: Codicon.listFlat,
-			toggled: changesViewModeContextKey.isEqualTo(ChangesViewMode.Tree),
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
 			menu: {
 				id: MenuId.ChatEditingSessionTitleToolbar,
 				group: '1_viewmode',
