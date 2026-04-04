@@ -25,7 +25,7 @@ declare module 'https' {
 		assertNoRpc();
 	});
 
-	test.skip('custom root certificate', async () => {
+	test('custom root certificate', async () => {
 		const keys = pki.rsa.generateKeyPair(2048);
 		const cert = pki.createCertificate();
 		cert.publicKey = keys.publicKey;
