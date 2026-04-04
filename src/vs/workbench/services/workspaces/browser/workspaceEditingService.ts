@@ -15,7 +15,7 @@ import { IFileDialogService, IDialogService } from '../../../../platform/dialogs
 import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { IHostService } from '../../host/browser/host.js';
 import { AbstractWorkspaceEditingService } from './abstractWorkspaceEditingService.js';
-import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { IEnterWorkspaceOptions, IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -49,7 +49,7 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService);
 	}
 
-	async enterWorkspace(workspaceUri: URI): Promise<void> {
+	async enterWorkspace(workspaceUri: URI, _options?: IEnterWorkspaceOptions): Promise<void> {
 		const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
 		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {

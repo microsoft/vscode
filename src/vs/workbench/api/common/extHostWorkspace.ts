@@ -282,7 +282,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._actualWorkspace.workspaceFolders.slice(0);
 	}
 
-	updateWorkspaceFolders(extension: IExtensionDescription, index: number, deleteCount: number, ...workspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[]): boolean {
+	updateWorkspaceFolders(extension: IExtensionDescription, index: number, deleteCount: number, suppressConfirmation?: boolean, ...workspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[]): boolean {
 		const validatedDistinctWorkspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[] = [];
 		if (Array.isArray(workspaceFoldersToAdd)) {
 			workspaceFoldersToAdd.forEach(folderToAdd => {
@@ -329,15 +329,15 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		// Trigger on main side
 		if (this._proxy) {
 			const extName = extension.displayName || extension.name;
-			this._proxy.$updateWorkspaceFolders(extName, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd).then(undefined, error => {
+			this._proxy.$updateWorkspaceFolders(extName, extension.identifier.value, index, deleteCount, validatedDistinctWorkspaceFoldersToAdd, suppressConfirmation).then(undefined, error => {
 
 				// in case of an error, make sure to clear out the unconfirmed workspace
 				// because we cannot expect the acknowledgement from the main side for this
 				this._unconfirmedWorkspace = undefined;
 
 				// show error to user
-				const options: MainThreadMessageOptions = { source: { identifier: extension.identifier, label: extension.displayName || extension.name } };
-				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), options, []);
+				const msgOptions: MainThreadMessageOptions = { source: { identifier: extension.identifier, label: extension.displayName || extension.name } };
+				this._messageService.$showMessage(Severity.Error, localize('updateerror', "Extension '{0}' failed to update workspace folders: {1}", extName, error.toString()), msgOptions, []);
 			});
 		}
 

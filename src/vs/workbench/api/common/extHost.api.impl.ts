@@ -1124,8 +1124,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
 				return !!initData.environment.isSessionsWindow;
 			},
-			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
-				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
+			updateWorkspaceFolders: (index, deleteCount, ...rest) => {
+				// Detect options overload: updateWorkspaceFolders(start, deleteCount, options, ...folders)
+				let suppressConfirmation: boolean | undefined;
+				let workspaceFoldersToAdd: { uri: vscode.Uri; name?: string }[];
+				if (rest.length > 0 && rest[0] && typeof rest[0] === 'object' && !('uri' in rest[0])) {
+					suppressConfirmation = (rest[0] as { suppressConfirmation?: boolean }).suppressConfirmation;
+					workspaceFoldersToAdd = rest.slice(1) as { uri: vscode.Uri; name?: string }[];
+				} else {
+					workspaceFoldersToAdd = rest as { uri: vscode.Uri; name?: string }[];
+				}
+				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, suppressConfirmation, ...workspaceFoldersToAdd);
 			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return _asExtensionEvent(extHostWorkspace.onDidChangeWorkspace)(listener, thisArgs, disposables);
