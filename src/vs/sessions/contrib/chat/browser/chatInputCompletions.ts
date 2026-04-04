@@ -16,6 +16,7 @@ import { getWordAtText } from '../../../../editor/common/core/wordHelper.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
@@ -142,7 +143,7 @@ export class ChatInputCompletions extends Disposable {
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: uri.scheme, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'sessionsFileCompletions',
-			triggerCharacters: [chatVariableLeader, chatAgentLeader],
+			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const range = this._computeCompletionRanges(model, position, FileWord);
 				if (!range) {
@@ -151,6 +152,20 @@ export class ChatInputCompletions extends Disposable {
 
 				const result: CompletionList = { suggestions: [], incomplete: true };
 				await this._addFileEntries(result, range, token);
+
+				// Always show a "browse files" fallback if no file results were found
+				if (result.suggestions.length === 0) {
+					result.suggestions.push({
+						label: { label: `${chatVariableLeader}file:`, description: localize('browseFiles', "Search workspace files") },
+						filterText: `${chatVariableLeader}file ${chatVariableLeader}`,
+						insertText: `${chatVariableLeader}file:`,
+						range,
+						kind: CompletionItemKind.Text,
+						sortText: 'z',
+						command: { id: 'editor.action.triggerSuggest', title: '' },
+					});
+				}
+
 				return result;
 			}
 		}));
@@ -166,16 +181,14 @@ export class ChatInputCompletions extends Disposable {
 			return;
 		}
 
-		const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
-
 		const makeCompletionItem = (resource: URI, kind: FileKind): CompletionItem => {
 			const name = this.labelService.getUriBasenameLabel(resource);
-			const text = `${typedLeader}file:${name}`;
+			const text = `${chatVariableLeader}file:${name}`;
 			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
 
 			return {
 				label: { label: name, description: uriLabel },
-				filterText: `${name} ${typedLeader}${name} ${uriLabel}`,
+				filterText: `${name} ${chatVariableLeader}${name} ${uriLabel}`,
 				insertText: range.varWord?.endColumn === range.replace.endColumn ? `${text} ` : text,
 				range,
 				kind: kind === FileKind.FILE ? CompletionItemKind.File : CompletionItemKind.Folder,
@@ -188,11 +201,11 @@ export class ChatInputCompletions extends Disposable {
 			};
 		};
 
-		// Extract search pattern from the typed word (strip leading #/@ and optional "file:" prefix)
+		// Extract search pattern from the typed word (strip leading # and optional "file:" prefix)
 		let pattern = '';
 		if (range.varWord?.word) {
 			let raw = range.varWord.word;
-			if (raw.startsWith(chatVariableLeader) || raw.startsWith(chatAgentLeader)) {
+			if (raw.startsWith(chatVariableLeader)) {
 				raw = raw.slice(1);
 			}
 			if (raw.toLowerCase().startsWith('file:')) {
