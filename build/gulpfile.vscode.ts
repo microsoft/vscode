@@ -398,10 +398,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
 			: undefined;
 
-		const packageSubJsonStream = isInsiderOrExploration
+		const packageSubJsonStream = embedded
 			? gulp.src(['package.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
-					json.name = `sessions-${quality || 'oss-dev'}`;
+					json.name = embedded.nameShort;
 					return json;
 				}))
 				.pipe(rename('package.sub.json'))
