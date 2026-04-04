@@ -5,7 +5,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import url from 'url';
 import ansiColors from 'ansi-colors';
 import type { IExtensionDefinition } from './builtInExtensions.ts';
 
@@ -21,7 +20,8 @@ const contentFileNames = ['package.json', 'package-lock.json'];
 
 async function downloadExtensionDetails(extension: IExtensionDefinition): Promise<void> {
 	const extensionLabel = `${extension.name}@${extension.version}`;
-	const repository = url.parse(extension.repo).path!.substr(1);
+	const repositoryUrl = new URL(extension.repo);
+	const repository = repositoryUrl.pathname.slice(1) + repositoryUrl.search;
 	const repositoryContentBaseUrl = `https://${token ? `${token}@` : ''}${contentBasePath}/${repository}/v${extension.version}`;
 
 

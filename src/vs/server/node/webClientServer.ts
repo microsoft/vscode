@@ -5,7 +5,6 @@
 
 import { createReadStream, promises } from 'fs';
 import type * as http from 'http';
-import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
 import { isEqualOrParent } from '../../base/common/extpath.js';
@@ -139,7 +138,7 @@ export class WebClientServer {
 	 * @param parsedUrl The URL to handle, including base and product path
 	 * @param pathname The pathname of the URL, without base and product path
 	 */
-	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery, pathname: string): Promise<void> {
+	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL, pathname: string): Promise<void> {
 		try {
 			if (pathname.startsWith(STATIC_PATH) && pathname.charCodeAt(STATIC_PATH.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
@@ -257,7 +256,7 @@ export class WebClientServer {
 	/**
 	 * Handle HTTP requests for /
 	 */
-	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
+	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL): Promise<void> {
 
 		const getFirstHeader = (headerName: string) => {
 			const val = req.headers[headerName];
@@ -267,7 +266,7 @@ export class WebClientServer {
 		// Prefix routes with basePath for clients
 		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
 
-		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
+		const queryConnectionToken = parsedUrl.searchParams.get(connectionTokenQueryName);
 		if (typeof queryConnectionToken === 'string') {
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
@@ -281,14 +280,9 @@ export class WebClientServer {
 				}
 			);
 
-			const newQuery = Object.create(null);
-			for (const key in parsedUrl.query) {
-				if (key !== connectionTokenQueryName) {
-					newQuery[key] = parsedUrl.query[key];
-				}
-			}
-			const newLocation = url.format({ pathname: basePath, query: newQuery });
-			responseHeaders['Location'] = newLocation;
+			const newLocation = new URL(parsedUrl);
+			newLocation.searchParams.delete(connectionTokenQueryName);
+			responseHeaders['Location'] = newLocation.href;
 
 			res.writeHead(302, responseHeaders);
 			return void res.end();
