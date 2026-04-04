@@ -252,13 +252,18 @@ export class LinkDetector implements ILinkDetector {
 				const remoteAuthority = this.environmentService.remoteAuthority;
 				if (remoteAuthority) {
 					const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: uri.path });
-					const existsRemote = await this.fileService.exists(remoteUri);
-					if (existsRemote) {
-						await this.editorService.openEditor({
-							resource: remoteUri,
-							options: { pinned: true, selection },
-						});
-						return;
+					try {
+						const existsRemote = await this.fileService.exists(remoteUri);
+						if (existsRemote) {
+							await this.editorService.openEditor({
+								resource: remoteUri,
+								options: { pinned: true, selection },
+							});
+							return;
+						}
+					} catch {
+						// Remote provider may not be available (e.g. transient disconnect).
+						// Fall through to local filesystem resolution below.
 					}
 				}
 
@@ -313,27 +318,31 @@ export class LinkDetector implements ILinkDetector {
 		link.tabIndex = 0;
 		const uri = URI.file(osPath.normalize(path));
 
-		// When connected to a remote, try the remote filesystem first
-		// since the debug adapter likely produces paths from the remote host
+		// When connected to a remote, defer resolution to click time to avoid
+		// doubling filesystem round-trips during linkification (render time).
+		// At click time we try the remote filesystem first, then fall back to local.
 		// https://github.com/microsoft/vscode/issues/111143
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			const remoteUri = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority, path: uri.path });
-			this.fileService.stat(remoteUri).then(stat => {
-				if (stat.isDirectory) {
-					return;
-				}
-				this.decorateLink(link, remoteUri, fulltext, hoverBehavior, (preserveFocus: boolean) => this.editorService.openEditor({ resource: remoteUri, options: { ...options, preserveFocus } }));
-			}).catch(() => {
-				// Remote file not found, fall back to local filesystem
-				this.fileService.stat(uri).then(stat => {
-					if (stat.isDirectory) {
+			this.decorateLink(link, remoteUri, fulltext, hoverBehavior, async (preserveFocus: boolean) => {
+				try {
+					const stat = await this.fileService.stat(remoteUri);
+					if (!stat.isDirectory) {
+						await this.editorService.openEditor({ resource: remoteUri, options: { ...options, preserveFocus } });
 						return;
 					}
-					this.decorateLink(link, uri, fulltext, hoverBehavior, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
-				}).catch(() => {
+				} catch {
+					// Remote file not found or provider unavailable, fall back to local
+				}
+				try {
+					const stat = await this.fileService.stat(uri);
+					if (!stat.isDirectory) {
+						await this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } });
+					}
+				} catch {
 					// If the uri can not be resolved we should not spam the console with error, remain quiet #86587
-				});
+				}
 			});
 		} else {
 			this.fileService.stat(uri).then(stat => {
