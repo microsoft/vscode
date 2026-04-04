@@ -679,6 +679,45 @@ suite('Response', () => {
 		assert.ok(!responseString.includes('python -c "print(1)"'));
 	});
 
+	test('response stringification uses terminal presentation override for result details', () => {
+		const response = store.add(new Response([]));
+		const sandboxWrappedCommand = `ELECTRON_RUN_AS_NODE=1 TMPDIR="/tmp/vscode" CLAUDE_TMPDIR="/tmp/vscode" "Code - Insiders" "sandbox-runtime" --settings "/tmp/settings.json" -c 'python -c "print(1)"'`;
+		const toolSpecificData: IChatTerminalToolInvocationData = {
+			kind: 'terminal',
+			language: 'python',
+			commandLine: {
+				original: 'python -c "print(1)"',
+				toolEdited: sandboxWrappedCommand,
+				forDisplay: 'python -c "print(1)"',
+				isSandboxWrapped: true,
+			},
+			presentationOverrides: {
+				commandLine: 'print(1)',
+				language: 'python',
+			},
+		};
+
+		response.updateContent({
+			kind: 'externalToolInvocationUpdate',
+			toolCallId: 'tool-call-result-details',
+			toolName: 'run_in_terminal',
+			isComplete: true,
+			pastTenseMessage: 'Ran python command',
+			toolSpecificData,
+			resultDetails: {
+				input: sandboxWrappedCommand,
+				output: [{ type: 'embed', isText: true, value: '1' }],
+				isError: true,
+			},
+		});
+
+		const responseString = response.toString();
+		assert.strictEqual(responseString, 'Ran terminal command: print(1)\nCompleted with input: print(1)');
+		assert.ok(!responseString.includes('sandbox-runtime'));
+		assert.ok(!responseString.includes('ELECTRON_RUN_AS_NODE=1'));
+		assert.ok(!responseString.includes('python -c "print(1)"'));
+	});
+
 	test('getFinalResponse returns last contiguous markdown after tool call', () => {
 		const response = store.add(new Response([]));
 		response.updateContent({ content: new MarkdownString('Early text'), kind: 'markdownContent' });

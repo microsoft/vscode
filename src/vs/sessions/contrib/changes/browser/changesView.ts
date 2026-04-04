@@ -64,7 +64,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
-import { GitDiffChange, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { GitDiffChange, GitRepositoryState, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { CIStatusWidget } from './checksWidget.js';
 import { arrayEqualsC, structuralEquals } from '../../../../base/common/equals.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../sessions/common/sessionData.js';
@@ -249,6 +249,17 @@ function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undef
 
 // --- View Model
 
+interface ActiveSessionState {
+	readonly isolationMode: IsolationMode;
+	readonly hasGitRepository: boolean;
+	readonly isMergeBaseBranchProtected: boolean | undefined;
+	readonly incomingChanges: number | undefined;
+	readonly outgoingChanges: number | undefined;
+	readonly uncommittedChanges: number | undefined;
+	readonly hasPullRequest: boolean | undefined;
+	readonly hasOpenPullRequest: boolean | undefined;
+}
+
 class ChangesViewModel extends Disposable {
 	readonly sessionsChangedSignal: IObservable<void>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
@@ -256,6 +267,7 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionBaseBranchNameObs: IObservable<string | undefined>;
 	readonly activeSessionIsolationModeObs: IObservable<IsolationMode>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
+	readonly activeSessionRepositoryStateObs: IObservableWithChange<GitRepositoryState | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
@@ -264,6 +276,9 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
+
+	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
+	readonly activeSessionIsLoadingObs: IObservable<boolean>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -351,10 +366,24 @@ class ChangesViewModel extends Disposable {
 			return activeSessionRepositoryPromise.read(reader);
 		});
 
+		this.activeSessionRepositoryStateObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const repositoryState = repository?.state.read(reader);
+
+			// If the repository has no HEAD, it is likely not fully loaded yet.
+			// Treat it as undefined to avoid showing incorrect information to
+			// the user.
+			if (!repositoryState?.HEAD) {
+				return undefined;
+			}
+
+			return repositoryState;
+		});
+
 		// Active session branch name
 		this.activeSessionBranchNameObs = derived(reader => {
 			const repository = activeSessionRepositoryObs.read(reader);
-			const repositoryState = this.activeSessionRepositoryObs.read(reader)?.state.read(reader);
+			const repositoryState = this.activeSessionRepositoryStateObs.read(reader);
 
 			return repository?.detail ?? repositoryState?.HEAD?.name;
 		});
@@ -503,6 +532,95 @@ class ChangesViewModel extends Disposable {
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
 		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
 		this.viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
+
+		// Active session state
+		const { isLoading, state } = this._getActiveSessionState();
+		this.activeSessionIsLoadingObs = isLoading;
+		this.activeSessionStateObs = state;
+	}
+
+	private _getActiveSessionState(): { isLoading: IObservable<boolean>; state: IObservable<ActiveSessionState | undefined> } {
+		const isLoadingObs = derived(reader => {
+			// If there is a git repository, wait for the repository to be opened first,
+			// as there are many context keys that depend on the repository information.
+			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
+			if (hasGitRepository && this.activeSessionRepositoryStateObs.read(reader) === undefined) {
+				return true;
+			}
+
+			// Branch changes
+			const versionMode = this.versionModeObs.read(reader);
+			if (versionMode === ChangesVersionMode.BranchChanges) {
+				return false;
+			}
+
+			// All changes
+			if (versionMode === ChangesVersionMode.AllChanges) {
+				const allChangesResult = this.activeSessionAllChangesObs.read(reader).read(reader);
+				return allChangesResult === undefined;
+			}
+
+			// Last turn changes
+			if (versionMode === ChangesVersionMode.LastTurn) {
+				const lastTurnChangesResult = this.activeSessionLastTurnChangesObs.read(reader).read(reader);
+				return lastTurnChangesResult === undefined;
+			}
+
+			return false;
+		});
+
+		const activeSessionStateObs = derivedObservableWithCache<ActiveSessionState | undefined>(this, (reader, lastValue) => {
+			const isLoading = isLoadingObs.read(reader);
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			const repositoryState = this.activeSessionRepositoryStateObs.read(reader);
+			if (isLoading && repositoryState === undefined) {
+				return lastValue;
+			}
+
+			// Session state
+			const workspace = activeSession?.workspace.read(reader);
+			const isolationMode = this.activeSessionIsolationModeObs.read(reader);
+			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
+			const isMergeBaseBranchProtected = workspace?.repositories[0]?.baseBranchProtected;
+
+			// Pull request state
+			const gitHubInfo = activeSession?.gitHubInfo.read(reader);
+			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
+			const hasOpenPullRequest = hasPullRequest &&
+				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
+					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
+
+			// Repository state
+			const incomingChanges = hasGitRepository
+				? repositoryState?.HEAD?.behind ?? 0
+				: undefined;
+			const outgoingChanges = hasGitRepository
+				? repositoryState?.HEAD?.ahead ?? 0
+				: undefined;
+			const uncommittedChanges = hasGitRepository
+				? (repositoryState?.mergeChanges.length ?? 0) +
+				(repositoryState?.indexChanges.length ?? 0) +
+				(repositoryState?.workingTreeChanges.length ?? 0) +
+				(repositoryState?.untrackedChanges.length ?? 0)
+				: undefined;
+
+			return {
+				isolationMode,
+				hasGitRepository,
+				isMergeBaseBranchProtected,
+				incomingChanges,
+				outgoingChanges,
+				uncommittedChanges,
+				hasPullRequest,
+				hasOpenPullRequest
+			} satisfies ActiveSessionState;
+		});
+
+		return {
+			isLoading: isLoadingObs,
+			state: derivedOpts({ equalsFn: structuralEquals },
+				reader => activeSessionStateObs.read(reader))
+		};
 	}
 }
 
@@ -530,7 +648,6 @@ export class ChangesViewPane extends ViewPane {
 	private readonly isMergeBaseBranchProtectedContextKey: IContextKey<boolean>;
 	private readonly isolationModeContextKey: IContextKey<IsolationMode>;
 	private readonly hasGitRepositoryContextKey: IContextKey<boolean>;
-	private readonly hasChangesContextKey: IContextKey<boolean>;
 	private readonly hasIncomingChangesContextKey: IContextKey<boolean>;
 	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasOutgoingChangesContextKey: IContextKey<boolean>;
@@ -572,7 +689,6 @@ export class ChangesViewPane extends ViewPane {
 		this.isMergeBaseBranchProtectedContextKey = isMergeBaseBranchProtectedContextKey.bindTo(this.scopedContextKeyService);
 		this.isolationModeContextKey = isolationModeContextKey.bindTo(this.scopedContextKeyService);
 		this.hasGitRepositoryContextKey = hasGitRepositoryContextKey.bindTo(this.scopedContextKeyService);
-		this.hasChangesContextKey = ChatContextKeys.hasAgentSessionChanges.bindTo(this.scopedContextKeyService);
 		this.hasIncomingChangesContextKey = hasIncomingChangesContextKey.bindTo(this.scopedContextKeyService);
 		this.hasOutgoingChangesContextKey = hasOutgoingChangesContextKey.bindTo(this.scopedContextKeyService);
 		this.hasUncommittedChangesContextKey = hasUncommittedChangesContextKey.bindTo(this.scopedContextKeyService);
@@ -793,34 +909,8 @@ export class ChangesViewPane extends ViewPane {
 			});
 		});
 
-		const isLoadingChangesObs = derived(reader => {
-			// If there is a git repository, wait for the repository to be opened first,
-			// as there are many context keys that depend on the repository information.
-			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-			if (hasGitRepository && this.viewModel.activeSessionRepositoryObs.read(reader) === undefined) {
-				return true;
-			}
-
-			const versionMode = this.viewModel.versionModeObs.read(reader);
-			if (versionMode === ChangesVersionMode.BranchChanges) {
-				return false;
-			}
-
-			if (versionMode === ChangesVersionMode.AllChanges) {
-				const allChangesResult = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader);
-				return allChangesResult === undefined;
-			}
-
-			if (versionMode === ChangesVersionMode.LastTurn) {
-				const lastTurnChangesResult = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader);
-				return lastTurnChangesResult === undefined;
-			}
-
-			return false;
-		});
-
 		this.renderDisposables.add(autorun(reader => {
-			const isLoading = isLoadingChangesObs.read(reader);
+			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
 			if (isLoading) {
 				this.changesProgressBar.infinite().show(200);
 			} else {
@@ -881,22 +971,20 @@ export class ChangesViewPane extends ViewPane {
 			dom.clearNode(this.actionsContainer);
 
 			// Bind context keys
-			this._bindContextKeys(isLoadingChangesObs, topLevelStats);
+			this._bindContextKeys(topLevelStats);
 
 			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
 			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
 			this.renderDisposables.add(scopedInstantiationService);
 
 			const outgoingChangesObs = derived(reader => {
-				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-				const repositoryState = repository?.state.read(reader);
-
-				return repositoryState?.HEAD?.ahead ?? 0;
+				const activeSessionState = this.viewModel.activeSessionStateObs.read(reader);
+				return activeSessionState?.outgoingChanges ?? 0;
 			});
 
 			this.renderDisposables.add(autorun(reader => {
-				const outgoingChanges = outgoingChangesObs.read(reader);
 				const sessionResource = this.viewModel.activeSessionResourceObs.read(reader);
+				const outgoingChanges = outgoingChangesObs.read(reader);
 
 				// Read code review state to update the button label dynamically
 				let reviewCommentCount: number | undefined;
@@ -993,7 +1081,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Update visibility and file count badge based on entries
 		this.renderDisposables.add(autorun(reader => {
-			if (isLoadingChangesObs.read(reader)) {
+			if (this.viewModel.activeSessionIsLoadingObs.read(reader)) {
 				return;
 			}
 
@@ -1023,7 +1111,7 @@ export class ChangesViewPane extends ViewPane {
 			this.summaryContainer.appendChild(linesRemovedSpan);
 
 			this.renderDisposables.add(autorun(reader => {
-				if (isLoadingChangesObs.read(reader)) {
+				if (this.viewModel.activeSessionIsLoadingObs.read(reader)) {
 					return;
 				}
 
@@ -1116,7 +1204,7 @@ export class ChangesViewPane extends ViewPane {
 		this.renderDisposables.add(autorun(reader => {
 			const entries = combinedEntriesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
-			const isLoading = isLoadingChangesObs.read(reader);
+			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
 
 			if (!this.tree || isLoading) {
 				return;
@@ -1143,101 +1231,35 @@ export class ChangesViewPane extends ViewPane {
 		}));
 	}
 
-	private _bindContextKeys(isLoadingChangesObs: IObservable<boolean>, topLevelStats: IObservable<{ files: number }>): void {
+	private _bindContextKeys(topLevelStats: IObservable<{ files: number }>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
 			const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
 			return activeSessionStatus !== SessionStatus.Completed && activeSessionStatus !== SessionStatus.Error;
 		}));
 
-		type ContextKeys = {
-			readonly hasChanges: boolean;
-			readonly isolationMode: IsolationMode;
-			readonly hasGitRepository: boolean;
-			readonly isMergeBaseBranchProtected: boolean;
-			readonly hasPullRequest: boolean;
-			readonly hasOpenPullRequest: boolean;
-			readonly hasIncomingChanges: boolean;
-			readonly hasOutgoingChanges: boolean;
-			readonly hasUncommittedChanges: boolean;
-		};
-
-		// The following context keys have to be updated together based on the combined entries
-		// to avoid flickering of actions when switching between sessions and changes are loading
-		const contextKeysRawObs = derivedObservableWithCache<ContextKeys | undefined>(
-			this, (reader, lastValue) => {
-				const isLoading = isLoadingChangesObs.read(reader);
-				if (isLoading) {
-					return lastValue;
-				}
-
-				const activeSession = this.sessionManagementService.activeSession.read(reader);
-				const repository = this.viewModel.activeSessionRepositoryObs.read(reader);
-
-				// Changes state
-				const { files } = topLevelStats.read(reader);
-				const hasChanges = files > 0;
-
-				// Session state
-				const isolationMode = this.viewModel.activeSessionIsolationModeObs.read(reader);
-				const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-				const isMergeBaseBranchProtected = activeSession?.workspace.read(reader)?.repositories[0]?.baseBranchProtected === true;
-
-				// Pull request state
-				const gitHubInfo = activeSession?.gitHubInfo.read(reader);
-				const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
-				const hasOpenPullRequest = hasPullRequest &&
-					(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
-						gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
-
-				// Repository state
-				const repositoryState = repository?.state.read(reader);
-				const hasIncomingChanges = (repositoryState?.HEAD?.behind ?? 0) > 0;
-				const hasOutgoingChanges = (repositoryState?.HEAD?.ahead ?? 0) > 0;
-				const hasUncommittedChanges = (repositoryState?.mergeChanges.length ?? 0) > 0 ||
-					(repositoryState?.indexChanges.length ?? 0) > 0 ||
-					(repositoryState?.workingTreeChanges.length ?? 0) > 0 ||
-					(repositoryState?.untrackedChanges.length ?? 0) > 0;
-
-				return {
-					hasChanges,
-					isolationMode,
-					hasGitRepository,
-					isMergeBaseBranchProtected,
-					hasPullRequest,
-					hasOpenPullRequest,
-					hasIncomingChanges,
-					hasOutgoingChanges,
-					hasUncommittedChanges,
-				};
-			});
-
-		// Create a derived observable that only emits when the
-		// context keys actually change to avoid unnecessary updates
-		const contextKeysObs = derivedOpts<ContextKeys | undefined>({
-			equalsFn: structuralEquals
-		}, reader => {
-			const contextKeysRaw = contextKeysRawObs.read(reader);
-			return contextKeysRaw;
-		});
+		// Has changes (can be updated independently since it only affects action enablement, and not visibility)
+		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
+			const { files } = topLevelStats.read(reader);
+			return files > 0;
+		}));
 
 		// Bulk update the context keys
 		this.renderDisposables.add(autorun(reader => {
-			const contextKeys = contextKeysObs.read(reader);
-			if (!contextKeys) {
+			const state = this.viewModel.activeSessionStateObs.read(reader);
+			if (!state) {
 				return;
 			}
 
 			this.scopedContextKeyService.bufferChangeEvents(() => {
-				this.hasChangesContextKey.set(contextKeys.hasChanges);
-				this.isMergeBaseBranchProtectedContextKey.set(contextKeys.isMergeBaseBranchProtected);
-				this.isolationModeContextKey.set(contextKeys.isolationMode);
-				this.hasGitRepositoryContextKey.set(contextKeys.hasGitRepository);
-				this.hasPullRequestContextKey.set(contextKeys.hasPullRequest);
-				this.hasOpenPullRequestContextKey.set(contextKeys.hasOpenPullRequest);
-				this.hasIncomingChangesContextKey.set(contextKeys.hasIncomingChanges);
-				this.hasOutgoingChangesContextKey.set(contextKeys.hasOutgoingChanges);
-				this.hasUncommittedChangesContextKey.set(contextKeys.hasUncommittedChanges);
+				this.isolationModeContextKey.set(state.isolationMode);
+				this.hasGitRepositoryContextKey.set(state.hasGitRepository);
+				this.isMergeBaseBranchProtectedContextKey.set(state.isMergeBaseBranchProtected === true);
+				this.hasPullRequestContextKey.set(state.hasPullRequest === true);
+				this.hasOpenPullRequestContextKey.set(state.hasOpenPullRequest === true);
+				this.hasIncomingChangesContextKey.set(state.incomingChanges !== undefined && state.incomingChanges > 0);
+				this.hasOutgoingChangesContextKey.set(state.outgoingChanges !== undefined && state.outgoingChanges > 0);
+				this.hasUncommittedChangesContextKey.set(state.uncommittedChanges !== undefined && state.uncommittedChanges > 0);
 			});
 		}));
 	}

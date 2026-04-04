@@ -72,4 +72,5 @@ export class MockPromptsService implements IPromptsService {
 	onDidChangeInstructions: Event<void> = Event.None;
 	onDidChangePromptFiles: Event<void> = Event.None;
 	onDidChangeSkills: Event<void> = Event.None;
+	onDidChangeHooks: Event<void> = Event.None;
 }
