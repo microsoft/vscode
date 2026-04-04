@@ -21,7 +21,7 @@ import { IWorkspaceFolder } from '../../../../../platform/workspace/common/works
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
-import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
+import { parseExitResult, resolveNumpadKey, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
@@ -628,6 +628,57 @@ suite('Workbench - TerminalInstance', () => {
 
 			const result = await instance.getCwdResource();
 			strictEqual(result, undefined);
+		});
+	});
+
+	suite('resolveNumpadKey', () => {
+		test('should resolve operator keys regardless of NumLock state', () => {
+			deepStrictEqual(
+				[
+					resolveNumpadKey('NumpadAdd', true),
+					resolveNumpadKey('NumpadAdd', false),
+					resolveNumpadKey('NumpadSubtract', true),
+					resolveNumpadKey('NumpadMultiply', true),
+					resolveNumpadKey('NumpadDivide', true),
+					resolveNumpadKey('NumpadEnter', true),
+					resolveNumpadKey('NumpadEqual', true),
+				],
+				['+', '+', '-', '*', '/', 'Enter', '=']
+			);
+		});
+
+		test('should resolve digit keys to numbers when NumLock is ON', () => {
+			deepStrictEqual(
+				Array.from({ length: 10 }, (_, i) => resolveNumpadKey(`Numpad${i}`, true)),
+				['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+			);
+		});
+
+		test('should resolve digit keys to navigation keys when NumLock is OFF', () => {
+			deepStrictEqual(
+				Array.from({ length: 10 }, (_, i) => resolveNumpadKey(`Numpad${i}`, false)),
+				['Insert', 'End', 'ArrowDown', 'PageDown', 'ArrowLeft', 'Clear', 'ArrowRight', 'Home', 'ArrowUp', 'PageUp']
+			);
+		});
+
+		test('should resolve NumpadDecimal to locale-aware value when NumLock is ON', () => {
+			// Default (US) layout
+			strictEqual(resolveNumpadKey('NumpadDecimal', true), '.');
+			// Explicit US decimal
+			strictEqual(resolveNumpadKey('NumpadDecimal', true, '.'), '.');
+			// German layout: comma instead of period
+			strictEqual(resolveNumpadKey('NumpadDecimal', true, ','), ',');
+		});
+
+		test('should resolve NumpadDecimal to Delete when NumLock is OFF', () => {
+			strictEqual(resolveNumpadKey('NumpadDecimal', false), 'Delete');
+			// Locale should not affect NumLock OFF behavior
+			strictEqual(resolveNumpadKey('NumpadDecimal', false, ','), 'Delete');
+		});
+
+		test('should return undefined for unknown numpad codes', () => {
+			strictEqual(resolveNumpadKey('NumpadUnknown', true), undefined);
+			strictEqual(resolveNumpadKey('NumpadUnknown', false), undefined);
 		});
 	});
 });
