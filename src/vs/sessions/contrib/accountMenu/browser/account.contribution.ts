@@ -9,6 +9,7 @@ import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -29,11 +30,12 @@ import { IUpdateService, State, StateType } from '../../../../platform/update/co
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
-import { ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -149,6 +151,17 @@ async function runSessionsUpdateAction(
 	}
 }
 
+export async function showSessionsWelcomeAfterSignOut(
+	chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'>,
+	commandService: Pick<ICommandService, 'executeCommand'>,
+): Promise<void> {
+	if (chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
+		await Event.toPromise(Event.filter(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.entitlement === ChatEntitlement.Unknown));
+	}
+
+	await commandService.executeCommand('workbench.action.resetSessionsWelcome');
+}
+
 // Sign In (shown when signed out)
 registerAction2(class extends Action2 {
 	constructor() {
@@ -189,6 +202,8 @@ registerAction2(class extends Action2 {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
+		const commandService = accessor.get(ICommandService);
 		const defaultAccount = await defaultAccountService.getDefaultAccount();
 		if (!defaultAccount) {
 			return;
@@ -212,6 +227,7 @@ registerAction2(class extends Action2 {
 		await Promise.all(sessions.map(session => authenticationService.removeSession(providerId, session.id)));
 		authenticationUsageService.removeAccountUsage(providerId, accountLabel);
 		authenticationAccessService.removeAllowedExtensions(providerId, accountLabel);
+		await showSessionsWelcomeAfterSignOut(chatEntitlementService, commandService);
 	}
 });
 

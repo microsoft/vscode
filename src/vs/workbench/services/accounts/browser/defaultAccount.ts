@@ -907,7 +907,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		if (!this.defaultAccount) {
 			return;
 		}
-		this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
+		await this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
 	}
 
 }
