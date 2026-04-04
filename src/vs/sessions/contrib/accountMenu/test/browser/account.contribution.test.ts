@@ -70,4 +70,30 @@ suite('Sessions - Account Contribution', () => {
 
 		assert.deepStrictEqual(order, ['command:workbench.action.resetSessionsWelcome']);
 	});
+
+	test('handles entitlement becoming unknown while the listener is being attached', async () => {
+		const order: string[] = [];
+		let entitlement = ChatEntitlement.Free;
+		const onDidChangeEntitlement: IChatEntitlementService['onDidChangeEntitlement'] = listener => {
+			entitlement = ChatEntitlement.Unknown;
+			listener();
+			return { dispose() { } };
+		};
+		const chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'> = {
+			get entitlement() {
+				return entitlement;
+			},
+			onDidChangeEntitlement,
+		};
+		const commandService: Pick<ICommandService, 'executeCommand'> = {
+			async executeCommand(commandId) {
+				order.push(`command:${commandId}`);
+				return undefined;
+			},
+		};
+
+		await showSessionsWelcomeAfterSignOut(chatEntitlementService, commandService);
+
+		assert.deepStrictEqual(order, ['command:workbench.action.resetSessionsWelcome']);
+	});
 });

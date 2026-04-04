@@ -155,8 +155,13 @@ export async function showSessionsWelcomeAfterSignOut(
 	chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'>,
 	commandService: Pick<ICommandService, 'executeCommand'>,
 ): Promise<void> {
-	if (chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
-		await Event.toPromise(Event.filter(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.entitlement === ChatEntitlement.Unknown));
+	const waitForUnknownEntitlement = Event.toPromise(Event.filter(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.entitlement === ChatEntitlement.Unknown));
+	try {
+		if (chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
+			await waitForUnknownEntitlement;
+		}
+	} finally {
+		waitForUnknownEntitlement.cancel();
 	}
 
 	await commandService.executeCommand('workbench.action.resetSessionsWelcome');
