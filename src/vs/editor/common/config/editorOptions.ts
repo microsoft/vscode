@@ -652,6 +652,13 @@ export interface IEditorOptions {
 	 */
 	occurrencesHighlightDelay?: number;
 	/**
+	 * Controls whether occurrences highlighting supports asymmetric highlights.
+	 * When enabled, moving the cursor between highlight ranges will re-query for highlights
+	 * rather than assuming highlight ranges are symmetric.
+	 * Defaults to false.
+	 */
+	'occurrencesHighlight.asymmetric'?: boolean;
+	/**
 	 * Show code lens
 	 * Defaults to true.
 	 */
@@ -5862,6 +5869,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	occurrencesHighlightAsymmetric,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -6477,6 +6485,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
+		}
+	)),
+	occurrencesHighlightAsymmetric: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlightAsymmetric, 'occurrencesHighlight.asymmetric', false,
+		{
+			description: nls.localize('occurrencesHighlight.asymmetric', "Controls whether occurrences highlighting supports asymmetric highlights, re-querying when the cursor moves between highlight ranges."),
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(
