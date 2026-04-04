@@ -315,4 +315,162 @@ suite('Annotations', function () {
 		});
 
 	});
+
+	suite('annotateSpecialMarkdownContent - inline references with snippets', () => {
+		test('inline reference with snippet renders code block', () => {
+			const result = annotateSpecialMarkdownContent([
+				content('Check out '),
+				{
+					kind: 'inlineReference',
+					inlineReference: URI.parse('file:///example.ts'),
+					name: 'example.ts',
+					snippet: 'export const greeting = "hello world";',
+					languageId: 'typescript'
+				},
+				content(' for details'),
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			// Should contain the file reference
+			assert.ok(md.content.value.includes('[example.ts]'));
+			// Should contain the code fence with language ID
+			assert.ok(md.content.value.includes('```typescript'));
+			// Should contain the snippet
+			assert.ok(md.content.value.includes('export const greeting = "hello world";'));
+			// Should contain closing fence
+			assert.ok(md.content.value.includes('```'));
+		});
+
+		test('snippet with backticks uses appropriate fence length', () => {
+			const snippetWithBackticks = 'const code = `nested template literal`;';
+			const result = annotateSpecialMarkdownContent([
+				content('See '),
+				{
+					kind: 'inlineReference',
+					inlineReference: URI.parse('file:///test.ts'),
+					name: 'test.ts',
+					snippet: snippetWithBackticks,
+					languageId: 'typescript'
+				},
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			const value = md.content.value;
+			// Should use 4 backticks (one more than the max run of 3 in the snippet)
+			assert.ok(value.includes('````typescript'));
+			assert.ok(value.includes(snippetWithBackticks));
+			assert.ok(value.includes('````'));
+		});
+
+		test('snippet with multiple backtick sequences uses longest length', () => {
+			const snippetWithMultipleBackticks = 'const a = ``; const b = ```; const c = `;';
+			const result = annotateSpecialMarkdownContent([
+				content('Example: '),
+				{
+					kind: 'inlineReference',
+					inlineReference: URI.parse('file:///multi.ts'),
+					name: 'multi.ts',
+					snippet: snippetWithMultipleBackticks,
+					languageId: 'typescript'
+				},
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			const value = md.content.value;
+			// Should use 4 backticks (one more than the max run of 3)
+			assert.ok(value.includes('````typescript'));
+			assert.ok(value.includes(snippetWithMultipleBackticks));
+			assert.ok(value.includes('````'));
+		});
+
+		test('snippet without backticks uses standard 3-backtick fence', () => {
+			const cleanSnippet = 'function hello() {\n  console.log("world");\n}';
+			const result = annotateSpecialMarkdownContent([
+				content('Function: '),
+				{
+					kind: 'inlineReference',
+					inlineReference: URI.parse('file:///func.ts'),
+					name: 'func.ts',
+					snippet: cleanSnippet,
+					languageId: 'typescript'
+				},
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			const value = md.content.value;
+			// Should use standard 3-backtick fence
+			assert.ok(value.includes('```typescript'));
+			assert.ok(value.includes(cleanSnippet));
+			// Count occurrences of closing fence
+			const closeMatches = value.match(/^```$/gm);
+			assert.ok(closeMatches && closeMatches.length >= 1, 'Should have at least one closing fence');
+		});
+
+		test('snippet with code block markers renders with longer fence', () => {
+			const snippetWithCodeBlock = 'const desc = "```javascript\ncode\n```";';
+			const result = annotateSpecialMarkdownContent([
+				content('Code: '),
+				{
+					kind: 'inlineReference',
+					inlineReference: URI.parse('file:///code.ts'),
+					name: 'code.ts',
+					snippet: snippetWithCodeBlock,
+					languageId: 'typescript'
+				},
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			const value = md.content.value;
+			// Should use 4 backticks to escape the 3-backtick sequence inside
+			assert.ok(value.includes('````typescript'));
+			assert.ok(value.includes(snippetWithCodeBlock));
+			assert.ok(value.includes('````'));
+		});
+
+		test('snippet without language ID still renders with backtick escaping', () => {
+			const snippetWithBackticks = 'const template = `Hello ${name}`;';
+			const result = annotateSpecialMarkdownContent([
+				content('Value: '),
+				{
+					kind: 'inlineReference',
+					inlineReference: URI.parse('file:///value.js'),
+					name: 'value.js',
+					snippet: snippetWithBackticks
+					// Note: no languageId provided
+				},
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			const value = md.content.value;
+			// Should use 4 backticks even without explicit language
+			assert.ok(value.includes('````'));
+			assert.ok(value.includes(snippetWithBackticks));
+		});
+
+		test('empty snippet still renders correctly', () => {
+			const result = annotateSpecialMarkdownContent([
+				content('Example: '),
+				{
+					kind: 'inlineReference',
+					inlineReference: URI.parse('file:///empty.ts'),
+					name: 'empty.ts',
+					snippet: '',
+					languageId: 'typescript'
+				},
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			const value = md.content.value;
+			// Should still have fence markers for empty content
+			assert.ok(value.includes('```typescript'));
+			assert.ok(value.includes('```'));
+		});
+	});
 });

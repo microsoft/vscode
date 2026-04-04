@@ -1,0 +1,11 @@
+{
+	"displayName": "ToolPipe MCP Server",
+	"description": "Integrates ToolPipe MCP Server - 120+ developer utilities via Model Context Protocol",
+	"configuration.title": "ToolPipe MCP Server",
+	"configuration.enabled.description": "Enable ToolPipe MCP Server integration",
+	"configuration.mode.description": "ToolPipe connection mode: 'remote' for cloud-hosted server, 'local' for npm-based server",
+	"configuration.remoteUrl.description": "Remote URL for ToolPipe MCP Server (HTTPS endpoint). Provide your own server URL, for example: https://example.com/mcp",
+	"configuration.localCommand.description": "Command to run local ToolPipe server (e.g., 'npx' or full path)",
+	"configuration.localArgs.description": "Arguments for local ToolPipe server command",
+	"mcpServerDefinition.label": "ToolPipe MCP Server"
+}

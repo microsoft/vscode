@@ -1,7 +1,7 @@
 {
   "name": "toolpipe-mcp-server",
-  "displayName": "ToolPipe MCP Server",
-  "description": "Integrates ToolPipe MCP Server - 120+ developer utilities via Model Context Protocol",
+  "displayName": "%displayName%",
+  "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
@@ -36,17 +36,17 @@
     "mcpServerDefinitionProviders": [
       {
         "id": "toolpipe",
-        "label": "ToolPipe MCP Server"
+        "label": "%mcpServerDefinition.label%"
       }
     ],
     "configuration": [
       {
-        "title": "ToolPipe MCP Server",
+        "title": "%configuration.title%",
         "properties": {
           "toolpipeMcpServer.enabled": {
             "type": "boolean",
             "default": true,
-            "description": "Enable ToolPipe MCP Server integration"
+            "description": "%configuration.enabled.description%"
           },
           "toolpipeMcpServer.mode": {
             "type": "string",
@@ -55,24 +55,24 @@
               "local"
             ],
             "default": "remote",
-            "description": "ToolPipe connection mode: 'remote' for cloud-hosted server, 'local' for npm-based server"
+            "description": "%configuration.mode.description%"
           },
   				"toolpipeMcpServer.remoteUrl": {
 					"type": "string",
 					"default": "",
-					"description": "Remote URL for ToolPipe MCP Server (HTTPS endpoint). Provide your own server URL, for example: https://example.com/mcp"
+					"description": "%configuration.remoteUrl.description%"
 				},
           "toolpipeMcpServer.localCommand": {
             "type": "string",
             "default": "npx",
-            "description": "Command to run local ToolPipe server (e.g., 'npx' or full path)"
+            "description": "%configuration.localCommand.description%"
           },
           "toolpipeMcpServer.localArgs": {
             "type": "array",
             "default": [
               "@cosai-labs/toolpipe-mcp-server"
             ],
-            "description": "Arguments for local ToolPipe server command"
+            "description": "%configuration.localArgs.description%"
           }
         }
       }
