@@ -219,28 +219,43 @@ function buildTreeChildren(items: IChangesFileItem[], treeRootInfo?: IChangesTre
 	}];
 }
 
-function toChangesFileItem(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChangesFileItem[] {
+function toIChatSessionFileChange2(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChatSessionFileChange2[] {
+	return changes.map(change => ({
+		uri: change.uri,
+		originalUri: change.originalUri
+			? modifiedRef
+				? change.originalUri.with({ scheme: 'git', query: JSON.stringify({ path: change.originalUri.fsPath, ref: originalRef }) })
+				: change.originalUri
+			: undefined,
+		modifiedUri: change.modifiedUri
+			? modifiedRef
+				? change.modifiedUri.with({ scheme: 'git', query: JSON.stringify({ path: change.modifiedUri.fsPath, ref: modifiedRef }) })
+				: change.modifiedUri
+			: undefined,
+		insertions: change.insertions,
+		deletions: change.deletions,
+	} satisfies IChatSessionFileChange2));
+}
+
+function toIChangesFileItem(changes: (IChatSessionFileChange | IChatSessionFileChange2)[]): IChangesFileItem[] {
 	return changes.map(change => {
-		const isDeletion = change.modifiedUri === undefined;
 		const isAddition = change.originalUri === undefined;
-		const uri = change.modifiedUri ?? change.uri;
-		const fileUri = isDeletion
-			? uri
-			: modifiedRef
-				? uri.with({ scheme: 'git', query: JSON.stringify({ path: uri.fsPath, ref: modifiedRef }) })
-				: uri;
-		const originalUri = isAddition
-			? change.originalUri
-			: originalRef
-				? fileUri.with({ scheme: 'git', query: JSON.stringify({ path: fileUri.fsPath, ref: originalRef }) })
-				: change.originalUri;
+		const isDeletion = change.modifiedUri === undefined;
+		const uri = isIChatSessionFileChange2(change)
+			? change.uri
+			: change.modifiedUri;
+
 		return {
 			type: 'file',
-			uri: fileUri,
-			originalUri,
-			state: ModifiedFileEntryState.Accepted,
+			uri,
+			originalUri: change.originalUri,
 			isDeletion,
-			changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
+			state: ModifiedFileEntryState.Accepted,
+			changeType: isAddition
+				? 'added'
+				: isDeletion
+					? 'deleted'
+					: 'modified',
 			linesAdded: change.insertions,
 			linesRemoved: change.deletions
 		} satisfies IChangesFileItem;
@@ -269,14 +284,15 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionRepositoryStateObs: IObservableWithChange<GitRepositoryState | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
-	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
-	readonly activeSessionAllChangesObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
-	readonly activeSessionLastTurnChangesObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
+	readonly activeSessionAllChangesObs: IObservable<readonly IChatSessionFileChange2[]>;
+	private readonly _activeSessionAllChangesPromiseObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
+	readonly activeSessionLastTurnChangesObs: IObservable<readonly IChatSessionFileChange2[]>;
+	private readonly _activeSessionLastTurnChangesPromiseObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
-
+	readonly activeSessionReviewCommentCountByFileObs: IObservable<Map<string, number>>;
+	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionIsLoadingObs: IObservable<boolean>;
 
@@ -325,7 +341,7 @@ class ChangesViewModel extends Disposable {
 			if (!activeSession) {
 				return Iterable.empty();
 			}
-			return activeSession.changes.read(reader) as readonly (IChatSessionFileChange | IChatSessionFileChange2)[];
+			return activeSession.changes.read(reader);
 		});
 
 		const activeSessionRepositoryObs = derived(reader => {
@@ -439,7 +455,7 @@ class ChangesViewModel extends Disposable {
 		});
 
 		// Active session all changes
-		this.activeSessionAllChangesObs = derived(reader => {
+		this._activeSessionAllChangesPromiseObs = derived(reader => {
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(reader);
 			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
@@ -452,8 +468,16 @@ class ChangesViewModel extends Disposable {
 			return new ObservablePromise(diffPromise).resolvedValue;
 		});
 
+		this.activeSessionAllChangesObs = derived(reader => {
+			const diffChanges = this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
+			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(undefined);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
+
+			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, firstCheckpointRef);
+		});
+
 		// Active session last turn changes
-		this.activeSessionLastTurnChangesObs = derived(reader => {
+		this._activeSessionLastTurnChangesPromiseObs = derived(reader => {
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
 
@@ -463,6 +487,13 @@ class ChangesViewModel extends Disposable {
 
 			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
 			return new ObservablePromise(diffPromise).resolvedValue;
+		});
+
+		this.activeSessionLastTurnChangesObs = derived(reader => {
+			const diffChanges = this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader) ?? [];
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
+
+			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined);
 		});
 
 		this.activeSessionReviewCommentCountByFileObs = derived(reader => {
@@ -556,13 +587,13 @@ class ChangesViewModel extends Disposable {
 
 			// All changes
 			if (versionMode === ChangesVersionMode.AllChanges) {
-				const allChangesResult = this.activeSessionAllChangesObs.read(reader).read(reader);
+				const allChangesResult = this._activeSessionAllChangesPromiseObs.read(reader).read(reader);
 				return allChangesResult === undefined;
 			}
 
 			// Last turn changes
 			if (versionMode === ChangesVersionMode.LastTurn) {
-				const lastTurnChangesResult = this.activeSessionLastTurnChangesObs.read(reader).read(reader);
+				const lastTurnChangesResult = this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader);
 				return lastTurnChangesResult === undefined;
 			}
 
@@ -886,29 +917,6 @@ export class ChangesViewPane extends ViewPane {
 	private onVisible(): void {
 		this.renderDisposables.clear();
 
-		// Convert session file changes to list items (cloud/background sessions)
-		const sessionFilesObs = derived(reader => {
-			const changes = [...this.viewModel.activeSessionChangesObs.read(reader)];
-
-			return changes.map((entry): IChangesFileItem => {
-				const isDeletion = entry.modifiedUri === undefined;
-				const isAddition = entry.originalUri === undefined;
-				const uri = isIChatSessionFileChange2(entry)
-					? entry.modifiedUri ?? entry.uri
-					: entry.modifiedUri;
-				return {
-					type: 'file',
-					uri,
-					originalUri: entry.originalUri,
-					state: ModifiedFileEntryState.Accepted,
-					isDeletion,
-					changeType: isDeletion ? 'deleted' : isAddition ? 'added' : 'modified',
-					linesAdded: entry.insertions,
-					linesRemoved: entry.deletions
-				};
-			});
-		});
-
 		this.renderDisposables.add(autorun(reader => {
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
 			if (isLoading) {
@@ -926,30 +934,19 @@ export class ChangesViewPane extends ViewPane {
 				return [];
 			}
 
-			const sourceEntries: IChangesFileItem[] = [];
+			const sourceEntries: (IChatSessionFileChange | IChatSessionFileChange2)[] = [];
 			if (versionMode === ChangesVersionMode.BranchChanges) {
-				const sessionFiles = sessionFilesObs.read(reader);
-				sourceEntries.push(...sessionFiles);
+				const changes = this.viewModel.activeSessionChangesObs.read(reader);
+				sourceEntries.push(...changes);
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
-				const allChanges = this.viewModel.activeSessionAllChangesObs.read(reader).read(reader) ?? [];
-				const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.read(undefined);
-				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(undefined);
-				sourceEntries.push(...toChangesFileItem(allChanges, lastCheckpointRef, firstCheckpointRef));
+				const allChanges = this.viewModel.activeSessionAllChangesObs.read(reader);
+				sourceEntries.push(...allChanges);
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
-				const diffChanges = this.viewModel.activeSessionLastTurnChangesObs.read(reader).read(reader) ?? [];
-				const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.read(undefined);
-				sourceEntries.push(...toChangesFileItem(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined));
+				const lastTurnChanges = this.viewModel.activeSessionLastTurnChangesObs.read(reader);
+				sourceEntries.push(...lastTurnChanges);
 			}
 
-			const resources = new Set();
-			const entries: IChangesFileItem[] = [];
-			for (const item of sourceEntries) {
-				if (!resources.has(item.uri.fsPath)) {
-					resources.add(item.uri.fsPath);
-					entries.push(item);
-				}
-			}
-			return entries.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
+			return toIChangesFileItem(sourceEntries);
 		});
 
 		// Calculate stats from combined entries
