@@ -606,7 +606,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary side bar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
+				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary side bar title are shown as label or icon. This setting only has an effect when {0} is not set to {1} or {2}.", '`#workbench.secondarySideBar.activityBar.location#`', '`top`', '`bottom`'),
+			},
+			[LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION]: {
+				'type': 'string',
+				'enum': ['default', 'top', 'bottom', 'hidden'],
+				'default': 'default',
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'secondarySideBarActivityBarLocation' }, "Controls the location of the Activity Bar in the Secondary Side Bar."),
+				'enumDescriptions': [
+					localize('workbench.secondarySideBar.activityBar.location.default', "Show the Activity Bar inline in the Secondary Side Bar title area."),
+					localize('workbench.secondarySideBar.activityBar.location.top', "Show the Activity Bar on top of the Secondary Side Bar."),
+					localize('workbench.secondarySideBar.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Secondary Side Bar."),
+					localize('workbench.secondarySideBar.activityBar.location.hide', "Hide the Activity Bar in the Secondary Side Bar.")
+				],
 			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
@@ -637,12 +649,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['default', 'top', 'bottom', 'hidden'],
 				'default': 'default',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar relative to the Primary and Secondary Side Bars."),
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar in the Primary Side Bar."),
 				'enumDescriptions': [
-					localize('workbench.activityBar.location.default', "Show the Activity Bar on the side of the Primary Side Bar and on top of the Secondary Side Bar."),
-					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary and Secondary Side Bars."),
-					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary and Secondary Side Bars."),
-					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bars.")
+					localize('workbench.activityBar.location.default', "Show the Activity Bar on the side of the Primary Side Bar."),
+					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
+					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary Side Bar."),
+					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary Side Bar.")
 				],
 			},
 			[LayoutSettings.ACTIVITY_BAR_AUTO_HIDE]: {
