@@ -287,11 +287,16 @@
 	/* separate from the separator label or scrollbar if any */
 }
 
+/* Show the end of the file path rather than the beginning when truncated.
+   direction:rtl moves the ellipsis to the left so the most-specific path
+   segments remain visible. unicode-bidi:plaintext ensures path separators
+   and Latin text still render in left-to-right order. */
 .quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label .monaco-icon-description-container > .label-description {
 	direction: rtl;
 	text-align: left;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	unicode-bidi: plaintext;
 }
 
 .quick-input-list .quick-input-list-label-meta {
