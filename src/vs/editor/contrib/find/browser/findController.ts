@@ -705,24 +705,13 @@ export class NextMatchFindAction extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToNextMatch();
+		const result = controller.moveToNextMatch();
+		if (result) {
+			controller.editor.pushUndoStop();
+			return true;
+		}
 
-		// // Commented-out the code below since it's preventing
-		// // the modulo/wrap-around behavior that occurs when
-		// // cycling past the upper limit.
-		// // `PreviousMatchFindAction` exhibits this wrap-around
-		// // behavior for the lower limit, so for the sake of symmetry,
-		// // it seems best to allow it here as well.
-
-
-		//// TODO: REMOVE?
-		// const result = controller.moveToNextMatch();
-		// if (result) {
-		// 	controller.editor.pushUndoStop();
-		// 	return true;
-		// }
-
-		// return false;
+		return false;
 	}
 }
 

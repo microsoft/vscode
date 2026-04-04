@@ -137,7 +137,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
-
 	private _nthMatchInput!: NthMatchInput;
 
 	private _toggleReplaceBtn!: SimpleButton;
@@ -413,8 +412,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		// remove previous content
-		// this._matchesCount.firstChild?.remove();
-		[...this._matchesCount.childNodes].forEach(x => x.parentNode?.removeChild(x));
+		if (this._matchesCount.childNodes.length > 1) {
+			[...this._matchesCount.childNodes].forEach(x => x.parentNode?.removeChild(x));
+		}
+		else {
+			this._matchesCount.firstChild?.remove();
+		}
 
 
 		let label: string;
@@ -428,18 +431,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				matchesPosition = '?';
 			}
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+
+			this._nthMatchInput.setValue(`${this._state.matchesPosition}`);
+			this._nthMatchInput.min = this._state.matchesCount >= 1 ? 1 : 0;
+			this._nthMatchInput.max = this._state.matchesCount;
+
+			this._matchesCount.appendChild(this._nthMatchInput.domNode);
+			this._matchesCount.appendChild(document.createTextNode(' of '));
+			this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
+
 		} else {
 			label = NLS_NO_RESULTS;
+			this._matchesCount.appendChild(document.createTextNode(label));
 		}
-
-		// this._nthMatchInput = this.getNthMatchInput();
-		this._nthMatchInput.setValue(`${this._state.matchesPosition}`);
-		this._nthMatchInput.min = this._state.matchesCount >= 1 ? 1 : 0;
-		this._nthMatchInput.max = this._state.matchesCount;
-
-		this._matchesCount.appendChild(this._nthMatchInput.domNode);
-		this._matchesCount.appendChild(document.createTextNode(' of '));
-		this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
@@ -454,7 +458,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			width: 20,
 			validation: undefined,
 			label: '',
-			type: 'number',
+			type: 'text',
 			min: this._state.matchesCount >= 1 ? 1 : 0,
 			max: this._state.matchesCount,
 			flexibleHeight: undefined,
@@ -476,13 +480,18 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		this._register(input.onJump((e) => {
 			assertIsDefined(this._codeEditor.getAction(FIND_IDS.GoToEditableNthMatchFindAction)).run().then(undefined, onUnexpectedError);
-			// this._nthMatchInput.focus();
 			input.focus();
 		}));
 
 		this._register(input.onInput((e) => {
 			const currentValueAsInt = parseInt(input.getValue());
-			input.setValue(currentValueAsInt > input.max ? `${input.max}` : currentValueAsInt < input.min ? `${input.min}` : `${currentValueAsInt}`);
+			// Enforce the numerical input and min/max constraints here.
+			input.setValue(
+				isNaN(currentValueAsInt) ?
+					`${input.min}` : currentValueAsInt > input.max ?
+						`${input.max}` : currentValueAsInt < input.min ?
+							`${input.min}` : `${currentValueAsInt}`
+			);
 		}));
 
 		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
@@ -1066,81 +1075,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
-
 		this._nthMatchInput = this.getNthMatchInput();
-
 		this._updateMatchesCount();
-
-
-		// this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
-		// 	width: FIND_INPUT_AREA_WIDTH,
-		// 	label: NLS_FIND_INPUT_LABEL,
-		// 	placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-		// 	appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
-		// 	appendWholeWordsLabel: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
-		// 	appendRegexLabel: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
-		// 	validation: (value: string): InputBoxMessage | null => {
-		// 		if (value.length === 0 || !this._findInput.getRegex()) {
-		// 			return null;
-		// 		}
-		// 		try {
-		// 			// use `g` and `u` which are also used by the TextModel search
-		// 			new RegExp(value, 'gu');
-		// 			return null;
-		// 		} catch (e) {
-		// 			return { content: e.message };
-		// 		}
-		// 	},
-		// 	flexibleHeight,
-		// 	flexibleWidth,
-		// 	flexibleMaxHeight: 118,
-		// 	showCommonFindToggles: true,
-		// 	showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService),
-		// 	inputBoxStyles: defaultInputBoxStyles,
-		// 	toggleStyles: defaultToggleStyles
-		// }, this._contextKeyService));
-		// this._findInput.setRegex(!!this._state.isRegex);
-		// this._findInput.setCaseSensitive(!!this._state.matchCase);
-		// this._findInput.setWholeWords(!!this._state.wholeWord);
-		// this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
-		// this._register(this._findInput.inputBox.onDidChange(() => {
-		// 	if (this._ignoreChangeEvent) {
-		// 		return;
-		// 	}
-		// 	this._state.change({ searchString: this._findInput.getValue() }, true);
-		// }));
-		// this._register(this._findInput.onDidOptionChange(() => {
-		// 	this._state.change({
-		// 		isRegex: this._findInput.getRegex(),
-		// 		wholeWord: this._findInput.getWholeWords(),
-		// 		matchCase: this._findInput.getCaseSensitive()
-		// 	}, true);
-		// }));
-		// this._register(this._findInput.onCaseSensitiveKeyDown((e) => {
-		// 	if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
-		// 		if (this._isReplaceVisible) {
-		// 			this._replaceInput.focus();
-		// 			e.preventDefault();
-		// 		}
-		// 	}
-		// }));
-		// this._register(this._findInput.onRegexKeyDown((e) => {
-		// 	if (e.equals(KeyCode.Tab)) {
-		// 		if (this._isReplaceVisible) {
-		// 			this._replaceInput.focusOnPreserve();
-		// 			e.preventDefault();
-		// 		}
-		// 	}
-		// }));
-		// this._register(this._findInput.inputBox.onDidHeightChange((e) => {
-		// 	if (this._tryUpdateHeight()) {
-		// 		this._showViewZone();
-		// 	}
-		// }));
-		// if (platform.isLinux) {
-		// 	this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
-		// }
-
 
 		// Create a scoped hover delegate for all find related buttons
 		const hoverDelegate = this._register(createInstantHoverDelegate());
