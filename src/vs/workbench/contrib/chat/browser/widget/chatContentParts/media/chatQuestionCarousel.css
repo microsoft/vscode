@@ -99,6 +99,13 @@
 			}
 		}
 
+		.chat-question-header-actions {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			flex-shrink: 0;
+		}
+
 		.chat-question-close-container {
 			flex-shrink: 0;
 
@@ -117,6 +124,35 @@
 				background: var(--vscode-toolbar-hoverBackground) !important;
 			}
 		}
+
+		.monaco-button.chat-question-collapse-toggle {
+			min-width: 22px;
+			width: 22px;
+			height: 22px;
+			padding: 0;
+			border: none !important;
+			box-shadow: none !important;
+			background: transparent !important;
+			color: var(--vscode-icon-foreground) !important;
+		}
+
+		.monaco-button.chat-question-collapse-toggle:hover:not(.disabled) {
+			background: var(--vscode-toolbar-hoverBackground) !important;
+		}
+	}
+}
+
+.interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
+	.chat-question-carousel-content {
+		.chat-question-description,
+		.chat-question-input-scrollable,
+		.chat-question-validation-message {
+			display: none;
+		}
+	}
+
+	.chat-question-footer-row {
+		display: none;
 	}
 }
 
@@ -211,31 +247,52 @@
 			background-color: var(--vscode-list-hoverBackground);
 		}
 
-		/* Single-select: highlight entire row when selected */
+		/* Single-select: highlight entire row when selected (list not focused) */
 		.chat-question-list-item.selected {
-			background-color: var(--vscode-list-hoverBackground);
-			color: var(--vscode-list-activeSelectionForeground);
+			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
+			color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 
-			.chat-question-label {
-				color: var(--vscode-list-activeSelectionForeground);
+			.chat-question-list-label,
+			.chat-question-list-label-title {
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 
 			.chat-question-list-label-desc {
-				color: var(--vscode-list-activeSelectionForeground);
-				opacity: 0.8;
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 
 			.chat-question-list-indicator.codicon-check {
-				color: var(--vscode-list-activeSelectionForeground);
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 
 			.chat-question-list-number {
-				color: var(--vscode-list-activeSelectionForeground);
+				color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground));
 			}
 		}
 
+		/* When the question list has focus, use active selection styling */
+		.chat-question-list:focus .chat-question-list-item.selected {
+			background-color: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+			color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+
+			.chat-question-label {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-label-desc {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-indicator.codicon-check {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+
+			.chat-question-list-number {
+				color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+			}
+		}
 		.chat-question-list-item.selected:hover {
-			background-color: var(--vscode-list-hoverBackground);
+			background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-list-hoverBackground));
 		}
 
 		/* Checkbox for multi-select */
@@ -384,6 +441,35 @@
 	.monaco-button.chat-question-submit-button:hover:not(.disabled) {
 		background: var(--vscode-button-hoverBackground) !important;
 	}
+}
+
+/* carousel-level message (e.g. from MCP elicitation) */
+.interactive-session .chat-question-carousel-container .chat-question-carousel-message {
+	padding: 8px 16px 0;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+	max-height: min(220px, 25vh);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+
+	.rendered-markdown p {
+		margin: 0;
+	}
+}
+
+/* field description below question title */
+.interactive-session .chat-question-carousel-container .chat-question-description {
+	padding: 4px 16px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* validation error message below input area */
+.interactive-session .chat-question-carousel-container .chat-question-validation-message {
+	padding: 0 16px 4px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-editorWarning-foreground);
+	flex-shrink: 0;
 }
 
 /* summary (after finished) */

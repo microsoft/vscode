@@ -13,61 +13,177 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IChat, ISession } from '../../../sessions/common/sessionData.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 
 const HOME_DIR = URI.file('/home/user');
+
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+}
+
+type TestTerminalInstance = ITerminalInstance & {
+	_testCommandHistory: { timestamp: number }[];
+	_testSetDisposed(disposed: boolean): void;
+	_testSetShellLaunchConfig(shellLaunchConfig: ITerminalInstance['shellLaunchConfig']): void;
+};
 
 function makeAgentSession(opts: {
 	repository?: URI;
 	worktree?: URI;
 	providerType?: string;
 	isArchived?: boolean;
-	worktreePath?: string;
-}): IActiveSessionItem & IAgentSession {
-	return {
+}): IActiveSession {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchName: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
+	const chat: IChat = {
 		resource: URI.parse('file:///session'),
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-		setArchived: () => { },
-		setRead: () => { },
-		isArchived: () => opts.isArchived ?? false,
-		isRead: () => true,
-		metadata: opts.worktreePath ? { worktreePath: opts.worktreePath } : undefined,
-	} as unknown as IActiveSessionItem & IAgentSession;
+		createdAt: new Date(),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
+		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
+		description: observableValue('test.description', undefined),
+	};
+	const session: IActiveSession = {
+		sessionId: 'test:session',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('test.loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		chats: observableValue('test.chats', [chat]),
+		activeChat: observableValue('test.activeChat', chat),
+		mainChat: chat,
+	};
+	return session;
 }
 
-function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): IActiveSessionItem {
-	return {
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-	} as IActiveSessionItem;
+function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISession {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchName: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
+	const chat: IChat = {
+		resource: URI.parse('file:///session'),
+		createdAt: new Date(),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		isArchived: observableValue('test.isArchived', false),
+		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
+		description: observableValue('test.description', undefined),
+	};
+	const session: ISession = {
+		sessionId: 'test:non-agent',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('test.loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		chats: observableValue('test.chats', [chat]),
+		mainChat: chat,
+	};
+	return session;
 }
 
-function makeTerminalInstance(id: number, cwd: string): ITerminalInstance {
+function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
+	const commandHistory: { timestamp: number }[] = [];
+	let isDisposed = false;
+	let shellLaunchConfig: ITerminalInstance['shellLaunchConfig'] = {} as ITerminalInstance['shellLaunchConfig'];
+	const capabilities = {
+		get(cap: TerminalCapability) {
+			if (cap === TerminalCapability.CommandDetection && commandHistory.length > 0) {
+				return { commands: commandHistory } as unknown as ICommandDetectionCapability;
+			}
+			return undefined;
+		}
+	} as ITerminalCapabilityStore;
+
 	return {
 		instanceId: id,
-		isDisposed: false,
+		get isDisposed() { return isDisposed; },
+		get shellLaunchConfig() { return shellLaunchConfig; },
 		getInitialCwd: () => Promise.resolve(cwd),
-	} as unknown as ITerminalInstance;
+		capabilities,
+		_testCommandHistory: commandHistory,
+		_testSetDisposed(disposed: boolean) {
+			isDisposed = disposed;
+		},
+		_testSetShellLaunchConfig(value: ITerminalInstance['shellLaunchConfig']) {
+			shellLaunchConfig = value;
+		},
+	} as unknown as TestTerminalInstance;
+}
+
+function addCommandToInstance(instance: ITerminalInstance, timestamp: number): void {
+	(instance as TestTerminalInstance)._testCommandHistory.push({ timestamp });
 }
 
 suite('SessionsTerminalContribution', () => {
-
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
-	let onDidChangeSessionArchivedState: Emitter<IAgentSession>;
-	let onDidDisposeInstance: Emitter<ITerminalInstance>;
-
+	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
+	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	let onDidCreateInstance: Emitter<ITerminalInstance>;
+
 	let createdTerminals: { cwd: URI }[];
 	let activeInstanceSet: number[];
 	let focusCalls: number;
@@ -77,6 +193,8 @@ suite('SessionsTerminalContribution', () => {
 	let backgroundedInstances: Set<number>;
 	let moveToBackgroundCalls: number[];
 	let showBackgroundCalls: number[];
+	let disposeOnCreatePaths: Set<string>;
+	let logService: TestLogService;
 
 	setup(() => {
 		createdTerminals = [];
@@ -88,23 +206,27 @@ suite('SessionsTerminalContribution', () => {
 		backgroundedInstances = new Set();
 		moveToBackgroundCalls = [];
 		showBackgroundCalls = [];
+		disposeOnCreatePaths = new Set();
+		logService = new TestLogService();
 
 		const instantiationService = store.add(new TestInstantiationService());
 
-		activeSessionObs = observableValue('activeSession', undefined);
-		onDidChangeSessionArchivedState = store.add(new Emitter<IAgentSession>());
-		onDidDisposeInstance = store.add(new Emitter<ITerminalInstance>());
+		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override onDidDisposeInstance = onDidDisposeInstance.event;
 			override onDidCreateInstance = onDidCreateInstance.event;
+			override get instances(): readonly ITerminalInstance[] {
+				return [...terminalInstances.values()];
+			}
 			override get foregroundInstances(): readonly ITerminalInstance[] {
 				return [...terminalInstances.values()].filter(i => !backgroundedInstances.has(i.instanceId));
 			}
@@ -115,7 +237,10 @@ suite('SessionsTerminalContribution', () => {
 				const instance = makeTerminalInstance(id, cwdStr);
 				createdTerminals.push({ cwd: opts?.config?.cwd });
 				terminalInstances.set(id, instance);
-				onDidCreateInstance.fire(instance);
+				if (disposeOnCreatePaths.has(cwdStr)) {
+					instance._testSetDisposed(true);
+					terminalInstances.delete(id);
+				}
 				return instance;
 			}
 			override getInstanceFromId(id: number): ITerminalInstance | undefined {
@@ -129,6 +254,7 @@ suite('SessionsTerminalContribution', () => {
 			}
 			override async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
 				disposedInstances.push(instance);
+				(instance as TestTerminalInstance)._testSetDisposed(true);
 				terminalInstances.delete(instance.instanceId);
 				backgroundedInstances.delete(instance.instanceId);
 			}
@@ -142,13 +268,14 @@ suite('SessionsTerminalContribution', () => {
 			}
 		});
 
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
-			override model = {
-				onDidChangeSessionArchivedState: onDidChangeSessionArchivedState.event,
-			} as unknown as IAgentSessionsModel;
-		});
-
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
+
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override isViewVisible(): boolean { return false; }
+			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
+		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
@@ -203,7 +330,7 @@ suite('SessionsTerminalContribution', () => {
 
 	test('uses home directory for a non-agent session', async () => {
 		const session = makeNonAgentSession({ repository: URI.file('/repo') });
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(session as IActiveSession, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
@@ -285,7 +412,7 @@ suite('SessionsTerminalContribution', () => {
 		await contribution.ensureTerminal(cwd, false);
 
 		assert.strictEqual(createdTerminals.length, 1, 'should reuse the existing terminal');
-		assert.strictEqual(activeInstanceSet.length, 2, 'should set active instance both times');
+		assert.strictEqual(activeInstanceSet.length, 1, 'should only set active instance on creation');
 	});
 
 	test('ensureTerminal creates new terminal for different path', async () => {
@@ -302,7 +429,18 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 1, 'should match case-insensitively');
 	});
 
-	// --- onDidChangeSessionArchivedState ---
+	test('ensureTerminal does not activate a terminal disposed during creation', async () => {
+		const cwd = URI.file('/test-cwd');
+		disposeOnCreatePaths.add(cwd.fsPath);
+
+		const instances = await contribution.ensureTerminal(cwd, false);
+
+		assert.strictEqual(instances.length, 0);
+		assert.strictEqual(activeInstanceSet.length, 0);
+		assert.ok(logService.traces.some(message => message.includes(`Cannot activate created terminal for ${cwd.fsPath}; terminal 1 is no longer available`)));
+	});
+
+	// --- onDidChangeSessions (archived) ---
 
 	test('closes terminals when session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
@@ -312,9 +450,10 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: true,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
 	});
@@ -325,38 +464,36 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: false,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
 	});
 
-	test('does not close terminals when archived session has no worktreePath', async () => {
+	test('does not close terminals when archived session has no worktree', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false);
 
 		const session = makeAgentSession({ isArchived: true });
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
 	});
 
-	// --- onDidDisposeInstance ---
+	test('closes terminals when session is removed', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
 
-	test('cleans up path mapping when terminal is disposed externally', async () => {
-		const cwd = URI.file('/test-cwd');
-		await contribution.ensureTerminal(cwd, false);
 		assert.strictEqual(createdTerminals.length, 1);
 
-		// Simulate external disposal of the terminal
-		const instanceId = activeInstanceSet[0];
-		const instance = terminalInstances.get(instanceId)!;
-		onDidDisposeInstance.fire(instance);
+		const session = makeAgentSession({ worktree: worktreeUri });
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await tick();
 
-		// Now ensureTerminal should create a new one since the mapping was cleaned up
-		await contribution.ensureTerminal(cwd, false);
-		assert.strictEqual(createdTerminals.length, 2, 'should create a new terminal after the old one was disposed');
+		assert.strictEqual(disposedInstances.length, 1);
 	});
 
 	// --- switching back to previously used path reuses terminal ---
@@ -379,7 +516,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals.length, 2, 'should reuse the terminal for cwd1');
 	});
 
-	// --- Terminal visibility management ---
+	// --- Terminal visibility management (cwd-based) ---
 
 	test('hides terminals from previous session when switching to a new session', async () => {
 		const cwd1 = URI.file('/cwd1');
@@ -387,8 +524,7 @@ suite('SessionsTerminalContribution', () => {
 
 		activeSessionObs.set(makeAgentSession({ worktree: cwd1, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
-		const firstTerminalId = createdTerminals.length;
-		assert.strictEqual(firstTerminalId, 1);
+		assert.strictEqual(createdTerminals.length, 1);
 
 		activeSessionObs.set(makeAgentSession({ worktree: cwd2, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
@@ -439,33 +575,55 @@ suite('SessionsTerminalContribution', () => {
 		assert.ok(!backgroundedInstances.has(3), 'terminal for cwd3 should be foreground');
 	});
 
-	test('hides restored terminals that do not belong to the active session', async () => {
-		// Set an active session first
-		const cwd1 = URI.file('/cwd1');
-		activeSessionObs.set(makeAgentSession({ worktree: cwd1, providerType: AgentSessionProviders.Background }), undefined);
+	test('shows pre-existing terminal with matching cwd instead of creating a new one', async () => {
+		// Manually add a terminal that already exists with a matching cwd
+		const cwd = URI.file('/worktree');
+		const existingInstance = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		terminalInstances.set(existingInstance.instanceId, existingInstance);
+		backgroundedInstances.add(existingInstance.instanceId);
+
+		activeSessionObs.set(makeAgentSession({ worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 
-		// Simulate a terminal being restored (e.g. on startup) that is not tracked
-		const restoredInstance = makeTerminalInstance(nextInstanceId++, '/some/other/path');
-		terminalInstances.set(restoredInstance.instanceId, restoredInstance);
-		onDidCreateInstance.fire(restoredInstance);
-		await tick();
-
-		// The restored terminal should be moved to background
-		assert.ok(moveToBackgroundCalls.includes(restoredInstance.instanceId), 'restored terminal should be backgrounded');
+		assert.strictEqual(createdTerminals.length, 0, 'should reuse existing terminal, not create a new one');
+		assert.ok(showBackgroundCalls.includes(existingInstance.instanceId), 'should show the existing terminal');
 	});
 
-	test('does not hide restored terminals before any session is active', async () => {
-		// Simulate a terminal being restored before any session is active
-		const restoredInstance = makeTerminalInstance(nextInstanceId++, '/some/path');
+	test('does not background a restored terminal that is disposed before cwd resolves', async () => {
+		let resolveInitialCwd: ((cwd: string) => void) | undefined;
+		const restoredInstance = makeTerminalInstance(nextInstanceId++, '/restored');
+		restoredInstance._testSetShellLaunchConfig({ attachPersistentProcess: {} as never } as ITerminalInstance['shellLaunchConfig']);
+		restoredInstance.getInitialCwd = () => new Promise<string>(resolve => {
+			resolveInitialCwd = resolve;
+		});
 		terminalInstances.set(restoredInstance.instanceId, restoredInstance);
-		onDidCreateInstance.fire(restoredInstance);
+
+		activeSessionObs.set(makeAgentSession({ worktree: URI.file('/active'), providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 
-		assert.strictEqual(moveToBackgroundCalls.length, 0, 'should not background before any session is active');
+		onDidCreateInstance.fire(restoredInstance);
+		restoredInstance._testSetDisposed(true);
+		terminalInstances.delete(restoredInstance.instanceId);
+		resolveInitialCwd?.('/other');
+		await tick();
+
+		assert.ok(!moveToBackgroundCalls.includes(restoredInstance.instanceId), 'disposed restored terminal should not be backgrounded');
+		assert.ok(logService.traces.some(message => message.includes('Cannot hide restored terminal for /other; terminal') && message.includes('is no longer available')));
 	});
 
-	test('ensureTerminal shows a backgrounded terminal instead of creating a new one', async () => {
+	test('hides pre-existing terminal with non-matching cwd when session changes', async () => {
+		// Manually add a terminal that already exists with a different cwd
+		const otherInstance = makeTerminalInstance(nextInstanceId++, '/other/path');
+		terminalInstances.set(otherInstance.instanceId, otherInstance);
+
+		const cwd = URI.file('/worktree');
+		activeSessionObs.set(makeAgentSession({ worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		assert.ok(moveToBackgroundCalls.includes(otherInstance.instanceId), 'non-matching terminal should be backgrounded');
+	});
+
+	test('ensureTerminal finds a backgrounded terminal instead of creating a new one', async () => {
 		const cwd = URI.file('/test-cwd');
 		await contribution.ensureTerminal(cwd, false);
 		const instanceId = activeInstanceSet[0];
@@ -473,69 +631,83 @@ suite('SessionsTerminalContribution', () => {
 		// Manually background it
 		backgroundedInstances.add(instanceId);
 
-		// ensureTerminal should show it, not create a new one
-		await contribution.ensureTerminal(cwd, false);
+		// ensureTerminal should find it by cwd, not create a new one
+		const result = await contribution.ensureTerminal(cwd, false);
 
 		assert.strictEqual(createdTerminals.length, 1, 'should not create a new terminal');
-		assert.ok(showBackgroundCalls.includes(instanceId), 'should show the backgrounded terminal');
+		assert.strictEqual(result[0].instanceId, instanceId, 'should return the existing backgrounded terminal');
 	});
 
-	// --- Terminal adoption ---
+	test('visibility is determined by initial cwd, not by stored IDs', async () => {
+		// Create a terminal externally (not via ensureTerminal) with a known cwd
+		const cwd1 = URI.file('/cwd1');
+		const cwd2 = URI.file('/cwd2');
+		const ext1 = makeTerminalInstance(nextInstanceId++, cwd1.fsPath);
+		const ext2 = makeTerminalInstance(nextInstanceId++, cwd2.fsPath);
+		terminalInstances.set(ext1.instanceId, ext1);
+		terminalInstances.set(ext2.instanceId, ext2);
 
-	test('adopts externally-created terminal whose cwd matches the active worktree', async () => {
-		const worktree = URI.file('/worktree');
-		activeSessionObs.set(makeAgentSession({ worktree, providerType: AgentSessionProviders.Background }), undefined);
+		// Switch to cwd1 — ext1 should stay visible, ext2 should be hidden
+		activeSessionObs.set(makeAgentSession({ worktree: cwd1, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 
-		const externalInstance = makeTerminalInstance(nextInstanceId++, worktree.fsPath);
-		terminalInstances.set(externalInstance.instanceId, externalInstance);
-		onDidCreateInstance.fire(externalInstance);
+		assert.ok(!backgroundedInstances.has(ext1.instanceId), 'ext1 should be foreground (matching cwd)');
+		assert.ok(backgroundedInstances.has(ext2.instanceId), 'ext2 should be backgrounded (non-matching cwd)');
+
+		// Switch to cwd2 — ext2 should be shown, ext1 should be hidden
+		activeSessionObs.set(makeAgentSession({ worktree: cwd2, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 
-		assert.ok(!moveToBackgroundCalls.includes(externalInstance.instanceId), 'should not be hidden');
-		// Verify it was adopted — ensureTerminal should reuse it
-		await contribution.ensureTerminal(worktree, false);
-		assert.strictEqual(createdTerminals.length, 1, 'should reuse adopted terminal, not create a second');
+		assert.ok(backgroundedInstances.has(ext1.instanceId), 'ext1 should now be backgrounded');
+		assert.ok(!backgroundedInstances.has(ext2.instanceId), 'ext2 should now be foreground');
 	});
 
-	test('adopts externally-created terminal whose cwd is a subdirectory of the active worktree', async () => {
-		const worktree = URI.file('/worktree');
-		activeSessionObs.set(makeAgentSession({ worktree, providerType: AgentSessionProviders.Background }), undefined);
+	// --- Most-recent-command active terminal selection ---
+
+	test('sets the terminal with the most recent command as active after visibility update', async () => {
+		const cwd = URI.file('/worktree');
+		const t1 = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		const t2 = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		terminalInstances.set(t1.instanceId, t1);
+		terminalInstances.set(t2.instanceId, t2);
+
+		// t1 ran a command at timestamp 100, t2 at timestamp 200 (more recent)
+		addCommandToInstance(t1, 100);
+		addCommandToInstance(t2, 200);
+
+		activeSessionObs.set(makeAgentSession({ worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 
-		const externalInstance = makeTerminalInstance(nextInstanceId++, URI.file('/worktree/subdir').fsPath);
-		terminalInstances.set(externalInstance.instanceId, externalInstance);
-		onDidCreateInstance.fire(externalInstance);
-		await tick();
-
-		assert.ok(!moveToBackgroundCalls.includes(externalInstance.instanceId), 'subdirectory terminal should not be hidden');
+		// The most recent setActiveInstance call should be for t2
+		assert.strictEqual(activeInstanceSet.at(-1), t2.instanceId, 'should set the terminal with the most recent command as active');
 	});
 
-	test('adopts externally-created terminal whose cwd matches the session repository', async () => {
-		const worktree = URI.file('/worktree');
-		const repo = URI.file('/repo');
-		activeSessionObs.set(makeAgentSession({ worktree, repository: repo, providerType: AgentSessionProviders.Background }), undefined);
+	test('does not change active instance when no terminals have command history', async () => {
+		const cwd = URI.file('/worktree');
+		const t1 = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		const t2 = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
+		terminalInstances.set(t1.instanceId, t1);
+		terminalInstances.set(t2.instanceId, t2);
+
+		const activeCountBefore = activeInstanceSet.length;
+
+		activeSessionObs.set(makeAgentSession({ worktree: cwd, providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 
-		const externalInstance = makeTerminalInstance(nextInstanceId++, repo.fsPath);
-		terminalInstances.set(externalInstance.instanceId, externalInstance);
-		onDidCreateInstance.fire(externalInstance);
-		await tick();
-
-		assert.ok(!moveToBackgroundCalls.includes(externalInstance.instanceId), 'terminal at repository path should not be hidden');
+		// No setActiveInstance calls from visibility update since no commands were run
+		assert.strictEqual(activeInstanceSet.length, activeCountBefore, 'should not call setActiveInstance when no command history exists');
 	});
 
-	test('hides externally-created terminal whose cwd does not match the active session', async () => {
-		const worktree = URI.file('/worktree');
-		activeSessionObs.set(makeAgentSession({ worktree, providerType: AgentSessionProviders.Background }), undefined);
+	// --- Remote agent host sessions ---
+
+	test('falls back to home directory for a background session with a remote agent host repository', async () => {
+		const remoteRepoUri = toAgentHostUri(URI.file('/Users/user/repo'), 'my-server');
+		const session = makeAgentSession({ repository: remoteRepoUri, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
 		await tick();
 
-		const externalInstance = makeTerminalInstance(nextInstanceId++, '/unrelated/path');
-		terminalInstances.set(externalInstance.instanceId, externalInstance);
-		onDidCreateInstance.fire(externalInstance);
-		await tick();
-
-		assert.ok(moveToBackgroundCalls.includes(externalInstance.instanceId), 'unrelated terminal should be hidden');
+		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the home directory');
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
 	});
 });
 

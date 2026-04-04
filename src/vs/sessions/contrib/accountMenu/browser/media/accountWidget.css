@@ -19,6 +19,11 @@
 	min-width: 0;
 }
 
+/* Hide the default action-label rendered by the toolbar — the account widget provides its own button */
+.account-widget > .action-label {
+	display: none;
+}
+
 /* Account Button */
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account {
 	overflow: hidden;
@@ -47,6 +52,74 @@
 	overflow: hidden;
 }
 
+.account-widget-update:has(.account-widget-update-button.hidden) {
+	display: none;
+}
+
+/* Copilot Status Button */
+.account-widget-copilot-status {
+	flex: 0 0 auto;
+	width: fit-content;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.account-widget-copilot-status.hidden {
+	display: none;
+}
+
+.account-widget-copilot-status .account-widget-copilot-status-button {
+	width: auto;
+	max-width: none;
+	padding: 4px 6px;
+}
+
+/* Chat status dashboard shown from sidebar footer */
+.monaco-hover .chat-status-bar-entry-tooltip {
+	font-size: 12px;
+	max-width: 320px;
+	padding: 4px 6px;
+	overflow: hidden;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip div.header {
+	font-size: 12px;
+	margin-bottom: 6px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip div.description {
+	font-size: 11px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip hr {
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 4px;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip .contribution .body {
+	font-size: 11px;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.monaco-hover .chat-status-bar-entry-tooltip .contribution .body .description,
+.monaco-hover .chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button {
 	width: auto;
 	max-width: none;
@@ -65,6 +138,17 @@
 .account-widget-update .account-widget-update-button.account-widget-update-button-ready {
 	background-color: var(--vscode-button-background) !important;
 	color: var(--vscode-button-foreground) !important;
+}
+
+/* Boxed hint style for embedded app update indicator — outlined, no fill */
+.account-widget-update .account-widget-update-button.account-widget-update-button-hint {
+	background-color: transparent !important;
+	color: var(--vscode-button-background) !important;
+	border: 1px solid var(--vscode-button-background) !important;
+}
+
+.account-widget-update .account-widget-update-button.account-widget-update-button-hint:hover {
+	background-color: color-mix(in srgb, var(--vscode-button-background) 20%, transparent) !important;
 }
 
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready:hover {
@@ -95,6 +179,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	min-width: 0;
+	font-weight: 500;
 }
 
 .account-widget-account .account-widget-account-button {

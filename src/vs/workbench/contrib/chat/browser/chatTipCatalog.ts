@@ -8,8 +8,10 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
@@ -19,6 +21,7 @@ import {
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
 	INSERT_FORK_CONVERSATION_COMMAND_ID,
+	INSERT_TROUBLESHOOT_COMMAND_ID,
 } from './actions/chatActions.js';
 
 export const enum ChatTipTier {
@@ -127,7 +130,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.switchToAuto',
-					"Using GPT-4.1? Try switching to [Auto](command:workbench.action.chat.openModelPicker) in the model picker for better coding performance."
+					"Using GPT-4.1? Try switching to [Auto](command:workbench.action.chat.openModelPicker \"Open Model Picker\") in the model picker for better coding performance."
 				)
 			);
 		},
@@ -142,7 +145,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.init',
-					"Use [{0}](command:{1}){2} to generate or update a workspace instructions file for AI coding agents.",
+					"Use [{0}](command:{1} \"Run /init\"){2} to generate or update a workspace instructions file for AI coding agents.",
 					'/init',
 					GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 					kb
@@ -163,7 +166,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.createPrompt',
-					"Use [{0}](command:{1}){2} to generate a reusable prompt file with the agent.",
+					"Use [{0}](command:{1} \"Run /create-prompt\"){2} to generate a reusable prompt file with the agent.",
 					'/create-prompt',
 					GENERATE_PROMPT_COMMAND_ID,
 					kb
@@ -185,7 +188,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.createAgent',
-					"Use [{0}](command:{1}){2} to scaffold a custom agent for your workflow.",
+					"Use [{0}](command:{1} \"Run /create-agent\"){2} to scaffold a custom agent for your workflow.",
 					'/create-agent',
 					GENERATE_AGENT_COMMAND_ID,
 					kb
@@ -207,7 +210,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.createSkill',
-					"Use [{0}](command:{1}){2} to create a skill the agent can load when relevant.",
+					"Use [{0}](command:{1} \"Run /create-skill\"){2} to create a skill the agent can load when relevant.",
 					'/create-skill',
 					GENERATE_SKILL_COMMAND_ID,
 					kb
@@ -229,7 +232,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.planMode',
-					"Try the [{0}](command:workbench.action.chat.openPlan){1} to research and plan before implementing changes.",
+					"Try the [{0}](command:workbench.action.chat.openPlan \"Start Plan Mode\"){1} to research and plan before implementing changes.",
 					'Plan agent',
 					kb
 				)
@@ -301,7 +304,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.forkConversation',
-					"Use [{0}](command:{1}){2} to branch the conversation. Explore a different approach without losing the original context.",
+					"Use [{0}](command:{1} \"Run /fork\"){2} to branch the conversation. Explore a different approach without losing the original context.",
 					'/fork',
 					INSERT_FORK_CONVERSATION_COMMAND_ID,
 					kb
@@ -321,7 +324,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.agenticBrowser',
-					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D) to let the agent open and interact with pages in the Integrated Browser.",
+					"Enable [{0}](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D \"Open Settings\") to let the agent open and interact with pages in the Integrated Browser.",
 					'agentic browser integration'
 				)
 			);
@@ -349,7 +352,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
-				localize('tip.subagents', "Ask the agent to work in parallel to complete large tasks faster.")
+				localize('tip.subagents', "Have another task to work on? Start a new session to run multiple agents at once.")
 			);
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
@@ -362,7 +365,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.thinkingPhrases',
-					"Customize the loading messages shown while the agent works with [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D).",
+					"Customize the loading messages shown while the agent works with [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D \"Open Settings\").",
 					'thinking phrases',
 					ChatConfiguration.ThinkingPhrases
 				)
@@ -371,5 +374,61 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenSettingsChanged: [ChatConfiguration.ThinkingPhrases],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
+		id: 'tip.autoAcceptDelay',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.autoAcceptDelay',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22chat.editing.autoAcceptDelay%22%5D \"Open Settings\") to automatically accept changes from the agent after a short countdown.",
+					'auto-accept delay'
+				)
+			);
+		},
+		when: ContextKeyExpr.or(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		),
+		excludeWhenSettingsChanged: ['chat.editing.autoAcceptDelay'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
+		id: 'tip.troubleshoot',
+		tier: ChatTipTier.Qol,
+		buildMessage(ctx) {
+			const kb = formatKeybinding(ctx, INSERT_TROUBLESHOOT_COMMAND_ID);
+			return new MarkdownString(
+				localize(
+					'tip.troubleshoot',
+					"Something not working? Type [{0}](command:{1} \"Run /troubleshoot\"){2} <question> to diagnose issues from debug logs.",
+					'/troubleshoot',
+					INSERT_TROUBLESHOOT_COMMAND_ID,
+					kb
+				)
+			);
+		},
+		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+		excludeWhenToolsInvoked: ['listDebugEvents'],
+	},
+	{
+		id: 'tip.openAgentsWindow',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.openAgentsWindow',
+					"Try the [Agents Application](command:workbench.action.openAgentsWindow \"Open Agents Application\") to run multiple agents simultaneously and manage your coding sessions."
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			ProductQualityContext.notEqualsTo('stable'),
+			IsSessionsWindowContext.negate(),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		),
+		excludeWhenCommandsExecuted: ['workbench.action.openAgentsWindow'],
+		dismissWhenCommandsClicked: ['workbench.action.openAgentsWindow'],
 	},
 ];

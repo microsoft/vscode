@@ -16,9 +16,24 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentPluginRepositoryService } from '../../../browser/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IPluginGitService } from '../../../common/plugins/pluginGitService.js';
 
 suite('AgentPluginRepositoryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function stubPluginGit(overrides?: Partial<IPluginGitService>): IPluginGitService {
+		return {
+			_serviceBrand: undefined,
+			cloneRepository: async () => { },
+			pull: async () => false,
+			checkout: async () => { },
+			revParse: async () => '',
+			fetch: async () => { },
+			fetchRepository: async () => { },
+			revListCount: async () => 0,
+			...overrides,
+		} as IPluginGitService;
+	}
 
 	function createPlugin(marketplace: string, source: string): IMarketplacePlugin {
 		const marketplaceReference = parseMarketplaceReference(marketplace);
@@ -42,6 +57,7 @@ suite('AgentPluginRepositoryService', () => {
 	function createService(
 		onExists?: (resource: URI) => Promise<boolean>,
 		onExecuteCommand?: (id: string, ...args: unknown[]) => void,
+		pluginGitStub?: Partial<IPluginGitService>,
 	): AgentPluginRepositoryService {
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -59,10 +75,13 @@ suite('AgentPluginRepositoryService', () => {
 				return undefined;
 			},
 		} as unknown as ICommandService);
-		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
+		instantiationService.stub(IPluginGitService, stubPluginGit({
+			...pluginGitStub,
+		}));
 		instantiationService.stub(IProgressService, progressService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 
@@ -110,6 +129,53 @@ suite('AgentPluginRepositoryService', () => {
 		assert.strictEqual(uri.path, '/cache/agentPlugins/github.com/microsoft/vscode');
 	});
 
+	test('concurrent ensureRepository calls for the same marketplace clone only once', async () => {
+		let cloneCount = 0;
+		const instantiationService = store.add(new TestInstantiationService());
+
+		// Track whether the repo exists (set to true after the first clone completes)
+		let repoExists = false;
+		const fileService = {
+			exists: async (_resource: URI) => repoExists,
+			createFolder: async () => undefined,
+		} as unknown as IFileService;
+
+		const progressService = {
+			withProgress: async (_options: unknown, callback: (...args: unknown[]) => Promise<unknown>) => callback(),
+		} as unknown as IProgressService;
+
+		instantiationService.stub(ICommandService, {
+			executeCommand: async () => undefined,
+		} as unknown as ICommandService);
+		instantiationService.stub(IPluginGitService, stubPluginGit({
+			cloneRepository: async () => {
+				cloneCount++;
+				// Simulate async clone by yielding, then mark repo as existing
+				await new Promise<void>(r => setTimeout(r, 0));
+				repoExists = true;
+			},
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
+		instantiationService.stub(IProgressService, progressService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+
+		const service = instantiationService.createInstance(AgentPluginRepositoryService);
+		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
+
+		// Fire two concurrent ensureRepository calls for the same marketplace
+		const [uri1, uri2] = await Promise.all([
+			service.ensureRepository(plugin.marketplaceReference, { marketplaceType: plugin.marketplaceType }),
+			service.ensureRepository(plugin.marketplaceReference, { marketplaceType: plugin.marketplaceType }),
+		]);
+
+		assert.strictEqual(cloneCount, 1);
+		assert.strictEqual(uri1.path, '/cache/agentPlugins/github.com/microsoft/vscode');
+		assert.strictEqual(uri2.path, '/cache/agentPlugins/github.com/microsoft/vscode');
+	});
+
 	test('builds install URI from source inside repository root', () => {
 		const service = createService();
 		const plugin = createPlugin('microsoft/vscode', 'plugins/myPlugin');
@@ -129,7 +195,8 @@ suite('AgentPluginRepositoryService', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
-		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+		instantiationService.stub(IPluginGitService, stubPluginGit());
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 		instantiationService.stub(IFileService, { exists: async () => true } as unknown as IFileService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
@@ -184,9 +251,12 @@ suite('AgentPluginRepositoryService', () => {
 	});
 
 	test('updates git plugin source by pulling and checking out requested revision', async () => {
-		const commands: string[] = [];
-		const service = createService(async () => true, (id: string) => {
-			commands.push(id);
+		const calls: string[] = [];
+		const service = createService(async () => true, undefined, {
+			revParse: async () => { calls.push('revParse'); return ''; },
+			fetch: async () => { calls.push('fetch'); },
+			checkout: async () => { calls.push('checkout'); },
+			pull: async () => { calls.push('pull'); return false; },
 		});
 
 		await service.updatePluginSource({
@@ -208,7 +278,7 @@ suite('AgentPluginRepositoryService', () => {
 			marketplaceType: MarketplaceType.Copilot,
 		});
 
-		assert.deepStrictEqual(commands, ['git.openRepository', 'git.fetch', '_git.checkout']);
+		assert.deepStrictEqual(calls, ['revParse', 'fetch', 'checkout', 'revParse']);
 	});
 
 	// =========================================================================
@@ -223,7 +293,8 @@ suite('AgentPluginRepositoryService', () => {
 		) {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
-			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IPluginGitService, stubPluginGit());
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 			instantiationService.stub(IFileService, {
 				exists: async () => true,
 				del: async (resource: URI) => { onDel(resource); },
@@ -316,7 +387,8 @@ suite('AgentPluginRepositoryService', () => {
 		test('does not throw when delete fails', async () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
-			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as unknown as IEnvironmentService);
+			instantiationService.stub(IPluginGitService, stubPluginGit());
+			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache'), agentPluginsHome: URI.file('/cache/agentPlugins') } as unknown as IEnvironmentService);
 			instantiationService.stub(IFileService, {
 				exists: async () => true,
 				del: async () => { throw new Error('permission denied'); },
@@ -396,6 +468,73 @@ suite('AgentPluginRepositoryService', () => {
 
 			// Should only delete the repo dir, stop at non-empty owner dir
 			assert.strictEqual(deleted.length, 1);
+			assert.ok(deleted[0].includes('github.com/owner/repo'));
+		});
+
+		test('skips deletion when another installed plugin shares the same cleanup target', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource(
+				{
+					name: 'plugin-a',
+					description: '',
+					version: '',
+					source: '',
+					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/a' },
+					marketplace: 'owner/marketplace',
+					marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+					marketplaceType: MarketplaceType.Copilot,
+				},
+				// Another plugin from the same repo still installed
+				[{ kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/b' }],
+			);
+
+			assert.strictEqual(deleted.length, 0);
+		});
+
+		test('proceeds with deletion when no other plugin shares the cleanup target', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource(
+				{
+					name: 'plugin-a',
+					description: '',
+					version: '',
+					source: '',
+					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/a' },
+					marketplace: 'owner/marketplace',
+					marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+					marketplaceType: MarketplaceType.Copilot,
+				},
+				// Only unrelated plugins remain
+				[{ kind: PluginSourceKind.GitHub, repo: 'other-owner/other-repo' }],
+			);
+
+			assert.ok(deleted.length >= 1);
+			assert.ok(deleted[0].includes('github.com/owner/repo'));
+		});
+
+		test('proceeds with deletion when otherInstalledDescriptors is empty', async () => {
+			const deleted: string[] = [];
+			const service = createServiceWithDel(r => deleted.push(r.path));
+
+			await service.cleanupPluginSource(
+				{
+					name: 'plugin-a',
+					description: '',
+					version: '',
+					source: '',
+					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo' },
+					marketplace: 'owner/marketplace',
+					marketplaceReference: parseMarketplaceReference('owner/marketplace')!,
+					marketplaceType: MarketplaceType.Copilot,
+				},
+				[],
+			);
+
+			assert.ok(deleted.length >= 1);
 			assert.ok(deleted[0].includes('github.com/owner/repo'));
 		});
 	});

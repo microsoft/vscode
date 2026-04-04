@@ -840,6 +840,12 @@ declare module 'vscode' {
 		readonly completionTokens: number;
 
 		/**
+		 * The number of tokens reserved for the response.
+		 * This is rendered specially in the UI to indicate that these tokens aren't used but are reserved.
+		 */
+		readonly outputBuffer?: number;
+
+		/**
 		 * Optional breakdown of prompt token usage by category and label.
 		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
 		 */
@@ -982,10 +988,6 @@ declare module 'vscode' {
 		 * The list of tools were referenced in the value of the reference
 		 */
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
-	}
-
-	export interface ChatResultFeedback {
-		readonly unhelpfulReason?: string;
 	}
 
 	export namespace lm {

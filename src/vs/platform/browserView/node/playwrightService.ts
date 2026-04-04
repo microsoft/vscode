@@ -3,17 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { DeferredPromise } from '../../../base/common/async.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IPlaywrightService } from '../common/playwrightService.js';
+import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
-import { PlaywrightTab } from './playwrightTab.js';
+import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
+import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 // eslint-disable-next-line local/code-import-patterns
 import type { Browser, BrowserContext, Page } from 'playwright-core';
+
+interface PlaywrightTransport {
+	send(s: CDPRequest): void;
+	close(): void;  // Note: calling close is expected to issue onclose at some point.
+	onmessage?: (message: CDPResponse | CDPEvent) => void;
+	onclose?: (reason?: string) => void;
+}
+
+declare module 'playwright-core' {
+	interface BrowserType {
+		_connectOverCDPTransport(transport: PlaywrightTransport): Promise<Browser>;
+	}
+}
+
+const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
 
 /**
  * Shared-process implementation of {@link IPlaywrightService}.
@@ -30,6 +47,12 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	private _browser: Browser | undefined;
 	private _initPromise: Promise<void> | undefined;
+
+	/** In-flight deferred results keyed by their generated ID. */
+	private readonly _deferredResults = this._register(new DisposableMap<string, {
+		pageId: string;
+		promise: Promise<unknown>;
+	} & IDisposable>());
 
 	constructor(
 		private readonly windowId: number,
@@ -81,8 +104,17 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 				this.logService.debug('[PlaywrightService] Connecting to browser via CDP');
 				const playwright = await import('playwright-core');
-				const endpoint = await group.getDebugWebSocketEndpoint();
-				const browser = await playwright.chromium.connectOverCDP(endpoint);
+				const sub = group.onCDPMessage(msg => transport.onmessage?.(msg));
+				const transport: PlaywrightTransport = {
+					close() {
+						sub.dispose();
+						this.onclose?.();
+					},
+					send(message) {
+						void group.sendCDPMessage(message);
+					}
+				};
+				const browser = await playwright.chromium._connectOverCDPTransport(transport);
 
 				this.logService.debug('[PlaywrightService] Connected to browser');
 
@@ -134,29 +166,87 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		return this._pages.runAgainstPage(pageId, (page) => fn(page, args));
 	}
 
-	async invokeFunction(pageId: string, fnDef: string, ...args: unknown[]): Promise<{ result: unknown; summary: string }> {
+	private async invokeFunctionWithDeferral<T>(pageId: string, fnDef: string, args: unknown[], timeoutMs: number): Promise<IInvokeFunctionResult> {
+		await this.initialize();
+
+		const vm = await import('vm');
+		const fn = vm.compileFunction(`return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: vm.createContext() });
+
+		return this._runWithDeferral(pageId, (page) => fn(page, args ?? []), timeoutMs);
+	}
+
+	async invokeFunction(pageId: string, fnDef: string, args: unknown[] = [], timeoutMs?: number): Promise<IInvokeFunctionResult> {
 		this.logService.info(`[PlaywrightService] Invoking function on view ${pageId}`);
 
-		try {
-			let result;
-			try {
-				result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
-			} catch (err: unknown) {
-				result = err instanceof Error ? err.message : String(err);
-			}
-
-			let summary;
-			try {
-				summary = await this._pages.getSummary(pageId);
-			} catch (err: unknown) {
-				summary = err instanceof Error ? err.message : String(err);
-			}
-			return { result, summary };
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			this.logService.error('[PlaywrightService] Script execution failed:', errorMessage);
-			throw err;
+		if (timeoutMs !== undefined) {
+			return this.invokeFunctionWithDeferral(pageId, fnDef, args, timeoutMs);
 		}
+
+		let result, error;
+		try {
+			result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
+		} catch (err: unknown) {
+			error = err instanceof Error ? err.message : String(err);
+		}
+
+		const summary = await this._pages.getSummary(pageId);
+
+		return { result, error, summary };
+	}
+
+	async waitForDeferredResult(deferredResultId: string, timeoutMs: number): Promise<IInvokeFunctionResult> {
+		const entry = this._deferredResults.get(deferredResultId);
+		if (!entry) {
+			throw new Error(`No deferred result found with ID "${deferredResultId}". It may have been cleaned up or already consumed.`);
+		}
+
+		const { pageId, promise } = entry;
+		// Remove eagerly — _runWithDeferral will re-insert if interrupted again.
+		this._deferredResults.deleteAndDispose(deferredResultId);
+
+		// The callback ignores the page param since execution is already in-flight.
+		return this._runWithDeferral(pageId, () => promise, timeoutMs, deferredResultId);
+	}
+
+	/**
+	 * Run a callback against a page with deferred result support.
+	 */
+	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string): Promise<IInvokeFunctionResult> {
+		const effectiveTimeout = timeoutMs;
+
+		// Start execution via safeRunAgainstPage, but capture the raw promise
+		// independently so it can be deferred if a dialog or timeout interrupts.
+		const deferred = new DeferredPromise();
+		const wrappedPromise = this._pages.runAgainstPage(pageId, async (page) => {
+			const promise = callback(page);
+			promise.catch(() => { /* prevent unhandled rejection if deferred */ });
+			deferred.settleWith(promise);
+			return promise;
+		});
+
+		let result, error;
+		let interrupted = false;
+
+		try {
+			result = await raceTimeout(wrappedPromise, effectiveTimeout, () => { interrupted = true; });
+		} catch (err: unknown) {
+			if (err instanceof DialogInterruptedError) {
+				interrupted = true;
+			}
+			error = err instanceof Error ? err.message : String(err);
+		}
+
+		let deferredResultId: string | undefined;
+		if (interrupted) {
+			deferredResultId = existingDeferredId ?? generateUuid();
+			const cleanup = disposableTimeout(() => this._deferredResults.deleteAndDispose(deferredResultId!), DEFERRED_RESULT_CLEANUP_MS);
+			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, dispose: () => cleanup.dispose() });
+
+			this.logService.info(`[PlaywrightService] Execution interrupted, deferred as ${deferredResultId}`);
+		}
+
+		const summary = await this._pages.getSummary(pageId);
+		return { result, error, summary, deferredResultId };
 	}
 
 	async replyToFileChooser(pageId: string, files: string[]): Promise<{ summary: string }> {
@@ -401,21 +491,15 @@ class PlaywrightPageManager extends Disposable {
 
 		try {
 			await this._group!.addView(viewId);
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			this.logService.error('[PlaywrightPageManager] Failed to add view:', errorMessage);
+		} catch (err) {
 			this.onViewRemoved(viewId);
+			throw err;
 		}
 	}
 
 	private async _removePageFromGroup(viewId: string): Promise<void> {
 		this.onViewRemoved(viewId);
-		try {
-			await this._group!.removeView(viewId);
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : String(err);
-			this.logService.error('[PlaywrightPageManager] Failed to remove view:', errorMessage);
-		}
+		await this._group!.removeView(viewId);
 	}
 
 	private _fireTrackedPagesChanged(): void {

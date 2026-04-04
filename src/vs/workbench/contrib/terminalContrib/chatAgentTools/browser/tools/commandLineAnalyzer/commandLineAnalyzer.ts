@@ -45,6 +45,7 @@ export interface ICommandLineAnalyzerOptions {
 	treeSitterLanguage: TreeSitterCommandParserLanguage;
 	terminalToolSessionId: string;
 	chatSessionResource: URI | undefined;
+	requiresUnsandboxConfirmation?: boolean;
 }
 
 export interface ICommandLineAnalyzerResult {

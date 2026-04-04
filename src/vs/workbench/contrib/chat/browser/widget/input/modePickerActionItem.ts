@@ -99,7 +99,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				if (mode.uri) {
 					let label, icon, id;
 					if (mode.source?.storage === PromptsStorage.extension) {
-						icon = Codicon.eye;
+						icon = Codicon.file;
 						id = `viewAgent:${mode.id}`;
 						label = localize('viewModeConfiguration', "View {0} agent", mode.label.get());
 					} else {
@@ -166,7 +166,13 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const currentMode = delegate.currentMode.get();
 				const filteredCustomModes = modes.custom.filter(mode => {
 					const target = mode.target.get();
-					return target === customAgentTarget || target === Target.Undefined;
+					if (target !== customAgentTarget && target !== Target.Undefined) {
+						return false;
+					}
+					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+						return false;
+					}
+					return true;
 				});
 				const customModes = groupBy(
 					filteredCustomModes,
@@ -196,6 +202,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					return mode.id !== ChatMode.Agent.id && shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 				});
 				const filteredCustomModes = modes.custom.filter(mode => {
+					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+						return false;
+					}
 					if (isModeConsideredBuiltIn(mode, this._productService)) {
 						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 					}

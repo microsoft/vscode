@@ -20,6 +20,18 @@ export enum ChatDebugLogLevel {
 }
 
 /**
+ * The result of a hook execution.
+ */
+export enum ChatDebugHookResult {
+	/** The hook executed successfully (exit code 0). */
+	Success = 0,
+	/** The hook returned a blocking error (exit code 2). */
+	Error = 1,
+	/** The hook returned a non-blocking warning (other non-zero exit codes). */
+	NonBlockingError = 2
+}
+
+/**
  * Common properties shared by all chat debug event types.
  */
 export interface IChatDebugEventCommon {
@@ -197,19 +209,33 @@ export interface IChatDebugService extends IDisposable {
 	resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined>;
 
 	/**
-	 * Fired when debug data is attached to a session.
+	/**
+	 * Export the debug log for a session via the registered provider.
 	 */
-	readonly onDidAttachDebugData: Event<URI>;
+	exportLog(sessionResource: URI): Promise<Uint8Array | undefined>;
 
 	/**
-	 * Mark a session as having debug data attached.
+	 * Import a previously exported debug log via the registered provider.
+	 * Returns the session URI for the imported data.
 	 */
-	markDebugDataAttached(sessionResource: URI): void;
+	importLog(data: Uint8Array): Promise<URI | undefined>;
 
 	/**
-	 * Check whether a session has had debug data attached.
+	 * Returns true if the event was logged by VS Code core
+	 * (not sourced from an external provider).
 	 */
-	hasAttachedDebugData(sessionResource: URI): boolean;
+	isCoreEvent(event: IChatDebugEvent): boolean;
+
+	/**
+	 * Store a human-readable title for an imported session.
+	 */
+	setImportedSessionTitle(sessionResource: URI, title: string): void;
+
+	/**
+	 * Get the stored title for an imported session, if available.
+	 */
+	getImportedSessionTitle(sessionResource: URI): string | undefined;
+
 }
 
 /**
@@ -245,9 +271,6 @@ export interface IChatDebugFileEntry {
 export interface IChatDebugSourceFolderEntry {
 	readonly uri: URI;
 	readonly storage: string;
-	readonly exists: boolean;
-	readonly fileCount: number;
-	readonly errorMessage?: string;
 }
 
 /**
@@ -257,6 +280,7 @@ export interface IChatDebugSourceFolderEntry {
 export interface IChatDebugEventFileListContent {
 	readonly kind: 'fileList';
 	readonly discoveryType: string;
+	readonly durationInMillis: number;
 	readonly files: readonly IChatDebugFileEntry[];
 	readonly sourceFolders?: readonly IChatDebugSourceFolderEntry[];
 }
@@ -307,9 +331,57 @@ export interface IChatDebugEventModelTurnContent {
 }
 
 /**
+ * Structured hook execution content for a resolved debug event.
+ * Contains the hook type, command, input, output, and result for rich rendering.
+ */
+export interface IChatDebugEventHookContent {
+	readonly kind: 'hook';
+	readonly hookType: string;
+	readonly command?: string;
+	readonly result?: ChatDebugHookResult;
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+	readonly exitCode?: number;
+	readonly errorMessage?: string;
+}
+
+/**
+ * A single entry in the customization resolution log.
+ */
+export interface IChatDebugCustomizationLogEntry {
+	readonly category: 'applying' | 'skipped' | 'referenced' | 'skill' | 'custom-agent' | 'hook';
+	readonly name: string;
+	readonly uri?: URI;
+	readonly reason?: string;
+}
+
+/**
+ * Structured customization summary content for a resolved debug event.
+ * Contains per-file resolution logs showing how applyTo patterns, agent
+ * instructions, and referenced files were resolved by the instructions
+ * context computer.
+ */
+export interface IChatDebugEventCustomizationSummaryContent {
+	readonly kind: 'customizationSummary';
+	/** Per-file resolution detail entries. */
+	readonly resolutionLogs: readonly IChatDebugCustomizationLogEntry[];
+	/** Total wall-clock time of the collect() call in milliseconds. */
+	readonly durationInMillis: number;
+	/** Counts by type for the summary header. */
+	readonly counts: {
+		readonly instructions: number;
+		readonly skills: number;
+		readonly agents: number;
+		readonly hooks: number;
+		readonly skipped: number;
+	};
+}
+
+/**
  * Union of all resolved event content types.
  */
-export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent;
+export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent | IChatDebugEventHookContent | IChatDebugEventCustomizationSummaryContent;
 
 /**
  * Provider interface for debug events.
@@ -317,4 +389,6 @@ export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatD
 export interface IChatDebugLogProvider {
 	provideChatDebugLog(sessionResource: URI, token: CancellationToken): Promise<IChatDebugEvent[] | undefined>;
 	resolveChatDebugLogEvent?(eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContent | undefined>;
+	provideChatDebugLogExport?(sessionResource: URI, token: CancellationToken): Promise<Uint8Array | undefined>;
+	resolveChatDebugLogImport?(data: Uint8Array, token: CancellationToken): Promise<URI | undefined>;
 }

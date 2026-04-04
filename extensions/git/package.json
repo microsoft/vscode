@@ -38,6 +38,7 @@
     "scmTextDocument",
     "scmValidation",
     "statusBarItemTooltip",
+    "taskRunOptions",
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
@@ -3693,7 +3694,7 @@
         "git.detectWorktrees": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
+          "default": false,
           "description": "%config.detectWorktrees%"
         },
         "git.detectWorktreesLimit": {
@@ -4346,9 +4347,10 @@
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.2.0",
     "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/fs-copyfile": "2.0.0",
     "byline": "^5.0.0",
-    "file-type": "16.5.4",
-    "picomatch": "2.3.1",
+    "file-type": "21.3.2",
+    "picomatch": "2.3.2",
     "vscode-uri": "^2.0.0",
     "which": "4.0.0"
   },

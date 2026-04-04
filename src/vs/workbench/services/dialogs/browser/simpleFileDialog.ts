@@ -105,7 +105,7 @@ enum UpdateResult {
 export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
 export interface ISimpleFileDialog extends IDisposable {
-	showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined>;
+	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 }
 
@@ -130,6 +130,23 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
 	private separator: string = '/';
+
+	/**
+	 * When set, the dialog is scoped to a specific URI authority (e.g.
+	 * for browsing an `agenthost://{authority}/...` filesystem that
+	 * uses per-connection authorities rather than the global
+	 * {@link remoteAuthority}).
+	 */
+	private scopedAuthority: string | undefined;
+	/**
+	 * Path prefix that the label formatter strips from URIs in the
+	 * scoped scheme (e.g. `/file/-` for agent host URIs that encode
+	 * the original scheme and authority as leading path segments).
+	 *
+	 * Stripped by {@link pathFromUri} and re-applied by
+	 * {@link remoteUriFrom} so the user sees clean paths.
+	 */
+	private scopedPathPrefix: string = '';
 	private readonly onBusyChangeEmitter = this._register(new Emitter<boolean>());
 	private updatingPromise: CancelablePromise<boolean> | undefined;
 
@@ -189,8 +206,10 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return this.filePickBox.busy;
 	}
 
-	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI | undefined> {
+	public async showOpenDialog(options: IOpenDialogOptions = {}): Promise<URI[] | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
+		this.scopedAuthority = this.getScopedAuthority(options.defaultUri);
+		this.scopedPathPrefix = options.defaultUri && this.scopedAuthority ? this.computeScopedPathPrefix(options.defaultUri) : '';
 		this.userHome = await this.getUserHome();
 		this.trueHome = await this.getUserHome(true);
 		const newOptions = this.getOptions(options);
@@ -198,11 +217,17 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			return Promise.resolve(undefined);
 		}
 		this.options = newOptions;
-		return this.pickResource();
+		const result = await this.pickResource();
+		if (Array.isArray(result)) {
+			return result;
+		}
+		return result ? [result] : undefined;
 	}
 
 	public async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		this.scheme = this.getScheme(options.availableFileSystems, options.defaultUri);
+		this.scopedAuthority = this.getScopedAuthority(options.defaultUri);
+		this.scopedPathPrefix = options.defaultUri && this.scopedAuthority ? this.computeScopedPathPrefix(options.defaultUri) : '';
 		this.userHome = await this.getUserHome();
 		this.trueHome = await this.getUserHome(true);
 		this.requiresTrailing = true;
@@ -215,8 +240,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		this.options.canSelectFiles = true;
 
 		return new Promise<URI | undefined>((resolve) => {
-			this.pickResource(true).then(folderUri => {
-				resolve(folderUri);
+			this.pickResource(true).then(result => {
+				resolve(Array.isArray(result) ? result[0] : result);
 			});
 		});
 	}
@@ -247,6 +272,13 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		if (!path.startsWith('\\\\')) {
 			path = path.replace(/\\/g, '/');
 		}
+		// When scoped to a specific authority (e.g. agenthost://host/...),
+		// construct the URI directly with the authority to avoid
+		// toLocalResource stripping or replacing it.
+		// Re-add the scopedPathPrefix that was stripped in pathFromUri.
+		if (this.scopedAuthority) {
+			return URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: this.scopedPathPrefix + path, query: hintUri?.query, fragment: hintUri?.fragment });
+		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path, query: hintUri?.query, fragment: hintUri?.fragment });
 		// If the default scheme is file, then we don't care about the remote authority or the hint authority
 		const authority = (uri.scheme === Schemas.file) ? undefined : (this.remoteAuthority ?? hintUri?.authority);
@@ -268,6 +300,41 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return Schemas.file;
 	}
 
+	/**
+	 * Returns the per-URI authority from {@link defaultUri} if the dialog
+	 * should be scoped to a specific authority (e.g. `agenthost://host/...`).
+	 *
+	 * Returns `undefined` when the authority matches the global
+	 * {@link remoteAuthority} (standard SSH remotes), since that path is
+	 * already handled by the existing logic.
+	 */
+	private getScopedAuthority(defaultUri: URI | undefined): string | undefined {
+		if (defaultUri
+			&& defaultUri.scheme === this.scheme
+			&& defaultUri.authority
+			&& defaultUri.authority !== this.remoteAuthority) {
+			return defaultUri.authority;
+		}
+		return undefined;
+	}
+
+	/**
+	 * Computes the path prefix that the label formatter strips for the
+	 * scoped scheme, by comparing the raw URI path with the label
+	 * service's formatted output.
+	 *
+	 * For example, an agent host URI with path `/file/-/Users/roblou`
+	 * formats as `/Users/roblou`, so the prefix is `/file/-`.
+	 */
+	private computeScopedPathPrefix(uri: URI): string {
+		const fullPath = uri.path;
+		const displayPath = this.labelService.getUriLabel(uri);
+		if (displayPath && fullPath.endsWith(displayPath)) {
+			return fullPath.substring(0, fullPath.length - displayPath.length);
+		}
+		return '';
+	}
+
 	private async getRemoteAgentEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		if (this.remoteAgentEnvironment === undefined) {
 			this.remoteAgentEnvironment = await this.remoteAgentService.getEnvironment();
@@ -276,17 +343,31 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	}
 
 	protected getUserHome(trueHome = false): Promise<URI> {
+		// When scoped to a custom authority, the platform userHome is not
+		// meaningful (it would return a local file:// path). Use the root
+		// of the scoped filesystem as the home directory instead.
+		// Include the scopedPathPrefix so the URI resolves correctly.
+		if (this.scopedAuthority) {
+			return Promise.resolve(URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: this.scopedPathPrefix + '/' }));
+		}
 		return trueHome
 			? this.pathService.userHome({ preferLocal: this.scheme === Schemas.file })
 			: this.fileDialogService.preferredHome(this.scheme);
 	}
 
-	private async pickResource(isSave: boolean = false): Promise<URI | undefined> {
+	private normalizeUri(uri: URI): URI {
+		uri = resources.addTrailingPathSeparator(uri, this.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
+		// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
+		uri = resources.removeTrailingPathSeparator(uri);
+		return uri;
+	}
+
+	private async pickResource(isSave: boolean = false): Promise<URI[] | URI | undefined> {
 		this.allowFolderSelection = !!this.options.canSelectFolders;
 		this.allowFileSelection = !!this.options.canSelectFiles;
-		this.separator = this.labelService.getSeparator(this.scheme, this.remoteAuthority);
+		this.separator = this.scopedAuthority ? '/' : this.labelService.getSeparator(this.scheme, this.remoteAuthority);
 		this.hidden = false;
-		this.isWindows = await this.checkIsWindowsOS();
+		this.isWindows = this.scopedAuthority ? false : await this.checkIsWindowsOS();
 		let homedir: URI = this.options.defaultUri ? this.options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let stat: IFileStatWithPartialMetadata | undefined;
 		const ext: string = resources.extname(homedir);
@@ -302,7 +383,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			}
 		}
 
-		return new Promise<URI | undefined>((resolve) => {
+		return new Promise<URI[] | URI | undefined>((resolve) => {
 			this.filePickBox = this._register(this.quickInputService.createQuickPick<FileQuickPickItem>());
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
@@ -345,13 +426,15 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 
-			const doResolve = (uri: URI | undefined) => {
-				if (uri) {
-					uri = resources.addTrailingPathSeparator(uri, this.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
-					// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
-					uri = resources.removeTrailingPathSeparator(uri);
+			const doResolve = (uriOrUris: URI | URI[] | undefined) => {
+				if (uriOrUris) {
+					if (Array.isArray(uriOrUris)) {
+						uriOrUris = uriOrUris.map(uri => this.normalizeUri(uri));
+					} else {
+						uriOrUris = this.normalizeUri(uriOrUris);
+					}
 				}
-				resolve(uri);
+				resolve(uriOrUris);
 				this.contextKey.set(false);
 				this.dispose();
 			};
@@ -373,7 +456,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					});
 				} else {
 					return this.fileDialogService.showOpenDialog(this.options).then(result => {
-						doResolve(result ? result[0] : undefined);
+						doResolve(result);
 					});
 				}
 			}));
@@ -970,7 +1053,20 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	}
 
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
-		let result: string = normalizeDriveLetter(uri.fsPath, this.isWindows).replace(/\n/g, '');
+		// For authority-scoped schemes, use the raw path component instead
+		// of fsPath, which would prepend the authority as a UNC prefix.
+		// Strip the scopedPathPrefix so the user sees clean paths
+		// (e.g. `/Users/roblou/code` instead of `/file/-/Users/roblou/code`).
+		let result: string;
+		if (this.scopedAuthority) {
+			let path = uri.path;
+			if (this.scopedPathPrefix && path.startsWith(this.scopedPathPrefix)) {
+				path = path.substring(this.scopedPathPrefix.length);
+			}
+			result = path.replace(/\n/g, '');
+		} else {
+			result = normalizeDriveLetter(uri.fsPath, this.isWindows).replace(/\n/g, '');
+		}
 		if (this.separator === '/') {
 			result = result.replace(/\\/g, this.separator);
 		} else {
@@ -1011,7 +1107,19 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	}
 
 	private async createBackItem(currFolder: URI): Promise<FileQuickPickItem | undefined> {
-		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file, authority: '' });
+		// For authority-scoped URIs with a path prefix, treat the prefix
+		// root as the filesystem root so the user cannot navigate above it.
+		if (this.scopedPathPrefix) {
+			const pathAfterPrefix = currFolder.path.substring(this.scopedPathPrefix.length);
+			if (pathAfterPrefix === '/' || pathAfterPrefix === '') {
+				return undefined;
+			}
+		}
+		// For authority-scoped URIs, compare within the original scheme so
+		// that the authority is preserved and the root is detected correctly.
+		const compareScheme = this.scopedAuthority ? this.scheme : Schemas.file;
+		const compareAuthority = this.scopedAuthority ?? '';
+		const fileRepresentationCurr = this.currentFolder.with({ scheme: compareScheme, authority: compareAuthority });
 		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
 		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);

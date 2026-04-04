@@ -15,7 +15,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorService, MODAL_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
@@ -32,6 +32,7 @@ const languageModelsOpenSettingsIcon = registerIcon('language-models-open-settin
 
 const LANGUAGE_MODELS_ENTITLEMENT_PRECONDITION = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(
 	ChatContextKeys.Entitlement.planFree,
+	ChatContextKeys.Entitlement.planEdu,
 	ChatContextKeys.Entitlement.planPro,
 	ChatContextKeys.Entitlement.planProPlus,
 	ChatContextKeys.Entitlement.planBusiness,
@@ -142,7 +143,7 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 			async run(accessor: ServicesAccessor, args: string | IOpenManageCopilotEditorActionOptions) {
 				const editorService = accessor.get(IEditorService);
 				args = sanitizeOpenManageCopilotEditorArgs(args);
-				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true }, MODAL_GROUP);
+				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
 			}
 		}));
 
