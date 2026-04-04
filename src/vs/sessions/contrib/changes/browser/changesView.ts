@@ -223,7 +223,7 @@ function toIChatSessionFileChange2(changes: GitDiffChange[], modifiedRef: string
 	return changes.map(change => ({
 		uri: change.uri,
 		originalUri: change.originalUri
-			? modifiedRef
+			? originalRef
 				? change.originalUri.with({ scheme: 'git', query: JSON.stringify({ path: change.originalUri.fsPath, ref: originalRef }) })
 				: change.originalUri
 			: undefined,
@@ -509,7 +509,6 @@ class ChangesViewModel extends Disposable {
 			}
 
 			const versionMode = this.versionModeObs.read(reader);
-			const sourceEntries: (IChatSessionFileChange | IChatSessionFileChange2)[] = [];
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return activeSessionChangesObs.read(reader);
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
@@ -518,7 +517,7 @@ class ChangesViewModel extends Disposable {
 				return activeSessionLastTurnChangesObs.read(reader);
 			}
 
-			return sourceEntries;
+			return [];
 		});
 	}
 
