@@ -47,9 +47,24 @@
       {
         "command": "nexora.refreshPlatforms",
         "title": "Refresh Platforms",
+        "category": "Nexora",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "nexora.checkBackend",
+        "title": "Check Backend Connection",
         "category": "Nexora"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "nexora.refreshPlatforms",
+          "when": "view == nexora.platformBrowser",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
