@@ -5,9 +5,9 @@
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
-  "engines": {
-    "vscode": "^1.96.0"
-  },
+	"engines": {
+		"vscode": "^1.97.0"
+	},
   "categories": [
     "Other",
     "Developer Tools"
@@ -57,11 +57,11 @@
             "default": "remote",
             "description": "ToolPipe connection mode: 'remote' for cloud-hosted server, 'local' for npm-based server"
           },
-          "toolpipeMcpServer.remoteUrl": {
-            "type": "string",
-            "default": "https://troops-submission-what-stays.trycloudflare.com/mcp",
-            "description": "Remote URL for ToolPipe MCP Server (HTTP endpoint)"
-          },
+  				"toolpipeMcpServer.remoteUrl": {
+					"type": "string",
+					"default": "",
+					"description": "Remote URL for ToolPipe MCP Server (HTTPS endpoint). Provide your own server URL, for example: https://example.com/mcp"
+				},
           "toolpipeMcpServer.localCommand": {
             "type": "string",
             "default": "npx",

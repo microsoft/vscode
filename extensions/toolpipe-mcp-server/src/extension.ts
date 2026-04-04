@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 
 /**
  * ToolPipe MCP Server Extension
- * 
+ *
  * Provides integration with ToolPipe MCP Server, which offers 120+ developer utilities:
  * - Code tools: Review, minification, formatting (JS/TS/Python/SQL/CSS/HTML)
  * - Data tools: JSON/CSV/XML/YAML conversion, Base64, UUID generation
@@ -15,9 +15,6 @@ import * as vscode from 'vscode';
  * - API tools: HTTP client, OpenAPI spec generation, webhook testing
  * - DevOps: Docker Compose generation, GitHub Actions workflows, Nginx configs
  */
-
-// Store for MCP Server definitions
-const mcpDefinitions = new Map<string, vscode.lm.McpServerDefinition>();
 
 export async function activate(context: vscode.ExtensionContext) {
 	const config = vscode.workspace.getConfiguration('toolpipeMcpServer');
@@ -30,7 +27,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Register MCP Server Definition Provider
 	const provider = {
-		provideMcpServerDefinitions: async (): Promise<vscode.lm.McpServerDefinition[]> => {
+		provideMcpServerDefinitions: async (): Promise<vscode.McpServerDefinition[]> => {
 			return getMcpServerDefinitions();
 		}
 	};
@@ -45,92 +42,36 @@ export async function activate(context: vscode.ExtensionContext) {
 /**
  * Generates MCP Server definitions based on current configuration
  */
-function getMcpServerDefinitions(): vscode.lm.McpServerDefinition[] {
+function getMcpServerDefinitions(): vscode.McpServerDefinition[] {
 	const config = vscode.workspace.getConfiguration('toolpipeMcpServer');
 	const mode = config.get<string>('mode', 'remote');
 
-	const definitions: vscode.lm.McpServerDefinition[] = [];
+	const definitions: vscode.McpServerDefinition[] = [];
 
 	if (mode === 'remote') {
-		const remoteUrl = config.get<string>('remoteUrl', 'https://troops-submission-what-stays.trycloudflare.com/mcp');
-		definitions.push({
-			name: 'toolpipe',
-			displayName: 'ToolPipe Developer Tools',
-			description: 'Access 120+ developer utilities for code, data, security, API, and DevOps tasks',
-			type: 'http',
-			url: remoteUrl,
-			capabilities: {
-				tools: {},
-				resources: {}
-			}
-		} as any);
+		const remoteUrl = config.get<string>('remoteUrl', '');
+		if (remoteUrl) {
+			definitions.push(
+				new vscode.McpHttpServerDefinition(
+					'ToolPipe Developer Tools',
+					vscode.Uri.parse(remoteUrl)
+				)
+			);
+		}
 	} else if (mode === 'local') {
 		const command = config.get<string>('localCommand', 'npx');
 		const args = config.get<string[]>('localArgs', ['@cosai-labs/toolpipe-mcp-server']);
-		
-		definitions.push({
-			name: 'toolpipe',
-			displayName: 'ToolPipe Developer Tools (Local)',
-			description: 'Access 120+ developer utilities via locally-hosted ToolPipe server',
-			type: 'stdio',
-			command,
-			args,
-			capabilities: {
-				tools: {},
-				resources: {}
-			}
-		} as any);
+
+		definitions.push(
+			new vscode.McpStdioServerDefinition(
+				'ToolPipe Developer Tools (Local)',
+				command,
+				args
+			)
+		);
 	}
 
 	return definitions;
-}
-
-/**
- * Prompts user to configure ToolPipe if not already configured
- */
-async function promptConfigureToolPipe(): Promise<void> {
-	const config = vscode.workspace.getConfiguration('toolpipeMcpServer');
-	
-	if (config.get('configured')) {
-		return;
-	}
-
-	const choice = await vscode.window.showQuickPick(
-		[
-			{
-				label: 'Use Remote Server (Cloud-hosted)',
-				description: 'Connect to ToolPipe cloud server (no setup required)',
-				value: 'remote'
-			},
-			{
-				label: 'Use Local Server (npm-based)',
-				description: 'Run ToolPipe locally: npx @cosai-labs/toolpipe-mcp-server',
-				value: 'local'
-			},
-			{
-				label: 'Skip Configuration',
-				description: 'Configure later',
-				value: 'skip'
-			}
-		],
-		{ placeHolder: 'Choose ToolPipe server mode' }
-	);
-
-	if (!choice) {
-		return;
-	}
-
-	if (choice.value === 'skip') {
-		return;
-	}
-
-	// Update configuration
-	await config.update('mode', choice.value, vscode.ConfigurationTarget.Global);
-	await config.update('configured', true, vscode.ConfigurationTarget.Global);
-
-	vscode.window.showInformationMessage(
-		`ToolPipe MCP Server configured to use ${choice.value} mode. Settings can be changed in preferences.`
-	);
 }
 
 export function deactivate() {

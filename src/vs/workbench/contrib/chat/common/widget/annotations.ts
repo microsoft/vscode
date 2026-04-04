@@ -109,11 +109,14 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 				const refId = refIdPool++;
 				const printUri = URI.parse(contentRefUrl).with({ path: String(refId) });
 				let markdownText = `[${label}](${printUri.toString()})`;
-				
+
 				// If the inline reference includes a code snippet, append it as a code block
 				if (item.snippet) {
 					const languageId = item.languageId || inferLanguageFromLabel(label) || '';
-					markdownText += `\n\`\`\`${languageId}\n${item.snippet}\n\`\`\``;
+					// Use a fence length that exceeds any backtick run in the snippet
+					const fenceLength = Math.max(3, (item.snippet.match(/`+/g)?.reduce((max, run) => Math.max(max, run.length), 0) ?? 0) + 1);
+					const fence = '`'.repeat(fenceLength);
+					markdownText += `\n${fence}${languageId}\n${item.snippet}\n${fence}`;
 				}
 
 				const annotationMetadata = { [refId]: item };

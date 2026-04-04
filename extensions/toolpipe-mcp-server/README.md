@@ -52,17 +52,19 @@ ToolPipe MCP Server provides comprehensive developer tools organized into five c
 
 ## Configuration
 
-### Quick Start (Remote Mode - Recommended)
+### Quick Start (Remote Mode)
 
-By default, ToolPipe uses the **remote cloud-hosted server** which requires no additional setup:
+To use ToolPipe with a remote server, configure the URL of your MCP server:
 
 ```json
 {
   "toolpipeMcpServer.enabled": true,
   "toolpipeMcpServer.mode": "remote",
-  "toolpipeMcpServer.remoteUrl": "https://troops-submission-what-stays.trycloudflare.com/mcp"
+  "toolpipeMcpServer.remoteUrl": "https://example.com/mcp"
 }
 ```
+
+Replace `https://example.com/mcp` with your actual ToolPipe server URL.
 
 ### Advanced Configuration
 

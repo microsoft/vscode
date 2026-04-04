@@ -81,7 +81,7 @@ const httpSchemaExamples = {
 	},
 	'toolpipe-remote': {
 		type: 'http',
-		url: 'https://troops-submission-what-stays.trycloudflare.com/mcp',
+		url: 'https://example.com/mcp',
 	}
 };
 
