@@ -39,14 +39,10 @@ export type {
 
 // Command params and results
 export type {
-	IBrowseDirectoryParams,
-	IBrowseDirectoryResult,
 	ICreateSessionParams,
 	IDirectoryEntry,
 	IDispatchActionParams,
 	IDisposeSessionParams,
-	IFetchContentParams,
-	IFetchContentResult,
 	IFetchTurnsParams,
 	IFetchTurnsResult,
 	IInitializeParams,
@@ -57,6 +53,18 @@ export type {
 	IReconnectReplayResult,
 	IReconnectResult,
 	IReconnectSnapshotResult,
+	IResourceCopyParams,
+	IResourceCopyResult,
+	IResourceDeleteParams,
+	IResourceDeleteResult,
+	IResourceListParams,
+	IResourceListResult,
+	IResourceMoveParams,
+	IResourceMoveResult,
+	IResourceReadParams,
+	IResourceReadResult,
+	IResourceWriteParams,
+	IResourceWriteResult,
 	ISubscribeParams,
 	IUnsubscribeParams,
 } from './protocol/commands.js';

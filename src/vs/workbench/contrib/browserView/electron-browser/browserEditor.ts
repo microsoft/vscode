@@ -554,6 +554,12 @@ export class BrowserEditor extends EditorPane {
 		});
 		this.setBackgroundImage(this._model.screenshot);
 
+		// When closing a tab, the model gets disposed before the editor input is cleared.
+		// So we make sure we don't keep a reference to the disposed model.
+		this._inputDisposables.add(this._model.onWillDispose(() => {
+			this._model = undefined;
+		}));
+
 		// Start / stop screenshots when the model visibility changes
 		this._inputDisposables.add(this._model.onDidChangeVisibility(() => this.doScreenshot()));
 

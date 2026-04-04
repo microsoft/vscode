@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn, FileEditKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 
 function getPtyTerminalData(meta: Record<string, unknown> | undefined): { input?: string; output?: string } | undefined {
@@ -37,7 +37,7 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		// Request
-		history.push({ type: 'request', prompt: turn.userMessage.text, participant: participantId });
+		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId });
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
@@ -46,12 +46,20 @@ export function turnsToHistory(turns: readonly ITurn[], participantId: string): 
 			switch (rp.kind) {
 				case ResponsePartKind.Markdown:
 					if (rp.content) {
-						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content) });
+						parts.push({ kind: 'markdownContent', content: new MarkdownString(rp.content, { supportHtml: true }) });
 					}
 					break;
-				case ResponsePartKind.ToolCall:
-					parts.push(completedToolCallToSerialized(rp.toolCall as ICompletedToolCall));
+				case ResponsePartKind.ToolCall: {
+					const tc = rp.toolCall as ICompletedToolCall;
+					const fileEditParts = completedToolCallToEditParts(tc);
+					const serialized = completedToolCallToSerialized(tc);
+					if (fileEditParts.length > 0) {
+						serialized.presentation = ToolInvocationPresentation.Hidden;
+					}
+					parts.push(serialized);
+					parts.push(...fileEditParts);
 					break;
+				}
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
 						parts.push({ kind: 'thinking', value: rp.content });
@@ -164,6 +172,50 @@ function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocat
 }
 
 /**
+ * Builds edit-structure progress parts for a completed tool call that
+ * produced file edits. Returns an empty array if the tool call has no edits.
+ * These parts replay the undo stops and code-block UI when restoring history.
+ */
+function completedToolCallToEditParts(tc: ICompletedToolCall): IChatProgress[] {
+	if (tc.status !== ToolCallStatus.Completed) {
+		return [];
+	}
+	const fileEdits = getToolFileEdits(tc);
+	if (fileEdits.length === 0) {
+		return [];
+	}
+	const parts: IChatProgress[] = [];
+	for (const edit of fileEdits) {
+		const fileUri = edit.after?.uri ? URI.parse(edit.after.uri) : edit.before?.uri ? URI.parse(edit.before.uri) : undefined;
+		if (!fileUri) {
+			continue;
+		}
+		// Emit workspace file edit progress for creates, deletes, and renames
+		const isCreate = !edit.before && !!edit.after;
+		const isDelete = !!edit.before && !edit.after;
+		const isRename = !!edit.before && !!edit.after && !isEqual(URI.parse(edit.before.uri), URI.parse(edit.after.uri));
+		if (isCreate || isDelete || isRename) {
+			parts.push({
+				kind: 'workspaceEdit',
+				edits: [{
+					oldResource: edit.before?.uri ? URI.parse(edit.before.uri) : undefined,
+					newResource: edit.after?.uri ? URI.parse(edit.after.uri) : undefined,
+				}],
+			});
+		}
+		// Emit code-block UI for content edits (and renames with content changes)
+		if (edit.after?.content) {
+			parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+			parts.push({ kind: 'codeblockUri', uri: fileUri, isEdit: true, undoStopId: tc.toolCallId });
+			parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: false, isExternalEdit: true });
+			parts.push({ kind: 'textEdit', uri: fileUri, edits: [], done: true, isExternalEdit: true });
+			parts.push({ kind: 'markdownContent', content: new MarkdownString('\n````\n') });
+		}
+	}
+	return parts;
+}
+
+/**
  * Creates a live {@link ChatToolInvocation} from the protocol's tool-call
  * state. Used during active turns to represent running tool calls in the UI.
  */
@@ -247,14 +299,20 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
  * that should be routed through the editing session's external edits pipeline.
  */
 export interface IToolCallFileEdit {
-	/** The real file URI on the remote (e.g., `file:///path/to/file`). */
+	/** The kind of file operation. */
+	readonly kind: FileEditKind;
+	/** The primary file URI (after-URI for edits/creates/renames, before-URI for deletes). */
 	readonly resource: URI;
-	/** URI to read the before-snapshot content from. */
-	readonly beforeContentUri: URI;
-	/** URI to read the after-content from (real file on remote via agenthost:// scheme). */
-	readonly afterContentUri: URI;
+	/** For renames, the original file URI before the move. */
+	readonly originalResource?: URI;
+	/** URI to read the before-snapshot content from. Absent for creates. */
+	readonly beforeContentUri?: URI;
+	/** URI to read the after-content from. Absent for deletes. */
+	readonly afterContentUri?: URI;
 	/** Undo stop ID for grouping edits. */
 	readonly undoStopId: string;
+	/** Optional diff display metadata. */
+	readonly diff?: { added?: number; removed?: number };
 }
 
 /**
@@ -303,7 +361,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ITool
  * converts them to {@link IToolCallFileEdit} data for routing through
  * the editing session's external edits pipeline.
  */
-function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
+export function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -313,31 +371,35 @@ function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
 	}
 	const result: IToolCallFileEdit[] = [];
 	for (const edit of edits) {
-		const filePath = getFilePathFromToolInput(tc);
-		if (filePath) {
-			result.push({
-				resource: URI.file(filePath),
-				beforeContentUri: URI.parse(edit.beforeURI),
-				afterContentUri: URI.parse(edit.afterURI),
-				undoStopId: generateUuid(),
-			});
+		const isCreate = !edit.before && !!edit.after;
+		const isDelete = !!edit.before && !edit.after;
+		const isRename = !!edit.before && !!edit.after && !isEqual(URI.parse(edit.before.uri), URI.parse(edit.after.uri));
+
+		let kind: FileEditKind;
+		if (isCreate) {
+			kind = FileEditKind.Create;
+		} else if (isDelete) {
+			kind = FileEditKind.Delete;
+		} else if (isRename) {
+			kind = FileEditKind.Rename;
+		} else {
+			kind = FileEditKind.Edit;
 		}
+
+		const resource = edit.after?.uri ? URI.parse(edit.after.uri) : edit.before?.uri ? URI.parse(edit.before.uri) : undefined;
+		if (!resource) {
+			continue;
+		}
+
+		result.push({
+			kind,
+			resource,
+			originalResource: isRename ? URI.parse(edit.before!.uri) : undefined,
+			beforeContentUri: edit.before?.content.uri ? URI.parse(edit.before.content.uri) : undefined,
+			afterContentUri: edit.after?.content.uri ? URI.parse(edit.after.content.uri) : undefined,
+			undoStopId: tc.toolCallId,
+			diff: edit.diff,
+		});
 	}
 	return result;
-}
-
-/**
- * Extracts the file path from a tool call's input parameters.
- * Edit tools store the file path in JSON parameters as `path`.
- */
-function getFilePathFromToolInput(tc: IToolCallState): string | undefined {
-	if (tc.status !== ToolCallStatus.Completed || !tc.toolInput) {
-		return undefined;
-	}
-	try {
-		const params = JSON.parse(tc.toolInput);
-		return typeof params.path === 'string' ? params.path : undefined;
-	} catch {
-		return undefined;
-	}
 }

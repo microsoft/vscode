@@ -13,7 +13,8 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
@@ -42,6 +43,7 @@ export class IsolationPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -58,12 +60,12 @@ export class IsolationPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
-			if (chat instanceof CopilotCLISession) {
-				const isLoading = chat.loading.read(reader);
-				this._hasGitRepo = !isLoading && !!chat.gitRepository;
+			const isLoading = session?.loading.read(reader);
+			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			if (providerSession) {
+				this._hasGitRepo = !isLoading && !!providerSession.gitRepository;
 				// Read isolation mode from session — session is the source of truth
-				chat.isolationModeObservable.read(reader);
+				providerSession.isolationMode.read(reader);
 			} else {
 				this._hasGitRepo = false;
 			}
@@ -72,8 +74,9 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _getSessionIsolationMode(): IsolationMode {
-		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		return session instanceof CopilotCLISession ? session.isolationMode : 'worktree';
+		const session = this.sessionsManagementService.activeSession.get();
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		return providerSession?.isolationMode.get() ?? 'worktree';
 	}
 
 	render(container: HTMLElement): void {
@@ -151,15 +154,13 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _setModeOnSession(mode: IsolationMode): void {
-		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (!(session instanceof CopilotCLISession)) {
-			throw new Error('IsolationPicker requires a CopilotCLISession');
-		}
-		session.setIsolationMode(mode);
+		const session = this.sessionsManagementService.activeSession.get();
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		providerSession?.setIsolationMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement) {
+		if (!this._triggerElement || !this._slotElement) {
 			return;
 		}
 
@@ -186,9 +187,11 @@ export class IsolationPicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		const isDisabled = !this._hasGitRepo;
-		this._slotElement?.classList.toggle('disabled', isDisabled);
-		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
-		this._triggerElement.tabIndex = isDisabled ? -1 : 0;
+		const visible = this._isolationOptionEnabled && this._hasGitRepo;
+		dom.setVisibility(visible, this._slotElement);
+		this._slotElement.classList.toggle('disabled', false);
+		this._triggerElement.setAttribute('aria-hidden', String(!visible));
+		this._triggerElement.setAttribute('aria-disabled', String(!visible));
+		this._triggerElement.tabIndex = visible ? 0 : -1;
 	}
 }

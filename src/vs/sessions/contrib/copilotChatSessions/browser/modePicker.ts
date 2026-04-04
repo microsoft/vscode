@@ -13,12 +13,13 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -57,6 +58,7 @@ export class ModePicker extends Disposable {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
@@ -110,7 +112,7 @@ export class ModePicker extends Disposable {
 	}
 
 	private _getAvailableModes(): IChatMode[] {
-		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(AgentSessionProviders.Background);
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(CopilotCLISessionType.id);
 		const effectiveTarget = customAgentTarget && customAgentTarget !== Target.Undefined ? customAgentTarget : Target.GitHubCopilot;
 		const modes = this.chatModeService.getModes();
 
@@ -212,14 +214,16 @@ export class ModePicker extends Disposable {
 		this._updateTriggerLabel();
 		this._onDidChange.fire(mode);
 
-		const chat = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (chat instanceof CopilotCLISession) {
-			chat.setMode(mode);
+		const session = this.sessionsManagementService.activeSession.get();
+		if (!session) {
+			return;
 		}
+
+		this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId)?.setMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement) {
+		if (!this._triggerElement || !this._slotElement) {
 			return;
 		}
 
@@ -235,6 +239,10 @@ export class ModePicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		const modes = this._getAvailableModes();
-		this._slotElement?.classList.toggle('disabled', modes.length <= 1);
+		const visible = modes.length > 1;
+		dom.setVisibility(visible, this._slotElement);
+		this._slotElement.classList.toggle('disabled', false);
+		this._triggerElement.setAttribute('aria-hidden', String(!visible));
+		this._triggerElement.tabIndex = visible ? 0 : -1;
 	}
 }

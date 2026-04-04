@@ -5,8 +5,8 @@
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { PromptsType } from '../promptTypes.js';
-import { getPromptFileDefaultLocations, IPromptSourceFolder, PromptFileSource } from './promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../promptTypes.js';
+import { getPromptFileDefaultLocations, IPromptSourceFolder } from './promptFileLocations.js';
 import { PromptsStorage } from '../service/promptsService.js';
 
 /**

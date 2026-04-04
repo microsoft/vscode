@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -45,7 +45,7 @@ import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
-import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
@@ -138,6 +138,7 @@ suite('ChatService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
+	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
 
 	let chatAgentService: IChatAgentService;
 	const testServices: ChatService[] = [];
@@ -188,12 +189,13 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
+		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
-					state: constObservable('idle'),
+					state: constObservable(ChatEditingSessionState.Idle),
 					requestDisablement: observableValue('requestDisablement', []),
-					entries: constObservable([]),
+					entries: editingSessionEntries,
 					dispose: () => { }
 				} as unknown as IChatEditingSession;
 			}
@@ -265,6 +267,46 @@ suite('ChatService', () => {
 		assert.ok(retrieved2, 'Should retrieve session 2');
 		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
 		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
+	});
+
+	test('reports modified edit keep-alive holders', () => {
+		const testService = createChatService();
+		instantiationService.stub(IChatService, testService);
+		const rootRef = testService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatServiceTest#root' });
+
+		const modifiedEntry = new class extends mock<IModifiedFileEntry>() {
+			override state = constObservable(ModifiedFileEntryState.Modified);
+		}();
+
+		editingSessionEntries.set([modifiedEntry], undefined);
+
+		assert.deepStrictEqual(testService.getChatModelReferenceDebugInfo().models.map(model => ({
+			createdBy: model.createdBy,
+			holders: model.holders,
+			hasPendingEdits: model.hasPendingEdits,
+			referenceCount: model.referenceCount,
+		})), [{
+			createdBy: 'ChatServiceTest#root',
+			holders: [
+				{ holder: 'ChatModel#modifiedEditsKeepAlive', count: 1 },
+				{ holder: 'ChatServiceTest#root', count: 1 }
+			],
+			hasPendingEdits: true,
+			referenceCount: 2,
+		}]);
+
+		editingSessionEntries.set([], undefined);
+		assert.deepStrictEqual(testService.getChatModelReferenceDebugInfo().models.map(model => ({
+			holders: model.holders,
+			hasPendingEdits: model.hasPendingEdits,
+			referenceCount: model.referenceCount,
+		})), [{
+			holders: [{ holder: 'ChatServiceTest#root', count: 1 }],
+			hasPendingEdits: false,
+			referenceCount: 1,
+		}]);
+
+		rootRef.dispose();
 	});
 
 	test('addCompleteRequest', async () => {
@@ -419,6 +461,60 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
 
+	test('can serialize and deserialize implicit request flag', async () => {
+		let serializedChatData: ISerializableChatData;
+
+		{
+			const testService = createChatService();
+			const chatModel1Ref = testDisposables.add(startSessionModel(testService));
+			const chatModel1 = chatModel1Ref.object;
+
+			const response = await testService.sendRequest(chatModel1.sessionResource, 'test implicit request', { isSystemInitiated: true });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+
+			assert.strictEqual(chatModel1.getRequests().length, 1);
+			assert.strictEqual(chatModel1.getRequests()[0].isSystemInitiated, true);
+
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
+			assert.strictEqual(serializedChatData.requests.length, 1);
+			assert.strictEqual(serializedChatData.requests[0].isSystemInitiated, true);
+		}
+
+		const testService2 = createChatService();
+		const chatModel2Ref = testService2.loadSessionFromData(serializedChatData);
+		assert(chatModel2Ref);
+		testDisposables.add(chatModel2Ref);
+		const chatModel2 = chatModel2Ref.object;
+
+		assert.strictEqual(chatModel2.getRequests().length, 1);
+		assert.strictEqual(chatModel2.getRequests()[0].isSystemInitiated, true);
+	});
+
+	test('acquireExistingSession keeps model alive for steering request after refs released', async () => {
+		const testService = createChatService();
+		const modelRef = startSessionModel(testService);
+		const sessionResource = modelRef.object.sessionResource;
+
+		// Acquire a keep-alive reference (what the fix does)
+		const keepAliveRef = testDisposables.add(testService.acquireExistingSession(sessionResource, 'test#keepAlive')!);
+		assert.ok(keepAliveRef, 'acquireExistingSession should return a reference');
+
+		// Release the original reference to simulate user navigating away
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+
+		// Model should still be accessible because keepAliveRef holds it
+		const response = await testService.sendRequest(sessionResource, 'terminal completed', {
+			queue: ChatRequestQueueKind.Steering,
+			isSystemInitiated: true,
+		});
+		assert.strictEqual(response.kind, 'queued');
+
+		// Clean up
+		keepAliveRef.dispose();
+	});
+
 	test('onDidDisposeSession', async () => {
 		const testService = createChatService();
 		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
@@ -426,7 +522,7 @@ suite('ChatService', () => {
 
 		let disposed = false;
 		testDisposables.add(testService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				if (resource.toString() === model.sessionResource.toString()) {
 					disposed = true;
 				}
@@ -542,7 +638,7 @@ suite('ChatService', () => {
 	test('disabled Claude hooks hint is shown once per workspace (fix for #295079)', async () => {
 		// Set up a prompts service that reports disabled Claude hooks
 		const mockPromptsService = new class extends MockPromptsService {
-			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+			override getHooks(_token: CancellationToken): Promise<IConfiguredHooksInfo> {
 				return Promise.resolve({ hooks: {}, hasDisabledClaudeHooks: true });
 			}
 		}();
@@ -590,7 +686,7 @@ suite('ChatService', () => {
 		// followed by the real resent request (with disabled hooks).
 		const mockPromptsService = new class extends MockPromptsService {
 			private _callCount = 0;
-			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+			override getHooks(_token: CancellationToken): Promise<IConfiguredHooksInfo> {
 				this._callCount++;
 				// First call (setup agent): no disabled hooks
 				// Second call (real request after resend): disabled hooks present
@@ -935,9 +1031,8 @@ suite('ChatService', () => {
 		// The new model (with real resource) should have initialSessionOptions set
 		const newModel = testService.getSession(realResource) as ChatModel;
 		assert.ok(newModel, 'New model should exist at the real resource');
-		assert.ok(newModel.contributedChatSession, 'New model should have contributedChatSession');
 		assert.deepStrictEqual(
-			ChatSessionOptionsMap.toStrValueArray(newModel.contributedChatSession?.initialSessionOptions),
+			ChatSessionOptionsMap.toStrValueArray(mockSessionsService.getSessionOptions(realResource)),
 			[
 				{ optionId: 'model', value: 'claude-3.5-sonnet' },
 				{ optionId: 'repo', value: 'my-repo' },
@@ -952,8 +1047,10 @@ function toSnapshotExportData(model: IChatModel) {
 	return {
 		...exp,
 		requests: exp.requests.map(r => {
+			// Destructure properties after `vote` so we can insert `voteDownReason` in the correct position for snapshot compat
+			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isSystemInitiated: _isSystemInitiated, systemInitiatedLabel: _systemInitiatedLabel, ...rest } = r;
 			return {
-				...r,
+				...rest,
 				modelState: {
 					...r.modelState,
 					completedAt: undefined
@@ -961,6 +1058,12 @@ function toSnapshotExportData(model: IChatModel) {
 				timestamp: undefined,
 				requestId: undefined, // id contains a random part
 				responseId: undefined, // id contains a random part
+				voteDownReason: undefined, // removed from model, kept for snapshot compat
+				slashCommand,
+				usedContext,
+				contentReferences,
+				codeCitations,
+				timeSpentWaiting,
 			};
 		})
 	};

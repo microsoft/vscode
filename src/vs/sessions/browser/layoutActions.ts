@@ -13,22 +13,27 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext } from '../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
+const sidebarToggleClosedIcon = registerIcon('agent-sidebar-toggle-closed', Codicon.layoutSidebarLeftOff, localize('agentSidebarToggleClosedIcon', "Icon for the sessions sidebar when closed."));
+const sidebarToggleOpenIcon = registerIcon('agent-sidebar-toggle-open', Codicon.layoutSidebarLeft, localize('agentSidebarToggleOpenIcon', "Icon for the sessions sidebar when open."));
 
 class ToggleSidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.agentToggleSidebarVisibility';
-	static readonly LABEL = localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar");
 
 	constructor() {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
 			title: localize2('toggleSidebar', 'Toggle Primary Side Bar Visibility'),
-			icon: panelCloseIcon,
+			icon: sidebarToggleClosedIcon,
+			toggled: {
+				condition: SideBarVisibleContext,
+				icon: sidebarToggleOpenIcon,
+			},
 			metadata: {
 				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),
 			},
@@ -39,6 +44,12 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyB
 			},
 			menu: [
+				{
+					id: Menus.TitleBarLeftLayout,
+					group: 'navigation',
+					order: 0,
+					when: IsAuxiliaryWindowContext.toNegated()
+				},
 				{
 					id: Menus.TitleBarContext,
 					group: 'navigation',
@@ -66,7 +77,6 @@ class ToggleSidebarVisibilityAction extends Action2 {
 class ToggleSecondarySidebarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.agentToggleSecondarySidebarVisibility';
-	static readonly LABEL = localize('compositePart.hideSecondarySideBarLabel', "Hide Secondary Side Bar");
 
 	constructor() {
 		super({

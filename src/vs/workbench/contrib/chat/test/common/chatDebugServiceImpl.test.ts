@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
@@ -276,44 +277,6 @@ suite('ChatDebugServiceImpl', () => {
 		});
 	});
 
-	suite('markDebugDataAttached', () => {
-		test('should track attached debug data per session', () => {
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
-
-			const fired: URI[] = [];
-			disposables.add(service.onDidAttachDebugData(uri => fired.push(uri)));
-
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
-			assert.strictEqual(fired.length, 1);
-			assert.strictEqual(fired[0].toString(), sessionGeneric.toString());
-
-			// Idempotent — second call should not fire again
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(fired.length, 1);
-
-			// Other sessions remain unaffected
-			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
-		});
-
-		test('should clear attached debug data on endSession', () => {
-			service.markDebugDataAttached(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), true);
-
-			service.endSession(sessionGeneric);
-			assert.strictEqual(service.hasAttachedDebugData(sessionGeneric), false);
-		});
-
-		test('should clear attached debug data on clear', () => {
-			service.markDebugDataAttached(sessionA);
-			service.markDebugDataAttached(sessionB);
-
-			service.clear();
-			assert.strictEqual(service.hasAttachedDebugData(sessionA), false);
-			assert.strictEqual(service.hasAttachedDebugData(sessionB), false);
-		});
-	});
-
 	suite('registerProvider', () => {
 		test('should register and unregister a provider', async () => {
 			const extSession = URI.parse('vscode-chat-session://local/ext-session');
@@ -355,8 +318,14 @@ suite('ChatDebugServiceImpl', () => {
 			};
 
 			disposables.add(service.registerProvider(provider));
-			// Should not throw
-			await service.invokeProviders(errorSession);
+			// Suppress the expected onUnexpectedError from _invokeProvider
+			const origHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(() => { });
+			try {
+				await service.invokeProviders(errorSession);
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(origHandler);
+			}
 			assert.strictEqual(service.getEvents(errorSession).length, 0);
 		});
 	});
