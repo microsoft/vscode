@@ -193,8 +193,10 @@ export class WebviewEditor extends EditorPane {
 
 		// Use CSS Anchor Positioning to automatically track position changes.
 		// The editor element's parent acts as the CSS anchor, and the webview
-		// container is tethered to it
-		if (this._element?.parentElement) {
+		// container is tethered to it.
+		// Falls back to explicit pixel positioning via layoutWebviewOverElement
+		// when anchor positioning is not supported.
+		if (this._element?.parentElement && CSS.supports('(top: anchor(top))')) {
 			const anchorName = `--${this._element.id}`;
 			this._element.parentElement.style.setProperty('anchor-name', anchorName);
 			const container = input.webview.container;
@@ -227,7 +229,7 @@ export class WebviewEditor extends EditorPane {
 		// Re-apply CSS anchor positioning after layoutWebviewOverElement sets
 		// explicit pixel values for top/left. This lets the browser handle
 		// position tracking between explicit layout calls.
-		if (this._element.parentElement?.style.getPropertyValue('anchor-name')) {
+		if (CSS.supports('(top: anchor(top))') && this._element.parentElement?.style.getPropertyValue('anchor-name')) {
 			webview.container.style.setProperty('top', 'anchor(top)');
 			webview.container.style.setProperty('left', 'anchor(left)');
 		}
