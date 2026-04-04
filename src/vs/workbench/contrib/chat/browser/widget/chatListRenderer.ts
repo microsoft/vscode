@@ -1014,7 +1014,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Don't show working progress while a confirmation carousel is active above the input
 		if (isResponseVM(element)) {
 			const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
-			if (widget?.input.hasActiveToolConfirmationCarousel) {
+			if (widget?.inputPart.hasActiveToolConfirmationCarousel) {
 				return false;
 			}
 		}
@@ -1988,6 +1988,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 
+		// If this tool is already tracked in the confirmation carousel, don't render it inline
+		if (toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element)) {
+			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+			if (widget?.inputPart.hasToolInConfirmationCarousel(toolInvocation.toolCallId)) {
+				return this.renderNoContent((other) =>
+					other.kind === 'toolInvocation' && widget.inputPart.hasToolInConfirmationCarousel(toolInvocation.toolCallId)
+				);
+			}
+		}
+
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 
 		// Factory that creates the tool invocation part with all necessary setup
@@ -2044,10 +2054,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Only use the carousel when there are multiple parallel tool calls waiting for confirmation.
 		// A single tool call uses the existing inline confirmation part.
 		// Gated behind the confirmationCarousel setting (disabled on stable).
+		// Do not add new tools to the carousel while editing a previous request.
+		// Always use `widget.inputPart` (not `widget.input`) because the carousel lives on the
+		// main input part, and `widget.input` may return the inline editing input during edits.
 		if (this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) && toolInvocation.presentation !== 'hidden') {
+
+			const isEditing = !!this.viewModel?.editing;
 			const state = toolInvocation.state.get();
-			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
+			if (!isEditing && state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
 				const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
 				if (widget) {
 					const otherWaitingTools = context.element.response.value.filter((part): part is IChatToolInvocation =>
@@ -2055,22 +2070,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						part.toolCallId !== toolInvocation.toolCallId &&
 						part.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation
 					);
-					const hasCarouselOrMultipleWaiting = widget.input.hasActiveToolConfirmationCarousel || otherWaitingTools.length > 0;
+					const hasCarouselOrMultipleWaiting = widget.inputPart.hasActiveToolConfirmationCarousel || otherWaitingTools.length > 0;
 
 					if (hasCarouselOrMultipleWaiting) {
 						const factory = (tool: IChatToolInvocation) => this.instantiationService.createInstance(
 							ChatToolInvocationPart, tool, context,
 							this.chatContentMarkdownRenderer, this._contentReferencesListPool,
 							this._toolEditorPool, () => this._currentLayoutWidth.get(),
-							this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys,
+							this._announcedToolProgressKeys,
 							codeBlockStartIndex
 						);
 
 						// When creating a new carousel, also absorb any other waiting tools
 						// that were already rendered inline
-						if (!widget.input.hasActiveToolConfirmationCarousel) {
+						if (!widget.inputPart.hasActiveToolConfirmationCarousel) {
 							for (const otherTool of otherWaitingTools) {
-								widget.input.addToolToConfirmationCarousel(otherTool, factory);
+								widget.inputPart.addToolToConfirmationCarousel(otherTool, factory);
 
 								// Hide the inline-rendered part and replace with a no-content sentinel
 								const renderedParts = templateData.renderedParts;
@@ -2081,7 +2096,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 											rp.domNode?.remove();
 											rp.dispose();
 											renderedParts[i] = this.renderNoContent((other) =>
-												other.kind === 'toolInvocation' && widget.input.hasToolInConfirmationCarousel(otherTool.toolCallId)
+												other.kind === 'toolInvocation' && widget.inputPart.hasToolInConfirmationCarousel(otherTool.toolCallId)
 											);
 											break;
 										}
@@ -2090,12 +2105,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							}
 						}
 
-						widget.input.renderToolConfirmationCarousel(toolInvocation, factory);
+						widget.inputPart.renderToolConfirmationCarousel(toolInvocation, factory);
 						return this.renderNoContent((other) => {
 							if (other.kind !== 'toolInvocation') {
 								return false;
 							}
-							return widget.input.hasToolInConfirmationCarousel(toolInvocation.toolCallId);
+							return widget.inputPart.hasToolInConfirmationCarousel(toolInvocation.toolCallId);
 						});
 					}
 				}
