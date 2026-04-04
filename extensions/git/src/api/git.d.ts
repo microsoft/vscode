@@ -241,6 +241,22 @@ export interface Repository {
 	readonly ui: RepositoryUIState;
 	readonly kind: RepositoryKind;
 
+	/**
+	 * Override the branch label shown in the status bar and SCM view.
+	 * When set, this string replaces the entire HEAD label — including
+	 * any status suffixes such as `*` (modified), `+` (staged), or
+	 * `!` (conflict) that the git extension would normally append.
+	 * Set to `undefined` to clear the override and revert to the real branch name.
+	 *
+	 * This does NOT change the actual HEAD, index, or working tree.
+	 */
+	headLabelOverride: string | undefined;
+
+	/**
+	 * An event that is fired when {@link Repository.headLabelOverride headLabelOverride} changes.
+	 */
+	readonly onDidChangeHeadLabel: Event<void>;
+
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
 

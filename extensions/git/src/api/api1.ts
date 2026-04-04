@@ -81,8 +81,17 @@ export class ApiRepository implements Repository {
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
 
+	get headLabelOverride(): string | undefined {
+		return this.#repository.headLabelOverride;
+	}
+
+	set headLabelOverride(value: string | undefined) {
+		this.#repository.headLabelOverride = value;
+	}
+
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
+	readonly onDidChangeHeadLabel: Event<void>;
 
 	constructor(repository: BaseRepository) {
 		this.#repository = repository;
@@ -97,6 +106,7 @@ export class ApiRepository implements Repository {
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Commit), () => null);
 		this.onDidCheckout = mapEvent<OperationResult, void>(
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Checkout || e.operation.kind === OperationKind.CheckoutTracking), () => null);
+		this.onDidChangeHeadLabel = this.#repository.onDidChangeHeadLabel;
 	}
 
 	apply(patch: string, reverse?: boolean): Promise<void>;

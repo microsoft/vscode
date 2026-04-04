@@ -712,6 +712,9 @@ export class Repository implements Disposable {
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidRunGitStatus: Event<void> = this._onDidChangeStatus.event;
 
+	private _onDidChangeHeadLabel = new EventEmitter<void>();
+	readonly onDidChangeHeadLabel: Event<void> = this._onDidChangeHeadLabel.event;
+
 	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
 	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
 
@@ -755,12 +758,31 @@ export class Repository implements Disposable {
 		return this._HEAD;
 	}
 
+	private _headLabelOverride: string | undefined;
+
+	get headLabelOverride(): string | undefined {
+		return this._headLabelOverride;
+	}
+
+	set headLabelOverride(value: string | undefined) {
+		if (value === this._headLabelOverride) {
+			return;
+		}
+		this._headLabelOverride = value;
+		this._onDidChangeHeadLabel.fire();
+		this.updateInputBoxPlaceholder();
+	}
+
 	private _refs: Ref[] = [];
 	get refs(): Ref[] {
 		return this._refs;
 	}
 
 	get headShortName(): string | undefined {
+		if (this._headLabelOverride !== undefined) {
+			return this._headLabelOverride;
+		}
+
 		if (!this.HEAD) {
 			return;
 		}
@@ -1072,6 +1094,7 @@ export class Repository implements Disposable {
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
 		this.disposables.push(statusBar);
+		this.disposables.push(this._onDidChangeHeadLabel);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
 
@@ -3208,12 +3231,15 @@ export class Repository implements Disposable {
 
 	get headLabel(): string {
 		const HEAD = this.HEAD;
+		const head = this._headLabelOverride !== undefined
+			? this._headLabelOverride
+			: HEAD
+				? (HEAD.name || (HEAD.commit || '').substr(0, 8))
+				: '';
 
-		if (!HEAD) {
+		if (!head) {
 			return '';
 		}
-
-		const head = HEAD.name || (HEAD.commit || '').substr(0, 8);
 
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')
