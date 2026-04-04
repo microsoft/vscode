@@ -14,7 +14,7 @@ import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browse
 import { ISCMResourceGroup, ISCMResource, ISCMRepository, ISCMInput, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ViewMode, ISCMRepositorySelectionMode } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
-import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -33,7 +33,7 @@ import { ResourceTree, IResourceNode } from '../../../../base/common/resourceTre
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/tree/objectTree.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { FuzzyScore, createMatches, IMatch } from '../../../../base/common/filters.js';
@@ -52,7 +52,7 @@ import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRende
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_DIFF_EDITOR_IN_MODAL_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -1724,13 +1724,7 @@ export class SCMViewPane extends ViewPane {
 					});
 				} else {
 					if (e.element.command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID && this.configurationService.getValue<boolean>('scm.allowOpenInModalEditor')) {
-						const [original, modified, label] = (e.element.command.arguments || []) as [UriComponents, UriComponents, string | undefined];
-						await this.editorService.openEditor({
-							original: { resource: URI.from(original, true) },
-							modified: { resource: URI.from(modified, true) },
-							label,
-							options: e.editorOptions
-						}, MODAL_GROUP);
+						await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_IN_MODAL_COMMAND_ID, ...(e.element.command.arguments || []), e);
 					} else {
 						await this.commandService.executeCommand(e.element.command.id, ...(e.element.command.arguments || []), e);
 					}
