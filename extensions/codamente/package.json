@@ -1,0 +1,73 @@
+{
+	"name": "codamente",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.70.0"
+	},
+	"main": "./out/extension",
+	"browser": "./dist/browser/extension",
+	"categories": [
+		"Other"
+	],
+	"extensionKind": [
+		"ui",
+		"workspace"
+	],
+	"enabledApiProposals": [
+		"tunnels"
+	],
+	"activationEvents": [],
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "codamente.shareAgentHost",
+				"title": "%command.shareAgentHost%",
+				"category": "Codamente"
+			},
+			{
+				"command": "codamente.connectToHost",
+				"title": "%command.connectToHost%",
+				"category": "Codamente"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "codamente.shareAgentHost",
+					"when": "!isWeb"
+				},
+				{
+					"command": "codamente.connectToHost",
+					"when": "isWeb"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"compile": "gulp compile-extension:codamente",
+		"watch": "gulp watch-extension:codamente",
+		"compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+		"bundle-web": "node ./esbuild.browser.mts",
+		"typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+		"watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+		"watch-bundle-web": "node ./esbuild.browser.mts --watch",
+		"watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
+	},
+	"devDependencies": {
+		"@types/node": "22.x"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/microsoft/vscode.git"
+	}
+}

@@ -1,0 +1,6 @@
+{
+	"displayName": "Codamente",
+	"description": "Share your VS Code agent host via Codamente for remote access from web and mobile devices.",
+	"command.shareAgentHost": "Share Agent Host",
+	"command.connectToHost": "Connect to Agent Host"
+}
