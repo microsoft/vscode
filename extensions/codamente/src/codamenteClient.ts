@@ -95,10 +95,13 @@ export class CodamenteClient {
 	private _startHeartbeat(githubToken: string): void {
 		this._stopHeartbeat();
 
+		let heartbeatInProgress = false;
+
 		this._heartbeatTimer = setInterval(async () => {
-			if (!this._hostId) {
+			if (!this._hostId || heartbeatInProgress) {
 				return;
 			}
+			heartbeatInProgress = true;
 			try {
 				await fetch(`${CodamenteClient.BASE_URL}/${this._hostId}/heartbeat`, {
 					method: 'PUT',
@@ -109,6 +112,8 @@ export class CodamenteClient {
 			} catch {
 				// Heartbeat failures are non-fatal — the server will
 				// clean up stale hosts after a timeout.
+			} finally {
+				heartbeatInProgress = false;
 			}
 		}, CodamenteClient.HEARTBEAT_INTERVAL_MS);
 	}

@@ -44,7 +44,8 @@ export class TunnelManager implements vscode.Disposable {
 			label: 'Codamente Agent Host',
 		});
 
-		this._tunnel.onDidDispose(() => {
+		const disposeListener = this._tunnel.onDidDispose(() => {
+			disposeListener.dispose();
 			this._tunnel = undefined;
 		});
 

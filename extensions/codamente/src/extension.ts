@@ -42,7 +42,7 @@ function registerShareCommand(
 	const agentHost = new AgentHostManager();
 	const tunnel = new TunnelManager();
 
-	context.subscriptions.push(agentHost, tunnel);
+	context.subscriptions.push(agentHost, tunnel, { dispose: () => client.dispose() });
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('codamente.shareAgentHost', async () => {
@@ -73,10 +73,11 @@ function registerShareCommand(
 				);
 
 				// 4. Open tunnel
-				const tunnelInstance = await tunnel.open(port);
-				const tunnelAddress = typeof tunnelInstance.localAddress === 'string'
-					? tunnelInstance.localAddress
-					: `${tunnelInstance.localAddress.host}:${tunnelInstance.localAddress.port}`;
+				await tunnel.open(port);
+				const tunnelAddress = tunnel.localAddress;
+				if (!tunnelAddress) {
+					throw new Error('Tunnel opened but no local address available');
+				}
 
 				// 5. Register with Codamente
 				await client.register(tunnelAddress, connectionToken, hostName, token);
@@ -91,13 +92,6 @@ function registerShareCommand(
 			}
 		})
 	);
-
-	// Clean up the heartbeat on deactivation
-	context.subscriptions.push({
-		dispose: () => {
-			client.dispose();
-		}
-	});
 }
 
 // ---------------------------------------------------------------------------
