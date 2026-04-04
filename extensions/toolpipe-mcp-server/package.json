@@ -1,0 +1,97 @@
+{
+  "name": "toolpipe-mcp-server",
+  "displayName": "ToolPipe MCP Server",
+  "description": "Integrates ToolPipe MCP Server - 120+ developer utilities via Model Context Protocol",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "Developer Tools"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "developer-tools",
+    "utilities",
+    "json",
+    "formatting",
+    "linting"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode/issues"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "toolpipe",
+        "label": "ToolPipe MCP Server"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "ToolPipe MCP Server",
+        "properties": {
+          "toolpipeMcpServer.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable ToolPipe MCP Server integration"
+          },
+          "toolpipeMcpServer.mode": {
+            "type": "string",
+            "enum": [
+              "remote",
+              "local"
+            ],
+            "default": "remote",
+            "description": "ToolPipe connection mode: 'remote' for cloud-hosted server, 'local' for npm-based server"
+          },
+          "toolpipeMcpServer.remoteUrl": {
+            "type": "string",
+            "default": "https://troops-submission-what-stays.trycloudflare.com/mcp",
+            "description": "Remote URL for ToolPipe MCP Server (HTTP endpoint)"
+          },
+          "toolpipeMcpServer.localCommand": {
+            "type": "string",
+            "default": "npx",
+            "description": "Command to run local ToolPipe server (e.g., 'npx' or full path)"
+          },
+          "toolpipeMcpServer.localArgs": {
+            "type": "array",
+            "default": [
+              "@cosai-labs/toolpipe-mcp-server"
+            ],
+            "description": "Arguments for local ToolPipe server command"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "test": "vscode-test",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "~5.3.0"
+  }
+}
