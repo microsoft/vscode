@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow, getRepositoryName, AgentSessionsSorter, groupAgentSessionsByDate } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { getSessionDescription } from '../../../browser/agentSessions/agentSessionsPicker.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -1430,5 +1431,56 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 		assert.deepStrictEqual(pinnedSessions.length, 1);
 		assert.deepStrictEqual(archivedSessions.length, 1);
 		assert.deepStrictEqual(todaySessions.length, 0);
+	});
+});
+
+suite('getSessionDescription (issue #306025 - last update time)', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession(overrides: {
+		id?: string;
+		created: number;
+		lastRequestEnded?: number;
+	}): IAgentSession {
+		return {
+			providerType: 'test',
+			providerLabel: 'Test',
+			resource: URI.parse('test://session/' + (overrides.id ?? 'default')),
+			status: ChatSessionStatus.Completed,
+			label: 'Session ' + (overrides.id ?? 'default'),
+			icon: Codicon.terminal,
+			timing: {
+				created: overrides.created,
+				lastRequestEnded: overrides.lastRequestEnded,
+				lastRequestStarted: undefined,
+			},
+			changes: undefined,
+			metadata: undefined,
+			isArchived: () => false,
+			setArchived: () => { },
+			isPinned: () => false,
+			setPinned: () => { },
+			isRead: () => true,
+			isMarkedUnread: () => false,
+			setRead: () => { },
+		};
+	}
+
+	test('uses lastRequestEnded when available', () => {
+		const now = Date.now();
+		const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000;
+		const session = createSession({ id: 'updated', created: tenDaysAgo, lastRequestEnded: now });
+		const description = getSessionDescription(session);
+		// Should show 'now' or a very recent time, not '10 days'
+		assert.ok(!description.includes('10 days'), 'Expected recent time, not 10 days: ' + description);
+	});
+
+	test('falls back to created when lastRequestEnded is undefined', () => {
+		const tenDaysAgo = Date.now() - 10 * 24 * 60 * 60 * 1000;
+		const session = createSession({ id: 'created-only', created: tenDaysAgo });
+		const description = getSessionDescription(session);
+		// Should show the creation time (~10 days)
+		assert.ok(description.includes('10 days') || description.includes('day'), 'Expected ~10 days: ' + description);
 	});
 });

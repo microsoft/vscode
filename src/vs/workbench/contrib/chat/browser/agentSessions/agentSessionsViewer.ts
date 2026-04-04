@@ -494,9 +494,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				const date = this.options.isSortedByUpdated?.()
-					? session.timing.lastRequestEnded ?? session.timing.created
-					: session.timing.created;
+				const date = session.timing.lastRequestEnded ?? session.timing.created;
 				const seconds = Math.round((new Date().getTime() - date) / 1000);
 				if (seconds < 60) {
 					timeLabel = localize('secondsDuration', "now");
