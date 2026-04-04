@@ -237,7 +237,7 @@ function toIChatSessionFileChange2(changes: GitDiffChange[], modifiedRef: string
 	} satisfies IChatSessionFileChange2));
 }
 
-function toIChangesFileItem(changes: (IChatSessionFileChange | IChatSessionFileChange2)[]): IChangesFileItem[] {
+function toIChangesFileItem(changes: readonly (IChatSessionFileChange | IChatSessionFileChange2)[]): IChangesFileItem[] {
 	return changes.map(change => {
 		const isAddition = change.originalUri === undefined;
 		const isDeletion = change.modifiedUri === undefined;
@@ -284,10 +284,6 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionRepositoryStateObs: IObservableWithChange<GitRepositoryState | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly activeSessionAllChangesObs: IObservable<readonly IChatSessionFileChange2[]>;
-	private readonly _activeSessionAllChangesPromiseObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
-	readonly activeSessionLastTurnChangesObs: IObservable<readonly IChatSessionFileChange2[]>;
-	private readonly _activeSessionLastTurnChangesPromiseObs: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
@@ -295,6 +291,9 @@ class ChangesViewModel extends Disposable {
 	readonly activeSessionAgentFeedbackCountByFileObs: IObservable<Map<string, number>>;
 	readonly activeSessionStateObs: IObservable<ActiveSessionState | undefined>;
 	readonly activeSessionIsLoadingObs: IObservable<boolean>;
+
+	private _activeSessionAllChangesPromiseObs!: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
+	private _activeSessionLastTurnChangesPromiseObs!: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -331,17 +330,6 @@ class ChangesViewModel extends Disposable {
 		this.activeSessionResourceObs = derivedOpts({ equalsFn: isEqual }, reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
 			return activeSession?.resource;
-		});
-
-		// Active session changes
-		this.activeSessionChangesObs = derivedOpts({
-			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
-		}, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			if (!activeSession) {
-				return Iterable.empty();
-			}
-			return activeSession.changes.read(reader);
 		});
 
 		const activeSessionRepositoryObs = derived(reader => {
@@ -454,48 +442,7 @@ class ChangesViewModel extends Disposable {
 			return model?.metadata?.lastCheckpointRef as string | undefined;
 		});
 
-		// Active session all changes
-		this._activeSessionAllChangesPromiseObs = derived(reader => {
-			const repository = this.activeSessionRepositoryObs.read(reader);
-			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(reader);
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
-
-			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
-				return constObservable([]);
-			}
-
-			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
-			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		this.activeSessionAllChangesObs = derived(reader => {
-			const diffChanges = this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
-			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(undefined);
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
-
-			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, firstCheckpointRef);
-		});
-
-		// Active session last turn changes
-		this._activeSessionLastTurnChangesPromiseObs = derived(reader => {
-			const repository = this.activeSessionRepositoryObs.read(reader);
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
-
-			if (!repository || !lastCheckpointRef) {
-				return constObservable([]);
-			}
-
-			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
-			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		this.activeSessionLastTurnChangesObs = derived(reader => {
-			const diffChanges = this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader) ?? [];
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
-
-			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined);
-		});
-
+		// Active session review comment count by file
 		this.activeSessionReviewCommentCountByFileObs = derived(reader => {
 			const sessionResource = this.activeSessionResourceObs.read(reader);
 			const changes = [...this.activeSessionChangesObs.read(reader)];
@@ -533,6 +480,7 @@ class ChangesViewModel extends Disposable {
 			return result;
 		});
 
+		// Active session agent feedback count by file
 		this.activeSessionAgentFeedbackCountByFileObs = derived(reader => {
 			const sessionResource = this.activeSessionResourceObs.read(reader);
 			if (!sessionResource) {
@@ -552,6 +500,14 @@ class ChangesViewModel extends Disposable {
 			return result;
 		});
 
+		// Active session state
+		const { isLoading, state } = this._getActiveSessionState();
+		this.activeSessionIsLoadingObs = isLoading;
+		this.activeSessionStateObs = state;
+
+		// Active session changes
+		this.activeSessionChangesObs = this._getActiveSessionChanges();
+
 		// Version mode
 		this.versionModeObs = observableValue<ChangesVersionMode>(this, ChangesVersionMode.BranchChanges);
 
@@ -563,11 +519,80 @@ class ChangesViewModel extends Disposable {
 		const storedMode = this.storageService.get('changesView.viewMode', StorageScope.WORKSPACE);
 		const initialMode = storedMode === ChangesViewMode.Tree ? ChangesViewMode.Tree : ChangesViewMode.List;
 		this.viewModeObs = observableValue<ChangesViewMode>(this, initialMode);
+	}
 
-		// Active session state
-		const { isLoading, state } = this._getActiveSessionState();
-		this.activeSessionIsLoadingObs = isLoading;
-		this.activeSessionStateObs = state;
+	private _getActiveSessionChanges(): IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]> {
+		// Changes
+		const activeSessionChangesObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			if (!activeSession) {
+				return Iterable.empty();
+			}
+			return activeSession.changes.read(reader);
+		});
+
+		// All changes
+		this._activeSessionAllChangesPromiseObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(reader);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
+
+			if (!repository || !firstCheckpointRef || !lastCheckpointRef) {
+				return constObservable([]);
+			}
+
+			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+			return new ObservablePromise(diffPromise).resolvedValue;
+		});
+
+		const activeSessionAllChangesObs = derived(reader => {
+			const diffChanges = this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
+			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(undefined);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
+
+			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, firstCheckpointRef);
+		});
+
+		// Last turn changes
+		this._activeSessionLastTurnChangesPromiseObs = derived(reader => {
+			const repository = this.activeSessionRepositoryObs.read(reader);
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
+
+			if (!repository || !lastCheckpointRef) {
+				return constObservable([]);
+			}
+
+			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
+			return new ObservablePromise(diffPromise).resolvedValue;
+		});
+
+		const activeSessionLastTurnChangesObs = derived(reader => {
+			const diffChanges = this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader) ?? [];
+			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
+
+			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined);
+		});
+
+		return derivedOpts({
+			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
+		}, reader => {
+			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
+			if (!hasGitRepository) {
+				return [];
+			}
+
+			const versionMode = this.versionModeObs.read(reader);
+			const sourceEntries: (IChatSessionFileChange | IChatSessionFileChange2)[] = [];
+			if (versionMode === ChangesVersionMode.BranchChanges) {
+				return activeSessionChangesObs.read(reader);
+			} else if (versionMode === ChangesVersionMode.AllChanges) {
+				return activeSessionAllChangesObs.read(reader);
+			} else if (versionMode === ChangesVersionMode.LastTurn) {
+				return activeSessionLastTurnChangesObs.read(reader);
+			}
+
+			return sourceEntries;
+		});
 	}
 
 	private _getActiveSessionState(): { isLoading: IObservable<boolean>; state: IObservable<ActiveSessionState | undefined> } {
@@ -926,32 +951,15 @@ export class ChangesViewPane extends ViewPane {
 			}
 		}));
 
-		// Combine both entry sources for display
-		const combinedEntriesObs = derived(reader => {
-			const versionMode = this.viewModel.versionModeObs.read(reader);
-			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-			if (!hasGitRepository) {
-				return [];
-			}
-
-			const sourceEntries: (IChatSessionFileChange | IChatSessionFileChange2)[] = [];
-			if (versionMode === ChangesVersionMode.BranchChanges) {
-				const changes = this.viewModel.activeSessionChangesObs.read(reader);
-				sourceEntries.push(...changes);
-			} else if (versionMode === ChangesVersionMode.AllChanges) {
-				const allChanges = this.viewModel.activeSessionAllChangesObs.read(reader);
-				sourceEntries.push(...allChanges);
-			} else if (versionMode === ChangesVersionMode.LastTurn) {
-				const lastTurnChanges = this.viewModel.activeSessionLastTurnChangesObs.read(reader);
-				sourceEntries.push(...lastTurnChanges);
-			}
-
-			return toIChangesFileItem(sourceEntries);
+		// Changes
+		const changesObs = derived(reader => {
+			const changes = this.viewModel.activeSessionChangesObs.read(reader);
+			return toIChangesFileItem(changes);
 		});
 
-		// Calculate stats from combined entries
+		// Changes statistics
 		const topLevelStats = derived(reader => {
-			const entries = combinedEntriesObs.read(reader);
+			const entries = changesObs.read(reader);
 
 			let added = 0, removed = 0;
 
@@ -1184,7 +1192,7 @@ export class ChangesViewPane extends ViewPane {
 
 				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
 
-				const items = combinedEntriesObs.get();
+				const items = changesObs.get();
 				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
 			}));
 		}
@@ -1199,7 +1207,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Update tree data with combined entries
 		this.renderDisposables.add(autorun(reader => {
-			const entries = combinedEntriesObs.read(reader);
+			const changes = changesObs.read(reader);
 			const viewMode = this.viewModel.viewModeObs.read(reader);
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
 
@@ -1212,15 +1220,15 @@ export class ChangesViewPane extends ViewPane {
 
 			if (viewMode === ChangesViewMode.Tree) {
 				// Tree mode: build hierarchical tree from file entries
-				const treeRootInfo = this.getTreeRootInfo(entries);
-				const treeChildren = buildTreeChildren(entries, treeRootInfo);
+				const treeRootInfo = this.getTreeRootInfo(changes);
+				const treeChildren = buildTreeChildren(changes, treeRootInfo);
 				this.tree.setChildren(null, treeChildren);
 			} else {
 				// List mode: flat list of file items
-				const listChildren: IObjectTreeElement<ChangesTreeElement>[] = entries.map(item => ({
+				const listChildren = changes.map(item => ({
 					element: item,
 					collapsible: false,
-				}));
+				} satisfies IObjectTreeElement<ChangesTreeElement>));
 				this.tree.setChildren(null, listChildren);
 			}
 
