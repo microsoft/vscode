@@ -41,7 +41,7 @@ const server = http.createServer(async (req, res) => {
 		return;
 	}
 
-	const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+	const url = new URL(req.url ?? '/', 'http://localhost');
 	const method = req.method ?? 'GET';
 
 	try {

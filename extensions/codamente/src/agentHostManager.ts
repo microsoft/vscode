@@ -67,12 +67,12 @@ export class AgentHostManager implements vscode.Disposable {
 			'--port', String(port),
 			'--connection-token', connectionToken,
 			'--registry-url', registryUrl,
-			'--github-token', githubToken,
 			'--host-name', hostName,
 		].join(' ');
 
 		this._terminal = vscode.window.createTerminal({
 			name: 'Codamente Agent Host',
+			env: { 'GITHUB_TOKEN': githubToken },
 		});
 		this._terminal.sendText(command, true);
 
