@@ -55,10 +55,19 @@ export const minimapGutterDeletedBackground = registerColor('minimapGutter.delet
 
 export const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground',
 	transparent(editorGutterModifiedBackground, 0.6), nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
+export const overviewRulerModifiedSecondaryForeground = registerColor('editorOverviewRuler.modifiedSecondaryForeground',
+	{ dark: transparent(darken(editorGutterModifiedBackground, 0.5), 0.6), light: transparent(lighten(editorGutterModifiedBackground, 0.7), 0.6), hcDark: transparent(editorGutterModifiedBackground, 0.6), hcLight: transparent(editorGutterModifiedBackground, 0.6) },
+	nls.localize('overviewRulerModifiedSecondaryForeground', 'Overview ruler marker color for staged modified content.'));
 export const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground',
 	transparent(editorGutterAddedBackground, 0.6), nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+export const overviewRulerAddedSecondaryForeground = registerColor('editorOverviewRuler.addedSecondaryForeground',
+	{ dark: transparent(darken(editorGutterAddedBackground, 0.5), 0.6), light: transparent(lighten(editorGutterAddedBackground, 0.7), 0.6), hcDark: transparent(editorGutterAddedBackground, 0.6), hcLight: transparent(editorGutterAddedBackground, 0.6) },
+	nls.localize('overviewRulerAddedSecondaryForeground', 'Overview ruler marker color for staged added content.'));
 export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground',
 	transparent(editorGutterDeletedBackground, 0.6), nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+export const overviewRulerDeletedSecondaryForeground = registerColor('editorOverviewRuler.deletedSecondaryForeground',
+	{ dark: transparent(darken(editorGutterDeletedBackground, 0.4), 0.6), light: transparent(lighten(editorGutterDeletedBackground, 0.3), 0.6), hcDark: transparent(editorGutterDeletedBackground, 0.6), hcLight: transparent(editorGutterDeletedBackground, 0.6) },
+	nls.localize('overviewRulerDeletedSecondaryForeground', 'Overview ruler marker color for staged deleted content.'));
 
 export const editorGutterItemGlyphForeground = registerColor('editorGutter.itemGlyphForeground',
 	{ dark: editorForeground, light: editorForeground, hcDark: Color.black, hcLight: Color.white },
