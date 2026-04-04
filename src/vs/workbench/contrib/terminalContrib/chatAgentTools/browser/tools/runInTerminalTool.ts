@@ -297,7 +297,7 @@ export async function createRunInTerminalToolData(
 	const sandboxProperties: IJSONSchemaMap = isSandboxEnabled ? {
 		requestUnsandboxedExecution: {
 			type: 'boolean',
-			description: 'Request that this command run outside the terminal sandbox. Only set this after first executing the command in sandbox mode and observing that sandboxing caused the failure, or when the command text itself clearly requires blocked domains. The user will be prompted before the command runs unsandboxed.'
+			description: 'Request that this command run outside the terminal sandbox. Only set this after first executing the command in sandbox and observing that sandboxing caused the failure. The user will be prompted before the command runs unsandboxed.'
 		},
 		requestUnsandboxedExecutionReason: {
 			type: 'string',
