@@ -704,8 +704,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._terminalConfigurationService.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 
+		// When other VS Code windows are still open, only detach from the terminal processes instead
+		// of shutting them down. This prevents the closing window from killing PTY processes that
+		// other windows are still connected to via the shared pty host.
+		const hasOtherWindowsOpen = this._shutdownWindowCount !== undefined && this._shutdownWindowCount > 1;
+
 		for (const instance of [...this._terminalGroupService.instances, ...this._backgroundedTerminalInstances.map(bg => bg.instance)]) {
 			if (shouldPersistTerminals && instance.shouldPersist) {
+				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
+			} else if (hasOtherWindowsOpen) {
+				// Detach without killing the process so other windows can continue using it
 				instance.detachProcessAndDispose(TerminalExitReason.Shutdown);
 			} else {
 				instance.dispose(TerminalExitReason.Shutdown);
