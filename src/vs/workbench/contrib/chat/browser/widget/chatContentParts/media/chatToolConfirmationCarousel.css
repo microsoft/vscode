@@ -20,24 +20,10 @@
 }
 
 .chat-tool-confirmation-carousel {
-	border: 1px solid var(--vscode-input-border, transparent);
-	background-color: var(--vscode-panel-background);
 	color: var(--vscode-foreground);
-	border-radius: var(--vscode-cornerRadius-large);
 	display: flex;
 	flex-direction: column;
-	overflow: hidden;
 	max-height: min(420px, 45vh);
-
-	&.single-item {
-
-		.chat-tool-carousel-content .chat-confirmation-widget,
-		.chat-tool-carousel-content .chat-confirmation-widget2 {
-			border: 1px solid var(--vscode-input-border, transparent);
-			border-radius: var(--vscode-cornerRadius-large);
-			overflow: hidden;
-		}
-	}
 
 	a {
 		color: var(--vscode-foreground);
@@ -48,23 +34,45 @@
 		}
 	}
 
+	/* --- Header (tabs + bulk actions) — only visible when multiple items --- */
+
 	.chat-tool-carousel-header {
 		display: flex;
 		align-items: center;
 		flex-shrink: 0;
-		border-bottom: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 		min-height: 0;
+		background-color: var(--vscode-panel-background);
+		border: 1px solid var(--vscode-input-border, transparent);
+		border-bottom: none;
+		border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	}
 
 	.chat-tool-carousel-tabs {
+		position: relative;
 		display: flex;
 		flex: 1;
 		min-width: 0;
 		overflow-x: auto;
 		gap: 0;
+		mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
 
 		&::-webkit-scrollbar {
 			height: 3px;
+		}
+
+		/* When scrolled to the start, no left fade */
+		&.scroll-start {
+			mask-image: linear-gradient(to right, black, black calc(100% - 12px), transparent);
+		}
+
+		/* When scrolled to the end, no right fade */
+		&.scroll-end {
+			mask-image: linear-gradient(to right, transparent, black 12px, black);
+		}
+
+		/* When at both start and end (no overflow), no fades */
+		&.scroll-start.scroll-end {
+			mask-image: none;
 		}
 	}
 
@@ -79,7 +87,8 @@
 		border-right: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 		background: transparent;
 		color: var(--vscode-descriptionForeground);
-		max-width: 500px;
+		max-width: 200px;
+		flex-shrink: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -126,12 +135,17 @@
 		white-space: nowrap;
 	}
 
+	/* --- Content area — always styled the same regardless of single/multi --- */
+
 	.chat-tool-carousel-content {
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
-		overflow-y: auto;
+		overflow: hidden;
 		flex: 1;
+		border: 1px solid var(--vscode-input-border, transparent);
+		border-radius: var(--vscode-cornerRadius-large);
+		background-color: var(--vscode-panel-background);
 
 		.chat-tool-invocation-part {
 			margin: 0;
@@ -187,5 +201,11 @@
 		.chat-confirmation-widget2 .chat-confirmation-widget-buttons {
 			margin-top: auto;
 		}
+	}
+
+	/* When header is visible (multi-item), connect content to header visually */
+	&:not(.single-item) .chat-tool-carousel-content {
+		border-top: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+		border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 	}
 }

@@ -1011,6 +1011,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// Don't show working progress while a confirmation carousel is active above the input
+		if (isResponseVM(element)) {
+			const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+			if (widget?.input.hasActiveToolConfirmationCarousel) {
+				return false;
+			}
+		}
+
 		// Don't show working if a streaming tool invocation is already present
 		if (partsToRender.some(part => part.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(part))) {
 			return false;

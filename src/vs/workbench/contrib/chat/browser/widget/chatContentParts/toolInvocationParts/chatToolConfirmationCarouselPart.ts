@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
@@ -69,6 +71,10 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		skipAllBtn.label = localize('skipAll', "Skip All");
 		this._register(skipAllBtn.onDidClick(() => this.skipAll()));
 
+		// Track scroll position for fade indicators
+		this._updateTabsScrollClasses();
+		this._register(dom.addDisposableListener(this.tabsContainer, 'scroll', () => this._updateTabsScrollClasses()));
+
 		// Add initial tools
 		for (const tool of initialTools) {
 			this.addToolInvocation(tool);
@@ -92,16 +98,26 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		const disposables = new DisposableStore();
 
-		// Create the tab — single descriptive label, no icon
-		const tabElement = dom.$('.chat-tool-carousel-tab');
+		// Create the tab as a button with proper ARIA semantics
+		const tabLabel = this.getTabLabel(tool);
+		const tabElement = dom.$('button.chat-tool-carousel-tab', { role: 'tab', 'aria-selected': 'false', tabIndex: 0 });
 		const labelEl = dom.$('.chat-tool-carousel-tab-label');
-		labelEl.textContent = this.getTabLabel(tool);
+		labelEl.textContent = tabLabel;
 		tabElement.appendChild(labelEl);
 
-		disposables.add(dom.addDisposableListener(tabElement, 'click', () => {
+		const selectTab = () => {
 			const idx = this.items.findIndex(i => i.toolCallId === tool.toolCallId);
 			if (idx >= 0) {
 				this.setActiveIndex(idx);
+			}
+		};
+
+		disposables.add(dom.addDisposableListener(tabElement, 'click', selectTab));
+		disposables.add(dom.addDisposableListener(tabElement, 'keydown', (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+				e.preventDefault();
+				selectTab();
 			}
 		}));
 
@@ -180,8 +196,19 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private updateTabs(): void {
 		for (let i = 0; i < this.items.length; i++) {
-			this.items[i].tabElement.classList.toggle('active', i === this.activeIndex);
+			const isActive = i === this.activeIndex;
+			this.items[i].tabElement.classList.toggle('active', isActive);
+			this.items[i].tabElement.setAttribute('aria-selected', String(isActive));
 		}
+		this._updateTabsScrollClasses();
+	}
+
+	private _updateTabsScrollClasses(): void {
+		const el = this.tabsContainer;
+		const atStart = el.scrollLeft <= 0;
+		const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+		el.classList.toggle('scroll-start', atStart);
+		el.classList.toggle('scroll-end', atEnd);
 	}
 
 	private renderActiveContent(): void {
@@ -192,41 +219,89 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			return;
 		}
 
-		// Dispose previous part if it was created for a different render
-		if (item.toolPart) {
-			item.toolPart.dispose();
-			item.toolPart = undefined;
+		// Create the tool part once and reuse it across tab switches
+		if (!item.toolPart) {
+			item.toolPart = this.toolPartFactory(item.tool);
+			item.disposables.add(item.toolPart);
 		}
 
-		// Use the factory to create the real ChatToolInvocationPart
-		const part = this.toolPartFactory(item.tool);
-		item.toolPart = part;
-		item.disposables.add(part);
-		this.contentContainer.appendChild(part.domNode);
+		this.contentContainer.appendChild(item.toolPart.domNode);
 	}
 
 	/**
-	 * Build a short tab label: tool display name, with a brief differentiator
-	 * when multiple tabs share the same tool.
+	 * Build a short tab label from the tool's invocation message and context.
+	 * Falls back to the tool display name when no better label is available.
 	 */
 	private getTabLabel(tool: IChatToolInvocation): string {
 		const toolData = this.toolsService.getTool(tool.toolId);
-		const name = toolData?.displayName ?? tool.toolId;
+		const fallbackName = toolData?.displayName ?? tool.toolId;
 
-		// For terminal tools, append the command to distinguish tabs
+		// For terminal tools, use the command as the label
 		if (tool.toolSpecificData?.kind === 'terminal') {
 			const terminalData = migrateLegacyTerminalToolSpecificData(tool.toolSpecificData);
-			const cmd = terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
-			return `${name}: ${cmd}`;
+			const cmd = terminalData.presentationOverrides?.commandLine ?? terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+			return this.truncateLabel(cmd);
 		}
 
-		// For other tools, append originMessage context if available
-		if (tool.originMessage) {
-			const text = typeof tool.originMessage === 'string' ? tool.originMessage : tool.originMessage.value;
-			return `${name}: ${text}`;
+		// Use the invocation message as the primary label (e.g. "Reading /path/to/file")
+		const invocationText = this.toPlainText(tool.invocationMessage);
+		if (invocationText) {
+			return this.truncateLabel(invocationText);
 		}
 
-		return name;
+		// Use the confirmation title (e.g. from the generic confirmation tool)
+		const confirmationMessages = IChatToolInvocation.getConfirmationMessages(tool);
+		const titleText = this.toPlainText(confirmationMessages?.title);
+		if (titleText) {
+			return this.truncateLabel(titleText);
+		}
+
+		// Fall back to originMessage context if available
+		const originText = this.toPlainText(tool.originMessage);
+		if (originText) {
+			return this.truncateLabel(originText);
+		}
+
+		return fallbackName;
+	}
+
+	private truncateLabel(text: string): string {
+		// Normalize whitespace and truncate for stable tab layout
+		text = text.replace(/\s+/g, ' ').trim();
+		const maxLength = 60;
+		if (text.length > maxLength) {
+			text = text.substring(0, maxLength) + '\u2026';
+		}
+		return text;
+	}
+
+	/**
+	 * Extract plain text from a string or IMarkdownString.
+	 * For markdown links with empty display text like `[](uri)`, extracts the
+	 * last path segment from the URI so labels read e.g. "Reading .vscode".
+	 */
+	private toPlainText(message: string | { value: string } | undefined | null): string {
+		if (!message) {
+			return '';
+		}
+		if (typeof message === 'string') {
+			return message;
+		}
+		// Replace markdown links: [text](url) → text, or basename of url when text is empty
+		const resolved = message.value.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text, url) => {
+			if (text) {
+				return text;
+			}
+			// Extract last path segment as a readable name
+			try {
+				const path = decodeURIComponent(url.split('?')[0].split('#')[0]);
+				const segments = path.split('/').filter(Boolean);
+				return segments[segments.length - 1] ?? url;
+			} catch {
+				return url;
+			}
+		});
+		return resolved;
 	}
 
 	allowAll(): void {

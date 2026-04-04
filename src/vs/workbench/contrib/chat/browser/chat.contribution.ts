@@ -781,7 +781,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ToolConfirmationCarousel]: {
 			type: 'boolean',
 			description: nls.localize('chat.tools.confirmationCarousel', "When enabled, multiple tool confirmations are batched into a carousel above the input."),
-			default: false,
+			default: product.quality !== 'stable',
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
