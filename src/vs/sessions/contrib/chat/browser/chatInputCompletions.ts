@@ -5,6 +5,8 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -16,10 +18,11 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IChatAgentService } from '../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 
@@ -53,8 +56,10 @@ export class ChatInputCompletions extends Disposable {
 		private readonly _getWorkspaceFolderUri: () => URI | undefined,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ISearchService private readonly searchService: ISearchService,
+		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -85,8 +90,12 @@ export class ChatInputCompletions extends Disposable {
 					return null;
 				}
 
+				const chatSessionContributions = this.chatSessionsService.getAllChatSessionContributions();
+				const chatSessionAgentIds = new Set(chatSessionContributions.map(c => c.type));
+
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => !a.isDefault);
+					.filter(a => !a.isDefault)
+					.filter(a => !chatSessionAgentIds.has(a.id));
 
 				const suggestions: CompletionItem[] = agents.map((agent, i) => {
 					const agentLabel = `${chatAgentLeader}${agent.name}`;
@@ -152,6 +161,11 @@ export class ChatInputCompletions extends Disposable {
 		range: { insert: Range; replace: Range; varWord: { word: string; startColumn: number; endColumn: number } | null },
 		token: CancellationToken,
 	): Promise<void> {
+		const folderUri = this._getWorkspaceFolderUri();
+		if (!folderUri) {
+			return;
+		}
+
 		const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
 
 		const makeCompletionItem = (resource: URI, kind: FileKind): CompletionItem => {
@@ -175,7 +189,7 @@ export class ChatInputCompletions extends Disposable {
 		};
 
 		// Extract search pattern from the typed word (strip leading #/@ and optional "file:" prefix)
-		let pattern: string | undefined;
+		let pattern = '';
 		if (range.varWord?.word) {
 			let raw = range.varWord.word;
 			if (raw.startsWith(chatVariableLeader) || raw.startsWith(chatAgentLeader)) {
@@ -184,18 +198,11 @@ export class ChatInputCompletions extends Disposable {
 			if (raw.toLowerCase().startsWith('file:')) {
 				raw = raw.slice(5);
 			}
-			if (raw) {
-				pattern = raw;
-			}
+			pattern = raw;
 		}
 
-		// Search workspace files
-		if (pattern) {
-			const folderUri = this._getWorkspaceFolderUri();
-			if (!folderUri) {
-				return;
-			}
-
+		// For local/remote URIs, use the search service
+		if (folderUri.scheme === Schemas.file || folderUri.scheme === Schemas.vscodeRemote) {
 			const cacheKey = this._getOrCreateCacheKey();
 			if (token.isCancellationRequested) {
 				return;
@@ -217,8 +224,52 @@ export class ChatInputCompletions extends Disposable {
 					result.suggestions.push(makeCompletionItem(file.resource, FileKind.FILE));
 				}
 			} catch {
-				// Search may fail for virtual filesystems
+				// Search may fail
 			}
+		} else {
+			// For virtual filesystems (e.g. github-remote-file://), walk via IFileService
+			const patternLower = pattern.toLowerCase();
+			try {
+				await this._collectFilesViaFileService(folderUri, patternLower, result, makeCompletionItem, 30, 10, token);
+			} catch {
+				// File service walk may fail
+			}
+		}
+	}
+
+	private async _collectFilesViaFileService(
+		uri: URI,
+		pattern: string,
+		result: CompletionList,
+		makeItem: (resource: URI, kind: FileKind) => CompletionItem,
+		maxResults: number,
+		maxDepth: number,
+		token?: CancellationToken,
+		depth = 0,
+	): Promise<void> {
+		if (result.suggestions.length >= maxResults || depth > maxDepth || token?.isCancellationRequested) {
+			return;
+		}
+
+		try {
+			const stat = await this.fileService.resolve(uri);
+			if (!stat.children) {
+				return;
+			}
+			for (const child of stat.children) {
+				if (result.suggestions.length >= maxResults || token?.isCancellationRequested) {
+					return;
+				}
+				const name = basename(child.resource).toLowerCase();
+				if (!pattern || name.includes(pattern)) {
+					result.suggestions.push(makeItem(child.resource, child.isDirectory ? FileKind.FOLDER : FileKind.FILE));
+				}
+				if (child.isDirectory) {
+					await this._collectFilesViaFileService(child.resource, pattern, result, makeItem, maxResults, maxDepth, token, depth + 1);
+				}
+			}
+		} catch {
+			// Ignore errors
 		}
 	}
 
