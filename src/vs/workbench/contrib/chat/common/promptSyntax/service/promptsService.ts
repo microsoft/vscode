@@ -259,6 +259,12 @@ export interface ICustomAgent {
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
+
+	/**
+	 * Optional context key expression. When set, the agent is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 export interface IAgentInstructions {
@@ -325,6 +331,12 @@ export interface IInstructionFile {
 	 * The source that produced this prompt path.
 	 */
 	readonly source?: PromptFileSource;
+
+	/**
+	 * Optional context key expression. When set, the instruction file is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 /**
@@ -633,8 +645,13 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeSkills: Event<void>;
 
 	/**
+	 * Event that is triggered when the effective hook availability or configuration changes.
+	 */
+	readonly onDidChangeHooks: Event<void>;
+
+	/**
 	 * Gets all hooks collected from hooks.json files.
-	 * The result is cached and invalidated when hook files change.
+	 * The result is cached and invalidated when the effective hook availability or configuration changes.
 	 */
 	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
 

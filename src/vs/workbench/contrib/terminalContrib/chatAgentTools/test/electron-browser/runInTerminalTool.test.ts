@@ -274,9 +274,13 @@ suite('RunInTerminalTool', () => {
 
 			const toolData = await instantiationService.invokeFunction(createRunInTerminalToolData);
 			const properties = toolData.inputSchema?.properties as Record<string, object> | undefined;
+			const requestUnsandboxedExecutionProperty = properties?.['requestUnsandboxedExecution'] as { description?: string } | undefined;
+			const requestUnsandboxedExecutionReasonProperty = properties?.['requestUnsandboxedExecutionReason'] as { description?: string } | undefined;
 
 			ok(properties?.['requestUnsandboxedExecution'], 'Expected requestUnsandboxedExecution in schema when sandbox is enabled');
 			ok(properties?.['requestUnsandboxedExecutionReason'], 'Expected requestUnsandboxedExecutionReason in schema when sandbox is enabled');
+			ok(requestUnsandboxedExecutionProperty?.description?.includes('after first executing the command in sandbox and observing that sandboxing caused the failure'), 'Expected schema description to require a sandboxed first attempt');
+			ok(requestUnsandboxedExecutionReasonProperty?.description?.includes('sandboxed execution failure or blocked-domain requirement'), 'Expected reason schema description to require concrete sandbox justification');
 		});
 
 		test('should not include requestUnsandboxedExecution in schema when sandbox is disabled', async () => {
@@ -343,6 +347,7 @@ suite('RunInTerminalTool', () => {
 
 			ok(toolData.modelDescription?.includes('github.com, npmjs.org'), 'Expected allowed domains in description');
 			ok(toolData.modelDescription?.includes('evil.com'), 'Expected denied domains in description');
+			ok(toolData.modelDescription?.includes('without first executing the command in sandbox mode'), 'Expected model description to require a sandboxed first attempt before unsandboxing');
 		});
 
 		test('should exclude denied domains from effective allowed list', async () => {

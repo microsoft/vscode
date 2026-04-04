@@ -44,10 +44,11 @@ export class SessionDataService implements ISessionDataService {
 		userDataPath: URI,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		getDbPath?: (key: string) => string, // for testing
 	) {
 		this._basePath = URI.joinPath(userDataPath, 'agentSessionData');
 		this._databases = new SessionDatabaseCollection(
-			key => URI.joinPath(this._basePath, key, 'session.db').fsPath,
+			getDbPath ?? (key => URI.joinPath(this._basePath, key, 'session.db').fsPath),
 			this._logService,
 		);
 	}

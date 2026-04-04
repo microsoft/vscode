@@ -141,7 +141,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 					// Return the webContents so Electron can complete the window.open() call
 					return childView.webContents;
-				}
+				},
+
+				// We want the standard browser behavior as opposed to Electron's default of closing the new window when the parent is closed
+				outlivesOpener: true
 			};
 		});
 
@@ -236,7 +239,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		// Loading state events
 		webContents.on('did-start-loading', () => {
 			this._lastError = undefined;
-			fireLoadingEvent(true);
+
+			// Don't fire loading events for e.g. same-document navigations
+			if (webContents.isLoadingMainFrame()) {
+				fireLoadingEvent(true);
+			}
 		});
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
