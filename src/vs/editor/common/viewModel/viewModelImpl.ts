@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
 import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations, FindComputedEditorOptionValueById } from '../config/editorOptions.js';
-import { EDITOR_FONT_DEFAULTS } from '../config/fontInfo.js';
+import { BareFontInfo, EDITOR_FONT_DEFAULTS, FontInfo } from '../config/fontInfo.js';
 import { CursorsController } from '../cursor/cursor.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
 import { CursorChangeReason } from '../cursorEvents.js';
@@ -35,7 +35,7 @@ import { ViewLayout } from '../viewLayout/viewLayout.js';
 import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
 import { ILineBreaksComputer, ILineBreaksComputerContext, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
 import { ViewEventHandler } from '../viewEventHandler.js';
-import { ILineHeightChangeAccessor, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ILineHeightChangeAccessor, IFontInfoReader, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
 import { ViewModelDecorations } from './viewModelDecorations.js';
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelFontChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelLineHeightChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent, WidgetFocusChangedEvent } from '../viewModelEventDispatcher.js';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
@@ -77,6 +77,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
 		private readonly _transactionalTarget: IBatchableTarget,
+		private readonly _fontInfoReader: IFontInfoReader,
 	) {
 		super();
 
@@ -568,20 +569,76 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontSizeAtPosition(position: IPosition): string | null {
+	public getFontAtPosition(position: IPosition): FontInfo {
+		const options = this._configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
-			return null;
+			return fontInfo;
 		}
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
-		let fontSize: string = this._configuration.options.get(EditorOption.fontInfo).fontSize + 'px';
+		let candidateFontSize: number | undefined;
+		let candidateFontFamily: string | undefined;
 		for (const fontDecoration of fontDecorations) {
-			if (fontDecoration.options.fontSize) {
-				fontSize = fontDecoration.options.fontSize;
+			if (!candidateFontSize && fontDecoration.options.fontSize) {
+				candidateFontSize = fontDecoration.options.fontSize;
+			}
+			if (!candidateFontFamily && fontDecoration.options.fontFamily) {
+				candidateFontFamily = fontDecoration.options.fontFamily;
+			}
+			if (candidateFontSize && candidateFontFamily) {
 				break;
 			}
 		}
-		return fontSize;
+		if (!candidateFontSize && !candidateFontFamily && lineHeight === fontInfo.lineHeight) {
+			return fontInfo;
+		}
+		const defaultFontSize = options.get(EditorOption.fontSize);
+		const fontFamily = candidateFontFamily ?? fontInfo.fontFamily;
+		const fontSize = candidateFontSize ? candidateFontSize * defaultFontSize : defaultFontSize;
+		const fontWeight = options.get(EditorOption.fontWeight);
+		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
+		const fontVariationSettings = options.get(EditorOption.fontVariations);
+		const letterSpacing = options.get(EditorOption.letterSpacing);
+		const bareFontInfo = BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, fontInfo.pixelRatio, this._configuration.isSimpleWidget);
+		return this._fontInfoReader.readFontInfo(bareFontInfo);
+	}
+
+	public getLineFontMaxAscentDescentMetrics(lineNumber: number): { maxAscent: number; maxDescent: number } {
+		const options = this._configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		let maxAscent = fontInfo.fontAscent;
+		let maxDescent = fontInfo.fontDescent;
+		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
+		if (!allowVariableFonts) {
+			return { maxAscent, maxDescent };
+		}
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(lineNumber);
+		const lineRange = new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber));
+		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(lineRange);
+		const fontDecorations = this.model.getFontDecorationsInRange(modelRange, this._editorId);
+		const defaultFontSize = options.get(EditorOption.fontSize);
+		const fontWeight = options.get(EditorOption.fontWeight);
+		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
+		const fontVariationSettings = options.get(EditorOption.fontVariations);
+		const letterSpacing = options.get(EditorOption.letterSpacing);
+
+		const seen = new Set<string>();
+		for (const fontDecoration of fontDecorations) {
+			const fontSize = fontDecoration.options.fontSize ? fontDecoration.options.fontSize * defaultFontSize : defaultFontSize;
+			const fontFamily = fontDecoration.options.fontFamily ?? fontInfo.fontFamily;
+			const key = `${fontFamily}-${fontSize}`;
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			const bareFontInfo = BareFontInfo._create(fontFamily, fontWeight, fontSize, fontFeatureSettings, fontVariationSettings, lineHeight, letterSpacing, fontInfo.pixelRatio, this._configuration.isSimpleWidget);
+			const decorationFontInfo = this._fontInfoReader.readFontInfo(bareFontInfo);
+			maxAscent = Math.max(maxAscent, decorationFontInfo.fontAscent);
+			maxDescent = Math.max(maxDescent, decorationFontInfo.fontDescent);
+		}
+		return { maxAscent, maxDescent };
 	}
 
 	/**
