@@ -1,0 +1,17 @@
+{
+	"name": "@codamente/server",
+	"version": "0.0.1",
+	"private": true,
+	"description": "Codamente host registry server — manages agent host registration, discovery, and health for VS Code extensions and mobile clients.",
+	"main": "./out/server.js",
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"watch": "tsc -p tsconfig.json --watch",
+		"start": "node out/server.js",
+		"dev": "tsc -p tsconfig.json && node out/server.js"
+	},
+	"devDependencies": {
+		"@types/node": "22.x",
+		"typescript": "^5.7.0"
+	}
+}
