@@ -135,6 +135,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private static readonly _urlRegex = /(?:https?|wss?):\/\/[^\s'"`|&;<>]+/gi;
 	private static readonly _sshRemoteRegex = /(?:^|[\s'"`])(?:[^\s@:'"`]+@)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::[^\s'"`|&;<>]+)(?=$|[\s'"`|&;<>])/gi;
 	private static readonly _hostRegex = /(?:^|[\s'"`(=])([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::\d+)?(?=(?:\/[^\s'"`|&;<>]*)?(?:$|[\s'"`)\]|,;|&<>]))/gi;
+	private static readonly _fileExtensionSuffixes = new Set([
+		'7z', 'bz2', 'cjs', 'class', 'cpp', 'cs', 'css', 'csv', 'dll', 'exe', 'gif', 'gz', 'ico', 'jar',
+		'env', 'java', 'jpeg', 'jpg', 'js', 'json', 'jsx', 'lock', 'log', 'md', 'mjs', 'pdf', 'php', 'png',
+		'py', 'rar', 'rs', 'so', 'sql', 'svg', 'tar', 'tgz', 'toml', 'ts', 'tsx', 'txt', 'wasm', 'webp',
+		'xml', 'yaml', 'yml', 'zip'
+	]);
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -565,6 +571,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 		// Validate that the host part only contains valid hostname characters.
 		if (!/^[a-z0-9.-]+$/.test(host)) {
+			return undefined;
+		}
+
+		// Disallow patterns that look like file names with common extensions, as these are unlikely to be intended as network domains and may be false positives from the regex.
+		const lastLabel = host.slice(host.lastIndexOf('.') + 1);
+		if (TerminalSandboxService._fileExtensionSuffixes.has(lastLabel)) {
 			return undefined;
 		}
 

@@ -414,6 +414,39 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.blockedDomains, undefined, 'Malformed URL authorities should be ignored');
 	});
 
+	test('should ignore file-extension suffixes that look like domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const javascriptResult = sandboxService.wrapCommand('cat bundle.js', false, 'bash');
+		strictEqual(javascriptResult.isSandboxWrapped, true, 'File extensions such as .js should not trigger blocked-domain prompts');
+		strictEqual(javascriptResult.blockedDomains, undefined, 'File extensions such as .js should not be reported as domains');
+
+		const jsonResult = sandboxService.wrapCommand('cat package.json', false, 'bash');
+		strictEqual(jsonResult.isSandboxWrapped, true, 'File extensions such as .json should not trigger blocked-domain prompts');
+		strictEqual(jsonResult.blockedDomains, undefined, 'File extensions such as .json should not be reported as domains');
+	});
+
+	test('should not treat filenames in commands as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const commands = [
+			'node server.js',
+			'php index.php',
+			'java -jar app.java',
+			'cat styles.css',
+			'cat README.md',
+			'cat .env',
+		];
+
+		for (const command of commands) {
+			const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
+			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
+		}
+	});
+
 	test('should not fall back to deprecated settings outside user scope', async () => {
 		const originalInspect = configurationService.inspect.bind(configurationService);
 		configurationService.inspect = <T>(key: string) => {
