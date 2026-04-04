@@ -7,6 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
+import { RenderIndentGuides, IStickyScrollDelegate, StickyScrollNode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -38,6 +39,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 export interface IChatListWidgetStyles {
 	listForeground?: string;
 	listBackground?: string;
+	listShadow?: string;
 }
 
 export interface IChatListWidgetOptions {
@@ -113,6 +115,11 @@ export interface IChatListWidgetOptions {
 	readonly getCurrentModeInfo?: () => IChatRequestModeInfo | undefined;
 
 	/**
+	 * Callback to get the current editing input value.
+	 */
+	readonly getEditingValue?: () => string | undefined;
+
+	/**
 	 * The render style for the chat widget. Affects minimum height behavior.
 	 */
 	readonly renderStyle?: 'compact' | 'minimal';
@@ -176,6 +183,7 @@ export class ChatListWidget extends Disposable {
 	//#region Private fields
 
 	private readonly _tree: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
+	private readonly _delegate: ChatListDelegate;
 	private readonly _renderer: ChatListItemRenderer;
 
 	private _viewModel: IChatViewModel | undefined;
@@ -297,17 +305,18 @@ export class ChatListWidget extends Disposable {
 		));
 
 		// Create delegate
-		const delegate = scopedInstantiationService.createInstance(
+		this._delegate = scopedInstantiationService.createInstance(
 			ChatListDelegate,
 			options.defaultElementHeight ?? 200
 		);
 
 		// Create renderer delegate
 		const rendererDelegate: IChatRendererDelegate = {
-			getListLength: () => this._tree.getNode(null).visibleChildrenCount,
+			getListLength: () => this.getItems().length,
 			onDidScroll: this.onDidScroll,
 			container: this._container,
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
+			getEditingValue: options.getEditingValue,
 		};
 
 		// Create renderer
@@ -364,7 +373,7 @@ export class ChatListWidget extends Disposable {
 			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'ChatList',
 			this._container,
-			delegate,
+			this._delegate,
 			[this._renderer],
 			{
 				identityProvider: { getId: (e: ChatTreeItem) => e.id },
@@ -372,6 +381,25 @@ export class ChatListWidget extends Disposable {
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
+				enableStickyScroll: true,
+				stickyScrollMaxItemCount: 1,
+				stickyScrollMaxNodeHeight: 150,
+				indent: 0,
+				expandOnDoubleClick: false,
+				expandOnlyOnTwistieClick: true,
+				allowNonCollapsibleParents: true,
+				renderIndentGuides: RenderIndentGuides.None,
+				stickyScrollDelegate: {
+					constrainStickyScrollNodes(stickyNodes: StickyScrollNode<ChatTreeItem, FuzzyScore>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<ChatTreeItem, FuzzyScore>[] {
+						for (let i = 0; i < stickyNodes.length; i++) {
+							const stickyNodeBottom = stickyNodes[i].position + stickyNodes[i].height;
+							if (stickyNodeBottom > maxWidgetHeight || i >= stickyScrollMaxItemCount) {
+								return stickyNodes.slice(0, i);
+							}
+						}
+						return stickyNodes;
+					},
+				} satisfies IStickyScrollDelegate<ChatTreeItem, FuzzyScore>,
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (e: ChatTreeItem) =>
@@ -396,6 +424,9 @@ export class ChatListWidget extends Disposable {
 					listFocusAndSelectionForeground: styles.listForeground,
 					listActiveSelectionIconForeground: undefined,
 					listInactiveSelectionIconForeground: undefined,
+					treeStickyScrollBackground: styles.listBackground,
+					treeStickyScrollBorder: undefined,
+					treeStickyScrollShadow: styles.listShadow,
 				}
 			}
 		));
@@ -528,11 +559,28 @@ export class ChatListWidget extends Disposable {
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
 
-		const treeItems: ITreeElement<ChatTreeItem>[] = items.map(item => ({
-			element: item,
-			collapsed: false,
-			collapsible: false,
-		}));
+		// Structure as a tree: responses are children of their preceding request
+		const treeItems: ITreeElement<ChatTreeItem>[] = [];
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (isRequestVM(item)) {
+				const children: ITreeElement<ChatTreeItem>[] = [];
+				// Collect following responses as children
+				while (i + 1 < items.length && isResponseVM(items[i + 1])) {
+					i++;
+					children.push({ element: items[i], collapsed: false, collapsible: false });
+				}
+				treeItems.push({
+					element: item,
+					collapsed: false,
+					collapsible: false,
+					children,
+				});
+			} else {
+				// Pending dividers and other non-request items remain at root
+				treeItems.push({ element: item, collapsed: false, collapsible: false });
+			}
+		}
 
 		const editing = this._viewModel.editing;
 
@@ -622,11 +670,17 @@ export class ChatListWidget extends Disposable {
 	private getItems(): ChatTreeItem[] {
 		const items: ChatTreeItem[] = [];
 		const root = this._tree.getNode(null);
-		for (const child of root.children) {
-			if (child.element) {
-				items.push(child.element);
+		const collect = (children: Iterable<typeof root>) => {
+			for (const child of children) {
+				if (child.visible && child.element) {
+					items.push(child.element);
+				}
+				if (!child.collapsed) {
+					collect(child.children);
+				}
 			}
-		}
+		};
+		collect(root.children);
 		return items;
 	}
 

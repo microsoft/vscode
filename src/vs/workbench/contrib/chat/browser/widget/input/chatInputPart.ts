@@ -144,6 +144,7 @@ export interface IChatInputStyles {
 	overlayBackground: string;
 	listForeground: string;
 	listBackground: string;
+	listShadow?: string;
 }
 
 export interface IChatInputPartOptions {
