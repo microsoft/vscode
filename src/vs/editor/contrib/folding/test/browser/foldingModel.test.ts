@@ -12,10 +12,11 @@ import { Selection } from '../../../../common/core/selection.js';
 import { IModelDecorationsChangeAccessor, ITextModel, TrackedRangeStickiness } from '../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../common/model/textModel.js';
 import { toSelectedLines } from '../../browser/folding.js';
-import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp } from '../../browser/foldingModel.js';
-import { FoldingRegion } from '../../browser/foldingRanges.js';
+import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, setCollapseStateForType } from '../../browser/foldingModel.js';
+import { FoldingRegion, FoldingRegions, FoldRange, FoldSource } from '../../browser/foldingRanges.js';
 import { computeRanges } from '../../browser/indentRangeProvider.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { FoldingRangeKind } from '../../../../common/languages.js';
 
 
 interface ExpectedRegion {
@@ -941,4 +942,313 @@ suite('Folding Model', () => {
 			textModel.dispose();
 		}
 	});
+
+	test('setCollapseStateForType - block comments folding', () => {
+		const lines = [
+		/* 1*/	'/**',
+		/* 2*/	' * Class documentation',
+		/* 3*/	' */',
+		/* 4*/	'class TestClass {',
+		/* 5*/	'  /**',
+		/* 6*/	'   * Method documentation',
+		/* 7*/	'   */',
+		/* 8*/	'  method() {',
+		/* 9*/	'    /*',
+		/* 10*/	'     * Inline comment',
+		/* 11*/	'     */',
+		/* 12*/	'    return true;',
+		/* 13*/	'  }',
+		/* 14*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			// Create folding ranges with types
+			const ranges = computeRanges(textModel, false, undefined);
+
+			// Create a mock that includes type information for block comments
+			const foldRanges: FoldRange[] = [];
+			for (let i = 0; i < ranges.length; i++) {
+				const start = ranges.getStartLineNumber(i);
+				const end = ranges.getEndLineNumber(i);
+				// Mark block comment ranges as Comment type
+				let type: string | undefined = undefined;
+				if (start === 1 || start === 5 || start === 9) {
+					type = FoldingRangeKind.Comment.value;
+				}
+				foldRanges.push({
+					startLineNumber: start,
+					endLineNumber: end,
+					type: type,
+					isCollapsed: false,
+					source: FoldSource.provider
+				});
+			}
+
+			const typedRanges = FoldingRegions.fromFoldRanges(foldRanges);
+			foldingModel.update(typedRanges);
+
+			const r1 = r(1, 3, false);
+			const r2 = r(4, 13, false);
+			const r3 = r(5, 7, false);
+			const r4 = r(8, 12, false);
+			const r5 = r(9, 11, false);
+
+			// Test initial ranges
+			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+
+			// Test folding all block comments
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, true);
+			assertFoldedRanges(foldingModel, [r(1, 3), r(5, 7), r(9, 11)], 'block comments should be folded');
+
+			// Test unfolding all block comments
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, false);
+			assertFoldedRanges(foldingModel, [], 'block comments should be unfolded');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('setCollapseStateForMatchingLines - block comments with regex', () => {
+		const lines = [
+		/* 1*/	'/**',
+		/* 2*/	' * Header comment',
+		/* 3*/	' */',
+		/* 4*/	'function test() {',
+		/* 5*/	'  /**',
+		/* 6*/	'   * Function comment',
+		/* 7*/	'   */',
+		/* 8*/	'  if (true) {',
+		/* 9*/	'    /*',
+		/* 10*/	'     * Block comment',
+		/* 11*/	'     */',
+		/* 12*/	'    return;',
+		/* 13*/	'  }',
+		/* 14*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			// Create folding ranges with types
+			const ranges = computeRanges(textModel, false, undefined);
+
+			// Create a proper mock that includes type information for block comments
+			const foldRanges: FoldRange[] = [];
+			for (let i = 0; i < ranges.length; i++) {
+				const start = ranges.getStartLineNumber(i);
+				const end = ranges.getEndLineNumber(i);
+				// Mark block comment ranges as Comment type
+				let type: string | undefined = undefined;
+				if (start === 1 || start === 5 || start === 9) {
+					type = FoldingRangeKind.Comment.value;
+				}
+				foldRanges.push({
+					startLineNumber: start,
+					endLineNumber: end,
+					type: type,
+					isCollapsed: false,
+					source: FoldSource.provider
+				});
+			}
+
+			const typedRanges = FoldingRegions.fromFoldRanges(foldRanges);
+			foldingModel.update(typedRanges);
+
+			const r1 = r(1, 3, false);
+			const r2 = r(4, 13, false);
+			const r3 = r(5, 7, false);
+			const r4 = r(8, 12, false);
+			const r5 = r(9, 11, false);
+
+			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+
+			// Test folding block comments using regex pattern (simulates what FoldAllBlockCommentsAction does)
+			const blockCommentRegex = new RegExp('^\\s*' + escapeRegExpCharacters('/*'));
+			setCollapseStateForMatchingLines(foldingModel, blockCommentRegex, true);
+			assertFoldedRanges(foldingModel, [r(1, 3), r(5, 7), r(9, 11)], 'block comments should be folded');
+
+			// Test unfolding block comments using regex pattern (simulates what UnfoldAllBlockCommentsAction does)
+			setCollapseStateForMatchingLines(foldingModel, blockCommentRegex, false);
+			assertFoldedRanges(foldingModel, [], 'block comments should be unfolded');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('block comments folding - mixed with other content', () => {
+		const lines = [
+		/* 1*/	'/**',
+		/* 2*/	' * File header',
+		/* 3*/	' */',
+		/* 4*/	'class MyClass {',
+		/* 5*/	'  constructor() {',
+		/* 6*/	'    this.value = 1;',
+		/* 7*/	'  }',
+		/* 8*/	'',
+		/* 9*/	'  /**',
+		/* 10*/	'   * Method docs',
+		/* 11*/	'   */',
+		/* 12*/	'  getValue() {',
+		/* 13*/	'    return this.value;',
+		/* 14*/	'  }',
+		/* 15*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const ranges = computeRanges(textModel, false, undefined);
+			const foldRanges: FoldRange[] = [];
+			for (let i = 0; i < ranges.length; i++) {
+				const start = ranges.getStartLineNumber(i);
+				const end = ranges.getEndLineNumber(i);
+				let type: string | undefined = undefined;
+				if (start === 1 || start === 9) {
+					type = FoldingRangeKind.Comment.value;
+				}
+				foldRanges.push({
+					startLineNumber: start,
+					endLineNumber: end,
+					type: type,
+					isCollapsed: false,
+					source: FoldSource.provider
+				});
+			}
+
+			const typedRanges = FoldingRegions.fromFoldRanges(foldRanges);
+			foldingModel.update(typedRanges);
+
+			const r1 = r(1, 3, false);  // block comment
+			const r2 = r(4, 14, false); // class
+			const r3 = r(5, 6, false);  // constructor
+			const r4 = r(9, 11, false); // block comment
+			const r5 = r(12, 13, false); // method
+
+			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+
+			// Fold some non-comment content first
+			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(5)!]);
+			assertFoldedRanges(foldingModel, [r(5, 6)], 'constructor should be folded');
+
+			// Now fold block comments - should not affect other folded content
+			const blockCommentRegex = new RegExp('^\\s*' + escapeRegExpCharacters('/*'));
+			setCollapseStateForMatchingLines(foldingModel, blockCommentRegex, true);
+			assertFoldedRanges(foldingModel, [r(1, 3), r(5, 6), r(9, 11)], 'block comments and constructor should be folded');
+
+			// Unfold block comments - should not affect constructor
+			setCollapseStateForMatchingLines(foldingModel, blockCommentRegex, false);
+			assertFoldedRanges(foldingModel, [r(5, 6)], 'only constructor should remain folded');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('block comments folding - no comments in file', () => {
+		const lines = [
+		/* 1*/	'function test() {',
+		/* 2*/	'  const x = 1;',
+		/* 3*/	'  const y = 2;',
+		/* 4*/	'  return x + y;',
+		/* 5*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			const ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			// Test folding block comments when there are none
+			const blockCommentRegex = new RegExp('^\\s*' + escapeRegExpCharacters('/*'));
+			setCollapseStateForMatchingLines(foldingModel, blockCommentRegex, true);
+
+			// Should not fold anything
+			assertFoldedRanges(foldingModel, [], 'no comments should be folded');
+
+			// Test unfolding when there are no folded comments
+			setCollapseStateForMatchingLines(foldingModel, blockCommentRegex, false);
+			assertFoldedRanges(foldingModel, [], 'still no comments should be folded');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('block comments folding - empty file', () => {
+		const textModel = createTextModel('');
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			const ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			// Test folding on empty file
+			const blockCommentRegex = new RegExp('^\\s*' + escapeRegExpCharacters('/*'));
+			setCollapseStateForMatchingLines(foldingModel, blockCommentRegex, true);
+
+			// Should not crash and should not fold anything
+			assertFoldedRanges(foldingModel, [], 'empty file should have no folded ranges');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('setCollapseStateForType - Comment type folding and unfolding', () => {
+		const lines = [
+		/* 1*/	'/**',
+		/* 2*/	' * File comment',
+		/* 3*/	' */',
+		/* 4*/	'// This is a line comment that should not fold',
+		/* 5*/	'//#region test',
+		/* 6*/	'function foo() {',
+		/* 7*/	'  /**',
+		/* 8*/	'   * Method comment',
+		/* 9*/	'   */',
+		/* 10*/	'  // Another line comment',
+		/* 11*/	'  return 42;',
+		/* 12*/	'}',
+		/* 13*/	'//#endregion'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
+			const foldRanges: FoldRange[] = [];
+			for (let i = 0; i < ranges.length; i++) {
+				const start = ranges.getStartLineNumber(i);
+				const end = ranges.getEndLineNumber(i);
+				let type: string | undefined = undefined;
+
+				// Only mark block comments as Comment type, not line comments or regions
+				if (start === 1 || start === 7) {
+					type = FoldingRangeKind.Comment.value;
+				} else if (start === 5) {
+					type = FoldingRangeKind.Region.value;
+				}
+				foldRanges.push({
+					startLineNumber: start,
+					endLineNumber: end,
+					type: type,
+					isCollapsed: false,
+					source: FoldSource.provider
+				});
+			}
+
+			const typedRanges = FoldingRegions.fromFoldRanges(foldRanges);
+			foldingModel.update(typedRanges);
+
+			// Test folding only Comment type (should only fold block comments)
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, true);
+
+			// Verify only block comments are folded
+			assertFoldedRanges(foldingModel, [r(1, 3), r(7, 9)], 'only block comments should be folded');
+
+			// Test unfolding Comment type
+			setCollapseStateForType(foldingModel, FoldingRangeKind.Comment.value, false);
+			assertFoldedRanges(foldingModel, [], 'all comments should be unfolded');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
 });
