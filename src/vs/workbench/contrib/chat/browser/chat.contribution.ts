@@ -201,6 +201,13 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 		},
+		'chat.showInActivityBar': {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.showInActivityBar', "When enabled, shows a Chat icon in the Activity Bar for quick access to Chat."),
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental'],
+		},
 		'chat.fontSize': {
 			type: 'number',
 			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages."),

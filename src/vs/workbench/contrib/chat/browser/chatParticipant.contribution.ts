@@ -30,7 +30,7 @@ import { IChatAgentData, IChatAgentService } from '../common/participants/chatAg
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { ChatViewId, ChatViewContainerId } from './chat.js';
+import { ChatViewId, ChatViewContainerId, ChatShortcutViewContainerId } from './chat.js';
 import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
 
 // --- Chat Container &  View Registration
@@ -78,6 +78,40 @@ const chatViewDescriptor: IViewDescriptor = {
 	)
 };
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
+
+// --- Chat Shortcut in Activity Bar (ExP)
+// Registers a lightweight view container in the sidebar so a Chat icon appears in the top
+// section of the Activity Bar. Clicking it toggles Chat in its configured location rather
+// than opening a sidebar panel — the open is intercepted by ActivityBarCompositeBar.
+
+const chatShortcutViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+	id: ChatShortcutViewContainerId,
+	title: localize2('chat.viewContainer.label', "Chat"),
+	icon: chatViewIcon,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ChatShortcutViewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: `${ChatShortcutViewContainerId}.state`,
+	hideIfEmpty: true,
+	order: 100,
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
+
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+	id: `${ChatShortcutViewContainerId}.view`,
+	name: localize2('chat.viewContainer.label', "Chat"),
+	canToggleVisibility: false,
+	canMoveView: false,
+	ctorDescriptor: new SyncDescriptor(ChatViewPane),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.has('config.chat.showInActivityBar'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.or(
+				ChatContextKeys.Setup.hidden,
+				ChatContextKeys.Setup.disabled
+			)?.negate(),
+			ChatContextKeys.panelParticipantRegistered,
+			ChatContextKeys.extensionInvalid
+		)
+	),
+}], chatShortcutViewContainer);
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
