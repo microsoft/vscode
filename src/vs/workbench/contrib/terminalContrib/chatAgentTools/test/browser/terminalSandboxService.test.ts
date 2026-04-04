@@ -427,6 +427,26 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(jsonResult.blockedDomains, undefined, 'File extensions such as .json should not be reported as domains');
 	});
 
+	test('should still treat URL authorities with file-like suffixes as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('curl https://example.zip/path', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
+	});
+
+	test('should still treat ssh remotes with file-like suffixes as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('git clone git@example.zip:owner/repo.git', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH remotes should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
+	});
+
 	test('should not treat filenames in commands as domains', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
