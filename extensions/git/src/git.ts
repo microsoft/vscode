@@ -2551,7 +2551,9 @@ export class Repository {
 			await this.exec(args, { env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent } });
 		} catch (err) {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
-				if (forcePushMode === ForcePushMode.ForceWithLease && /! \[rejected\].*\(stale info\)/m.test(err.stderr || '')) {
+				if (/exceeds.*file size limit|large files detected|this exceeds/im.test(err.stderr || '')) {
+					err.gitErrorCode = GitErrorCodes.FileSizeLimitExceeded;
+				} else if (forcePushMode === ForcePushMode.ForceWithLease && /! \[rejected\].*\(stale info\)/m.test(err.stderr || '')) {
 					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseRejected;
 				} else if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && /! \[rejected\].*\(remote ref updated since checkout\)/m.test(err.stderr || '')) {
 					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseIfIncludesRejected;
