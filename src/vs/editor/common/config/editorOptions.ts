@@ -3423,6 +3423,18 @@ export interface IEditorMinimapOptions {
 	 * Spacing between the section header characters (in CSS px). Defaults to 1.
 	 */
 	sectionHeaderLetterSpacing?: number;
+	/**
+	 * Whether to show a code preview on hover over the minimap. Defaults to true.
+	 */
+	showHoverPreview?: boolean;
+	/**
+	 * Delay in milliseconds before showing the minimap hover preview. Defaults to 300.
+	 */
+	hoverPreviewDelay?: number;
+	/**
+	 * Maximum number of lines to show in the minimap hover preview. Defaults to 5.
+	 */
+	hoverPreviewMaxLines?: number;
 }
 
 /**
@@ -3447,6 +3459,9 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			markSectionHeaderRegex: '\\bMARK:\\s*(?<separator>\-?)\\s*(?<label>.*)$',
 			sectionHeaderFontSize: 9,
 			sectionHeaderLetterSpacing: 1,
+			showHoverPreview: true,
+			hoverPreviewDelay: 300,
+			hoverPreviewMaxLines: 5,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -3532,6 +3547,25 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'number',
 					default: defaults.sectionHeaderLetterSpacing,
 					description: nls.localize('minimap.sectionHeaderLetterSpacing', "Controls the amount of space (in pixels) between characters of section header. This helps the readability of the header in small font sizes.")
+				},
+				'editor.minimap.showHoverPreview': {
+					type: 'boolean',
+					default: defaults.showHoverPreview,
+					description: nls.localize('minimap.showHoverPreview', "Controls whether a code preview is shown when hovering over the minimap.")
+				},
+				'editor.minimap.hoverPreviewDelay': {
+					type: 'number',
+					default: defaults.hoverPreviewDelay,
+					minimum: 0,
+					maximum: 3000,
+					description: nls.localize('minimap.hoverPreviewDelay', "Controls the delay in milliseconds before showing the minimap hover preview.")
+				},
+				'editor.minimap.hoverPreviewMaxLines': {
+					type: 'number',
+					default: defaults.hoverPreviewMaxLines,
+					minimum: 1,
+					maximum: 20,
+					description: nls.localize('minimap.hoverPreviewMaxLines', "Controls the maximum number of lines shown in the minimap hover preview.")
 				}
 			}
 		);
@@ -3567,6 +3601,9 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			markSectionHeaderRegex: markSectionHeaderRegex,
 			sectionHeaderFontSize: EditorFloatOption.clamp(EditorFloatOption.float(input.sectionHeaderFontSize, this.defaultValue.sectionHeaderFontSize), 4, 32),
 			sectionHeaderLetterSpacing: EditorFloatOption.clamp(EditorFloatOption.float(input.sectionHeaderLetterSpacing, this.defaultValue.sectionHeaderLetterSpacing), 0, 5),
+			showHoverPreview: boolean(input.showHoverPreview, this.defaultValue.showHoverPreview),
+			hoverPreviewDelay: EditorIntOption.clampedInt(input.hoverPreviewDelay, this.defaultValue.hoverPreviewDelay, 0, 3000),
+			hoverPreviewMaxLines: EditorIntOption.clampedInt(input.hoverPreviewMaxLines, this.defaultValue.hoverPreviewMaxLines, 1, 20),
 		};
 	}
 }
