@@ -71,6 +71,14 @@ export class NewChatContextAttachments extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
+	addAttachment(entry: IChatRequestVariableEntry): void {
+		if (!this._attachedContext.some(e => e.id === entry.id)) {
+			this._attachedContext.push(entry);
+			this._updateRendering();
+			this._onDidChangeContext.fire();
+		}
+	}
+
 	private readonly _resourceLabels: ResourceLabels;
 
 	constructor(

@@ -48,6 +48,7 @@ import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.j
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { SlashCommandHandler } from './slashCommands.js';
+import { ChatInputCompletions } from './chatInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -367,6 +368,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Slash commands
 		this._slashCommandHandler = this._register(this.instantiationService.createInstance(SlashCommandHandler, this._editor));
+
+		// @ and # completions (agents, files)
+		this._register(this.instantiationService.createInstance(ChatInputCompletions, this._editor, this._contextAttachments, () => this._getContextFolderUri()));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
