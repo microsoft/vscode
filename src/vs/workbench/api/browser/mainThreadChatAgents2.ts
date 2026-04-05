@@ -50,6 +50,7 @@ import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCust
 import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -136,6 +137,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -655,6 +657,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
+		if (this._environmentService.isSessionsWindow) {
+			this._logService.trace(`[MainThreadChatAgents2] Sessions window does not use the customization provider API, ignoring registration from ${extensionId.value}`);
+			return;
+		}
+
 		if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
 			this._logService.trace(`[MainThreadChatAgents2] Customization provider API is disabled, ignoring registration from ${extensionId.value}`);
 			return;
