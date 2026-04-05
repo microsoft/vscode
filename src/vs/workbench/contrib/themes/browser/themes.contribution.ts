@@ -569,7 +569,6 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const configurationService = accessor.get(IConfigurationService);
 
 		const previousTheme = themeService.getColorTheme();
 		const allThemes = await themeService.getColorThemes();
@@ -613,17 +612,7 @@ registerAction2(class extends Action2 {
 				return;
 			}
 
-			(async () => {
-				try {
-					await themeService.setColorTheme(theme, 'auto');
-					await configurationService.updateValue(ThemeSettings.PREFERRED_LIGHT_THEME, ThemeSettingDefaults.COLOR_THEME_LIGHT);
-					await configurationService.updateValue(ThemeSettings.PREFERRED_DARK_THEME, ThemeSettingDefaults.COLOR_THEME_DARK);
-				} catch (error) {
-					if (!isCancellationError(error)) {
-						onUnexpectedError(error);
-					}
-				}
-			})();
+			themeService.setColorTheme(theme, 'auto').catch(onUnexpectedError);
 		}));
 
 		const result = new Promise<void>(resolve => {
