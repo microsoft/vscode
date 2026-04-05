@@ -1016,7 +1016,7 @@
 					]
 				},
 				{
-					"name": "meta.paramter.array-binding-pattern.js",
+					"name": "meta.parameter.array-binding-pattern.js",
 					"begin": "(?<!=|:)\\s*(?:(\\.\\.\\.)\\s*)?(\\[)",
 					"beginCaptures": {
 						"1": {
