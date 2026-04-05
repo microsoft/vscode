@@ -112,6 +112,10 @@ export class SettingsEditor2 extends EditorPane {
 	private static TOC_MIN_WIDTH: number = 100;
 	private static TOC_RESET_WIDTH: number = 200;
 	private static EDITOR_MIN_WIDTH: number = 500;
+	// The minimum width the settings tree view can shrink to inside the splitview.
+	// This must be smaller than EDITOR_MIN_WIDTH to allow the editor pane to fit
+	// within narrow grid cells (e.g. 2x2 editor grid layouts). See #194412.
+	private static SETTINGS_TREE_MIN_WIDTH: number = 200;
 	// Below NARROW_TOTAL_WIDTH, we only render the editor rather than the ToC.
 	private static NARROW_TOTAL_WIDTH: number = this.TOC_RESET_WIDTH + this.EDITOR_MIN_WIDTH;
 
@@ -413,7 +417,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
+	override get minimumWidth(): number { return SettingsEditor2.SETTINGS_TREE_MIN_WIDTH; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 	override get minimumHeight() { return 180; }
 
@@ -988,7 +992,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: this.settingsTreeContainer,
-			minimumSize: SettingsEditor2.EDITOR_MIN_WIDTH,
+			minimumSize: SettingsEditor2.SETTINGS_TREE_MIN_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width, _, height) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
