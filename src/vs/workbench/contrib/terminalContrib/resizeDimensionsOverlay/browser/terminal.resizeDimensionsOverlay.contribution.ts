@@ -8,7 +8,9 @@ import { Disposable, MutableDisposable, type IDisposable } from '../../../../../
 import type { ITerminalContribution, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalResizeDimensionsOverlay } from './terminalResizeDimensionsOverlay.js';
+import { TerminalResizeDimensionsOverlaySettingId } from '../common/terminal.resizeDimensionsOverlay.js';
 
 class TerminalResizeDimensionsOverlayContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.resizeDimensionsOverlay';
@@ -17,11 +19,15 @@ class TerminalResizeDimensionsOverlayContribution extends Disposable implements 
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		if (!this._configurationService.getValue<boolean>(TerminalResizeDimensionsOverlaySettingId.Enabled)) {
+			return;
+		}
 		// Initialize resize dimensions overlay
 		this._ctx.processManager.ptyProcessReady.then(() => {
 			// Wait a second to avoid resize events during startup like when opening a terminal or
