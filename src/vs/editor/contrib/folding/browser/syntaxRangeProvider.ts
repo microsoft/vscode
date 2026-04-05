@@ -10,6 +10,7 @@ import { ITextModel } from '../../../common/model.js';
 import { FoldingContext, FoldingRange, FoldingRangeProvider } from '../../../common/languages.js';
 import { FoldingLimitReporter, RangeProvider } from './folding.js';
 import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges.js';
+import { FoldingPreferencesCapabilities } from './preferences/capabilities.js';
 
 export interface IFoldingRangeData extends FoldingRange {
 	rank: number;
@@ -20,10 +21,11 @@ const foldingContext: FoldingContext = {
 
 const ID_SYNTAX_PROVIDER = 'syntax';
 
+const capabilities: FoldingPreferencesCapabilities = {};
+
 export class SyntaxRangeProvider implements RangeProvider {
-
 	readonly id = ID_SYNTAX_PROVIDER;
-
+	readonly capabilities = capabilities;
 	readonly disposables: DisposableStore;
 
 	constructor(
