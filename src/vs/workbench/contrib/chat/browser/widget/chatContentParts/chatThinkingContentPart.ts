@@ -480,12 +480,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
 
 			// Use a ResizeObserver on the wrapper to detect content growth and drive scrolling.
-			// This mirrors the pattern used by the chat list renderer (ResizeObserver on rowContainer
-			// → immediate height change propagation). ResizeObserver fires AFTER the browser's
-			// layout pass, so reading layout properties (scrollHeight etc.) in its callback is
-			// cheap — the values are already computed. This replaces the MutationObserver→RAF→
-			// scrollHeight pattern, which forced synchronous layout in RAF (before browser layout),
-			// causing 42%+ CPU on "Recalculate style".
 			const wrapperResizeObserver = this._register(new DisposableResizeObserver(() => {
 				if (!this.streamingCompleted && this.domNode.classList.contains('chat-used-context-collapsed')) {
 					this.updateScrollDimensionsFromCache();
