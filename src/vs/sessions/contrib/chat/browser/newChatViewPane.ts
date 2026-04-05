@@ -57,7 +57,7 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
-const MIN_EDITOR_HEIGHT = 50;
+const MIN_EDITOR_HEIGHT = 30; // lineHeight(20) + padding.top(8) + padding.bottom(2) = single line height
 const MAX_EDITOR_HEIGHT = 200;
 
 interface IDraftState {
