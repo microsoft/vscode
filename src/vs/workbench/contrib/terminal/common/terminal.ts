@@ -408,6 +408,7 @@ export const enum TerminalCommandId {
 	KillEditor = 'workbench.action.terminal.killEditor',
 	KillActiveTab = 'workbench.action.terminal.killActiveTab',
 	KillAll = 'workbench.action.terminal.killAll',
+	KillOthers = 'workbench.action.terminal.killOthers',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
 	ShellIntegrationLearnMore = 'workbench.action.terminal.learnMore',
