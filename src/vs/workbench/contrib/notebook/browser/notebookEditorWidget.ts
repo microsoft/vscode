@@ -2756,7 +2756,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	getLayoutInfo(): NotebookLayoutInfo {
 		if (!this._list) {
-			throw new Error('Editor is not initalized successfully');
+			throw new Error('Editor is not initialized successfully');
 		}
 
 		if (!this._fontInfo) {
