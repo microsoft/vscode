@@ -2927,6 +2927,65 @@ suite('PromptsService', () => {
 			registered.dispose();
 		});
 
+		test('should deduplicate skills by URI when Agent Skills Location overlaps with Plugin Locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+
+			// Workspace contains the plugin, so a relative SKILLS_LOCATION_KEY path
+			// resolves to the same directory the plugin registers its skills from.
+			const rootFolder = '/workspace';
+			const rootFolderUri = URI.file(rootFolder);
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			const pluginPath = `${rootFolder}/my-plugin`;
+			const skillUri = URI.file(`${pluginPath}/skills/sdd-init/SKILL.md`);
+
+			// 'my-plugin/skills' is a workspace-relative path that resolves to the
+			// same directory as the plugin's skill URIs → overlap scenario.
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, { 'my-plugin/skills': true });
+
+			await mockFiles(fileService, [
+				{
+					path: skillUri.path,
+					contents: [
+						'---',
+						'name: "sdd-init"',
+						'description: "Initialize Spec-Driven Development"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const enablement = observableValue('testPluginEnablement', 2 /* ContributionEnablementState.EnabledProfile */);
+			const plugin: IAgentPlugin = {
+				uri: URI.file(pluginPath),
+				label: 'my-plugin',
+				enablement,
+				remove: () => { },
+				hooks: observableValue('testPluginHooks', []),
+				commands: observableValue('testPluginCommands', []),
+				skills: observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', [{ uri: skillUri, name: 'sdd-init' }]),
+				agents: observableValue('testPluginAgents', []),
+				instructions: observableValue('testPluginInstructions', []),
+				mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
+			};
+
+			testPluginsObservable.set([plugin], undefined);
+
+			// Check deduplication via findAgentSkills
+			const allResult = await service.findAgentSkills(CancellationToken.None);
+			assert.ok(allResult, 'Should return results');
+			assert.strictEqual(allResult.length, 1, 'Should find exactly 1 skill (not duplicated) when Agent Skills Location overlaps with Plugin Locations');
+			assert.strictEqual(allResult[0].name, 'sdd-init');
+
+			// Check deduplication via getPromptSlashCommands (the user-facing slash command list)
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+			const skillCommands = slashCommands.filter(cmd => cmd.type === PromptsType.skill && cmd.name === 'sdd-init');
+			assert.strictEqual(skillCommands.length, 1, 'Should have exactly 1 slash command for the skill (not duplicated) when Agent Skills Location overlaps with Plugin Locations');
+
+			testPluginsObservable.set([], undefined);
+		});
+
 		test('should include contributed skill files in findAgentSkills', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
