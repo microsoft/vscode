@@ -197,11 +197,13 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		});
 	}
 
-	private readonly _colorDecorationClassRefs = this._register(new DisposableStore());
+	private _colorDecorationClassRefs = this._register(new DisposableStore());
 
 	private updateColorDecorators(colorData: IColorData[]): void {
-		this._colorDecorationClassRefs.clear();
-
+		// Build new CSS class refs into a separate store so that old
+		// decorations keep their CSS classes until the new decorations
+		// are applied, preventing a visible flicker.
+		const newClassRefs = new DisposableStore();
 		const decorations: IModelDeltaDecoration[] = [];
 
 		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
@@ -211,7 +213,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 
-			const ref = this._colorDecorationClassRefs.add(
+			const ref = newClassRefs.add(
 				this._ruleFactory.createClassNameRef({
 					backgroundColor: color
 				})
@@ -238,7 +240,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		const limited = limit < colorData.length ? limit : false;
 		this._decoratorLimitReporter.update(colorData.length, limited);
 
+		// Apply new decorations first, then dispose old CSS classes
 		this._colorDecoratorIds.set(decorations);
+		this._colorDecorationClassRefs.dispose();
+		this._colorDecorationClassRefs = this._register(newClassRefs);
 	}
 
 	private removeAllDecorations(): void {
