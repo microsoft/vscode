@@ -9,6 +9,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IUntypedEditorInput } from '../../../common/editor.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import product from '../../../../platform/product/common/product.js';
 
 export const agentSessionsWelcomeInputTypeId = 'workbench.editors.agentSessionsWelcomeInput';
 export type AgentSessionsWelcomeInitiator = 'startup' | 'command';
@@ -70,6 +73,10 @@ export class AgentSessionsWelcomeInput extends EditorInput {
 
 	override getName() {
 		return localize('agentSessionsWelcome', "Welcome");
+	}
+
+	override getIcon(): ThemeIcon {
+		return product.quality === 'stable' ? Codicon.vscode : Codicon.vscodeInsiders;
 	}
 
 	get showTelemetryNotice(): boolean {
