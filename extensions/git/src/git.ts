@@ -363,6 +363,17 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return undefined;
 }
 
+// https://github.com/microsoft/vscode/issues/280834
+// Strip known informational warning lines from stderr that should
+// not be presented to the user as errors.
+export function sanitizeStderr(stderr: string): string {
+	return stderr
+		.replace(/^warning: [Pp]ermanently added .+ to the list of known hosts\.?.*$/gm, '')
+		.replace(/^Warning: [Pp]ermanently added .+ to the list of known hosts\.?.*$/gm, '')
+		.replace(/^\s*[\r\n]/gm, '')
+		.trim();
+}
+
 // https://github.com/microsoft/vscode/issues/89373
 // https://github.com/git-for-windows/git/issues/2478
 function sanitizePath(path: string): string {
@@ -659,10 +670,14 @@ export class Git {
 		};
 
 		if (bufferResult.exitCode) {
+			// Sanitize stderr to remove informational warnings (e.g., SSH known hosts)
+			// so they are not shown to the user as errors.
+			const sanitizedStderr = sanitizeStderr(result.stderr);
+
 			return Promise.reject<IExecutionResult<string>>(new GitError({
 				message: 'Failed to execute git',
 				stdout: result.stdout,
-				stderr: result.stderr,
+				stderr: sanitizedStderr,
 				exitCode: result.exitCode,
 				gitErrorCode: getGitErrorCode(result.stderr),
 				gitCommand: args[0],
