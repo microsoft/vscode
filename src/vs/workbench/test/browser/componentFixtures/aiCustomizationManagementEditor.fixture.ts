@@ -6,11 +6,14 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { Menu } from '../../../../base/browser/ui/menu/menu.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -55,6 +58,7 @@ import { createMockCodeReviewService } from './sessions/mockCodeReviewService.js
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from './fixtureUtils.js';
+import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 // Ensure theme colors & widget CSS are loaded
 import '../../../../platform/theme/common/colors/inputColors.js';
@@ -752,6 +756,30 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 }
 
 // ============================================================================
+// Harness Dropdown Menu — standalone menu with harness icons
+// ============================================================================
+
+function renderHarnessMenu(ctx: ComponentFixtureContext, activeHarness: CustomizationHarness): void {
+	ctx.container.style.width = '220px';
+	ctx.container.style.padding = '4px';
+
+	const descriptors = [
+		createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]),
+		createCliHarnessDescriptor(getCliUserRoots(userHome), []),
+		createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), []),
+	];
+
+	const actions = descriptors.map(h => {
+		const action = new Action(h.id, h.label, ThemeIcon.asClassName(h.icon), true, () => { });
+		action.checked = h.id === activeHarness;
+		return action;
+	});
+
+	const menu = ctx.disposableStore.add(new Menu(ctx.container, actions, {}, defaultMenuStyles));
+	menu.focus(false);
+}
+
+// ============================================================================
 // Fixtures
 // ============================================================================
 
@@ -949,5 +977,12 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			width: 550,
 			height: 400,
 		}),
+	}),
+
+	// Harness dropdown menu — standalone menu showing Local (checked), CLI, and Claude
+	// with their codicon icons. Verifies icons render in plain Action-based menus.
+	HarnessMenu: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderHarnessMenu(ctx, CustomizationHarness.VSCode),
 	}),
 });
