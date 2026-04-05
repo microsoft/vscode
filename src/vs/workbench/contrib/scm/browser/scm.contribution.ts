@@ -427,6 +427,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('scm.graph.showOutgoingChanges', "Controls whether to show outgoing changes in the Source Control Graph view."),
 			default: true
+		},
+		'scm.allowOpenInModalEditor': {
+			type: 'boolean',
+			description: localize('scm.allowOpenInModalEditor', "Controls whether Source Control diff editors open in a modal editor overlay."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		}
 	}
 });
