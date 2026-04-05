@@ -45,6 +45,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
@@ -391,6 +392,15 @@ export class CreateRemoteAgentJobAction {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const fileService = accessor.get(IFileService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
+
+		// If the user is not signed in, trigger the sign-in/setup flow before continuing
+		if (chatEntitlementService.entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous) {
+			const setupSucceeded = await commandService.executeCommand<boolean | undefined>(CHAT_SETUP_ACTION_ID);
+			if (!setupSucceeded) {
+				return;
+			}
+		}
 
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
@@ -532,6 +542,15 @@ class CreateRemoteAgentJobFromEditorAction {
 			const editorService = accessor.get(IEditorService);
 			const activeEditor = editorService.activeTextEditorControl;
 			const commandService = accessor.get(ICommandService);
+			const chatEntitlementService = accessor.get(IChatEntitlementService);
+
+			// If the user is not signed in, trigger the sign-in/setup flow before continuing
+			if (chatEntitlementService.entitlement === ChatEntitlement.Unknown && !chatEntitlementService.anonymous) {
+				const setupSucceeded = await commandService.executeCommand<boolean | undefined>(CHAT_SETUP_ACTION_ID);
+				if (!setupSucceeded) {
+					return;
+				}
+			}
 
 			if (!activeEditor) {
 				return;
