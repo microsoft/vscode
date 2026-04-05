@@ -19,6 +19,7 @@ import { TerminalCapabilityStore } from '../../../../../platform/terminal/common
 import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
+import { ISCMService } from '../../../scm/common/scm.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalConfigurationService } from '../../browser/terminalConfigurationService.js';
 import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
@@ -467,6 +468,20 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'zsh', shellLaunchConfig: { type: 'Task' } }));
 			strictEqual(terminalLabelComputer.title, 'zsh');
 			strictEqual(terminalLabelComputer.description, '');
+		});
+		test('should resolve branch', () => {
+			instantiationService.stub(ISCMService, {
+				getRepository: (_uri: URI) => ({
+					provider: {
+						rootUri: URI.file(ROOT_1),
+						branchName: { get: () => 'my-branch' }
+					}
+				})
+			} as unknown as ISCMService);
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${branch}', description: '${branch}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: ROOT_1 }));
+			strictEqual(terminalLabelComputer.title, 'my-branch');
+			strictEqual(terminalLabelComputer.description, 'my-branch');
 		});
 		test('should always return static title when specified', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}', description: '${workspaceFolder}' } } } });

@@ -18,6 +18,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, normalizeDriveLetter, template } from '../../../../base/common/labels.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -56,6 +57,7 @@ import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/co
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ISCMService } from '../../scm/common/scm.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IRequestAddInstanceToGroupEvent, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, IXtermColorProvider, TerminalDataTransfers } from './terminal.js';
 import { TerminalLaunchHelpAction } from './terminalActions.js';
@@ -183,6 +185,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _messageTitleDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _widgetManager: TerminalWidgetManager;
 	private readonly _dndObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+	private readonly _scmBranchSubscription: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 	private _description?: string;
 	private _processName: string = '';
@@ -394,6 +397,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@ISCMService private readonly _scmService: ISCMService,
 	) {
 		super();
 
@@ -471,6 +475,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					capabilityListeners.set(e.id, e.capability.onDidChangeCwd(e => {
 						this._cwd = e;
 						this._setTitle(this.title, TitleEventSource.Config);
+						// If the cwd was already known before the CwdDetection capability started
+						// emitting events (for example, via initialCwd or process properties),
+						// ensure we still subscribe to branch name changes for that cwd so that
+						// ${branch} in the tab label will update correctly.
+						if (this._cwd) {
+							this._subscribeToBranchNameChanges(this._cwd);
+						}
 					}));
 					break;
 				}
@@ -2475,6 +2486,52 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 	}
+
+	private _subscribeToBranchNameChanges(cwd: string | undefined): void {
+		// Clear any existing subscription
+		this._scmBranchSubscription.clear();
+
+		if (!cwd) {
+			return;
+		}
+
+		try {
+			let cwdUri: URI | undefined;
+			// Prefer a URI that matches the workspace folder's scheme/authority (for remote workspaces)
+			const workspace = this._workspaceContextService.getWorkspace();
+			for (const folder of workspace.folders) {
+				if (folder.uri.scheme !== Schemas.file && cwd.startsWith(folder.uri.path)) {
+					const relativePath = cwd.substring(folder.uri.path.length);
+					cwdUri = folder.uri.with({ path: folder.uri.path + relativePath });
+					break;
+				}
+			}
+			if (!cwdUri) {
+				// Fallback for local workspaces or when no matching remote folder is found
+				cwdUri = URI.file(cwd);
+			}
+
+			const repository = this._scmService.getRepository(cwdUri);
+			if (!repository) {
+				return;
+			}
+
+			const provider = repository.provider;
+			if (!provider || !provider.rootUri) {
+				return;
+			}
+
+			// Subscribe to branch name changes via the observable
+			this._scmBranchSubscription.value = autorun(reader => {
+				provider.branchName.read(reader);
+				// Trigger label refresh when branch name changes
+				this._labelComputer?.refreshLabel(this);
+			});
+		} catch (error) {
+			// Silently fail if we can't subscribe - this is not critical
+			this._logService.debug(`Failed to subscribe to SCM branch name changes for terminal ${this._instanceId}:`, error);
+		}
+	}
 }
 
 class TerminalInstanceDragAndDropController extends Disposable implements dom.IDragAndDropObserverCallbacks {
@@ -2616,6 +2673,7 @@ interface ITerminalLabelTemplateProperties {
 	task?: string | null | undefined;
 	fixedDimensions?: string | null | undefined;
 	separator?: string | ISeparator | null | undefined;
+	branch?: string | null | undefined;
 	shellType?: string | undefined;
 	shellCommand?: string | undefined;
 	shellPromptInput?: string | undefined;
@@ -2638,7 +2696,8 @@ export class TerminalLabelComputer extends Disposable {
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ISCMService private readonly _scmService: ISCMService
 	) {
 		super();
 	}
@@ -2675,6 +2734,7 @@ export class TerminalLabelComputer extends Disposable {
 				? (instance.fixedRows ? `\u2194${instance.fixedCols} \u2195${instance.fixedRows}` : `\u2194${instance.fixedCols}`)
 				: (instance.fixedRows ? `\u2195${instance.fixedRows}` : ''),
 			separator: { label: this._terminalConfigurationService.config.tabs.separator },
+			branch: this._getBranchName(instance.cwd || instance.initialCwd),
 			shellType: instance.shellType,
 			// Shell command requires high confidence
 			shellCommand: commandDetection?.executingCommand && commandDetection.executingCommandConfidence === 'high' && promptInputModel
@@ -2721,6 +2781,53 @@ export class TerminalLabelComputer extends Disposable {
 		// Remove special characters that could mess with rendering
 		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null }).replace(/[\n\r\t]/g, '').trim();
 		return label === '' && labelType === TerminalLabelType.Title ? (instance.processName || '') : label;
+	}
+
+	private _getBranchName(cwd: string | undefined): string | undefined {
+		if (!cwd) {
+			return undefined;
+		}
+
+		try {
+			let cwdUri: URI | undefined;
+			// Try to build a URI for cwd that matches the workspace folder's scheme/authority
+			// so that SCM repositories can be resolved correctly in remote workspaces.
+			const workspace = this._workspaceContextService.getWorkspace();
+			for (const folder of workspace.folders) {
+				const folderPath = folder.uri.path;
+				if (cwd.startsWith(folderPath)) {
+					cwdUri = folder.uri.with({ path: cwd });
+					break;
+				}
+			}
+			// Fallback to a local file URI if no matching workspace folder was found
+			if (!cwdUri) {
+				cwdUri = URI.file(cwd);
+			}
+
+			const repository = this._scmService.getRepository(cwdUri);
+			if (!repository) {
+				return undefined;
+			}
+
+			// Get the branch name from the repository provider
+			const provider = repository.provider;
+			if (!provider || !provider.rootUri) {
+				return undefined;
+			}
+
+			// Access the git branch name exposed through the provider
+			// The git extension updates this whenever the git status changes
+			const branchName = provider.branchName.get();
+			if (branchName) {
+				return branchName;
+			}
+
+			return undefined;
+		} catch (error) {
+			// Silently fail if we can't get branch info - this is not critical
+			return undefined;
+		}
 	}
 
 	private _getProgressStateString(progressState?: IProgressState): string {

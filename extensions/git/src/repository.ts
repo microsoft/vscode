@@ -2908,6 +2908,7 @@ export class Repository implements Disposable {
 			this._updateResourceGroupsState(resourceGroups);
 
 			this._onDidChangeStatus.fire();
+			this._updateBranchName();
 		}
 		catch (err) {
 			if (err instanceof CancellationError) {
@@ -2932,6 +2933,13 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
+	}
+
+	private _updateBranchName(): void {
+		// Update the branch name in the source control provider
+		// This allows the terminal and other components to access the current branch
+		// via repository.provider.branchName without needing the Git extension API
+		this._sourceControl.branchName = this.HEAD?.name;
 	}
 
 	private async getStatus(cancellationToken?: CancellationToken): Promise<GitResourceGroups> {
