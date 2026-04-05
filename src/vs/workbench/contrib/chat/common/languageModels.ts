@@ -221,6 +221,11 @@ export interface ILanguageModelChatMetadata {
 	 * Used to validate user-provided per-model configuration in `chatLanguageModels.json`.
 	 */
 	readonly configurationSchema?: ILanguageModelConfigurationSchema;
+	/**
+	 * Optional vendor priority for ordering models in the model picker.
+	 * Lower values appear higher in the list.
+	 */
+	readonly vendorPriority?: number;
 }
 
 export namespace ILanguageModelChatMetadata {

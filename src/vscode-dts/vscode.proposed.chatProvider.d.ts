@@ -92,6 +92,13 @@ declare module 'vscode' {
 		 * The value must match a `type` declared in a `chatSessions` extension contribution.
 		 */
 		readonly targetChatSessionType?: string;
+
+		/**
+		 * Optional vendor priority for ordering models in the model picker.
+		 * Lower values appear higher in the list. When set, models are sorted
+		 * by this priority before falling back to alphabetical vendor/name ordering.
+		 */
+		readonly vendorPriority?: number;
 	}
 
 	export interface LanguageModelChatCapabilities {
