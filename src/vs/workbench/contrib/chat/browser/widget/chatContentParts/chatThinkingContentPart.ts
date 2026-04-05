@@ -242,7 +242,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 	private pendingRemovalFlushDisposable: IDisposable | undefined;
 	private pendingScrollDisposable: IDisposable | undefined;
-	private mutationObserverDisposable: IDisposable | undefined;
 	private wrapperResizeObserverDisposable: IDisposable | undefined;
 	private viewportResizeObserverDisposable: IDisposable | undefined;
 	private isUpdatingDimensions: boolean = false;
@@ -482,7 +481,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// Use a ResizeObserver on the wrapper to detect content growth and drive scrolling.
 			const wrapperResizeObserver = this._register(new DisposableResizeObserver(() => {
 				if (!this.streamingCompleted && this.domNode.classList.contains('chat-used-context-collapsed')) {
-					this.updateScrollDimensionsFromCache();
+					this.updateScrollDimensionsOnResize();
 				}
 			}));
 			this.wrapperResizeObserverDisposable = this._register(wrapperResizeObserver.observe(this.wrapper));
@@ -560,13 +559,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.isUpdatingDimensions = false;
 			}
 			this.updateFadeClasses(this.lastKnownScrollTop, this.lastKnownContentHeight);
+			this.updateDropdownClickability();
 		});
 	}
 
 	/**
 	 * Update scroll dimensions from ResizeObserver callback (post-layout, so reads are cheap).
 	 */
-	private updateScrollDimensionsFromCache(): void {
+	private updateScrollDimensionsOnResize(): void {
 		if (!this.scrollableElement || this._store.isDisposed) {
 			return;
 		}
@@ -927,11 +927,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.domNode.classList.remove('chat-thinking-active');
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.streamingCompleted = true;
-
-		if (this.mutationObserverDisposable) {
-			this.mutationObserverDisposable.dispose();
-			this.mutationObserverDisposable = undefined;
-		}
 
 		if (this.wrapperResizeObserverDisposable) {
 			this.wrapperResizeObserverDisposable.dispose();
