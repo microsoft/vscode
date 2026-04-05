@@ -291,7 +291,7 @@ class ChatEditingOverlayController {
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.bottom = `24px`;
 		this._domNode.style.right = `24px`;
-		this._domNode.style.zIndex = `100`;
+		this._domNode.style.zIndex = `101`;
 
 		const widget = instaService.createInstance(ChatEditorOverlayWidget, group);
 		this._domNode.appendChild(widget.getDomNode());
