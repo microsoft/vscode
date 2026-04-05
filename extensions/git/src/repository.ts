@@ -2125,7 +2125,8 @@ export class Repository implements Disposable {
 				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
 					const forceDelete = l10n.t('Force Delete');
 					const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-					const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+					const detail = l10n.t('This is IRREVERSIBLE!\nYour changes will be FOREVER LOST if you proceed.');
+					const choice = await window.showWarningMessage(message, { modal: true, detail }, forceDelete);
 					if (choice === forceDelete) {
 						await deleteWorktree({ ...options, force: true });
 					}
