@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel, IMarker as IXtermMarker } from '@xterm/xterm';
+import type { IBuffer, IBufferRange, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel, IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
 import type { ILigatureOptions, LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
@@ -48,6 +48,7 @@ import type { CommandDetectionCapability } from '../../../../../platform/termina
 import { URI } from '../../../../../base/common/uri.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
+import { onDidChangeZoomLevel } from '../../../../../base/browser/browser.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -107,9 +108,18 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
+	private _selectionGapAnimationFrame: number | undefined;
+	private _viewportSyncAnimationFrame: number | undefined;
+	private _viewportSyncAnimationFrameWindow: Window | undefined;
+	private _viewportSyncAnimationFrameReason: string | undefined;
 	private _isPhysicalMouseWheel = MouseWheelClassifier.INSTANCE.isPhysicalMouseWheel();
 	private _lastInputEvent: string | undefined;
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
+	get viewportRightOffset(): number {
+		const configuredScrollbarWidth = this.raw.options.scrollbar?.width ?? 0;
+		const viewportScrollbarWidth = this._core.viewport?.scrollBarWidth ?? 0;
+		return Math.max(configuredScrollbarWidth, viewportScrollbarWidth);
+	}
 	private _progressState: IProgressState = { state: 0, value: 0 };
 	get progressState(): IProgressState { return this._progressState; }
 	get buffer() { return this.raw.buffer; }
@@ -295,6 +305,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			if (this.isFocused) {
 				this._anyFocusedTerminalHasSelection.set(this.raw.hasSelection());
 			}
+			this._scheduleSelectionGapMetrics('selectionChange');
 		}));
 		this._register(this.raw.onData(e => this._lastInputEvent = e));
 
@@ -479,6 +490,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this._attached) {
 			this.raw.open(container);
 		}
+		this._updateViewportRightOffset();
 
 		// TODO: Move before open so the DOM renderer doesn't initialize
 		if (options.enableGpu) {
@@ -490,6 +502,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element || !this.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
+		this.raw.element.classList.add('always-show-scrollbar');
 
 		const ad = this._attachedDisposables;
 		ad.clear();
@@ -508,13 +521,190 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._updateSmoothScrolling();
 			}
 		}, { passive: true }));
+		const window = dom.getWindow(this.raw.element);
+		ad.add(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this._triggerViewportSync('windowResize')));
+		ad.add(onDidChangeZoomLevel(targetWindowId => {
+			if (targetWindowId === dom.getWindowId(window)) {
+				this._triggerViewportSync('zoomLevelChange');
+			}
+		}));
+		ad.add(this.raw.onResize(() => {
+			this._updateViewportRightOffset();
+			this._scheduleSelectionGapMetrics('xtermResize');
+		}));
 
 		this._refreshLigaturesAddon();
 
 		this._attached = { container, options };
+		this._scheduleSelectionGapMetrics('attachToElement');
 		// Screen must be created at this point as xterm.open is called
 		// eslint-disable-next-line no-restricted-syntax
 		return this._attached?.container.querySelector('.xterm-screen')!;
+	}
+
+	private _triggerViewportSync(reason: string): void {
+		this._updateViewportRightOffset();
+		if (this.raw.rows > 0) {
+			this.raw.refresh(0, this.raw.rows - 1);
+		}
+		this._onDidRequestRefreshDimensions.fire();
+		this._scheduleSelectionGapMetrics(reason);
+
+		const targetWindow = this.raw.element ? dom.getWindow(this.raw.element) : undefined;
+		if (!targetWindow) {
+			return;
+		}
+		this._viewportSyncAnimationFrameReason = reason;
+		this._viewportSyncAnimationFrameWindow = targetWindow;
+		if (this._viewportSyncAnimationFrame !== undefined) {
+			return;
+		}
+		this._viewportSyncAnimationFrame = targetWindow.requestAnimationFrame(() => {
+			this._viewportSyncAnimationFrame = undefined;
+			const rafReason = this._viewportSyncAnimationFrameReason ?? reason;
+			this._viewportSyncAnimationFrameReason = undefined;
+			this._viewportSyncAnimationFrameWindow = undefined;
+			if (!this.raw.element) {
+				return;
+			}
+			// Run once more on the next animation frame. This catches DOM/layout changes that are
+			// applied right after resize or zoom events.
+			this._updateViewportRightOffset();
+			this.forceRefresh();
+			this._onDidRequestRefreshDimensions.fire();
+			this._scheduleSelectionGapMetrics(`${rafReason}:raf`);
+		});
+	}
+
+	private _updateViewportRightOffset(): void {
+		if (!this.raw.element) {
+			return;
+		}
+		this.raw.element.classList.add('always-show-scrollbar');
+		const viewportElement = (this._core.viewport as { _viewportElement?: unknown } | undefined)?._viewportElement;
+		if (!dom.isHTMLElement(viewportElement)) {
+			return;
+		}
+		// Shift the viewport by the scrollbar width so text and selection end at the same visual edge.
+		viewportElement.style.right = `${this.viewportRightOffset}px`;
+	}
+
+	private _scheduleSelectionGapMetrics(reason: string): void {
+		if (!this.raw.element) {
+			return;
+		}
+		const window = dom.getWindow(this.raw.element);
+		if (this._selectionGapAnimationFrame !== undefined) {
+			window.cancelAnimationFrame(this._selectionGapAnimationFrame);
+		}
+		// Many events can fire quickly; do one measurement per frame to avoid redundant work and to
+		// use up-to-date layout values.
+		this._selectionGapAnimationFrame = window.requestAnimationFrame(() => {
+			this._selectionGapAnimationFrame = undefined;
+			try {
+				this._computeSelectionGapPhysical(reason);
+			} catch {
+			}
+		});
+	}
+
+	// Computes the selection-to-adjacent-UI gap in physical pixels to catch alignment regressions.
+	private _computeSelectionGapPhysical(_reason: string): number | undefined {
+		if (!this.raw.element || !this.raw.hasSelection()) {
+			return undefined;
+		}
+
+		const selectionMeasurement = this._getSelectionRightEdgeCssPx();
+		if (!selectionMeasurement) {
+			return undefined;
+		}
+
+		const adjacentMeasurement = this._getAdjacentUiLeftEdgeCssPx(selectionMeasurement.rightCssPx);
+		if (!adjacentMeasurement) {
+			return undefined;
+		}
+
+		const dpr = dom.getWindow(this.raw.element).devicePixelRatio;
+		const viewportScrollbarWidthCssPx = this._core.viewport?.scrollBarWidth ?? 0;
+		const domReservedRightCssPx = this._getTerminalReservedRightLaneCssPx();
+		const terminalScrollbarWidthCssPx = Math.max(viewportScrollbarWidthCssPx, domReservedRightCssPx);
+		const uiLeftCssPxWithoutScrollbar = adjacentMeasurement.leftCssPx - terminalScrollbarWidthCssPx;
+		const selectionRightPhysicalPx = selectionMeasurement.rightCssPx * dpr;
+		const uiLeftPhysicalPx = uiLeftCssPxWithoutScrollbar * dpr;
+		const gapPhysicalPx = uiLeftPhysicalPx - selectionRightPhysicalPx;
+		return gapPhysicalPx;
+	}
+
+	private _getSelectionRightEdgeCssPx(): { rightCssPx: number; source: string; selectionRange: IBufferRange } | undefined {
+		const selectionRange = this.raw.getSelectionPosition();
+		if (!selectionRange) {
+			return undefined;
+		}
+
+		const cellWidth = this._core._renderService?.dimensions?.css?.cell?.width;
+		const screenElement = this.raw.screenElement;
+		if (!screenElement || !cellWidth) {
+			return undefined;
+		}
+
+		const rightmostSelectedCol = selectionRange.end.y > selectionRange.start.y
+			? this.raw.cols
+			: clamp(selectionRange.end.x, 1, this.raw.cols);
+		// If no DOM range is available for the selection, estimate the right edge from selected
+		// columns and the measured cell width.
+		const fallbackRightCssPx = screenElement.getBoundingClientRect().left + (rightmostSelectedCol * cellWidth);
+		return { rightCssPx: fallbackRightCssPx, source: 'selection-range-fallback', selectionRange };
+	}
+
+	private _getTerminalReservedRightLaneCssPx(): number {
+		if (!this.raw.element) {
+			return this.viewportRightOffset;
+		}
+
+		const viewportElement = (this._core.viewport as { _viewportElement?: unknown } | undefined)?._viewportElement;
+		if (!dom.isHTMLElement(viewportElement)) {
+			return this.viewportRightOffset;
+		}
+
+		const terminalRightCssPx = this.raw.element.getBoundingClientRect().right;
+		const viewportRightCssPx = viewportElement.getBoundingClientRect().right;
+		return Math.max(0, terminalRightCssPx - viewportRightCssPx);
+	}
+
+	private _getAdjacentUiLeftEdgeCssPx(selectionRightCssPx: number): { leftCssPx: number; source: string } | undefined {
+		if (!this.raw.element) {
+			return undefined;
+		}
+
+		const candidates: { leftCssPx: number; source: string }[] = [];
+		const terminalSplitViewElement = dom.findParentWithClass(this.raw.element, 'split-view-view');
+		if (terminalSplitViewElement) {
+			const rightSibling = terminalSplitViewElement.nextElementSibling;
+			if (dom.isHTMLElement(rightSibling)) {
+				candidates.push({
+					leftCssPx: rightSibling.getBoundingClientRect().left,
+					source: 'split-view-right-sibling'
+				});
+			} else {
+				candidates.push({
+					leftCssPx: terminalSplitViewElement.getBoundingClientRect().right,
+					source: 'terminal-split-view-right-edge'
+				});
+			}
+		}
+
+		if (candidates.length === 0) {
+			return undefined;
+		}
+
+		const candidateOnRight = candidates
+			.filter(candidate => candidate.leftCssPx >= selectionRightCssPx - 0.5)
+			.sort((a, b) => a.leftCssPx - b.leftCssPx)[0];
+		if (candidateOnRight) {
+			return candidateOnRight;
+		}
+
+		return candidates.sort((a, b) => Math.abs(a.leftCssPx - selectionRightCssPx) - Math.abs(b.leftCssPx - selectionRightCssPx))[0];
 	}
 
 	private _setFocused(isFocused: boolean) {
@@ -1059,6 +1249,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	override dispose(): void {
+		if (this._viewportSyncAnimationFrame !== undefined && this._viewportSyncAnimationFrameWindow) {
+			this._viewportSyncAnimationFrameWindow.cancelAnimationFrame(this._viewportSyncAnimationFrame);
+			this._viewportSyncAnimationFrame = undefined;
+			this._viewportSyncAnimationFrameWindow = undefined;
+			this._viewportSyncAnimationFrameReason = undefined;
+		}
+		if (this._selectionGapAnimationFrame !== undefined && this.raw.element) {
+			dom.getWindow(this.raw.element).cancelAnimationFrame(this._selectionGapAnimationFrame);
+			this._selectionGapAnimationFrame = undefined;
+		}
 		this._anyTerminalFocusContextKey.reset();
 		this._anyFocusedTerminalHasSelection.reset();
 		this._disposeOfWebglRenderer();

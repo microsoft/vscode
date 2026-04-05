@@ -104,7 +104,8 @@ const enum Constants {
 
 	DefaultCols = 80,
 	DefaultRows = 30,
-	MaxCanvasWidth = 4096
+	// Conservative upper bound to avoid exceeding typical GPU/browser max texture/canvas widths.
+	MaxCanvasWidth = 8192
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
@@ -742,6 +743,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
+	private _toXtermCols(cols: number): number {
+		// xterm renders one extra column on the right to hide tiny visual gaps caused by pixel rounding.
+		return Math.max(cols + 1, 2);
+	}
+
 	@debounce(50)
 	private _fireMaximumDimensionsChanged(): void {
 		this._onMaximumDimensionsChanged.fire();
@@ -758,7 +764,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 		const computedStyle = dom.getWindow(this.xterm.raw.element).getComputedStyle(this.xterm.raw.element);
-		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + 14/*scroll bar padding*/;
+		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight) + (this.xterm?.viewportRightOffset ?? 0);
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
@@ -795,7 +801,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const disableShellIntegrationReporting = (this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
 		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, this._resource, Terminal, {
-			cols: this._cols,
+			// xterm gets one extra render column for visual alignment; the PTY keeps base columns.
+			cols: this._toXtermCols(this._cols || Constants.DefaultCols),
 			rows: this._rows,
 			xtermColorProvider: this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this._targetRef),
 			capabilities: this.capabilities,
@@ -806,17 +813,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._resizeDebouncer = this._register(new TerminalResizeDebouncer(
 			() => this._isVisible,
 			() => xterm,
-			async (cols, rows) => {
-				xterm.resize(cols, rows);
-				await this._updatePtyDimensions(xterm.raw);
+			async (xtermCols, rows) => {
+				const ptyCols = this.cols;
+				xterm.resize(xtermCols, rows);
+				await this._updatePtyDimensions(xterm.raw, ptyCols, rows);
 			},
-			async (cols) => {
-				xterm.resize(cols, xterm.raw.rows);
-				await this._updatePtyDimensions(xterm.raw);
+			async (xtermCols) => {
+				const ptyCols = this.cols;
+				xterm.resize(xtermCols, xterm.raw.rows);
+				await this._updatePtyDimensions(xterm.raw, ptyCols, this.rows);
 			},
 			async (rows) => {
-				xterm.resize(xterm.raw.cols, rows);
-				await this._updatePtyDimensions(xterm.raw);
+				const ptyCols = this.cols;
+				xterm.resize(this._toXtermCols(ptyCols), rows);
+				await this._updatePtyDimensions(xterm.raw, ptyCols, rows);
 			}
 		));
 		this._register(toDisposable(() => this._resizeDebouncer = undefined));
@@ -1576,10 +1586,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
 			this._initDimensions();
-			this.xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
+			this.xterm?.resize(this._toXtermCols(this._cols || Constants.DefaultCols), this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
-		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {
+		await this._processManager.createProcess(this._shellLaunchConfig, this.cols || Constants.DefaultCols, this.rows || Constants.DefaultRows).then(result => {
 			if (result) {
 				if (hasKey(result, { message: true })) {
 					this._onProcessExit(result);
@@ -1855,7 +1865,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
-		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, reset).then(result => {
+		await this._processManager.relaunch(this._shellLaunchConfig, this.cols || Constants.DefaultCols, this.rows || Constants.DefaultRows, reset).then(result => {
 			if (result) {
 				if (hasKey(result, { message: true })) {
 					this._onProcessExit(result);
@@ -2004,8 +2014,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (isNaN(cols) || isNaN(rows)) {
 			return;
 		}
+		const xtermCols = this._toXtermCols(cols);
 
-		if (cols !== this.xterm.raw.cols || rows !== this.xterm.raw.rows) {
+		if (xtermCols !== this.xterm.raw.cols || rows !== this.xterm.raw.rows) {
 			if (this._fixedRows || this._fixedCols) {
 				await this._updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
 			}
@@ -2013,15 +2024,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		TerminalInstance._lastKnownGridDimensions = { cols, rows };
-		this._resizeDebouncer!.resize(cols, rows, immediate ?? false);
+		this._resizeDebouncer!.resize(xtermCols, rows, immediate ?? false);
 	}
 
-	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
+	private async _updatePtyDimensions(rawXterm: XTermTerminal, ptyCols: number = this.cols, ptyRows: number = this.rows): Promise<void> {
 		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
 		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
-		const roundedPixelWidth = pixelWidth ? Math.round(pixelWidth) : undefined;
+		const cellWidth = rawXterm.dimensions?.css.cell.width;
+		// Subtract that extra render column before reporting pixel width to the PTY so process sizing
+		// stays based on the real terminal columns.
+		const adjustedPixelWidth = pixelWidth && cellWidth ? Math.max(0, pixelWidth - cellWidth) : pixelWidth;
+		const roundedPixelWidth = adjustedPixelWidth ? Math.round(adjustedPixelWidth) : undefined;
 		const roundedPixelHeight = pixelHeight ? Math.round(pixelHeight) : undefined;
-		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows, undefined, roundedPixelWidth, roundedPixelHeight);
+		await this._processManager.setDimensions(ptyCols, ptyRows, undefined, roundedPixelWidth, roundedPixelHeight);
 	}
 
 	setShellType(shellType: TerminalShellType | undefined) {
@@ -2168,7 +2183,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const proposedCols = Math.max(this.maxCols, Math.min(this.xterm.getLongestViewportWrappedLineLength(), maxColsForTexture));
 			// Don't switch to fixed dimensions if the content already fits as it makes the scroll
 			// bar look bad being off the edge
-			if (proposedCols > this.xterm.raw.cols) {
+			if (proposedCols > this.cols) {
 				this._fixedCols = proposedCols;
 			}
 		}
