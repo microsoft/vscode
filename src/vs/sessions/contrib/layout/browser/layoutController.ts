@@ -11,7 +11,7 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { CHANGES_VIEW_ID } from '../../changes/browser/changesView.js';
+import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 
 interface IPendingTurnState {
 	readonly hadChangesBeforeSend: boolean;

@@ -66,10 +66,10 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 				this.logService.info(`[${KeybindingsExportContribution.ID}] Wrote ${filePath}`);
 			}
 
-			await this.nativeHostService.exit(0);
+			await this.nativeHostService.closeWindow();
 		} catch (error) {
 			this.logService.error(`[${KeybindingsExportContribution.ID}] Failed to generate default keybindings`, error);
-			await this.nativeHostService.exit(1);
+			await this.nativeHostService.closeWindow();
 		}
 	}
 
