@@ -171,3 +171,27 @@ x $12.45
 <!-- Should not interpret text for skipped percent (\%) -->
 
 $$ \% Should not be highlighted $$
+
+<!-- Should highlight multiline single-dollar math #223545 -->
+
+$\mu = e^{\mu_L + \sigma_L^2}
+\land \sigma_2 = (e^{\sigma_L^2} - 1) e^{2\mu_L + \sigma_L^2}$
+
+**md**
+
+$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+\text{ where } a \neq 0$
+
+**md**
+
+<!-- Should not confuse single and double dollar multiline -->
+
+$$\alpha
+\beta$$
+
+**md**
+
+$\gamma
+\delta$
+
+**md**
