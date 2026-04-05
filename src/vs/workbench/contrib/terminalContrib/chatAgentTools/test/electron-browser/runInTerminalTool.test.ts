@@ -2035,6 +2035,55 @@ suite('RunInTerminalTool', () => {
 			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
 			assertConfirmationRequired(result);
 		});
+
+		test('should return user-edited command when user edits the command', async () => {
+			sandboxEnabled = false;
+			setAutoApprove({});
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const toolSpecificData: IChatTerminalToolInvocationData = {
+				kind: 'terminal',
+				commandLine: {
+					original: 'git commit -m "original message"',
+					userEdited: 'git commit -m "edited message"',
+				},
+				language: 'sh',
+			};
+
+			const invocation = {
+				toolSpecificData,
+			} as any;
+
+			const result = await confirmTool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);
+			const value = (result.content[0] as { kind: 'text'; value: string }).value;
+			ok(value.includes('edited message'));
+			ok(value.includes('git commit -m "edited message"'));
+		});
+
+		test('should return yes when user does not edit the command', async () => {
+			sandboxEnabled = false;
+			setAutoApprove({});
+
+			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
+			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
+
+			const toolSpecificData: IChatTerminalToolInvocationData = {
+				kind: 'terminal',
+				commandLine: {
+					original: 'echo hello',
+				},
+				language: 'sh',
+			};
+
+			const invocation = {
+				toolSpecificData,
+			} as any;
+
+			const result = await confirmTool.invoke(invocation, async () => 0, { report: () => { } }, CancellationToken.None);
+			strictEqual((result.content[0] as { kind: 'text'; value: string }).value, 'yes');
+		});
 	});
 });
 

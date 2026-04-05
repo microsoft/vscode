@@ -1026,6 +1026,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const approved = reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
 			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}`);
 			if (approved) {
+				// Check if the user edited the command in the confirmation UI
+				const toolSpecificData = invocation.toolSpecificData;
+				const userEditedInput = toolSpecificData?.kind === 'terminal' ? toolSpecificData.commandLine.userEdited : undefined;
+
 				const confirmAction = {
 					type: ActionType.SessionToolCallConfirmed as const,
 					session: session.toString(),
@@ -1033,6 +1037,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: true as const,
 					confirmed: ToolCallConfirmationReason.UserAction,
+					...(userEditedInput ? { userEditedInput } : {}),
 				};
 				const seq = this._clientState.applyOptimistic(confirmAction);
 				this._config.connection.dispatchAction(confirmAction, this._clientState.clientId, seq);
