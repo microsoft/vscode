@@ -5654,6 +5654,14 @@ export class CommandCenter {
 							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
 							: l10n.t('Git error');
 
+						// Detect warning messages from Git/SSH stderr and show
+						// them as warnings instead of errors
+						const stderrContent = err.stderr || err.message || '';
+						if (/^warning:/mi.test(stderrContent)) {
+							type = 'warning';
+							options.modal = false;
+						}
+
 						break;
 					}
 				}
