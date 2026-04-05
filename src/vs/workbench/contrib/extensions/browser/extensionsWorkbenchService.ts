@@ -1509,8 +1509,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const needsReload = restartRequiredExtensions.some(e => e.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow);
 				computedNotificiations.push({
 					message: needsReload
-						? nls.localize('extensions need reload', "Extensions require a window reload to take effect.")
-						: nls.localize('extensions need restart', "Extensions require a restart to take effect."),
+						? nls.localize('extensions need reload', "Extensions require a window reload to apply updates.")
+						: nls.localize('extensions need restart', "All extensions require a restart to apply updates."),
 					severity: Severity.Info,
 					extensions: restartRequiredExtensions,
 					query: '@restartrequired',
