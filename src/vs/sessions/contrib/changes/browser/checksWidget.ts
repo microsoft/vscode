@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/ciStatusWidget.css';
+import './media/checksWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
@@ -11,7 +11,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -23,7 +23,8 @@ import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, IGitHubCICheck } from '../../github/common/types.js';
 import { GitHubPullRequestCIModel, parseWorkflowRunId } from '../../github/browser/models/githubPullRequestCIModel.js';
-import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './fixCIChecksAction.js';
+import { CICheckGroup, buildFixChecksPrompt, getCheckGroup, getCheckStateLabel, getFailedChecks } from './checksActions.js';
+import { ChecksViewModel } from './checksViewModel.js';
 
 const $ = dom.$;
 
@@ -230,7 +231,7 @@ export class CIStatusWidget extends Disposable {
 		this._chevronNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronDown));
 
 		this._headerNode.setAttribute('role', 'button');
-		this._headerNode.setAttribute('aria-label', localize('ci.toggleChecks', "Toggle PR Checks"));
+		this._headerNode.setAttribute('aria-label', localize('ci.toggleChecks', "Toggle Checks"));
 		this._headerNode.setAttribute('aria-expanded', 'true');
 		this._headerNode.tabIndex = 0;
 
@@ -276,16 +277,12 @@ export class CIStatusWidget extends Disposable {
 		this._bodyNode.appendChild(this._list.getHTMLElement());
 	}
 
-	/**
-	 * Bind to a CI model. When `ciModel` is undefined, the widget hides.
-	 * Returns a disposable that stops observation.
-	 */
-	bind(ciModel: IObservable<GitHubPullRequestCIModel | undefined>, sessionResource: IObservable<URI | undefined>): IDisposable {
+	setInput(input: ChecksViewModel): IDisposable {
 		return autorun(reader => {
-			const model = ciModel.read(reader);
-			this._sessionResource = sessionResource.read(reader);
-			this._model = model;
-			if (!model) {
+			this._model = input.checksObs.read(reader);
+			this._sessionResource = input.activeSessionResourceObs.read(reader);
+
+			if (!this._model) {
 				this._checkCount = 0;
 				this._setCollapsed(false);
 				this._renderBody([]);
@@ -295,7 +292,7 @@ export class CIStatusWidget extends Disposable {
 				return;
 			}
 
-			const checks = model.checks.read(reader);
+			const checks = this._model.checks.read(reader);
 
 			if (checks.length === 0) {
 				this._checkCount = 0;

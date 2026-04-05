@@ -10,9 +10,8 @@
 	gap: 0;
 	position: relative;
 	height: 22px;
-	min-width: 0;
-	max-width: none;
-	padding: 0 5px;
+	width: 22px;
+	min-width: 22px;
 	background: transparent;
 	border-radius: var(--vscode-cornerRadius-medium);
 	color: inherit;

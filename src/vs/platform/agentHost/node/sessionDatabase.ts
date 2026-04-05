@@ -51,6 +51,29 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			value TEXT NOT NULL
 		)`,
 	},
+	{
+		version: 3,
+		sql: [
+			// Recreate file_edits with new columns: edit_type, original_path,
+			// and nullable before_content/after_content.
+			`CREATE TABLE file_edits_v3 (
+				turn_id        TEXT    NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+				tool_call_id   TEXT    NOT NULL,
+				file_path      TEXT    NOT NULL,
+				edit_type      TEXT    NOT NULL DEFAULT 'edit',
+				original_path  TEXT,
+				before_content BLOB,
+				after_content  BLOB,
+				added_lines    INTEGER,
+				removed_lines  INTEGER,
+				PRIMARY KEY (tool_call_id, file_path)
+			)`,
+			`INSERT INTO file_edits_v3 (turn_id, tool_call_id, file_path, edit_type, before_content, after_content, added_lines, removed_lines)
+				SELECT turn_id, tool_call_id, file_path, 'edit', before_content, after_content, added_lines, removed_lines FROM file_edits`,
+			`DROP TABLE file_edits`,
+			`ALTER TABLE file_edits_v3 RENAME TO file_edits`,
+		].join(';\n'),
+	},
 ];
 
 // ---- Promise wrappers around callback-based @vscode/sqlite3 API -----------
@@ -242,14 +265,16 @@ export class SessionDatabase implements ISessionDatabase {
 			await dbRun(
 				db,
 				`INSERT OR REPLACE INTO file_edits
-					(turn_id, tool_call_id, file_path, before_content, after_content, added_lines, removed_lines)
-				VALUES (?, ?, ?, ?, ?, ?, ?)`,
+					(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				[
 					edit.turnId,
 					edit.toolCallId,
 					edit.filePath,
-					Buffer.from(edit.beforeContent),
-					Buffer.from(edit.afterContent),
+					edit.kind,
+					edit.originalPath ?? null,
+					edit.beforeContent ? Buffer.from(edit.beforeContent) : null,
+					edit.afterContent ? Buffer.from(edit.afterContent) : null,
 					edit.addedLines ?? null,
 					edit.removedLines ?? null,
 				],
@@ -265,7 +290,7 @@ export class SessionDatabase implements ISessionDatabase {
 		const placeholders = toolCallIds.map(() => '?').join(',');
 		const rows = await dbAll(
 			db,
-			`SELECT turn_id, tool_call_id, file_path, added_lines, removed_lines
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
 				FROM file_edits
 				WHERE tool_call_id IN (${placeholders})
 				ORDER BY rowid`,
@@ -275,6 +300,8 @@ export class SessionDatabase implements ISessionDatabase {
 			turnId: row.turn_id as string,
 			toolCallId: row.tool_call_id as string,
 			filePath: row.file_path as string,
+			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
+			originalPath: row.original_path as string | undefined ?? undefined,
 			addedLines: row.added_lines as number | undefined ?? undefined,
 			removedLines: row.removed_lines as number | undefined ?? undefined,
 		}));
@@ -294,8 +321,8 @@ export class SessionDatabase implements ISessionDatabase {
 				return undefined;
 			}
 			return {
-				beforeContent: toUint8Array(row.before_content),
-				afterContent: toUint8Array(row.after_content),
+				beforeContent: row.before_content ? toUint8Array(row.before_content) : undefined,
+				afterContent: row.after_content ? toUint8Array(row.after_content) : undefined,
 			};
 		});
 	}

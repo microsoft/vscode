@@ -236,20 +236,6 @@ export interface IChatDebugService extends IDisposable {
 	 */
 	getImportedSessionTitle(sessionResource: URI): string | undefined;
 
-	/**
-	 * Fired when debug data is attached to a session.
-	 */
-	readonly onDidAttachDebugData: Event<URI>;
-
-	/**
-	 * Mark a session as having debug data attached.
-	 */
-	markDebugDataAttached(sessionResource: URI): void;
-
-	/**
-	 * Check whether a session has had debug data attached.
-	 */
-	hasAttachedDebugData(sessionResource: URI): boolean;
 }
 
 /**
@@ -361,9 +347,41 @@ export interface IChatDebugEventHookContent {
 }
 
 /**
+ * A single entry in the customization resolution log.
+ */
+export interface IChatDebugCustomizationLogEntry {
+	readonly category: 'applying' | 'skipped' | 'referenced' | 'skill' | 'custom-agent' | 'hook';
+	readonly name: string;
+	readonly uri?: URI;
+	readonly reason?: string;
+}
+
+/**
+ * Structured customization summary content for a resolved debug event.
+ * Contains per-file resolution logs showing how applyTo patterns, agent
+ * instructions, and referenced files were resolved by the instructions
+ * context computer.
+ */
+export interface IChatDebugEventCustomizationSummaryContent {
+	readonly kind: 'customizationSummary';
+	/** Per-file resolution detail entries. */
+	readonly resolutionLogs: readonly IChatDebugCustomizationLogEntry[];
+	/** Total wall-clock time of the collect() call in milliseconds. */
+	readonly durationInMillis: number;
+	/** Counts by type for the summary header. */
+	readonly counts: {
+		readonly instructions: number;
+		readonly skills: number;
+		readonly agents: number;
+		readonly hooks: number;
+		readonly skipped: number;
+	};
+}
+
+/**
  * Union of all resolved event content types.
  */
-export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent | IChatDebugEventHookContent;
+export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent | IChatDebugEventHookContent | IChatDebugEventCustomizationSummaryContent;
 
 /**
  * Provider interface for debug events.

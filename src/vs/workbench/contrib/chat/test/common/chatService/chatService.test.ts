@@ -461,6 +461,60 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
 
+	test('can serialize and deserialize implicit request flag', async () => {
+		let serializedChatData: ISerializableChatData;
+
+		{
+			const testService = createChatService();
+			const chatModel1Ref = testDisposables.add(startSessionModel(testService));
+			const chatModel1 = chatModel1Ref.object;
+
+			const response = await testService.sendRequest(chatModel1.sessionResource, 'test implicit request', { isSystemInitiated: true });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+
+			assert.strictEqual(chatModel1.getRequests().length, 1);
+			assert.strictEqual(chatModel1.getRequests()[0].isSystemInitiated, true);
+
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
+			assert.strictEqual(serializedChatData.requests.length, 1);
+			assert.strictEqual(serializedChatData.requests[0].isSystemInitiated, true);
+		}
+
+		const testService2 = createChatService();
+		const chatModel2Ref = testService2.loadSessionFromData(serializedChatData);
+		assert(chatModel2Ref);
+		testDisposables.add(chatModel2Ref);
+		const chatModel2 = chatModel2Ref.object;
+
+		assert.strictEqual(chatModel2.getRequests().length, 1);
+		assert.strictEqual(chatModel2.getRequests()[0].isSystemInitiated, true);
+	});
+
+	test('acquireExistingSession keeps model alive for steering request after refs released', async () => {
+		const testService = createChatService();
+		const modelRef = startSessionModel(testService);
+		const sessionResource = modelRef.object.sessionResource;
+
+		// Acquire a keep-alive reference (what the fix does)
+		const keepAliveRef = testDisposables.add(testService.acquireExistingSession(sessionResource, 'test#keepAlive')!);
+		assert.ok(keepAliveRef, 'acquireExistingSession should return a reference');
+
+		// Release the original reference to simulate user navigating away
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+
+		// Model should still be accessible because keepAliveRef holds it
+		const response = await testService.sendRequest(sessionResource, 'terminal completed', {
+			queue: ChatRequestQueueKind.Steering,
+			isSystemInitiated: true,
+		});
+		assert.strictEqual(response.kind, 'queued');
+
+		// Clean up
+		keepAliveRef.dispose();
+	});
+
 	test('onDidDisposeSession', async () => {
 		const testService = createChatService();
 		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
@@ -994,7 +1048,7 @@ function toSnapshotExportData(model: IChatModel) {
 		...exp,
 		requests: exp.requests.map(r => {
 			// Destructure properties after `vote` so we can insert `voteDownReason` in the correct position for snapshot compat
-			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, ...rest } = r;
+			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isSystemInitiated: _isSystemInitiated, systemInitiatedLabel: _systemInitiatedLabel, ...rest } = r;
 			return {
 				...rest,
 				modelState: {

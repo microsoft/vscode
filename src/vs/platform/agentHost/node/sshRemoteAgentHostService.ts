@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
 import {
 	ISSHRemoteAgentHostMainService,
 	SSHAuthMethod,
@@ -49,9 +50,29 @@ interface SSHClient {
 
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
 
+/**
+ * Validate that a quality string is safe for bare interpolation in shell commands.
+ * Quality comes from `productService.quality` (not user input) but we validate
+ * as defense-in-depth since these values end up in unquoted shell paths (the `~`
+ * prefix requires shell expansion, so we cannot single-quote the entire path).
+ */
+function validateShellToken(value: string, label: string): string {
+	if (!/^[a-zA-Z0-9._-]+$/.test(value)) {
+		throw new Error(`Unsafe ${label} value for shell interpolation: ${JSON.stringify(value)}`);
+	}
+	return value;
+}
+
 /** Install location for the VS Code CLI on the remote machine. */
-const REMOTE_CLI_DIR = '~/.vscode-cli';
-const REMOTE_CLI_BIN = `${REMOTE_CLI_DIR}/code`;
+function getRemoteCLIDir(quality: string): string {
+	const q = validateShellToken(quality, 'quality');
+	return q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
+}
+function getRemoteCLIBin(quality: string): string {
+	const q = validateShellToken(quality, 'quality');
+	const binaryName = q === 'stable' ? 'code' : 'code-insiders';
+	return `${getRemoteCLIDir(q)}/${binaryName}`;
+}
 
 /** Escape a string for use as a single shell argument (single-quote wrapping). */
 function shellEscape(s: string): string {
@@ -135,10 +156,11 @@ function redactToken(text: string): string {
 function startRemoteAgentHost(
 	client: SSHClient,
 	logService: ILogService,
+	quality: string,
 	commandOverride?: string,
 ): Promise<{ port: number; connectionToken: string | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
-		const baseCmd = commandOverride ?? `${REMOTE_CLI_BIN} agent-host --port 0 --accept-server-license-terms`;
+		const baseCmd = commandOverride ?? `${getRemoteCLIBin(quality)} agent-host --port 0 --accept-server-license-terms`;
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
@@ -338,6 +360,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 	}
@@ -393,7 +416,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			// 4. Start agent-host and capture port/token
 			reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-			const { port: remotePort, connectionToken, stream: agentStream } = await startRemoteAgentHost(sshClient, this._logService, config.remoteAgentHostCommand);
+			const { port: remotePort, connectionToken, stream: agentStream } = await startRemoteAgentHost(sshClient, this._logService, this._quality, config.remoteAgentHostCommand);
 
 			// 5. Connect to remote agent host via WebSocket relay (no local TCP port)
 			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
@@ -627,21 +650,26 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		});
 	}
 
+	private get _quality(): string {
+		return this._productService.quality || 'insider';
+	}
+
 	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<void> {
-		const { code } = await sshExec(client, `${REMOTE_CLI_BIN} --version`, { ignoreExitCode: true });
+		const cliDir = getRemoteCLIDir(this._quality);
+		const cliBin = getRemoteCLIBin(this._quality);
+		const { code } = await sshExec(client, `${cliBin} --version`, { ignoreExitCode: true });
 		if (code === 0) {
 			this._logService.info(`${LOG_PREFIX} VS Code CLI already installed on remote`);
 			return;
 		}
 
 		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
-		const quality = 'stable';
-		const url = buildCLIDownloadUrl(platform.os, platform.arch, quality);
+		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality);
 
 		const installCmd = [
-			`mkdir -p ${REMOTE_CLI_DIR}`,
-			`curl -fsSL '${url}' | tar xz -C ${REMOTE_CLI_DIR}`,
-			`chmod +x ${REMOTE_CLI_BIN}`,
+			`mkdir -p ${cliDir}`,
+			`curl -fsSL ${shellEscape(url)} | tar xz -C ${cliDir}`,
+			`chmod +x ${cliBin}`,
 		].join(' && ');
 
 		await sshExec(client, installCmd);

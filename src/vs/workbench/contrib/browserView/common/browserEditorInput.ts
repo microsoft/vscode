@@ -157,10 +157,6 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get resource(): URI {
-		if (this._resourceBeforeDisposal) {
-			return this._resourceBeforeDisposal;
-		}
-
 		return BrowserViewUri.forId(this._id);
 	}
 
@@ -288,16 +284,19 @@ export class BrowserEditorInput extends EditorInput {
 		};
 	}
 
-	// When closing the editor, toUntyped() is called after dispose().
-	// So we save a snapshot of the resource so we can still use it after the model is disposed.
-	private _resourceBeforeDisposal: URI | undefined;
 	override dispose(): void {
+		super.dispose(); // Emit `onWillDispose` event first, then clean up the model.
 		if (this._model) {
-			this._resourceBeforeDisposal = this.resource;
+			// `toUntyped()` is called after disposal. Store the latest data in `_initialData` so we can still get them there.
+			this._initialData = {
+				id: this._id,
+				url: this._model.url,
+				title: this._model.title,
+				favicon: this._model.favicon
+			};
 			this._model.dispose();
 			this._model = undefined;
 		}
-		super.dispose();
 	}
 
 	serialize(): IBrowserEditorInputData {

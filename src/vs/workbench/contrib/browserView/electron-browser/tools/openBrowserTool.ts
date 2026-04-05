@@ -27,7 +27,7 @@ export const OpenBrowserToolData: IToolData = {
 		properties: {
 			url: {
 				type: 'string',
-				description: 'The full URL to open in the browser.'
+				description: 'The URL to open in the browser. Must be an absolute URI with a scheme such as file:, http:, or https:. For local files, use the canonical absolute form, for example file:///path/to/file.'
 			},
 			forceNew: {
 				type: 'boolean',

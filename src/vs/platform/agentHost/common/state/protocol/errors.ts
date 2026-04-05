@@ -68,7 +68,7 @@ export const AhpErrorCodes = {
 	PermissionDenied: -32009,
 	/**
 	 * The target resource already exists and the operation does not allow
-	 * overwriting (e.g. `writeFile` with `createOnly: true`).
+	 * overwriting (e.g. `resourceWrite` with `createOnly: true`).
 	 */
 	AlreadyExists: -32010,
 } as const;

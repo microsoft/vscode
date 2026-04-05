@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentDescriptor, IAgentHostService, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
-import type { IBrowseDirectoryResult, IFetchContentResult, IStateSnapshot, IWriteFileParams, IWriteFileResult } from '../common/state/sessionProtocol.js';
+import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 
@@ -120,14 +120,23 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	nextClientSeq(): number {
 		return this._nextSeq++;
 	}
-	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
-		return this._proxy.browseDirectory(uri);
+	resourceList(uri: URI): Promise<IResourceListResult> {
+		return this._proxy.resourceList(uri);
 	}
-	fetchContent(uri: URI): Promise<IFetchContentResult> {
-		return this._proxy.fetchContent(uri);
+	resourceRead(uri: URI): Promise<IResourceReadResult> {
+		return this._proxy.resourceRead(uri);
 	}
-	writeFile(params: IWriteFileParams): Promise<IWriteFileResult> {
-		return this._proxy.writeFile(params);
+	resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult> {
+		return this._proxy.resourceWrite(params);
+	}
+	resourceCopy(params: IResourceCopyParams): Promise<IResourceCopyResult> {
+		return this._proxy.resourceCopy(params);
+	}
+	resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult> {
+		return this._proxy.resourceDelete(params);
+	}
+	resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult> {
+		return this._proxy.resourceMove(params);
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side

@@ -309,35 +309,46 @@ export class UpdateTitleBarEntry extends BaseActionViewItem {
 		this.content.style.removeProperty('--update-progress');
 
 		const label = dom.append(this.content, dom.$('.indicator-label'));
-		label.textContent = localize('updateIndicator.update', "Update");
-
 		switch (state.type) {
 			case StateType.Disabled:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('update-disabled');
 				break;
 
 			case StateType.CheckingForUpdates:
-			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.checking', "Checking...");
 				this.renderProgressState(this.content);
 				break;
 
-			case StateType.Restarting:
-				label.textContent = localize('updateIndicator.restarting', "Restarting");
+			case StateType.Overwriting:
+				label.textContent = localize('updateIndicator.overwriting', "Updating...");
 				this.renderProgressState(this.content);
 				break;
 
 			case StateType.AvailableForDownload:
 			case StateType.Downloaded:
 			case StateType.Ready:
+				label.textContent = localize('updateIndicator.update', "Update");
 				this.content.classList.add('prominent');
 				break;
 
 			case StateType.Downloading:
+				label.textContent = localize('updateIndicator.downloading', "Downloading...");
 				this.renderProgressState(this.content, computeProgressPercent(state.downloadedBytes, state.totalBytes));
 				break;
 
 			case StateType.Updating:
+				label.textContent = localize('updateIndicator.installing', "Installing...");
 				this.renderProgressState(this.content, computeProgressPercent(state.currentProgress, state.maxProgress));
+				break;
+
+			case StateType.Restarting:
+				label.textContent = localize('updateIndicator.restarting', "Restarting...");
+				this.renderProgressState(this.content);
+				break;
+
+			default:
+				label.textContent = localize('updateIndicator.update', "Update");
 				break;
 		}
 	}

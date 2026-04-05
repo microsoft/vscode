@@ -116,6 +116,13 @@
 	box-sizing: border-box;
 }
 
+/* Hide shared chat-session option-group pickers in the sessions app active chat UI.
+ * The sessions workbench provides its own new-session configuration controls and
+ * should not surface the shared workbench chat session pickers here. */
+.agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+	display: none;
+}
+
 /* ---- Modal Editor Block ---- */
 
 .agent-sessions-workbench .monaco-modal-editor-block {

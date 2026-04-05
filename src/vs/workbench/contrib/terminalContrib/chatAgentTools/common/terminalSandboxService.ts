@@ -106,7 +106,7 @@ export interface ITerminalSandboxService {
 	isEnabled(): Promise<boolean>;
 	getOS(): Promise<OperatingSystem>;
 	checkForSandboxingPrereqs(forceRefresh?: boolean): Promise<ITerminalSandboxPrerequisiteCheckResult>;
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult;
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string): ITerminalSandboxWrapResult;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
@@ -135,6 +135,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private static readonly _urlRegex = /(?:https?|wss?):\/\/[^\s'"`|&;<>]+/gi;
 	private static readonly _sshRemoteRegex = /(?:^|[\s'"`])(?:[^\s@:'"`]+@)?([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::[^\s'"`|&;<>]+)(?=$|[\s'"`|&;<>])/gi;
 	private static readonly _hostRegex = /(?:^|[\s'"`(=])([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(?::\d+)?(?=(?:\/[^\s'"`|&;<>]*)?(?:$|[\s'"`)\]|,;|&<>]))/gi;
+	// While the regexes above are designed to minimize false positives, we may still pick up some file paths that look like domains. To reduce noise, maintain a list of common file extensions and filter out any domain candidates that end with these extensions.
+	private static readonly _fileExtensionSuffixes = new Set([
+		'7z', 'bz2', 'cjs', 'class', 'cpp', 'cs', 'css', 'csv', 'dll', 'exe', 'gif', 'gz', 'ico', 'jar',
+		'env', 'java', 'jpeg', 'jpg', 'js', 'json', 'jsx', 'lock', 'log', 'md', 'mjs', 'pdf', 'php', 'png',
+		'py', 'rar', 'rs', 'so', 'sql', 'svg', 'tar', 'tgz', 'toml', 'ts', 'tsx', 'txt', 'wasm', 'webp',
+		'xml', 'yaml', 'yml', 'zip'
+	]);
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -200,7 +207,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._os;
 	}
 
-	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean): ITerminalSandboxWrapResult {
+	public wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string): ITerminalSandboxWrapResult {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
@@ -208,7 +215,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const blockedDomainResult = requestUnsandboxedExecution ? { blockedDomains: [], deniedDomains: [] } : this._getBlockedDomains(command);
 		if (!requestUnsandboxedExecution && blockedDomainResult.blockedDomains.length > 0) {
 			return {
-				command: this._wrapUnsandboxedCommand(command),
+				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
 				blockedDomains: blockedDomainResult.blockedDomains,
 				deniedDomains: blockedDomainResult.deniedDomains,
@@ -219,7 +226,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
 		if (requestUnsandboxedExecution) {
 			return {
-				command: this._wrapUnsandboxedCommand(command),
+				command: this._wrapUnsandboxedCommand(command, shell),
 				isSandboxWrapped: false,
 			};
 		}
@@ -453,8 +460,14 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 
-	private _wrapUnsandboxedCommand(command: string): string {
-		return this._tempDir?.path ? `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})` : command;
+	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
+		if (!this._tempDir?.path) {
+			return command;
+		}
+		if (!shell) {
+			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})`;
+		}
+		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(command)}`;
 	}
 
 	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
@@ -496,7 +509,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 		TerminalSandboxService._sshRemoteRegex.lastIndex = 0;
 		while ((match = TerminalSandboxService._sshRemoteRegex.exec(command)) !== null) {
-			const domain = this._normalizeDomain(match[1]);
+			const domain = this._normalizeDomain(match[1], true);
 			if (domain) {
 				domains.add(domain);
 			}
@@ -516,13 +529,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _extractDomainFromUrl(value: string): string | undefined {
 		try {
 			const authority = URI.parse(value).authority;
-			return this._normalizeDomain(authority);
+			return this._normalizeDomain(authority, true);
 		} catch {
 			return undefined;
 		}
 	}
 
-	private _normalizeDomain(value: string | undefined): string | undefined {
+	private _normalizeDomain(value: string | undefined, fromUrl: boolean = false): string | undefined {
 		if (!value) {
 			return undefined;
 		}
@@ -562,11 +575,19 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			return undefined;
 		}
 
+		// Disallow patterns that look like file names with common extensions, as these are unlikely to be intended as network domains and may be false positives from the regex.
+		if (!fromUrl) {
+			const lastLabel = host.slice(host.lastIndexOf('.') + 1);
+			if (TerminalSandboxService._fileExtensionSuffixes.has(lastLabel)) {
+				return undefined;
+			}
+		}
+
 		return hasWildcardPrefix ? `*.${host}` : host;
 	}
 
 	private _matchesDomainPattern(domain: string, pattern: string): boolean {
-		const normalizedPattern = this._normalizeDomain(this._extractDomainPattern(pattern));
+		const normalizedPattern = this._normalizeDomain(this._extractDomainPattern(pattern), pattern.includes('://'));
 		if (!normalizedPattern) {
 			return false;
 		}

@@ -14,7 +14,6 @@ import { Position } from '../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
 import { TrackedRangeStickiness } from '../../../../../../../editor/common/model.js';
-import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { inputPlaceholderForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
@@ -22,8 +21,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../.
 import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestParser } from '../../../../common/requestParser/chatRequestParser.js';
-import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../attachments/chatVariables.js';
+import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
@@ -452,59 +450,32 @@ class ChatTokenDeleter extends Disposable {
 
 	constructor(
 		private readonly widget: IChatWidget,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-		const parser = this.instantiationService.createInstance(ChatRequestParser);
-		const inputValue = this.widget.inputEditor.getValue();
-		let previousInputValue: string | undefined;
-		let previousSelectedAgent: IChatAgentData | undefined;
 
-		// A simple heuristic to delete the previous token when the user presses backspace.
-		// The sophisticated way to do this would be to have a parse tree that can be updated incrementally.
+		let prevInsertTokenRange: Range | undefined;
+
+		// A simple heuristic to delete the previous insert token when the user presses backspace.
 		this._register(this.widget.inputEditor.onDidChangeModelContent(e => {
-			if (!previousInputValue) {
-				previousInputValue = inputValue;
-				previousSelectedAgent = this.widget.lastSelectedAgent;
-			}
+			let insertedTokenRange: Range | undefined;
 
 			// Don't try to handle multi-cursor edits right now
-			const change = e.changes[0];
-
-			// If this was a simple delete, try to find out whether it was inside a token
-			if (!change.text && this.widget.viewModel) {
-				const attachmentCapabilities = previousSelectedAgent?.capabilities ?? this.widget.attachmentCapabilities;
-				const previousParsedValue = parser.parseChatRequestWithReferences(getDynamicVariablesForWidget(this.widget), getSelectedToolAndToolSetsForWidget(this.widget), previousInputValue, this.widget.location, { selectedAgent: previousSelectedAgent, mode: this.widget.input.currentModeKind, attachmentCapabilities });
-
-				// For dynamic variables, this has to happen in ChatDynamicVariableModel with the other bookkeeping
-				const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart || p instanceof ChatRequestSlashPromptPart || p instanceof ChatRequestToolPart);
-				deletableTokens.forEach(token => {
-					const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
-					// Part of this token was deleted, or the space after it was deleted, and the deletion range doesn't go off the front of the token, for simpler math
-					if (deletedRangeOfToken && Range.compareRangesUsingStarts(token.editorRange, change.range) < 0) {
-						// Range.intersectRanges returns an empty range when the deletion happens *exactly* at a boundary.
-						// In that case, only treat this as a token-delete when the deleted character was a space.
-						if (previousInputValue && Range.isEmpty(deletedRangeOfToken)) {
-							const deletedText = previousInputValue.substring(change.rangeOffset, change.rangeOffset + change.rangeLength);
-							if (deletedText !== ' ') {
-								return;
-							}
-						}
-
-						// Assume single line tokens
-						const length = deletedRangeOfToken.endColumn - deletedRangeOfToken.startColumn;
-						const rangeToDelete = new Range(token.editorRange.startLineNumber, token.editorRange.startColumn, token.editorRange.endLineNumber, token.editorRange.endColumn - length);
-						this.widget.inputEditor.executeEdits(this.id, [{
-							range: rangeToDelete,
-							text: '',
-						}]);
-						this.widget.refreshParsedInput();
+			if (e.changes.length === 1) {
+				const change = e.changes[0];
+				if (change.text.length > 0 && change.rangeLength === 1) {
+					// A full slash command or agent reference was just inserted - store it so that if the user immediately deletes it, we can delete the whole thing instead of just one character
+					if (slashReg.test(change.text) || agentReg.test(change.text) || variableReg.test(change.text)) {
+						insertedTokenRange = new Range(change.range.startLineNumber, change.range.startColumn, change.range.endLineNumber, change.range.startColumn + change.text.length);
 					}
-				});
+				} else if (change.text.length === 0 && prevInsertTokenRange && change.range.endColumn === prevInsertTokenRange.endColumn) {
+					this.widget.inputEditor.executeEdits(this.id, [{
+						range: prevInsertTokenRange,
+						text: '',
+					}]);
+					this.widget.refreshParsedInput();
+				}
 			}
-
-			previousInputValue = this.widget.inputEditor.getValue();
-			previousSelectedAgent = this.widget.lastSelectedAgent;
+			prevInsertTokenRange = insertedTokenRange;
 		}));
 	}
 }
