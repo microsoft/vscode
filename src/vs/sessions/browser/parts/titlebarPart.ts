@@ -85,6 +85,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	get rightContainer(): HTMLElement { return this.rightContent; }
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
 
+	private chatBarResizeObserver: ResizeObserver | undefined;
+
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
 
@@ -282,6 +284,26 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
+		this.installChatBarResizeObserver();
+	}
+
+	private installChatBarResizeObserver(): void {
+		if (this.chatBarResizeObserver) {
+			return;
+		}
+
+		const chatBarContainer = this.layoutService.getContainer(getWindow(this.element), Parts.CHATBAR_PART);
+		if (!chatBarContainer) {
+			return;
+		}
+
+		this.chatBarResizeObserver = new ResizeObserver(entries => {
+			for (const entry of entries) {
+				this.centerContent.style.maxWidth = `${entry.contentRect.width}px`;
+			}
+		});
+		this.chatBarResizeObserver.observe(chatBarContainer);
+		this._register({ dispose: () => this.chatBarResizeObserver?.disconnect() });
 	}
 
 	private updateLayout(): void {
