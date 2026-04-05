@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../platform/update/common/update.config.contribution.js';
+import '../../platform/policy/common/policy.config.contribution.js';
 
 import { app, dialog } from 'electron';
 import { unlinkSync, promises } from 'fs';
