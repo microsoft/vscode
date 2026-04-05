@@ -241,6 +241,10 @@
 			}
 		}
 
+		.chat-confirmation-widget2 .chat-confirmation-message-terminal-disclaimer .chat-markdown-part.rendered-markdown {
+			padding: 2px 0px;
+		}
+
 		.chat-thinking-tool-wrapper .chat-terminal-thinking-content .chat-markdown-part.rendered-markdown {
 			padding: 0;
 		}
