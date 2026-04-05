@@ -261,10 +261,10 @@ export class PromptFilesLocator {
 		const absoluteLocations = await this.toAbsoluteLocations(PromptsType.hook, allowedHookFolders);
 
 		for (const location of absoluteLocations) {
-			// For hook configs, entries are directories unless the path ends with .json (specific file)
-			// Default entries have filePattern, user entries don't but are still directories
-			// location.parent points to the directory in both cases, so we can just use that
-			result.add(location.parent);
+			// For directory-based hook configs, location.parent is the directory itself.
+			// For specific .json file paths, location.parent is the file; use its dirname.
+			const folder = extname(location.parent) === '.json' ? dirname(location.parent) : location.parent;
+			result.add(folder);
 		}
 
 		return [...result];
@@ -847,7 +847,10 @@ interface IParentFolderResult {
  */
 function getParentFolder(type: PromptsType, location: URI): IParentFolderResult {
 	if (type === PromptsType.hook && extname(location) === '.json') {
-		location = dirname(location);
+		// For specific JSON hook file paths (e.g., .claude/settings.json),
+		// keep the full file path so resolveFilesAtLocation resolves just
+		// that file, instead of listing all files in the parent directory.
+		return { parent: location };
 	}
 	if (type !== PromptsType.instructions && type !== PromptsType.prompt) {
 		// only instructions and prompts support glob patterns, so we can return the location as is
