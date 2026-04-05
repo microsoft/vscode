@@ -32,6 +32,10 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 	private _globalItems: Map<number, vscode.ChatContextItem> = new Map();
 	/** Track which items belong to which provider for cleanup */
 	private _providerItems: Map<number, Set<number>> = new Map(); // providerHandle -> Set<itemHandle>
+	/** Track insertion order for LRU eviction */
+	private _itemInsertionOrder: number[] = [];
+	/** Maximum number of global items to prevent unbounded growth */
+	private static readonly MAX_GLOBAL_ITEMS = 10000;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -252,6 +256,10 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		if (itemHandles) {
 			for (const itemHandle of itemHandles) {
 				this._globalItems.delete(itemHandle);
+				const idx = this._itemInsertionOrder.indexOf(itemHandle);
+				if (idx !== -1) {
+					this._itemInsertionOrder.splice(idx, 1);
+				}
 			}
 			itemHandles.clear();
 		}
@@ -259,12 +267,25 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 
 	private _addTrackedItem(providerHandle: number, item: vscode.ChatContextItem): number {
 		const itemHandle = this._itemPool++;
+		this._evictOldestIfNecessary();
 		this._globalItems.set(itemHandle, item);
+		this._itemInsertionOrder.push(itemHandle);
 		if (!this._providerItems.has(providerHandle)) {
 			this._providerItems.set(providerHandle, new Set());
 		}
 		this._providerItems.get(providerHandle)!.add(itemHandle);
 		return itemHandle;
+	}
+
+	private _evictOldestIfNecessary(): void {
+		if (this._globalItems.size < ExtHostChatContext.MAX_GLOBAL_ITEMS) {
+			return;
+		}
+		const itemsToEvict = Math.ceil(ExtHostChatContext.MAX_GLOBAL_ITEMS * 0.1);
+		for (let i = 0; i < itemsToEvict && this._itemInsertionOrder.length > 0; i++) {
+			const oldestHandle = this._itemInsertionOrder.shift()!;
+			this._globalItems.delete(oldestHandle);
+		}
 	}
 
 	private _convertItems(handle: number, items: vscode.ChatContextItem[]): IChatContextItem[] {
@@ -330,5 +351,8 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		for (const { disposables } of this._providers.values()) {
 			disposables.dispose();
 		}
+		this._globalItems.clear();
+		this._itemInsertionOrder = [];
+		this._providerItems.clear();
 	}
 }
