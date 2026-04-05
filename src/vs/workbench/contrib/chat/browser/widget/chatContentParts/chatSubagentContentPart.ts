@@ -651,6 +651,16 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Track tool state for title updates and auto-expand/collapse on confirmation
 		this.trackToolState(toolInvocation);
 
+		// Ensure expanded when a tool needing confirmation is appended (e.g. after session switch)
+		if (toolInvocation.kind === 'toolInvocation') {
+			const state = toolInvocation.state.get();
+			if ((state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
+				state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) && !this.isExpanded()) {
+				this.autoExpandedForConfirmation = true;
+				this.setExpanded(true);
+			}
+		}
+
 		// Render immediately only if already expanded or has been expanded before
 		if (this.isExpanded() || this.hasExpandedOnce) {
 			const part = this.createToolPart(toolInvocation, codeBlockStartIndex);
