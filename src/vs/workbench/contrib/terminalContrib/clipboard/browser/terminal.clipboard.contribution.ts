@@ -120,6 +120,15 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 					this.paste();
 					return { handled: true };
 				}
+				// On Linux with 'default' middle click behavior, explicitly paste the
+				// primary selection clipboard. Relying on the browser to handle the
+				// middle-click paste is unreliable when the click occurs over a word
+				// because xterm.js intercepts the mouse event to select the word before
+				// the browser can perform the paste.
+				if (isLinux && this._terminalConfigurationService.config.middleClickBehavior === 'default') {
+					this.pasteSelection();
+					return { handled: true };
+				}
 				break;
 			}
 			case 2: { // Right click
