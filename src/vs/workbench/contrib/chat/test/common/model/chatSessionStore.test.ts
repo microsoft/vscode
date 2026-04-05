@@ -13,7 +13,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -460,6 +460,43 @@ suite('ChatSessionStore', () => {
 
 			const newStorageRoot = store.getChatStorageFolder();
 			assert.ok(newStorageRoot.path.includes('new-workspace-id'), 'Storage root should be updated to new workspace location');
+		});
+
+		test('session index is preserved after workspace transition', async () => {
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			// Create store with empty window and store sessions
+			const store = createChatSessionStore(true);
+			const model1 = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1'), { customTitle: 'First Session' }));
+			const model2 = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-2'), { customTitle: 'Second Session' }));
+
+			await store.storeSessions([model1, model2]);
+			assert.strictEqual(Object.keys(await store.getIndex()).length, 2);
+
+			// Simulate the real storageService.switch() sequence:
+			// 1. onWillSaveState fires (populates indexCache in the store)
+			// 2. Storage scope changes from APPLICATION to WORKSPACE
+			// 3. onDidEnterWorkspace fires (triggers migration)
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+			const contextService = instantiationService.get(IWorkspaceContextService) as TestContextService;
+			contextService.setWorkspace(TestWorkspace);
+
+			const oldWorkspace: IAnyWorkspaceIdentifier = { id: 'empty-window-id' };
+			const newWorkspace: IAnyWorkspaceIdentifier = { id: TestWorkspace.id, uri: URI.file('/test/folder') };
+
+			await mockWorkspaceEditingService.fireWorkspaceTransition(oldWorkspace, newWorkspace);
+
+			// Create a fresh store to verify the index was persisted to the
+			// new WORKSPACE scope and not just cached in memory.
+			const store2 = createChatSessionStore(false);
+			const index = await store2.getIndex();
+			assert.deepStrictEqual(
+				Object.keys(index).sort(),
+				['session-1', 'session-2'],
+			);
+			assert.strictEqual(index['session-1'].title, 'First Session');
+			assert.strictEqual(index['session-2'].title, 'Second Session');
 		});
 	});
 });
