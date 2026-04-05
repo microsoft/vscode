@@ -203,15 +203,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 
 			this._renameCandidateListView = this._disposables.add(
 				new RenameCandidateListView(this._domNode, {
-					fontInfo: this._editor.getOption(EditorOption.fontInfo),
-					onFocusChange: (newSymbolName: string) => {
-						this._inputWithButton.input.value = newSymbolName;
-						this._isEditingRenameCandidate = false; // @ulugbekna: reset
-					},
-					onSelectionChange: () => {
-						this._isEditingRenameCandidate = false; // @ulugbekna: because user picked a rename suggestion
-						this.acceptInput(false); // we don't allow preview with mouse click for now
-					}
+					fontInfo: this._editor.getOption(EditorOption.fontInfo)
 				})
 			);
 
@@ -227,6 +219,16 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 					this._renameCandidateListView?.clearFocus();
 				})
 			);
+
+			this._disposables.add(this._renameCandidateListView.onFocusChange((newSymbolName: string) => {
+				this._inputWithButton.input.value = newSymbolName;
+				this._isEditingRenameCandidate = false; // @ulugbekna: reset
+			}));
+
+			this._disposables.add(this._renameCandidateListView.onSelectionChange(() => {
+				this._isEditingRenameCandidate = false; // @ulugbekna: because user picked a rename suggestion
+				this.acceptInput(false); // we don't allow preview with mouse click for now
+			}));
 
 			this._label = document.createElement('div');
 			this._label.className = 'rename-label';
@@ -676,8 +678,13 @@ class RenameCandidateListView {
 
 	private readonly _disposables: DisposableStore;
 
-	// FIXME@ulugbekna: rewrite using event emitters
-	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo; onFocusChange: (newSymbolName: string) => void; onSelectionChange: () => void }) {
+	private readonly _onFocusChange = new Emitter<string>();
+	public readonly onFocusChange = this._onFocusChange.event;
+
+	private readonly _onSelectionChange = new Emitter<void>();
+	public readonly onSelectionChange = this._onSelectionChange.event;
+
+	constructor(parent: HTMLElement, opts: { fontInfo: FontInfo }) {
 
 		this._disposables = new DisposableStore();
 
@@ -696,7 +703,7 @@ class RenameCandidateListView {
 		this._disposables.add(this._listWidget.onDidChangeFocus(
 			e => {
 				if (e.elements.length === 1) {
-					opts.onFocusChange(e.elements[0].newSymbolName);
+					this._onFocusChange.fire(e.elements[0].newSymbolName);
 				}
 			},
 			this._disposables
@@ -705,7 +712,7 @@ class RenameCandidateListView {
 		this._disposables.add(this._listWidget.onDidChangeSelection(
 			e => {
 				if (e.elements.length === 1) {
-					opts.onSelectionChange();
+					this._onSelectionChange.fire();
 				}
 			},
 			this._disposables
