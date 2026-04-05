@@ -48,6 +48,14 @@ export interface IKeybindingService {
 	readonly onDidUpdateKeybindings: Event<void>;
 
 	/**
+	 * Returns the command ID that is currently being dispatched via a keybinding,
+	 * or null if no command is currently being dispatched from a keybinding.
+	 * This can be used to distinguish between commands triggered by keybindings
+	 * versus commands triggered by UI actions.
+	 */
+	readonly currentlyDispatchingCommandId: string | null;
+
+	/**
 	 * Returns none, one or many (depending on keyboard layout)!
 	 */
 	resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
