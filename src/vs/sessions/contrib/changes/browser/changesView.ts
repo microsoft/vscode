@@ -108,7 +108,7 @@ class ChangesButtonBarWidget extends MenuWorkbenchButtonBar {
 		);
 	}
 
-	private _getButtonConfiguration(action: IAction): { showIcon: boolean; showLabel: boolean; isSecondary: boolean; customLabel?: string; customClass?: string } | undefined {
+	private _getButtonConfiguration(action: IAction): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.sync' ||
 			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR'
@@ -153,7 +153,7 @@ class ChangesButtonBarWidget extends MenuWorkbenchButtonBar {
 			const icon = action.item.icon;
 			if (icon) {
 				// Icon-only button (no forced secondary state so primary/secondary can be inferred).
-				return { showIcon: true, showLabel: false, isSecondary: true };
+				return { showIcon: true, showLabel: false };
 			}
 		}
 
