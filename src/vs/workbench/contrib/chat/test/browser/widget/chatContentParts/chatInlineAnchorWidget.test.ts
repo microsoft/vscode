@@ -89,6 +89,18 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		assert.ok(widget, 'Widget should be rendered for any vscodeLinkType value');
 	});
 
+	test('clears native title attributes before installing managed hover', () => {
+		const element = createTestElement('document.txt', 'file:///path/to/document.txt?vscodeLinkType=file');
+		const anchor = element.querySelector('a');
+		anchor?.setAttribute('title', 'native hover');
+
+		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
+
+		const widget = element.querySelector<HTMLElement>('.chat-inline-anchor-widget');
+		assert.ok(widget, 'Widget should be rendered');
+		assert.ok(!widget.hasAttribute('title'), 'Widget should remove the native title attribute before installing managed hover');
+	});
+
 	test('handles vscodeLinkType with other query parameters', () => {
 		const element = createTestElement('skillName', 'file:///test.txt?other=value&vscodeLinkType=skill&another=param');
 		renderFileWidgets(element, instantiationService, mockAnchorService, disposables);
