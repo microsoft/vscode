@@ -18,6 +18,9 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId } from './gettingStartedInput.js';
+// test-workbench_change start
+import { TscodeWelcomeInput } from './tscodeWelcomeInput.js';
+// test-workbench_change end
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -72,6 +75,32 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 				}
 			}
 		));
+
+		// test-workbench_change start - Register TSCode Welcome editor resolver
+		this._register(editorResolverService.registerEditor(
+			`${TscodeWelcomeInput.RESOURCE.scheme}://tscode_welcome_page/**`,
+			{
+				id: TscodeWelcomeInput.ID,
+				label: localize('tscodeWelcome.displayName', "TSCode Welcome Page"),
+				priority: RegisteredEditorPriority.builtin,
+			},
+			{
+				singlePerResource: true,
+				canSupportResource: uri => uri.scheme === TscodeWelcomeInput.RESOURCE.scheme && uri.authority === 'tscode_welcome_page',
+			},
+			{
+				createEditorInput: ({ options }) => {
+					return {
+						editor: this.instantiationService.createInstance(TscodeWelcomeInput, options || {}),
+						options: {
+							...options,
+							pinned: false
+						}
+					};
+				}
+			}
+		));
+		// test-workbench_change end
 	}
 }
 
@@ -139,6 +168,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted(true);
+					// test-workbench_change start
+				} else if (startupEditorSetting.value === 'tscodeWelcomePage') {
+					await this.openTscodeWelcome();
+					// test-workbench_change end
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -217,6 +250,27 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		}
 	}
 
+	// test-workbench_change start
+	private async openTscodeWelcome() {
+		const editor = this.editorService.activeEditor;
+
+		// Ensure that the tscode welcome editor won't get opened more than once
+		if (editor?.typeId === TscodeWelcomeInput.ID || this.editorService.editors.some(e => e.typeId === TscodeWelcomeInput.ID)) {
+			return;
+		}
+
+		this.editorService.openEditor({
+			resource: TscodeWelcomeInput.RESOURCE,
+			options: {
+				override: TscodeWelcomeInput.ID,
+				index: editor ? 0 : undefined,
+				pinned: false,
+				preserveFocus: this.shouldPreserveFocus()
+			},
+		});
+	}
+	// test-workbench_change end
+
 	private shouldPreserveFocus(): boolean {
 		const activeElement = getActiveElement();
 		if (!activeElement || activeElement === mainWindow.document.body || this.layoutService.hasFocus(Parts.EDITOR_PART)) {
@@ -243,5 +297,6 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 	return startupEditor.value === 'welcomePage'
 		|| startupEditor.value === 'readme'
 		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && startupEditor.value === 'welcomePageInEmptyWorkbench')
-		|| startupEditor.value === 'terminal';
+		|| startupEditor.value === 'terminal'
+		|| startupEditor.value === 'tscodeWelcomePage'; // test-workbench_change
 }
