@@ -1,0 +1,98 @@
+{
+  "name": "github-public-repo-cloner",
+  "displayName": "GitHub Public Repo Cloner",
+  "description": "Search public GitHub repositories from the sidebar and clone them.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "githubRepoCloner",
+          "title": "GitHub Repos",
+          "icon": "resources/repository.svg"
+        }
+      ]
+    },
+    "views": {
+      "githubRepoCloner": [
+        {
+          "id": "githubRepoCloner.repositories",
+          "name": "Public Repositories"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "githubRepoCloner.searchRepositories",
+        "title": "Search Repositories",
+        "category": "GitHub Repo Cloner",
+        "icon": "$(search)"
+      },
+      {
+        "command": "githubRepoCloner.refreshRepositories",
+        "title": "Refresh Repository Results",
+        "category": "GitHub Repo Cloner",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "githubRepoCloner.cloneRepository",
+        "title": "Clone Repository",
+        "category": "GitHub Repo Cloner",
+        "icon": "$(repo-clone)"
+      },
+      {
+        "command": "githubRepoCloner.openRepository",
+        "title": "Open Repository on GitHub",
+        "category": "GitHub Repo Cloner",
+        "icon": "$(link-external)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "githubRepoCloner.searchRepositories",
+          "when": "view == githubRepoCloner.repositories",
+          "group": "navigation@1"
+        },
+        {
+          "command": "githubRepoCloner.refreshRepositories",
+          "when": "view == githubRepoCloner.repositories",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "githubRepoCloner.cloneRepository",
+          "when": "view == githubRepoCloner.repositories && viewItem == repository",
+          "group": "inline"
+        },
+        {
+          "command": "githubRepoCloner.openRepository",
+          "when": "view == githubRepoCloner.repositories && viewItem == repository",
+          "group": "navigation@1"
+        },
+        {
+          "command": "githubRepoCloner.cloneRepository",
+          "when": "view == githubRepoCloner.repositories && viewItem == repository",
+          "group": "navigation@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.8.3"
+  }
+}
