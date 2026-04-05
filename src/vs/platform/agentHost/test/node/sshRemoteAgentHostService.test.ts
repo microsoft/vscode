@@ -208,15 +208,17 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			{ stdout: '', code: 0 },               // echo state file (write)
 		];
 
-		const config = makeConfig();
+		const config = makeConfig({ sshConfigHost: 'myalias' });
 		const result1 = await service.connect(config);
-		assert.strictEqual(result1.connectionId, 'testuser@10.0.0.1:22');
+		assert.strictEqual(result1.connectionId, 'ssh:myalias');
+		assert.strictEqual(result1.sshConfigHost, 'myalias');
 		assert.strictEqual(service.startCalled, 1);
 
 		// Second connect with same config — should return the cached connection
 		const result2 = await service.connect(config);
 		assert.strictEqual(result2.connectionId, result1.connectionId);
 		assert.strictEqual(result2.connectionToken, result1.connectionToken);
+		assert.strictEqual(result2.sshConfigHost, 'myalias');
 		// Should NOT have started a second agent host
 		assert.strictEqual(service.startCalled, 1);
 	});

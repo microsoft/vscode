@@ -400,6 +400,21 @@ suite('SSH Remote Agent Host Helpers', () => {
 			assert.strictEqual(commands.length, 1);
 			assert.ok(commands[0].includes('"connectionToken":null'));
 		});
+
+		test('logs warning when write command fails', async () => {
+			const exec: ISshExec = async () => {
+				return { stdout: '', stderr: 'Permission denied', code: 1 };
+			};
+			const warnings: string[] = [];
+			const capturingLog = new NullLogService();
+			capturingLog.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(' ')); };
+			await writeAgentHostState(exec, capturingLog, 'insider', 1234, 8080, 'tok');
+			// Should log a warning with exit code and stderr
+			assert.strictEqual(warnings.length, 1);
+			assert.ok(warnings[0].includes('Failed to write'));
+			assert.ok(warnings[0].includes('exit code 1'));
+			assert.ok(warnings[0].includes('Permission denied'));
+		});
 	});
 
 	suite('cleanupRemoteAgentHost', () => {

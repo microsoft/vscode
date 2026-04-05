@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type WebSocket from 'ws';
-import { createRequire } from 'node:module';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -36,8 +35,6 @@ import {
 	writeAgentHostState,
 } from './sshRemoteAgentHostHelpers.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
-
-const _require = createRequire(import.meta.url);
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -188,6 +185,7 @@ function startRemoteAgentHost(
  * Messages are relayed to the renderer via IPC events.
  */
 function createWebSocketRelay(
+	nativeRequire: NodeJS.Require,
 	client: SSHClient,
 	dstHost: string,
 	dstPort: number,
@@ -203,7 +201,7 @@ function createWebSocketRelay(
 				return;
 			}
 
-			const WS = _require('ws') as typeof WebSocket;
+			const WS = nativeRequire('ws') as typeof WebSocket;
 			let url = `ws://${dstHost}:${dstPort}`;
 			if (connectionToken) {
 				url += `?tkn=${encodeURIComponent(connectionToken)}`;
@@ -319,11 +317,29 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
 
+	private _nativeRequire: NodeJS.Require | undefined;
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
+	}
+
+	/**
+	 * Lazily load a `require` function for native modules (`ssh2`, `ws`).
+	 * Uses a dynamic `import('node:module')` so the module is only resolved
+	 * when actually needed at runtime — not at file-load time. This matters
+	 * because tests override the methods that call this and never trigger
+	 * the import, avoiding issues with Electron's ESM loader which cannot
+	 * resolve `node:` specifiers.
+	 */
+	private async _getNativeRequire(): Promise<NodeJS.Require> {
+		if (!this._nativeRequire) {
+			const nodeModule = await import('node:module');
+			this._nativeRequire = nodeModule.createRequire(import.meta.url);
+		}
+		return this._nativeRequire;
 	}
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult> {
@@ -339,6 +355,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				name: existing.name,
 				connectionToken: existing.connectionToken,
 				config: existing.config,
+				sshConfigHost: config.sshConfigHost,
 			};
 		}
 
@@ -415,7 +432,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 					throw relayErr;
 				}
 				// The reused agent host is not connectable — kill it and start fresh
-				this._logService.info(`${LOG_PREFIX} Failed to connect to reused agent host on port ${remotePort}, starting fresh`);
+				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
+				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on port ${remotePort}: ${relayErrorMessage}. Starting fresh`);
 				await cleanupRemoteAgentHost(exec, this._logService, this._quality);
 
 				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
@@ -612,7 +630,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
 	): Promise<SSHClient> {
-		const ssh2Module = _require('ssh2') as { Client: new () => unknown };
+		const nativeRequire = await this._getNativeRequire();
+		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
 		const SSHClientCtor = ssh2Module.Client;
 
 		const connectConfig: Record<string, unknown> = {
@@ -668,11 +687,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return startRemoteAgentHost(client, this._logService, quality, commandOverride);
 	}
 
-	protected _createWebSocketRelay(
+	protected async _createWebSocketRelay(
 		client: SSHClient, dstHost: string, dstPort: number, connectionToken: string | undefined,
 		onMessage: (data: string) => void, onClose: () => void,
 	): Promise<{ send: (data: string) => void; close: () => void }> {
-		return createWebSocketRelay(client, dstHost, dstPort, connectionToken, this._logService, onMessage, onClose);
+		const nativeRequire = await this._getNativeRequire();
+		return createWebSocketRelay(nativeRequire, client, dstHost, dstPort, connectionToken, this._logService, onMessage, onClose);
 	}
 
 	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<void> {

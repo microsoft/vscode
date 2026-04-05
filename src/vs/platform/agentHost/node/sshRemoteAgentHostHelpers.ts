@@ -178,7 +178,11 @@ export async function writeAgentHostState(
 	// Use a subshell with restrictive umask (077) so the file is created with
 	// owner-only permissions (0600), protecting the connection token.
 	// The CLI itself stores its token file with the same permissions.
-	await exec(`rm -f ${stateFile} && (umask 077 && echo ${shellEscape(json)} > ${stateFile})`, { ignoreExitCode: true });
+	const result = await exec(`rm -f ${stateFile} && (umask 077 && echo ${shellEscape(json)} > ${stateFile})`, { ignoreExitCode: true });
+	if (result.code !== 0) {
+		logService.warn(`${LOG_PREFIX} Failed to write agent host state to ${stateFile} (exit code ${result.code})${result.stderr ? `: ${result.stderr.trim()}` : ''}`);
+		return;
+	}
 	logService.info(`${LOG_PREFIX} Wrote agent host state to ${stateFile}: PID ${pid}, port ${port}`);
 }
 
