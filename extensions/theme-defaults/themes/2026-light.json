@@ -48,7 +48,7 @@
 		"inputValidation.errorBackground": "#FDEDED",
 		"inputValidation.errorBorder": "#ad0707",
 		"inputValidation.errorForeground": "#202020",
-		"scrollbar.shadow": "#00000000",
+		"scrollbar.shadow": "#989898ce",
 		"widget.shadow": "#00000000",
 		"widget.border": "#E2E2E5",
 		"editorStickyScroll.shadow": "#00000000",
