@@ -405,6 +405,17 @@ export class SCMViewService implements ISCMViewService {
 					this.didSelectRepository = true;
 				}
 			}
+		} else if (this.previousState && this.didFinishLoadingRepositories.get()) {
+			// Even after the initial loading phase has ended, repositories
+			// that are discovered later (e.g. git worktrees) should respect
+			// the previously persisted hidden state so that the user does
+			// not have to hide them again on every restart.
+			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
+			if (index !== -1 && this.previousState.visible.indexOf(index) === -1) {
+				this.insertRepositoryView(this._repositories, repositoryView);
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+				return;
+			}
 		}
 
 		if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
