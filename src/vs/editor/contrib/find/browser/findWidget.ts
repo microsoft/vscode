@@ -119,6 +119,26 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 	}
 }
 
+/**
+ * Transforms the selected text in an input element using the provided function.
+ * Returns true if the transformation was applied, false if there was no selection.
+ */
+export function transformInputSelection(
+	el: HTMLInputElement,
+	transform: (text: string) => string
+): boolean {
+	const start = el.selectionStart;
+	const end = el.selectionEnd;
+	if (start === null || end === null || start === end) {
+		return false;
+	}
+	const original = el.value;
+	const transformed = transform(original.slice(start, end));
+	el.value = original.slice(0, start) + transformed + original.slice(end);
+	el.setSelectionRange(start, start + transformed.length);
+	return true;
+}
+
 export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
 	private readonly _codeEditor: ICodeEditor;
@@ -148,6 +168,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _accessibilityHelpHintAnnounced: boolean;
 	private _labelResetTimeout: IDisposable | undefined;
 	private _lastFocusedInputWasReplace: boolean = false;
+	private _lastFocusedInput: HTMLInputElement | null = null;
 
 	private readonly _findFocusTracker: dom.IFocusTracker;
 	private readonly _findInputFocused: IContextKey<boolean>;
@@ -246,6 +267,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._findFocusTracker.onDidFocus(() => {
 			this._findInputFocused.set(true);
 			this._lastFocusedInputWasReplace = false;
+			this._lastFocusedInput = this._findInput.inputBox.inputElement;
 			this._updateSearchScope();
 		}));
 		this._register(this._findFocusTracker.onDidBlur(() => {
@@ -257,6 +279,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._replaceFocusTracker.onDidFocus(() => {
 			this._replaceInputFocused.set(true);
 			this._lastFocusedInputWasReplace = true;
+			this._lastFocusedInput = this._replaceInput.inputBox.inputElement;
 			this._updateSearchScope();
 		}));
 		this._register(this._replaceFocusTracker.onDidBlur(() => {
@@ -632,6 +655,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (this._isVisible) {
 			this._isVisible = false;
 			this._accessibilityHelpHintAnnounced = false;
+			this._lastFocusedInput = null;
 
 			this._updateButtons();
 
@@ -851,6 +875,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	public highlightFindOptions(): void {
 		this._findInput.highlightFindOptions();
+	}
+
+	public transformFocusedInputSelection(transform: (text: string) => string): boolean {
+		const el = this._lastFocusedInput;
+		if (!el) {
+			return false;
+		}
+		const transformed = transformInputSelection(el, transform);
+		if (transformed) {
+			if (el === this._findInput.inputBox.inputElement) {
+				this._state.change({ searchString: el.value }, true);
+			} else {
+				this._state.change({ replaceString: el.value }, false);
+			}
+		}
+		return transformed;
 	}
 
 	private _updateSearchScope(): void {

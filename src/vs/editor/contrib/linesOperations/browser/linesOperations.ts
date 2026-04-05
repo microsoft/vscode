@@ -27,6 +27,7 @@ import { ITextModel } from '../../../common/model.js';
 import { CopyLinesCommand } from './copyLinesCommand.js';
 import { MoveLinesCommand } from './moveLinesCommand.js';
 import { SortLinesCommand } from './sortLinesCommand.js';
+import { FIND_CONTROLLER_ID, IFindInputTransformer } from '../../find/browser/findCommon.js';
 
 // copy lines
 
@@ -1114,6 +1115,12 @@ export class TransposeAction extends EditorAction {
 
 export abstract class AbstractCaseAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const findController = editor.getContribution(FIND_CONTROLLER_ID) as IFindInputTransformer | null;
+		const findWordSeparators = editor.getOption(EditorOption.wordSeparators);
+		if (findController?.transformFocusedInput(text => this._modifyText(text, findWordSeparators))) {
+			return;
+		}
+
 		const selections = editor.getSelections();
 		if (selections === null) {
 			return;

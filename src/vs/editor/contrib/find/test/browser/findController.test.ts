@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { transformInputSelection } from '../../browser/findWidget.js';
 
 class TestFindController extends CommonFindController {
 
@@ -729,3 +730,98 @@ suite('FindController query options persistence', () => {
 		});
 	});
 });
+
+suite('Find Widget - Transform Actions', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const serviceCollection = new ServiceCollection();
+	serviceCollection.set(IStorageService, new InMemoryStorageService());
+
+	test('issue #247141: transformInputSelection transforms selected text to uppercase', () => {
+		const input = document.createElement('input');
+		input.value = 'hello world';
+		input.selectionStart = 0;
+		input.selectionEnd = 5;
+
+		const result = transformInputSelection(input, s => s.toLocaleUpperCase());
+
+		assert.strictEqual(result, true);
+		assert.strictEqual(input.value, 'HELLO world');
+		assert.strictEqual(input.selectionStart, 0);
+		assert.strictEqual(input.selectionEnd, 5);
+	});
+
+	test('issue #247141: transformInputSelection transforms selected text to lowercase', () => {
+		const input = document.createElement('input');
+		input.value = 'HELLO WORLD';
+		input.selectionStart = 6;
+		input.selectionEnd = 11;
+
+		const result = transformInputSelection(input, s => s.toLocaleLowerCase());
+
+		assert.strictEqual(result, true);
+		assert.strictEqual(input.value, 'HELLO world');
+	});
+
+	test('issue #247141: transformInputSelection returns false and leaves input unchanged when selection is empty', () => {
+		const input = document.createElement('input');
+		input.value = 'hello world';
+		input.selectionStart = 3;
+		input.selectionEnd = 3;
+
+		const result = transformInputSelection(input, s => s.toLocaleUpperCase());
+
+		assert.strictEqual(result, false);
+		assert.strictEqual(input.value, 'hello world');
+	});
+
+	test('issue #247141: transformInputSelection returns false when selection is null', () => {
+		const input = document.createElement('input');
+		input.type = 'color';
+		input.value = '#000000';
+
+
+		assert.deepStrictEqual(
+			{ selectionStart: input.selectionStart, selectionEnd: input.selectionEnd },
+			{ selectionStart: null, selectionEnd: null }
+		);
+
+		const result = transformInputSelection(input, s => s.toLocaleUpperCase());
+
+		assert.strictEqual(result, false);
+		assert.strictEqual(input.value, '#000000');
+
+	});
+
+	test('issue #247141: transformFocusedInput returns false when no widget has been created', async () => {
+		await withAsyncTestCodeEditor([
+			'hello world'
+		], { serviceCollection: serviceCollection }, async (editor) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+
+			const result = findController.transformFocusedInput(s => s.toLocaleUpperCase());
+			assert.strictEqual(result, false);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #247141: transformInputSelection does not modify the editor buffer', async () => {
+		await withAsyncTestCodeEditor([
+			'hello world'
+		], { serviceCollection: serviceCollection }, async (editor) => {
+			const input = document.createElement('input');
+			input.value = 'hello world';
+			input.selectionStart = 0;
+			input.selectionEnd = 5;
+
+			transformInputSelection(input, s => s.toLocaleUpperCase());
+
+			// Editor buffer must remain unchanged
+			assert.strictEqual(editor.getModel()!.getLineContent(1), 'hello world');
+			assert.strictEqual(input.value, 'HELLO world');
+		});
+	});
+});
+
