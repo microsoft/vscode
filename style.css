@@ -1,0 +1,38 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #111;
+  color: #fff;
+  padding: 20px;
+}
+
+.container {
+  max-width: 600px;
+  margin: auto;
+}
+
+textarea {
+  width: 100%;
+  height: 150px;
+  margin-bottom: 10px;
+  padding: 10px;
+  font-size: 14px;
+  border-radius: 5px;
+}
+
+button {
+  padding: 10px 20px;
+  background: #0f0;
+  border: none;
+  color: #000;
+  cursor: pointer;
+  font-weight: bold;
+  border-radius: 5px;
+}
+
+#output {
+  margin-top: 20px;
+  white-space: pre-wrap;
+  background: #222;
+  padding: 15px;
+  border-radius: 5px;
+}
