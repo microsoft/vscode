@@ -5,6 +5,7 @@
 
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import * as path from '../../../../base/common/path.js';
+import { env } from '../../../../base/common/process.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from '../../../../base/common/strings.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -53,7 +54,9 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'WORKSPACE_FOLDER': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
-	'UUID': true
+	'UUID': true,
+	'USER_NAME': true,
+	'USER_HOME': true,
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -374,6 +377,20 @@ export class RandomBasedVariableResolver implements VariableResolver {
 			return Math.random().toString(16).slice(-6);
 		} else if (name === 'UUID') {
 			return generateUuid();
+		}
+
+		return undefined;
+	}
+}
+
+export class UserBasedVariableResolver implements VariableResolver {
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+
+		if (name === 'USER_NAME') {
+			return env['USER'] || env['USERNAME'] || undefined;
+		} else if (name === 'USER_HOME') {
+			return env['HOME'] || env['USERPROFILE'] || undefined;
 		}
 
 		return undefined;
