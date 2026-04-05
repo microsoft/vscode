@@ -423,7 +423,7 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 			title: accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits'),
 			icon: accept ? Codicon.check : Codicon.discard,
 			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notEquals(`config.${ChatConfiguration.AutoAccept}`, true)),
 				id: MenuId.EditorTitle,
 				order: accept ? 0 : 1,
 				group: 'navigation',

@@ -2813,6 +2813,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._lastEditingSessionResource = chatEditingSession.chatSessionResource;
 		}
 
+		const autoAcceptEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutoAccept);
+
 		const modifiedEntries = derivedOpts<IModifiedFileEntry[]>({ equalsFn: arraysEqual }, r => {
 			// Background chat sessions render the working set based on the session files, and not the editing session
 			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
@@ -2820,6 +2822,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return [];
 			}
 
+			if (autoAcceptEnabled) {
+				return [...(chatEditingSession?.entries.read(r) || [])];
+			}
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
 
@@ -2827,21 +2832,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const seenEntries = new ResourceSet();
 			const entries: IChatCollapsibleListItem[] = [];
 			for (const entry of modifiedEntries.read(reader)) {
-				if (entry.state.read(reader) !== ModifiedFileEntryState.Modified) {
+				const state = entry.state.read(reader);
+				if (!autoAcceptEnabled && state !== ModifiedFileEntryState.Modified) {
 					continue;
 				}
 
 				if (!seenEntries.has(entry.modifiedURI)) {
 					seenEntries.add(entry.modifiedURI);
-					const linesAdded = entry.linesAdded?.read(reader);
-					const linesRemoved = entry.linesRemoved?.read(reader);
+					const snapshotAdded = entry.snapshotLinesAdded?.read(reader);
+					const snapshotRemoved = entry.snapshotLinesRemoved?.read(reader);
+					const linesAdded = snapshotAdded ?? entry.linesAdded?.read(reader) ?? 0;
+					const linesRemoved = snapshotRemoved ?? entry.linesRemoved?.read(reader) ?? 0;
+
 					entries.push({
 						reference: entry.modifiedURI,
-						state: ModifiedFileEntryState.Modified,
+						state,
 						kind: 'reference',
 						options: {
 							status: undefined,
-							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 },
+							diffMeta: { added: linesAdded, removed: linesRemoved },
 							isDeletion: !!entry.isDeletion,
 							originalUri: entry.isDeletion ? entry.originalURI : undefined,
 						}

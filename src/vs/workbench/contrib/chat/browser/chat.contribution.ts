@@ -289,6 +289,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
 		},
+		[ChatConfiguration.AutoAccept]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agent.autoAccept', "When enabled, changes made by the agent are automatically accepted without showing the Keep/Undo review UI."),
+			default: false,
+		},
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `0` means disabled and `100` seconds is the maximum."),
