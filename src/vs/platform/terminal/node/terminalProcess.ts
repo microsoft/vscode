@@ -69,6 +69,10 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 ]);
 
 const generalShellTypeMap = new Map<string, GeneralShellType>([
+	['claude', GeneralShellType.Claude],
+	['codex', GeneralShellType.Codex],
+	['copilot', GeneralShellType.Copilot],
+	['gemini', GeneralShellType.Gemini],
 	['pwsh', GeneralShellType.PowerShell],
 	['powershell', GeneralShellType.PowerShell],
 	['python', GeneralShellType.Python],
@@ -449,7 +453,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else if (sanitizedTitle.toLowerCase().startsWith('julia')) {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: GeneralShellType.Julia });
 		} else {
-			const shellTypeValue = posixShellTypeMap.get(sanitizedTitle) || generalShellTypeMap.get(sanitizedTitle);
+			const sanitizedTitleLower = sanitizedTitle.toLowerCase();
+			const shellTypeValue = posixShellTypeMap.get(sanitizedTitleLower) || generalShellTypeMap.get(sanitizedTitleLower);
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: shellTypeValue });
 		}
 	}
