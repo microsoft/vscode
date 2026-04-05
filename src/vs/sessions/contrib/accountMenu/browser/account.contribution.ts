@@ -28,10 +28,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { URI } from '../../../../base/common/uri.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
 import { ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
@@ -111,29 +107,7 @@ function getSessionsTitleBarUpdateAriaLabel(state: State): string {
 async function runSessionsUpdateAction(
 	state: State,
 	updateService: IUpdateService,
-	openerService: IOpenerService,
-	productService: IProductService,
-	dialogService: IDialogService,
-	hostService: IHostService,
 ): Promise<void> {
-	if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
-		const { confirmed } = await dialogService.confirm({
-			message: localize('sessionsUpdateFromVSCode.title', "Update from VS Code"),
-			detail: localize('sessionsUpdateFromVSCode.detail', "This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete."),
-			primaryButton: localize('sessionsUpdateFromVSCode.open', "Close and Open VS Code"),
-		});
-
-		if (confirmed) {
-			await openerService.open(URI.from({
-				scheme: productService.urlProtocol,
-				query: 'windowId=_blank',
-			}), { openExternal: true });
-			await hostService.close();
-		}
-
-		return;
-	}
-
 	if (state.type === StateType.AvailableForDownload) {
 		await updateService.downloadUpdate(true);
 		return;
@@ -571,9 +545,6 @@ class TitleBarUpdateWidget extends BaseActionViewItem {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IProductService private readonly productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IHostService private readonly hostService: IHostService,
 	) {
 		super(undefined, action, options);
 		this.updateHoverWidget = new UpdateHoverWidget(this.updateService, this.productService, this.hoverService);
@@ -601,10 +572,6 @@ class TitleBarUpdateWidget extends BaseActionViewItem {
 		void runSessionsUpdateAction(
 			state,
 			this.updateService,
-			this.openerService,
-			this.productService,
-			this.dialogService,
-			this.hostService,
 		);
 	}
 
