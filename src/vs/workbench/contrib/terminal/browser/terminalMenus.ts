@@ -486,6 +486,19 @@ export function setupTerminalMenus(): void {
 				id: MenuId.ViewTitle,
 				item: {
 					command: {
+						id: TerminalCommandId.RefreshEnvironment,
+						title: localize2('workbench.action.terminal.refreshEnvironment.title', 'Refresh Environment'),
+						icon: Codicon.refresh
+					},
+					group: 'navigation',
+					order: 5,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID)
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
 						id: TerminalCommandId.Clear,
 						title: localize('workbench.action.terminal.clearLong', "Clear Terminal"),
 						icon: Codicon.clearAll
