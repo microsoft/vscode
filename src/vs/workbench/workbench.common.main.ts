@@ -425,5 +425,7 @@ import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 // Edit Telemetry
 import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
+// Bonian Agent
+import './contrib/bonianAgent/browser/bonianAgent.contribution.js';
 
 //#endregion
