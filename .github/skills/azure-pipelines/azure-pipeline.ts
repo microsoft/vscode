@@ -208,7 +208,7 @@ function validateWatchInterval(value: number): void {
 
 function commandExists(command: string): boolean {
 	try {
-		execSync(`${process.platform === 'win32' ? 'where' : 'which'} ${command}`, { stdio: 'ignore' });
+		execFileSync(process.platform === 'win32' ? 'where' : 'which', [command], { stdio: 'ignore' });
 		return true;
 	} catch {
 		return false;
