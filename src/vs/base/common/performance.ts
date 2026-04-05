@@ -121,10 +121,15 @@ function _define() {
 }
 
 function _factory(sharedObj: any) {
-	if (!sharedObj.MonacoPerformanceMarks) {
+	const existing = sharedObj.MonacoPerformanceMarks as { mark?: Function; getMarks?: Function; clearMarks?: Function } | undefined;
+	if (!existing || typeof existing.mark !== 'function' || typeof existing.getMarks !== 'function') {
 		sharedObj.MonacoPerformanceMarks = _define();
+		return sharedObj.MonacoPerformanceMarks;
 	}
-	return sharedObj.MonacoPerformanceMarks;
+	if (typeof existing.clearMarks !== 'function') {
+		existing.clearMarks = () => { };
+	}
+	return existing;
 }
 
 const perf = _factory(globalThis);
