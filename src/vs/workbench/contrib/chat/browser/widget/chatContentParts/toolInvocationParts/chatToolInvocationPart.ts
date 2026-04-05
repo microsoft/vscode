@@ -32,6 +32,7 @@ import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
+import { ChatBatchedToolConfirmationPart } from './chatBatchedToolConfirmationPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -50,6 +51,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	private subPart!: BaseChatToolInvocationSubPart;
 	private mcpAppPart: ChatMcpAppSubPart | undefined;
+	private batchedConfirmationPart: ChatBatchedToolConfirmationPart | undefined;
 
 	private readonly _onDidRemount = this._register(new Emitter<void>());
 
@@ -108,6 +110,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			partStore.clear();
 
 			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
+				dom.hide(this.domNode);
+				return;
+			}
+
+			// If this tool is still waiting for confirmation and a batch is handling it,
+			// keep the sub-part hidden. Once the tool is confirmed (state changes),
+			// allow it to render its progress part even while other tools remain in the batch.
+			if (this.batchedConfirmationPart && this.batchedConfirmationPart.pendingCount > 0
+				&& toolInvocation.kind === 'toolInvocation'
+				&& toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				dom.hide(this.domNode);
 				return;
 			}
@@ -279,6 +291,82 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 	onDidRemount(): void {
 		this._onDidRemount.fire();
+	}
+
+	/**
+	 * Returns true if this part's tool invocation is currently waiting for confirmation.
+	 */
+	get isWaitingForConfirmation(): boolean {
+		if (this.toolInvocation.kind !== 'toolInvocation') {
+			return false;
+		}
+		return this.toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation;
+	}
+
+	/**
+	 * Adds an additional tool invocation to this part's confirmation UI.
+	 * Transforms the existing single confirmation into a batched confirmation
+	 * showing multiple tools with checkboxes.
+	 */
+	addBatchedToolInvocation(tool: IChatToolInvocation): void {
+		if (this.batchedConfirmationPart) {
+			this.batchedConfirmationPart.addToolInvocation(tool);
+			return;
+		}
+
+		if (this.toolInvocation.kind !== 'toolInvocation') {
+			return;
+		}
+
+		// Create the batched part with both tools
+		this.batchedConfirmationPart = this._register(this.instantiationService.createInstance(
+			ChatBatchedToolConfirmationPart,
+			[this.toolInvocation, tool],
+			this.context,
+		));
+
+		// Hide the current confirmation sub-part (keep it in DOM so the render()
+		// closure's subPartDomNode reference remains valid for future replaceWith calls)
+		dom.hide(this.subPart.domNode);
+
+		// Append the batch to the parent container (not this.domNode) so it floats
+		// independently and can be repositioned to stay at the bottom
+		const parent = this.domNode.parentElement;
+		if (parent) {
+			parent.appendChild(this.batchedConfirmationPart.domNode);
+		}
+
+		// When the batch empties, dispose it, remove its DOM, and show this tool part again
+		this._register(this.batchedConfirmationPart.onDidEmpty(() => {
+			const batchedPart = this.batchedConfirmationPart;
+			if (batchedPart) {
+				batchedPart.domNode.remove();
+				batchedPart.dispose();
+				this.batchedConfirmationPart = undefined;
+			}
+			dom.show(this.domNode);
+		}));
+	}
+
+	/**
+	 * Returns true if this part has a batched confirmation containing the given tool.
+	 */
+	hasBatchedToolInvocation(toolCallId: string): boolean {
+		return this.batchedConfirmationPart?.hasToolInvocation(toolCallId) ?? false;
+	}
+
+	/**
+	 * Returns true if this part has an active batched confirmation with pending items.
+	 */
+	get hasActiveBatch(): boolean {
+		return !!this.batchedConfirmationPart && this.batchedConfirmationPart.pendingCount > 0;
+	}
+
+	/**
+	 * Returns the DOM node of the batched confirmation part, if active.
+	 */
+	get batchDomNode(): HTMLElement | undefined {
+		return this.batchedConfirmationPart?.domNode;
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {

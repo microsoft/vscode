@@ -1,0 +1,108 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-batched-tool-confirmation {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	margin-bottom: 8px;
+
+	.chat-batched-tool-confirmation-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 8px;
+		border-bottom: 1px solid var(--vscode-chat-requestBorder);
+		font-size: var(--vscode-chat-font-size-body-s);
+
+		.chat-batched-tool-confirmation-header-label {
+			color: var(--vscode-descriptionForeground);
+			flex: 1;
+		}
+	}
+
+	.chat-batched-tool-confirmation-items {
+		max-height: 300px;
+		overflow-y: auto;
+
+		.chat-batched-tool-item {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 4px 8px;
+			border-bottom: 1px solid var(--vscode-chat-requestBorder);
+
+			&:last-child {
+				border-bottom: none;
+			}
+
+			&:hover {
+				background: var(--vscode-list-hoverBackground);
+			}
+
+			.chat-batched-tool-item-icon {
+				flex-shrink: 0;
+				display: flex;
+				align-items: center;
+				color: var(--vscode-descriptionForeground);
+			}
+
+			.chat-batched-tool-item-info {
+				flex: 1;
+				min-width: 0;
+				overflow: hidden;
+
+				.chat-batched-tool-item-title {
+					white-space: nowrap;
+					overflow: hidden;
+					text-overflow: ellipsis;
+					font-size: var(--vscode-chat-font-size-body-s);
+				}
+
+				.chat-batched-tool-item-subtitle {
+					white-space: nowrap;
+					overflow: hidden;
+					text-overflow: ellipsis;
+					font-size: var(--vscode-chat-font-size-body-s);
+					color: var(--vscode-descriptionForeground);
+
+					p {
+						margin: 0;
+						white-space: nowrap;
+						overflow: hidden;
+						text-overflow: ellipsis;
+					}
+				}
+			}
+
+			.chat-batched-tool-item-actions {
+				flex-shrink: 0;
+				display: flex;
+				gap: 4px;
+
+				.monaco-button {
+					width: auto;
+					padding: 1px 6px;
+				}
+			}
+		}
+	}
+
+	.chat-batched-tool-confirmation-buttons {
+		display: flex;
+		gap: 8px;
+		padding: 6px 8px;
+		justify-content: flex-start;
+		border-top: 1px solid var(--vscode-chat-requestBorder);
+
+		.monaco-button {
+			width: auto;
+			padding: 2px 8px;
+		}
+	}
+}
+
+.chat-subagent-part .chat-batched-tool-confirmation {
+	margin-left: 6px;
+}
