@@ -877,10 +877,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 					continue;
 				}
 
-				// For vendors without a configuration schema, groups only carry per-model
+				// For vendors without a configuration schema whose models were already
+				// resolved in the initial (groupless) load, groups only carry per-model
 				// settings and should not trigger a separate model resolution call.
 				// Instead, apply the per-model config to the already-resolved models.
-				if (!vendor.configuration) {
+				if (!vendor.configuration && allModels.length > 0) {
 					if (group.settings) {
 						for (const model of allModels) {
 							const modelConfig = group.settings[model.metadata.id];
