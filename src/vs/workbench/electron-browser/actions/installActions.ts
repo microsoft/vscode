@@ -75,3 +75,63 @@ export class UninstallShellScriptAction extends Action2 {
 		}
 	}
 }
+
+export class InstallFinderAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.installFinderAction',
+			title: localize2('installFinderAction', "Install 'Open with {0}' in Finder", product.nameShort),
+			category: shellCommandCategory,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		const dialogService = accessor.get(IDialogService);
+		const productService = accessor.get(IProductService);
+
+		try {
+			await nativeHostService.installFinderAction();
+
+			dialogService.info(localize('finderActionInstalled', "'Open with {0}' successfully installed in Finder.", productService.nameShort));
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+
+			dialogService.error(toErrorMessage(error));
+		}
+	}
+}
+
+export class UninstallFinderAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.uninstallFinderAction',
+			title: localize2('uninstallFinderAction', "Uninstall 'Open with {0}' from Finder", product.nameShort),
+			category: shellCommandCategory,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const nativeHostService = accessor.get(INativeHostService);
+		const dialogService = accessor.get(IDialogService);
+		const productService = accessor.get(IProductService);
+
+		try {
+			await nativeHostService.uninstallFinderAction();
+
+			dialogService.info(localize('finderActionUninstalled', "'Open with {0}' successfully uninstalled from Finder.", productService.nameShort));
+		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+
+			dialogService.error(toErrorMessage(error));
+		}
+	}
+}
