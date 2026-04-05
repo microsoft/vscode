@@ -2061,14 +2061,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) && toolInvocation.presentation !== 'hidden') {
 
 			const isEditing = !!this.viewModel?.editing;
-			const state = toolInvocation.state.get();
-			if (!isEditing && state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
+			const isEligibleForCarousel = (tool: IChatToolInvocation): boolean => {
+				const toolState = tool.state.get();
+				return tool.presentation !== 'hidden' &&
+					toolState.type === IChatToolInvocation.StateKind.WaitingForConfirmation &&
+					!!toolState.confirmationMessages?.title;
+			};
+			if (!isEditing && isEligibleForCarousel(toolInvocation)) {
 				const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
 				if (widget) {
 					const otherWaitingTools = context.element.response.value.filter((part): part is IChatToolInvocation =>
 						part.kind === 'toolInvocation' &&
 						part.toolCallId !== toolInvocation.toolCallId &&
-						part.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation
+						isEligibleForCarousel(part)
 					);
 					const hasCarouselOrMultipleWaiting = widget.inputPart.hasActiveToolConfirmationCarousel || otherWaitingTools.length > 0;
 

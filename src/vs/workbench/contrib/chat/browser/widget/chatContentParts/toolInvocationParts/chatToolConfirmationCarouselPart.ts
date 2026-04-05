@@ -112,12 +112,45 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			}
 		};
 
+		const navigateToTab = (targetIndex: number) => {
+			if (targetIndex < 0 || targetIndex >= this.items.length) {
+				return;
+			}
+			this.setActiveIndex(targetIndex);
+			this.items[targetIndex].tabElement.focus();
+		};
+
 		disposables.add(dom.addDisposableListener(tabElement, 'click', selectTab));
 		disposables.add(dom.addDisposableListener(tabElement, 'keydown', (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
 				e.preventDefault();
 				selectTab();
+				return;
+			}
+
+			const currentIndex = this.items.findIndex(i => i.toolCallId === tool.toolCallId);
+			if (currentIndex < 0) {
+				return;
+			}
+
+			switch (event.keyCode) {
+				case KeyCode.LeftArrow:
+					e.preventDefault();
+					navigateToTab((currentIndex + this.items.length - 1) % this.items.length);
+					break;
+				case KeyCode.RightArrow:
+					e.preventDefault();
+					navigateToTab((currentIndex + 1) % this.items.length);
+					break;
+				case KeyCode.Home:
+					e.preventDefault();
+					navigateToTab(0);
+					break;
+				case KeyCode.End:
+					e.preventDefault();
+					navigateToTab(this.items.length - 1);
+					break;
 			}
 		}));
 
@@ -239,7 +272,14 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		// For terminal tools, use the command as the label
 		if (tool.toolSpecificData?.kind === 'terminal') {
 			const terminalData = migrateLegacyTerminalToolSpecificData(tool.toolSpecificData);
-			const cmd = terminalData.presentationOverrides?.commandLine ?? terminalData.confirmation?.commandLine ?? (terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+			const cmd = (
+				terminalData.presentationOverrides?.commandLine ??
+				terminalData.commandLine.forDisplay ??
+				terminalData.commandLine.userEdited ??
+				terminalData.commandLine.toolEdited ??
+				terminalData.commandLine.original ??
+				terminalData.confirmation?.commandLine
+			)?.trimStart() ?? '';
 			return this.truncateLabel(cmd);
 		}
 

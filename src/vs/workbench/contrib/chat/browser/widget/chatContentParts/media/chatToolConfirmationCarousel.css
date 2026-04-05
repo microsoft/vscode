@@ -201,6 +201,24 @@
 		.chat-confirmation-widget2 .chat-confirmation-widget-buttons {
 			margin-top: auto;
 		}
+
+		.chat-confirmation-widget2 .chat-confirmation-widget-title {
+			align-items: center;
+		}
+
+		.chat-confirmation-widget-title p {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 0 4px;
+		}
+
+		.chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {
+			margin: 4px 0px !important;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+		}
 	}
 
 	/* When header is visible (multi-item), connect content to header visually */
