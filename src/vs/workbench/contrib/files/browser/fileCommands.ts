@@ -321,7 +321,18 @@ CommandsRegistry.registerCommand({
 		const explorerService = accessor.get(IExplorerService);
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
-		const uri = getResourceForCommand(resource, editorService, listService);
+		let uri = getResourceForCommand(resource, editorService, listService);
+
+		// When the resource has a non-file scheme (e.g. git:, git-original:), try to
+		// map it to a file: URI so that it can be revealed in the explorer. Virtual file
+		// systems such as the git extension use the same path as the underlying file, so
+		// converting the scheme is sufficient to recover the real workspace resource.
+		if (uri && !contextService.isInsideWorkspace(uri) && uri.scheme !== Schemas.file) {
+			const fileUri = uri.with({ scheme: Schemas.file, query: '', fragment: '' });
+			if (contextService.isInsideWorkspace(fileUri)) {
+				uri = fileUri;
+			}
+		}
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
 			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
