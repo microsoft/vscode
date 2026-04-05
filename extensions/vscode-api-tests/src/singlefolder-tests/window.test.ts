@@ -1060,4 +1060,35 @@ suite('vscode API - window', () => {
 
 		item.dispose();
 	});
+
+	test('activeChatSessionUri and onDidChangeActiveChatSession', async function () {
+		// Verify the API surface exists
+		assert.strictEqual(typeof window.onDidChangeActiveChatSession, 'function');
+
+		// Subscribe and wait until we see a non-undefined Uri payload (with timeout)
+		const timeout = env.uiKind === UIKind.Desktop ? 5000 : 15000;
+		const sessionUriPromise = new Promise<Uri>((resolve, reject) => {
+			const handle = setTimeout(() => {
+				subscription.dispose();
+				reject(new Error('onDidChangeActiveChatSession did not fire with a Uri within timeout'));
+			}, timeout);
+			const subscription = window.onDidChangeActiveChatSession(value => {
+				if (value instanceof Uri) {
+					clearTimeout(handle);
+					subscription.dispose();
+					resolve(value);
+				}
+			});
+		});
+
+		// Open a new chat and verify the event eventually fires with a Uri
+		await commands.executeCommand('workbench.action.chat.newChat');
+		const uri = await sessionUriPromise;
+		assert.ok(uri instanceof Uri, 'activeChatSession event payload should eventually be a Uri');
+
+		// After receiving the Uri event, activeChatSessionUri should match
+		assert.ok(window.activeChatSessionUri instanceof Uri, 'window.activeChatSessionUri should be set to a Uri');
+		assert.strictEqual(window.activeChatSessionUri!.toString(), uri.toString());
+	});
+
 });
