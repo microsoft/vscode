@@ -17,6 +17,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IWebviewService, IOverlayWebview, WebviewContentPurpose } from '../../webview/browser/webview.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { BonianAgentController } from './bonianAgentController.js';
 
 export class BonianAgentViewPane extends ViewPane {
 	private container!: HTMLElement;
@@ -24,6 +26,7 @@ export class BonianAgentViewPane extends ViewPane {
 	private rootContainer?: HTMLElement;
 	private readonly webviewDisposables = this._register(new DisposableStore());
 	private readonly timeoutDisposables = this._register(new DisposableStore());
+	private controller?: BonianAgentController;
 
 	private isWebviewReady = false;
 	private pendingUri?: string;
@@ -87,7 +90,7 @@ export class BonianAgentViewPane extends ViewPane {
 		this.updateWebviewVisibility();
 	}
 
-	public startPipeline(uri: string) {
+	public async startPipeline(uri: string) {
 		if (!this.isWebviewReady) {
 			this.pendingUri = uri;
 			return;
@@ -97,31 +100,17 @@ export class BonianAgentViewPane extends ViewPane {
 			return;
 		}
 
-		const sequence = [
-			{ stage: 1, status: 'loading', delay: 0 },
-			{ stage: 1, status: 'success', delay: 1500 },
-			{ stage: 2, status: 'loading', delay: 1500 },
-			{ stage: 2, status: 'success', delay: 3500 },
-			{ stage: 3, status: 'loading', delay: 3500 },
-			{ stage: 3, status: 'success', delay: 5000 },
-			{ stage: 4, status: 'loading', delay: 5000 },
-			{ stage: 4, status: 'success', delay: 7000 },
-			{ stage: 5, status: 'loading', delay: 7000 },
-			{ stage: 5, status: 'success', delay: 8500 }
-		];
-
 		this.webview.postMessage({ command: 'reset' });
 		this.webview.postMessage({ command: 'setFile', file: uri });
 
-		this.timeoutDisposables.clear();
-
-		for (const step of sequence) {
-			const handle = setTimeout(() => {
-				this.webview?.postMessage({ command: 'setStage', stage: step.stage, status: step.status });
-			}, step.delay);
-
-			this.timeoutDisposables.add(toDisposable(() => clearTimeout(handle)));
+		if (!this.controller) {
+			this.controller = this._register(this.instantiationService.createInstance(BonianAgentController));
 		}
+
+		const parsedUri = URI.parse(uri);
+		await this.controller.processImage(parsedUri, (stage, status) => {
+			this.webview?.postMessage({ command: 'setStage', stage, status });
+		});
 	}
 
 	override onDidScrollRoot(): void {
