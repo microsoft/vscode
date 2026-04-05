@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { ITransaction, ObservablePromise, observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { SaveReason } from '../../../../../common/editor.js';
+import { CellEditType, CellKind, ICell, ICellEditOperation, NotebookCellsChangeType } from '../../../../notebook/common/notebookCommon.js';
+import { ChatEditingModifiedNotebookEntry } from '../../../browser/chatEditing/chatEditingModifiedNotebookEntry.js';
 import { adjustCellDiffAndOriginalModelBasedOnCellAddDelete, adjustCellDiffAndOriginalModelBasedOnCellMovements, adjustCellDiffForKeepingADeletedCell, adjustCellDiffForKeepingAnInsertedCell, adjustCellDiffForRevertingADeletedCell, adjustCellDiffForRevertingAnInsertedCell } from '../../../browser/chatEditing/notebook/helpers.js';
 import { ICellDiffInfo } from '../../../browser/chatEditing/notebook/notebookCellChanges.js';
-import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
-import { ObservablePromise, observableValue } from '../../../../../../base/common/observable.js';
-import { CellEditType, CellKind, ICell, ICellEditOperation, NotebookCellsChangeType } from '../../../../notebook/common/notebookCommon.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 
@@ -2088,6 +2093,50 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 					modifiedCellIndex: 3, modifiedModel: createModifiedModel('New1'),
 				},
 			]);
+		});
+	});
+
+	suite('Auto Save', function () {
+		test('saves after the final notebook edit', async function () {
+			const notebookUri = URI.from({ scheme: Schemas.file, path: '/test.ipynb' });
+			let saveOptions: { reason: SaveReason; skipSaveParticipants: boolean } | undefined;
+
+			const entry = {
+				modifiedURI: notebookUri,
+				modifiedModel: { uri: notebookUri, cells: [] },
+				originalModel: { uri: notebookUri, cells: [] },
+				modifiedResourceRef: {
+					object: {
+						save: async (options: { reason: SaveReason; skipSaveParticipants: boolean }) => {
+							saveOptions = options;
+							return true;
+						}
+					}
+				},
+				editedCells: new ResourceSet(),
+				cellEntryMap: new ResourceMap(),
+				_cellsDiffInfo: observableValue<ICellDiffInfo[]>('diffInfo', []),
+				_stateObs: observableValue('state', ModifiedFileEntryState.Modified),
+				_rewriteRatioObs: observableValue('rewriteRatio', 0),
+				_waitsForLastEdits: observableValue('waitsForLastEdits', false),
+				_isCurrentlyBeingModifiedByObs: observableValue('isCurrentlyBeingModifiedBy', undefined),
+				_applyEdits: async (operation: () => Promise<void>) => operation(),
+				_resetEditsState(tx: ITransaction | undefined) {
+					this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
+					this._rewriteRatioObs.set(0, tx);
+					this._waitsForLastEdits.set(false, tx);
+				},
+				_shouldAutoSave() {
+					return this.modifiedURI.scheme !== Schemas.untitled;
+				}
+			};
+
+			await ChatEditingModifiedNotebookEntry.prototype.acceptAgentEdits.call(entry, notebookUri, [], true, undefined);
+
+			assert.deepStrictEqual(saveOptions, {
+				reason: SaveReason.AUTO,
+				skipSaveParticipants: true,
+			});
 		});
 	});
 
