@@ -144,6 +144,9 @@ export class ApplyCodeBlockOperation {
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 	}
 
@@ -266,8 +269,20 @@ export class ApplyCodeBlockOperation {
 		const codeBlock = { code, resource: uri, markdownBeforeBlock: undefined };
 		const codeMapper = this.codeMapperService.providers[0]?.displayName;
 		if (!codeMapper) {
-			this.notify(localize('applyCodeBlock.noCodeMapper', "No code mapper available."));
-			return undefined;
+			// Fallback: directly insert code as a new cell when no code mapper is available
+			this.logService.info('[ApplyCodeBlockOperation] No code mapper available for notebook, falling back to direct cell insertion');
+
+			const focusRange = notebookEditor.getFocus();
+			const next = Math.max(focusRange.end - 1, 0);
+			insertCell(this.languageService, notebookEditor, next, CellKind.Code, 'below', code, true);
+
+			// Notify user about the fallback behavior
+			this.dialogService.info(localize('applyCodeBlock.insertedCellDirectly', "Code block inserted as a new cell."));
+
+			return {
+				editsProposed: true,
+				codeMapper: undefined
+			};
 		}
 		let editsProposed = false;
 		const cancellationTokenSource = new CancellationTokenSource();
@@ -307,8 +322,25 @@ export class ApplyCodeBlockOperation {
 
 		const codeMapper = this.codeMapperService.providers[0]?.displayName;
 		if (!codeMapper) {
-			this.notify(localize('applyCodeBlock.noCodeMapper', "No code mapper available."));
-			return undefined;
+			// Fallback: directly insert code when no code mapper is available
+			this.logService.info('[ApplyCodeBlockOperation] No code mapper available, falling back to direct insertion');
+
+			const range = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+			const text = reindent(code, activeModel, range.startLineNumber);
+
+			const edits = [new ResourceTextEdit(activeModel.uri, { range, text })];
+			await this.bulkEditService.apply(edits);
+
+			// Focus the editor after insertion
+			this.codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+
+			// Notify user about the fallback behavior
+			this.dialogService.info(localize('applyCodeBlock.insertedDirectly', "Code block inserted directly at cursor position."));
+
+			return {
+				editsProposed: true,
+				codeMapper: undefined
+			};
 		}
 		let editsProposed = false;
 		const cancellationTokenSource = new CancellationTokenSource();
