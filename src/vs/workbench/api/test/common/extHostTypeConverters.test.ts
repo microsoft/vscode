@@ -7,8 +7,9 @@ import assert from 'assert';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IconPathDto } from '../../common/extHost.protocol.js';
-import { ChatRequestModeInstructions, IconPath } from '../../common/extHostTypeConverters.js';
-import { ThemeColor, ThemeIcon } from '../../common/extHostTypes.js';
+import { ChatRequestModeInstructions, IconPath, ViewColumn } from '../../common/extHostTypeConverters.js';
+import { ThemeColor, ThemeIcon, ViewColumn as ViewColumnEnum } from '../../common/extHostTypes.js';
+import { ACTIVE_GROUP, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatRequestModeInstructions } from '../../../contrib/chat/common/model/chatModel.js';
 import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 
@@ -241,6 +242,44 @@ suite('extHostTypeConverters', function () {
 			assert.strictEqual(backToApi.toolReferences?.[0].range, undefined);
 			assert.strictEqual(backToApi.toolReferences?.[1].name, 'tool2');
 			assert.deepStrictEqual(backToApi.toolReferences?.[1].range, [10, 20]);
+		});
+	});
+
+	suite('ViewColumn', function () {
+		suite('from', function () {
+			test('undefined defaults to Active group', function () {
+				assert.strictEqual(ViewColumn.from(undefined), ACTIVE_GROUP);
+			});
+
+			test('Active resolves to Active group', function () {
+				assert.strictEqual(ViewColumn.from(ViewColumnEnum.Active), ACTIVE_GROUP);
+			});
+
+			test('Beside resolves to Side group', function () {
+				assert.strictEqual(ViewColumn.from(ViewColumnEnum.Beside), SIDE_GROUP);
+			});
+
+			test('Modal resolves to Modal group', function () {
+				assert.strictEqual(ViewColumn.from(ViewColumnEnum.Modal), MODAL_GROUP);
+			});
+
+			test('numbered columns are zero-indexed', function () {
+				assert.strictEqual(ViewColumn.from(ViewColumnEnum.One), 0);
+				assert.strictEqual(ViewColumn.from(ViewColumnEnum.Two), 1);
+				assert.strictEqual(ViewColumn.from(ViewColumnEnum.Nine), 8);
+			});
+		});
+
+		suite('to', function () {
+			test('zero-indexed positions map to numbered columns', function () {
+				assert.strictEqual(ViewColumn.to(0), ViewColumnEnum.One);
+				assert.strictEqual(ViewColumn.to(1), ViewColumnEnum.Two);
+				assert.strictEqual(ViewColumn.to(8), ViewColumnEnum.Nine);
+			});
+
+			test('negative positions throw', function () {
+				assert.throws(() => ViewColumn.to(-1));
+			});
 		});
 	});
 });
