@@ -429,9 +429,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this._renderImagePills(toolInvocation, context, elements.container);
 
-		// Only auto-expand in thinking containers if there's actual output to show
+		// Auto-expand output in collapsible wrappers if there's actual stored output to show.
+		// This covers both thinking containers and simple terminal mode on restore.
 		const hasStoredOutput = !!terminalData.terminalCommandOutput;
-		if (expandedStateByInvocation.get(toolInvocation) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
+		if (expandedStateByInvocation.get(toolInvocation) || (this._usesCollapsibleWrapper && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
 			void this._toggleOutput(true);
 		}
 		this._register(this._terminalChatService.registerProgressPart(this));
@@ -720,6 +721,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const tryResolveCommand = async (): Promise<ITerminalCommand | undefined> => {
 			const resolvedCommand = this._resolveCommand(terminalInstance);
 			this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+			// In collapsible wrapper mode, sync output with the wrapper now that command
+			// is resolved. Deferred from construction because the command isn't available yet.
+			if (resolvedCommand && this._usesCollapsibleWrapper && !this._outputView.isExpanded && this._thinkingCollapsibleWrapper?.expanded.get()) {
+				this._toggleOutput(true);
+			}
 			return resolvedCommand;
 		};
 
@@ -779,6 +785,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+				// Sync collapsible wrapper output now that the command is detected
+				if (this._usesCollapsibleWrapper && !this._outputView.isExpanded && this._thinkingCollapsibleWrapper?.expanded.get()) {
+					this._toggleOutput(true);
+				}
 			}));
 
 			store.add(commandDetection.onCommandFinished(() => {
