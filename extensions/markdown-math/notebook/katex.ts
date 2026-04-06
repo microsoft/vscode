@@ -7,6 +7,41 @@ import type { RendererContext } from 'vscode-notebook-renderer';
 
 const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
+/**
+ * Characters that, when appearing immediately after an opening `$`, indicate
+ * that the `$` is not a math delimiter. These characters are common in
+ * programming contexts (e.g. jQuery's `$.ajax`, `$(selector)`, `$#variable`)
+ * and would never start a valid LaTeX math expression.
+ */
+const nonMathAfterDollarSign = new Set(['.', '(', '#', '\'', '"', ',', ';']);
+
+function patchInlineMathRule(md: markdownIt.MarkdownIt): void {
+	const inlineRules: any[] | undefined = (md.inline.ruler as any).__rules__;
+	if (!inlineRules) {
+		return;
+	}
+
+	const mathInlineEntry = inlineRules.find((r: any) => r.name === 'math_inline');
+	if (!mathInlineEntry) {
+		return;
+	}
+
+	const originalFn = mathInlineEntry.fn;
+	mathInlineEntry.fn = function patchedInlineMath(state: any, silent: boolean): boolean {
+		if (state.src[state.pos] === '$') {
+			const nextChar = state.src[state.pos + 1];
+			if (nextChar && nonMathAfterDollarSign.has(nextChar)) {
+				if (!silent) {
+					state.pending += '$';
+				}
+				state.pos += 1;
+				return true;
+			}
+		}
+		return originalFn.call(this, state, silent);
+	};
+}
+
 export async function activate(ctx: RendererContext<void>) {
 	const markdownItRenderer = (await ctx.getRenderer('vscode.markdown-it-renderer')) as undefined | any;
 	if (!markdownItRenderer) {
@@ -48,11 +83,13 @@ export async function activate(ctx: RendererContext<void>) {
 	const katex = require('@vscode/markdown-it-katex').default;
 	const macros = {};
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
-		return md.use(katex, {
+		md.use(katex, {
 			globalGroup: true,
 			enableBareBlocks: true,
 			enableFencedBlocks: true,
 			macros,
 		});
+		patchInlineMathRule(md);
+		return md;
 	});
 }
