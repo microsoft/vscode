@@ -346,7 +346,7 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.agentSessionsWelcomePage' }, "Open the Agent Sessions Welcome page. Will override the workbench secondary side bar visibility settings."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.tscodeWelcomePage' }, "Open the TSCode Welcome page."), // test-workbench_change
 			],
-			'default': 'welcomePage',
+			'default': 'tscodeWelcomePage', // test-workbench_change - Set TSCode Welcome as default
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),
 			'experiment': { mode: 'auto' }
 		},
