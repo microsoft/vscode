@@ -2328,6 +2328,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
 		if (isEditing) {
+			// Clear the carousel since the existing request is being replaced
+			this.inputPart?.clearToolConfirmationCarousel();
+
 			const editingPendingRequest = this.viewModel.editing!.pendingKind;
 			if (editingPendingRequest !== undefined) {
 				const editingRequestId = this.viewModel.editing!.id;

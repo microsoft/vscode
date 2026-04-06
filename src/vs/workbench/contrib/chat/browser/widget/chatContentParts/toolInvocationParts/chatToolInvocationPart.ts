@@ -36,6 +36,10 @@ import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
+	public get toolCallId(): string {
+		return this.toolInvocation.toolCallId;
+	}
+
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		const codeblocks = this.subPart?.codeblocks ?? [];
 		if (this.mcpAppPart) {
