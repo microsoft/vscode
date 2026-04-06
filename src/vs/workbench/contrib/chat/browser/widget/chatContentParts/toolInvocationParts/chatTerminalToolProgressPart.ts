@@ -24,7 +24,7 @@ import { ChatCollapsibleContentPart } from '../chatCollapsibleContentPart.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
-import { Action, IAction } from '../../../../../../../base/common/actions.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -440,8 +440,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._hasOutputKey = TerminalChatContextKeys.chatToolHasOutput.bindTo(toolbarContextKeyService);
 		this._isHiddenTerminalKey = TerminalChatContextKeys.chatToolIsHiddenTerminal.bindTo(toolbarContextKeyService);
 		this._outputExpandedKey = TerminalChatContextKeys.chatToolOutputExpanded.bindTo(toolbarContextKeyService);
-		// Set the collapsible-wrapper key statically since it doesn't change for this instance
-		TerminalChatContextKeys.chatToolUsesCollapsible.bindTo(toolbarContextKeyService);
+		const usesCollapsibleKey = TerminalChatContextKeys.chatToolUsesCollapsible.bindTo(toolbarContextKeyService);
 
 		const scopedInstantiationService = this._register(this._instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, toolbarContextKeyService])
@@ -517,6 +516,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const requiresConfirmation = toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(toolInvocation);
 		this._isInThinkingContainer = terminalToolsInThinking && !requiresConfirmation;
 		this._usesCollapsibleWrapper = this._isInThinkingContainer || isSimpleTerminal;
+		usesCollapsibleKey.set(this._usesCollapsibleWrapper);
 
 		if (this._usesCollapsibleWrapper) {
 			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, displayCommand, toolInvocation, context);
@@ -1533,178 +1533,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (backgroundColor) {
 			this.domNode.style.backgroundColor = backgroundColor.toString();
 		}
-	}
-}
-
-export class ToggleChatTerminalOutputAction extends Action implements IAction {
-	private _expanded = false;
-
-	constructor(
-		private readonly _toggle: () => Promise<void>,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-	) {
-		super(
-			TerminalContribCommandId.ToggleChatTerminalOutput,
-			localize('showTerminalOutput', 'Show Output'),
-			ThemeIcon.asClassName(Codicon.chevronRight),
-			true,
-		);
-		this._updateTooltip();
-	}
-
-	public override async run(): Promise<void> {
-		type ToggleChatTerminalOutputTelemetryEvent = {
-			previousExpanded: boolean;
-		};
-
-		type ToggleChatTerminalOutputTelemetryClassification = {
-			owner: 'meganrogge';
-			comment: 'Track usage of the toggle chat terminal output action.';
-			previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal output was expanded before the toggle.' };
-		};
-		this._telemetryService.publicLog2<ToggleChatTerminalOutputTelemetryEvent, ToggleChatTerminalOutputTelemetryClassification>('terminal/chatToggleOutput', {
-			previousExpanded: this._expanded
-		});
-		await this._toggle();
-	}
-
-	public syncPresentation(expanded: boolean): void {
-		this._expanded = expanded;
-		this._updatePresentation();
-		this._updateTooltip();
-	}
-
-	public refreshKeybindingTooltip(): void {
-		this._updateTooltip();
-	}
-
-	private _updatePresentation(): void {
-		if (this._expanded) {
-			this.label = localize('hideTerminalOutput', 'Hide Output');
-			this.class = ThemeIcon.asClassName(Codicon.chevronDown);
-		} else {
-			this.label = localize('showTerminalOutput', 'Show Output');
-			this.class = ThemeIcon.asClassName(Codicon.chevronRight);
-		}
-	}
-
-	private _updateTooltip(): void {
-		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminalOutput);
-	}
-}
-
-export class FocusChatInstanceAction extends Action implements IAction {
-	constructor(
-		private _instance: ITerminalInstance | undefined,
-		private _command: ITerminalCommand | undefined,
-		private readonly _commandUri: URI | undefined,
-		private readonly _commandId: string | undefined,
-		isTerminalHidden: boolean,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-	) {
-		super(
-			TerminalContribCommandId.FocusChatInstanceAction,
-			isTerminalHidden ? localize('showTerminal', 'Show and Focus Terminal') : localize('focusTerminal', 'Focus Terminal'),
-			ThemeIcon.asClassName(Codicon.openInProduct),
-			true,
-		);
-		this._updateTooltip();
-	}
-
-	public override async run() {
-		this.label = this._instance?.shellLaunchConfig.hideFromUser ? localize('showAndFocusTerminal', 'Show and Focus Terminal') : localize('focusTerminal', 'Focus Terminal');
-		this._updateTooltip();
-
-		let target: FocusChatInstanceTelemetryEvent['target'] = 'none';
-		let location: FocusChatInstanceTelemetryEvent['location'] = 'panel';
-		if (this._instance) {
-			target = 'instance';
-			location = this._instance.target === TerminalLocation.Editor ? 'editor' : 'panel';
-		} else if (this._commandUri) {
-			target = 'commandUri';
-		}
-
-		type FocusChatInstanceTelemetryEvent = {
-			target: 'instance' | 'commandUri' | 'none';
-			location: 'panel' | 'editor';
-		};
-
-		type FocusChatInstanceTelemetryClassification = {
-			owner: 'meganrogge';
-			comment: 'Track usage of the focus chat terminal action.';
-			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether focusing targeted an existing instance or opened a command URI.' };
-			location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Location of the terminal instance when focusing.' };
-		};
-		this._telemetryService.publicLog2<FocusChatInstanceTelemetryEvent, FocusChatInstanceTelemetryClassification>('terminal/chatFocusInstance', {
-			target,
-			location
-		});
-
-		if (this._instance) {
-			this._terminalService.setActiveInstance(this._instance);
-			if (this._instance.target === TerminalLocation.Editor) {
-				this._terminalEditorService.openEditor(this._instance);
-			} else {
-				await this._terminalGroupService.showPanel(true);
-			}
-			this._terminalService.setActiveInstance(this._instance);
-			await this._instance.focusWhenReady(true);
-			const command = this._resolveCommand();
-			if (command) {
-				this._instance.xterm?.markTracker.revealCommand(command);
-			}
-			return;
-		}
-
-		if (this._commandUri) {
-			this._terminalService.openResource(this._commandUri);
-		}
-	}
-
-	public refreshKeybindingTooltip(): void {
-		this._updateTooltip();
-	}
-
-	private _resolveCommand(): ITerminalCommand | undefined {
-		if (this._command && !this._command.endMarker?.isDisposed) {
-			return this._command;
-		}
-		if (!this._instance || !this._commandId) {
-			return this._command;
-		}
-		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		const resolved = commandDetection?.commands.find(c => c.id === this._commandId);
-		if (resolved) {
-			this._command = resolved;
-		}
-		return this._command;
-	}
-
-	private _updateTooltip(): void {
-		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminal);
-	}
-}
-
-export class ContinueInBackgroundAction extends Action implements IAction {
-	constructor(
-		private readonly _terminalToolSessionId: string,
-		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-	) {
-		super(
-			TerminalContribCommandId.ContinueInBackground,
-			localize('continueInBackground', 'Continue in Background'),
-			ThemeIcon.asClassName(Codicon.debugContinue),
-			true,
-		);
-	}
-
-	public override async run(): Promise<void> {
-		this._terminalChatService.continueInBackground(this._terminalToolSessionId);
 	}
 }
 
