@@ -21,12 +21,13 @@ jobs:
             echo "engineering_systems_modified=false" >> $GITHUB_OUTPUT
             echo "No engineering systems were modified in this PR"
           fi
-      - name: Allow automated distro updates
+      - name: Allow automated distro or version field updates
         id: distro_exception
         if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login == 'vs-code-engineering[bot]' }}
         run: |
           # Allow the vs-code-engineering bot ONLY when package.json is the
-          # sole changed file and the diff exclusively touches the "distro" field.
+          # sole changed file and the diff exclusively touches the "distro"
+          # or "version" field.
           ONLY_PKG=$(jq -e '. == ["package.json"]' "$HOME/files.json" > /dev/null 2>&1 && echo true || echo false)
           if [[ "$ONLY_PKG" != "true" ]]; then
             echo "Bot modified files beyond package.json — not allowed"
@@ -41,12 +42,13 @@ jobs:
           }
           CHANGED_LINES=$(echo "$DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
           DISTRO_LINES=$(echo "$DIFF" | grep -cE '^[+-][[:space:]]*"distro"[[:space:]]*:' || true)
+          VERSION_LINES=$(echo "$DIFF" | grep -cE '^[+-][[:space:]]*"version"[[:space:]]*:' || true)
 
-          if [[ "$CHANGED_LINES" -eq 2 && "$DISTRO_LINES" -eq 2 ]]; then
-            echo "Distro-only update by bot — allowing"
+          if [[ "$CHANGED_LINES" -eq 2 && ("$DISTRO_LINES" -eq 2 || "$VERSION_LINES" -eq 2) ]]; then
+            echo "Distro-only or version-only update by bot — allowing"
             echo "allowed=true" >> $GITHUB_OUTPUT
           else
-            echo "Bot changed more than the distro field — not allowed"
+            echo "Bot changed more than a single allowed field (distro or version) — not allowed"
             echo "allowed=false" >> $GITHUB_OUTPUT
           fi
         env:
