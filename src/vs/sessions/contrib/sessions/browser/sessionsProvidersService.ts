@@ -7,8 +7,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { ISessionData, ISessionWorkspace } from '../common/sessionData.js';
-import { ISessionChangeEvent, ISessionsProvider, ISessionType } from './sessionsProvider.js';
+import { ISession, ISessionWorkspace } from '../common/sessionData.js';
+import { ISessionChangeEvent, ISessionsProvider, ISessionType, ISendRequestOptions } from './sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 
 export const ISessionsProvidersService = createDecorator<ISessionsProvidersService>('sessionsProvidersService');
@@ -27,6 +27,7 @@ export interface ISessionsProvidersService {
 	registerProvider(provider: ISessionsProvider): IDisposable;
 	/** Get all registered providers. */
 	getProviders(): ISessionsProvider[];
+	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined;
 	/** Fires when providers are added or removed. */
 	readonly onDidChangeProviders: Event<void>;
 
@@ -39,10 +40,10 @@ export interface ISessionsProvidersService {
 
 	// -- Aggregated Sessions --
 
-	/** Get all chats from all providers. */
-	getSessions(): ISessionData[];
-	/** Get a chat by its globally unique ID. */
-	getSession(chatId: string): ISessionData | undefined;
+	/** Get all sessions from all providers. */
+	getSessions(): ISession[];
+	/** Get a session by chat resource. */
+	getSession(chatId: string): ISession | undefined;
 	/** Fires when sessions change across any provider. */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
 	/**
@@ -53,7 +54,7 @@ export interface ISessionsProvidersService {
 	 * @internal This is an implementation detail of the Copilot Chat sessions
 	 * provider. Do not consume this event outside of {@link ISessionsManagementService}.
 	 */
-	readonly onDidReplaceSession: Event<{ readonly from: ISessionData; readonly to: ISessionData }>;
+	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 
 	// -- Session Actions (routed to the correct provider via sessionId) --
 
@@ -63,14 +64,16 @@ export interface ISessionsProvidersService {
 	unarchiveSession(sessionId: string): Promise<void>;
 	/** Delete a session. */
 	deleteSession(sessionId: string): Promise<void>;
-	/** Rename a session. */
-	renameSession(sessionId: string, title: string): Promise<void>;
+	/** Delete a single chat from a session. */
+	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
+	/** Rename a chat within a session. */
+	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
 	/** Mark a session as read or unread. */
 	setRead(sessionId: string, read: boolean): void;
 	/** Resolve a repository URI to a session workspace using the given provider. */
 	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined;
-	/** Returns the current untitled session for the given provider, if any. */
-	getUntitledSession(providerId: string): ISessionData | undefined; // TODO: Shoulds ideally be removed when new chat and picker is cleaned up
+	/** Send a request, creating a new chat in the session. Routed to the correct provider. */
+	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
 }
 
 /**
@@ -89,8 +92,8 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
-	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISessionData; readonly to: ISessionData }>());
-	readonly onDidReplaceSession: Event<{ readonly from: ISessionData; readonly to: ISessionData }> = this._onDidReplaceSession.event;
+	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
 	// -- Provider Registry --
 
@@ -130,6 +133,10 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return Array.from(this._providers.values(), e => e.provider);
 	}
 
+	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+		return this._providers.get(providerId)?.provider as T | undefined;
+	}
+
 	// -- Session Types --
 
 	getSessionTypesForProvider(providerId: string): ISessionType[] {
@@ -140,66 +147,73 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return [...entry.provider.sessionTypes];
 	}
 
-	getSessionTypes(chatId: string): ISessionType[] {
-		const { provider } = this._resolveProvider(chatId);
+	getSessionTypes(sessionId: string): ISessionType[] {
+		const { provider } = this._resolveProvider(sessionId);
 		if (!provider) {
 			return [];
 		}
-		return provider.getSessionTypes(chatId);
+		return provider.getSessionTypes(sessionId);
 	}
 
 	// -- Aggregated Sessions --
 
-	getSessions(): ISessionData[] {
-		const sessions: ISessionData[] = [];
+	getSessions(): ISession[] {
+		const sessions: ISession[] = [];
 		for (const { provider } of this._providers.values()) {
 			sessions.push(...provider.getSessions());
 		}
 		return sessions;
 	}
 
-	getSession(chatId: string): ISessionData | undefined {
-		const { provider } = this._resolveProvider(chatId);
+	getSession(sessionId: string): ISession | undefined {
+		const { provider } = this._resolveProvider(sessionId);
 		if (!provider) {
 			return undefined;
 		}
-		return provider.getSessions().find(s => s.id === chatId);
+		return provider.getSessions().find(s => s.sessionId === sessionId);
 	}
 
 	// -- Session Actions --
 
-	async archiveSession(chatId: string): Promise<void> {
-		const { provider } = this._resolveProvider(chatId);
+	async archiveSession(sessionId: string): Promise<void> {
+		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
-			await provider.archiveSession(chatId);
+			await provider.archiveSession(sessionId);
 		}
 	}
 
-	async unarchiveSession(chatId: string): Promise<void> {
-		const { provider } = this._resolveProvider(chatId);
+	async unarchiveSession(sessionId: string): Promise<void> {
+		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
-			await provider.unarchiveSession(chatId);
+			await provider.unarchiveSession(sessionId);
 		}
 	}
 
-	async deleteSession(chatId: string): Promise<void> {
-		const { provider } = this._resolveProvider(chatId);
+	async deleteSession(sessionId: string): Promise<void> {
+		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
-			await provider.deleteSession(chatId);
+			await provider.deleteSession(sessionId);
 		}
 	}
 
-	async renameSession(chatId: string, title: string): Promise<void> {
-		const { provider } = this._resolveProvider(chatId);
+	async renameChat(sessionId: string, chatUri: URI, title: string): Promise<void> {
+		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
-			await provider.renameSession(chatId, title);
+			await provider.renameChat(sessionId, chatUri, title);
 		}
 	}
 
-	setRead(chatId: string, read: boolean): void {
-		const { provider } = this._resolveProvider(chatId);
+	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
+		const { provider } = this._resolveProvider(sessionId);
 		if (provider) {
-			provider.setRead(chatId, read);
+			await provider.deleteChat(sessionId, chatUri);
+		}
+	}
+
+	setRead(sessionId: string, read: boolean): void {
+		const { provider } = this._resolveProvider(sessionId);
+		if (provider) {
+			provider.setRead(sessionId, read);
 		}
 	}
 
@@ -208,9 +222,12 @@ export class SessionsProvidersService extends Disposable implements ISessionsPro
 		return entry?.provider.resolveWorkspace(repositoryUri);
 	}
 
-	getUntitledSession(providerId: string): ISessionData | undefined {
-		const entry = this._providers.get(providerId);
-		return entry?.provider.getUntitledSession();
+	async sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession> {
+		const { provider } = this._resolveProvider(sessionId);
+		if (!provider) {
+			throw new Error(`Sessions provider for session ID '${sessionId}' not found`);
+		}
+		return provider.sendAndCreateChat(sessionId, options);
 	}
 
 	// -- Private Helpers --

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../base/common/resources.js';
@@ -11,17 +11,20 @@ import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileWriteOptions, IStat } from '../../files/common/files.js';
 import { fromAgentHostUri, toAgentHostUri } from './agentHostUri.js';
 import { type IAgentConnection } from './agentService.js';
-import { IBrowseDirectoryResult, IDirectoryEntry, IFetchContentResult } from './state/protocol/commands.js';
+import { ContentEncoding, type IDirectoryEntry, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult } from './state/protocol/commands.js';
 
 /**
- * Minimal interface for browsing and fetching files from a remote endpoint.
+ * Interface for performing resource operations on a remote endpoint.
  *
  * Both {@link IAgentConnection} (client→server) and client-exposed
  * filesystems (server→client) satisfy this contract.
  */
 export interface IRemoteFilesystemConnection {
-	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
-	fetchContent(uri: URI): Promise<IFetchContentResult>;
+	resourceList(uri: URI): Promise<IResourceListResult>;
+	resourceRead(uri: URI): Promise<IResourceReadResult>;
+	resourceWrite(params: IResourceWriteParams): Promise<IResourceWriteResult>;
+	resourceDelete(params: IResourceDeleteParams): Promise<IResourceDeleteResult>;
+	resourceMove(params: IResourceMoveParams): Promise<IResourceMoveResult>;
 }
 
 /**
@@ -39,23 +42,10 @@ export function agentHostRemotePath(uri: URI): string {
 	return fromAgentHostUri(uri).path;
 }
 
-// ---- Remote filesystem connection -------------------------------------------
-
-/**
- * Minimal interface for browsing and fetching files from a remote endpoint.
- *
- * Both {@link IAgentConnection} (client→server) and client-exposed
- * filesystems (server→client) satisfy this contract.
- */
-export interface IRemoteFilesystemConnection {
-	browseDirectory(uri: URI): Promise<IBrowseDirectoryResult>;
-	fetchContent(uri: URI): Promise<IFetchContentResult>;
-}
-
 // ---- Abstract base ----------------------------------------------------------
 
 /**
- * Read-only {@link IFileSystemProvider} that proxies filesystem operations
+ * {@link IFileSystemProvider} that proxies filesystem operations
  * through a {@link IRemoteFilesystemConnection}.
  *
  * URIs encode the original scheme and authority in the path so any remote
@@ -67,9 +57,8 @@ export interface IRemoteFilesystemConnection {
 export abstract class AHPFileSystemProvider extends Disposable implements IFileSystemProvider {
 
 	readonly capabilities =
-		FileSystemProviderCapabilities.Readonly |
 		FileSystemProviderCapabilities.PathCaseSensitive |
-		FileSystemProviderCapabilities.FileReadWrite; // required for the file service to resolve directory contents
+		FileSystemProviderCapabilities.FileReadWrite;
 
 	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
 	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
@@ -137,7 +126,10 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const connection = this._getConnection(resource.authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			const result = await connection.fetchContent(originalUri);
+			const result = await connection.resourceRead(originalUri);
+			if (result.encoding === ContentEncoding.Base64) {
+				return decodeBase64(result.data).buffer;
+			}
 			return VSBuffer.fromString(result.data).buffer;
 		} catch (err) {
 			throw createFileSystemProviderError(
@@ -147,20 +139,52 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		}
 	}
 
-	async writeFile(_resource: URI, _content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
-		throw createFileSystemProviderError('writeFile not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
+	async writeFile(resource: URI, content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
+		const connection = this._getConnection(resource.authority);
+		try {
+			const originalUri = this._decodeUri(resource);
+			await connection.resourceWrite({
+				uri: originalUri.toString(),
+				data: VSBuffer.wrap(content).toString(),
+				encoding: ContentEncoding.Utf8,
+			});
+		} catch (err) {
+			throw createFileSystemProviderError(
+				err instanceof Error ? err.message : String(err),
+				FileSystemProviderErrorCode.NoPermissions,
+			);
+		}
 	}
 
 	async mkdir(): Promise<void> {
 		throw createFileSystemProviderError('mkdir not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
 	}
 
-	async delete(_resource: URI, _opts: IFileDeleteOptions): Promise<void> {
-		throw createFileSystemProviderError('delete not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
+	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
+		const connection = this._getConnection(resource.authority);
+		try {
+			const originalUri = this._decodeUri(resource);
+			await connection.resourceDelete({ uri: originalUri.toString(), recursive: opts.recursive });
+		} catch (err) {
+			throw createFileSystemProviderError(
+				err instanceof Error ? err.message : String(err),
+				FileSystemProviderErrorCode.NoPermissions,
+			);
+		}
 	}
 
-	async rename(_from: URI, _to: URI, _opts: IFileOverwriteOptions): Promise<void> {
-		throw createFileSystemProviderError('rename not supported on remote filesystem', FileSystemProviderErrorCode.NoPermissions);
+	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+		const connection = this._getConnection(from.authority);
+		try {
+			const originalFrom = this._decodeUri(from);
+			const originalTo = this._decodeUri(to);
+			await connection.resourceMove({ source: originalFrom.toString(), destination: originalTo.toString(), failIfExists: !opts.overwrite });
+		} catch (err) {
+			throw createFileSystemProviderError(
+				err instanceof Error ? err.message : String(err),
+				FileSystemProviderErrorCode.NoPermissions,
+			);
+		}
 	}
 
 	// ---- Internals ----------------------------------------------------------
@@ -177,7 +201,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const connection = this._getConnection(authority);
 		try {
 			const originalUri = this._decodeUri(resource);
-			const result = await connection.browseDirectory(originalUri);
+			const result = await connection.resourceList(originalUri);
 			return result.entries;
 		} catch (err) {
 			throw createFileSystemProviderError(
@@ -191,7 +215,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 // ---- Agent Host filesystem (client reads agent host files) ------------------
 
 /**
- * Read-only filesystem provider for accessing agent host files from the
+ * Filesystem provider for accessing agent host files from the
  * client side. Registered under the `vscode-agent-host` scheme.
  *
  * ```

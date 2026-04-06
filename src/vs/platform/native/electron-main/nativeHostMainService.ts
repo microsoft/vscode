@@ -1159,10 +1159,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async stopTracing(windowId: number | undefined): Promise<void> {
-		if (!this.environmentMainService.args.trace) {
-			return; // requires tracing to be on
+	private _isTracing = false;
+
+	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+		if (this._isTracing) {
+			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
 		}
+
+		const traceOptions = ['record-until-full', 'enable-sampling'];
+
+		await contentTracing.startRecording({
+			categoryFilter: categories,
+			traceOptions: traceOptions.join(',')
+		});
+		this._isTracing = true;
+	}
+
+	async stopTracing(windowId: number | undefined): Promise<void> {
+		if (!this._isTracing && !this.environmentMainService.args.trace) {
+			return; // no tracing in progress
+		}
+
+		this._isTracing = false;
 
 		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
 

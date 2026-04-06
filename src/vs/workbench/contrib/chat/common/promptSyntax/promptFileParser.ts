@@ -620,4 +620,13 @@ export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceVal
 	return { type: 'sequence', items: result, range: stringValue.range };
 }
 
-
+/**
+ * Returns the effective `applyTo` pattern for an instruction file.
+ * Claude rules use `paths` (defaulting to `**`), while regular instructions use `applyTo`.
+ */
+export function evaluateApplyToPattern(header: PromptHeader | undefined, isClaudeRules: boolean): string | undefined {
+	if (isClaudeRules) {
+		return header?.paths?.join(', ') ?? '**';
+	}
+	return header?.applyTo;
+}

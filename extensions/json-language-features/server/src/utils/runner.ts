@@ -65,6 +65,5 @@ export function runSafe<T, E>(runtime: RuntimeEnvironment, func: () => T, errorV
 }
 
 function cancelValue<E>() {
-	console.log('cancelled');
 	return new ResponseError<E>(LSPErrorCodes.RequestCancelled, 'Request cancelled');
 }

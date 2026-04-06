@@ -24,6 +24,7 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
@@ -32,6 +33,7 @@ import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { basename } from '../../../../base/common/resources.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -40,7 +42,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
  * Shows the current chat session label as a clickable pill with:
  * - Kind icon at the beginning (provider type icon)
  * - Session title
- * - Repository folder name
+ * - Repository folder name and active branch/worktree name when available
  *
  * Session actions (changes, terminal, etc.) are rendered via the
  * SessionTitleActions menu toolbar next to the session title.
@@ -78,6 +80,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			if (sessionData) {
 				sessionData.title.read(reader);
 				sessionData.status.read(reader);
+				sessionData.workspace.read(reader);
 			}
 			this.sessionsManagementService.activeProviderId.read(reader);
 			this._lastRenderState = undefined;
@@ -131,8 +134,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
+			const repoDetailLabel = this._getRepositoryDetailLabel();
+			const pillLabel = repoLabel ? `${label} \u00B7 ${repoLabel}${repoDetailLabel ? ` (${repoDetailLabel})` : ''}` : label;
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoDetailLabel ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -173,7 +178,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				centerGroup.appendChild(separator1);
 
 				const repoEl = $('span.agent-sessions-titlebar-repo');
-				repoEl.textContent = repoLabel;
+				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;
 				centerGroup.appendChild(repoEl);
 			}
 
@@ -201,7 +206,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
 				sessionPill,
-				label
+				pillLabel
 			));
 
 			// Keyboard handler
@@ -251,6 +256,35 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}
 		}
 		return undefined;
+	}
+
+	private _getRepositoryDetailLabel(): string | undefined {
+		const sessionData = this.sessionsManagementService.activeSession.get();
+		const workspace = sessionData?.workspace.get();
+		const repository = workspace?.repositories[0];
+		if (!workspace || !repository) {
+			return undefined;
+		}
+
+		if (repository.detail && !workspace.label.includes(`[${repository.detail}]`)) {
+			return repository.detail;
+		}
+
+		if (!repository.workingDirectory) {
+			return undefined;
+		}
+
+		const worktreeName = basename(repository.workingDirectory);
+		if (!worktreeName) {
+			return undefined;
+		}
+
+		const repositoryName = basename(repository.uri);
+		if (worktreeName === workspace.label || worktreeName === repositoryName) {
+			return undefined;
+		}
+
+		return worktreeName;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
@@ -333,8 +367,15 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 				session.status.read(reader);
 				session.isRead.read(reader);
 			}
+			this.updateClass();
 			this._updateBadge();
 		}));
+	}
+
+	protected override getClass(): string | undefined {
+		return this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			? ThemeIcon.asClassName(Codicon.layoutSidebarLeft)
+			: ThemeIcon.asClassName(Codicon.layoutSidebarLeftOff);
 	}
 
 	private _updateBadge(): void {

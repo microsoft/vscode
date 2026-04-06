@@ -97,9 +97,16 @@ kerberos/src/**
 kerberos/node_modules/**
 !kerberos/**/*.node
 
+cpu-features/**
+
 ssh2/lib/protocol/crypto/binding.gyp
 ssh2/lib/protocol/crypto/build/**
 ssh2/lib/protocol/crypto/src/**
+ssh2/util/**
+ssh2/install.js
+ssh2/.github/**
+ssh2/.eslint*
+ssh2/SFTP.md
 
 node-pty/binding.gyp
 node-pty/build/**

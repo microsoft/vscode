@@ -683,25 +683,9 @@ declare module 'vscode' {
 		readonly when?: string;
 
 		/**
-		 * When true, displays a searchable QuickPick with a "See more..." option.
-		 * Recommended for option groups with additional async items (e.g., repositories).
-		 */
-		readonly searchable?: boolean;
-
-		/**
 		 * An icon for the option group shown in UI.
 		 */
 		readonly icon?: ThemeIcon;
-
-		/**
-		 * Handler for dynamic search when `searchable` is true.
-		 * Called when the user types in the searchable QuickPick or clicks "See more..." to load additional items.
-		 *
-		 * @param query The search query entered by the user. Empty string for initial load.
-		 * @param token A cancellation token.
-		 * @returns Additional items to display in the searchable QuickPick.
-		 */
-		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
 
 		/**
 		 * Optional commands.

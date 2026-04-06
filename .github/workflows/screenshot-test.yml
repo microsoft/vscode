@@ -61,6 +61,17 @@ jobs:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
+      - name: Trigger ingestion
+        run: |
+          curl -sS -X POST "https://hediet-screenshots.azurewebsites.net/ingest" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "owner": "${{ github.repository_owner }}",
+              "repo": "${{ github.event.repository.name }}",
+              "runId": ${{ github.run_id }},
+              "artifactName": "screenshots"
+            }'
+
       # - name: Compare screenshots
       #   id: compare
       #   run: |

@@ -158,11 +158,12 @@ export class ChatDebugEditor extends EditorPane {
 			} else if (this.chatDebugService.activeSessionResource && event.sessionResource.toString() === this.chatDebugService.activeSessionResource.toString()) {
 				if (this.viewState === ViewState.Overview) {
 					this.overviewView?.refresh();
-				} else if (this.viewState === ViewState.Logs) {
-					this.logsView?.refreshList();
 				} else if (this.viewState === ViewState.FlowChart) {
 					this.flowChartView?.refresh();
 				}
+				// Note: Logs view is intentionally omitted here — it handles
+				// onDidAddEvent internally via loadEvents() → addEvent() →
+				// scheduleRefresh() to avoid a redundant full refresh.
 			}
 		}));
 

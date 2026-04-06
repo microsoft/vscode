@@ -485,6 +485,27 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
 			return { ...state, customizations: updated };
 		}
 
+		// ── Truncation ────────────────────────────────────────────────────────
+
+		case ActionType.SessionTruncated: {
+			let turns: typeof state.turns;
+			if (action.turnId === undefined) {
+				turns = [];
+			} else {
+				const idx = state.turns.findIndex(t => t.id === action.turnId);
+				if (idx < 0) {
+					return state;
+				}
+				turns = state.turns.slice(0, idx + 1);
+			}
+			return {
+				...state,
+				turns,
+				activeTurn: undefined,
+				summary: { ...state.summary, status: SessionStatus.Idle, modifiedAt: Date.now() },
+			};
+		}
+
 		// ── Pending Messages ──────────────────────────────────────────────────
 
 		case ActionType.SessionPendingMessageSet: {

@@ -40,14 +40,8 @@ export class OpenAgentsWindowAction extends Action2 {
 		const productService = accessor.get(IProductService);
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
-		if (environmentService.isBuilt && (isMacintosh || isWindows)) {
-			const scheme = productService.quality === 'stable'
-				? 'vscode-sessions'
-				: productService.quality === 'exploration'
-					? 'vscode-sessions-exploration'
-					: 'vscode-sessions-insiders';
-
-			await openerService.open(URI.from({ scheme, authority: Schemas.file }), { openExternal: true });
+		if (environmentService.isBuilt && (isMacintosh || isWindows) && productService.embedded?.urlProtocol) {
+			await openerService.open(URI.from({ scheme: productService.embedded.urlProtocol, authority: Schemas.file }), { openExternal: true });
 		} else {
 			const nativeHostService = accessor.get(INativeHostService);
 			await nativeHostService.openAgentsWindow();

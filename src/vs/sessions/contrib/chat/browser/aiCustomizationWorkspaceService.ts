@@ -266,8 +266,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
 		const allCommands = await this.promptsService.getPromptSlashCommands(token);
 		return allCommands.filter(cmd => {
-			const filter = this.getStorageSourceFilter(cmd.promptPath.type);
-			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
+			const filter = this.getStorageSourceFilter(cmd.type);
+			return applyStorageSourceFilter([cmd], filter).length > 0;
 		});
 	}
 

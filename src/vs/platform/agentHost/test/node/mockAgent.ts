@@ -11,6 +11,9 @@ import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
 import { CustomizationStatus, ToolResultContentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
 
+/** Well-known auto-generated title used by the 'with-title' prompt. */
+export const MOCK_AUTO_TITLE = 'Automatically generated title';
+
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
  * for assertion and exposes {@link fireProgress} to inject progress events.
@@ -337,6 +340,23 @@ export class ScriptedMockAgent implements IAgent {
 				]);
 				break;
 
+			case 'with-reasoning':
+				this._fireSequence(session, [
+					{ type: 'reasoning', session, content: 'Let me think' },
+					{ type: 'reasoning', session, content: ' about this...' },
+					{ type: 'delta', session, messageId: 'msg-1', content: 'Reasoned response.' },
+					{ type: 'idle', session },
+				]);
+				break;
+
+			case 'with-title':
+				this._fireSequence(session, [
+					{ type: 'delta', session, messageId: 'msg-1', content: 'Title response.' },
+					{ type: 'title_changed', session, title: MOCK_AUTO_TITLE },
+					{ type: 'idle', session },
+				]);
+				break;
+
 			case 'slow': {
 				// Slow response for cancel testing — fires delta after a long delay
 				const timer = setTimeout(() => {
@@ -355,6 +375,15 @@ export class ScriptedMockAgent implements IAgent {
 					{ type: 'idle', session },
 				]);
 				break;
+		}
+	}
+
+	setPendingMessages(session: URI, steeringMessage: IPendingMessage | undefined, _queuedMessages: readonly IPendingMessage[]): void {
+		// When steering is set, consume it on the next tick
+		if (steeringMessage) {
+			timeout(20).then(() => {
+				this._onDidSessionProgress.fire({ type: 'steering_consumed', session, id: steeringMessage.id });
+			});
 		}
 	}
 
@@ -387,6 +416,16 @@ export class ScriptedMockAgent implements IAgent {
 
 	async changeModel(_session: URI, _model: string): Promise<void> {
 		// Mock agent doesn't track model state
+	}
+
+	async truncateSession(_session: URI, _turnIndex?: number): Promise<void> {
+		// Mock agent accepts truncation without side effects
+	}
+
+	async forkSession(_sourceSession: URI, newSessionId: string, _turnIndex: number): Promise<void> {
+		// Create the forked session so it can be resumed
+		const session = AgentSession.uri('mock', newSessionId);
+		this._sessions.set(newSessionId, session);
 	}
 
 	respondToPermissionRequest(toolCallId: string, approved: boolean): void {

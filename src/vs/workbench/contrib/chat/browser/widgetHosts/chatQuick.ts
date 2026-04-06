@@ -274,7 +274,7 @@ class QuickChat extends Disposable {
 			const anonymous = this.chatEntitlementService.anonymousObs.read(reader);
 			const requestInProgress = this.chatService.requestInProgressObs.read(reader);
 
-			const showDisclaimer = !sentiment.installed && anonymous && !requestInProgress;
+			const showDisclaimer = !sentiment.completed && anonymous && !requestInProgress;
 			disclaimerElement.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {

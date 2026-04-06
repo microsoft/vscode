@@ -163,6 +163,20 @@ export interface ISubscribeResult {
  * { "jsonrpc": "2.0", "id": 2, "error": { "code": -32003, "message": "Session already exists" } }
  * ```
  */
+/**
+ * Identifies a source session and turn to fork from.
+ *
+ * When provided in `createSession`, the server populates the new session with
+ * content from the source session up to and including the response of the
+ * specified turn.
+ */
+export interface ISessionForkSource {
+	/** URI of the existing session to fork from */
+	session: URI;
+	/** Turn ID in the source session; content up to and including this turn's response is copied */
+	turnId: string;
+}
+
 export interface ICreateSessionParams {
 	/** Session URI (client-chosen, e.g. `copilot:/<uuid>`) */
 	session: URI;
@@ -172,6 +186,11 @@ export interface ICreateSessionParams {
 	model?: string;
 	/** Working directory for the session */
 	workingDirectory?: URI;
+	/**
+	 * Fork from an existing session. The new session is populated with content
+	 * from the source session up to and including the specified turn's response.
+	 */
+	fork?: ISessionForkSource;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────
@@ -218,7 +237,7 @@ export interface IListSessionsResult {
 	items: ISessionSummary[];
 }
 
-// ─── fetchContent ────────────────────────────────────────────────────────────
+// ─── resourceRead ────────────────────────────────────────────────────────
 
 /**
  * Encoding of fetched content data.
@@ -231,7 +250,7 @@ export const enum ContentEncoding {
 }
 
 /**
- * Fetches large content referenced by a `ContentRef` in the state tree.
+ * Reads the content of a resource by URI.
  *
  * Content references keep the state tree small by storing large data (images,
  * long tool outputs) by reference rather than inline.
@@ -240,7 +259,7 @@ export const enum ContentEncoding {
  * use `utf-8` encoding.
  *
  * @category Commands
- * @method fetchContent
+ * @method resourceRead
  * @direction Client → Server
  * @messageType Request
  * @version 1
@@ -249,7 +268,7 @@ export const enum ContentEncoding {
  * @example
  * ```jsonc
  * // Client → Server
- * { "jsonrpc": "2.0", "id": 10, "method": "fetchContent",
+ * { "jsonrpc": "2.0", "id": 10, "method": "resourceRead",
  *   "params": { "uri": "copilot:/<uuid>/content/img-1" } }
  *
  * // Server → Client
@@ -260,7 +279,7 @@ export const enum ContentEncoding {
  * }}
  * ```
  */
-export interface IFetchContentParams {
+export interface IResourceReadParams {
 	/** Content URI from a `ContentRef` */
 	uri: string;
 	/** Preferred encoding for the returned data (default: server-chosen) */
@@ -268,13 +287,13 @@ export interface IFetchContentParams {
 }
 
 /**
- * Result of the `fetchContent` command.
+ * Result of the `resourceRead` command.
  *
  * The server SHOULD honor the `encoding` requested in the params. If the
  * server cannot provide the requested encoding, it MUST fall back to either
  * `base64` or `utf-8`.
  */
-export interface IFetchContentResult {
+export interface IResourceReadResult {
 	/** Content encoded as a string */
 	data: string;
 	/** How `data` is encoded */
@@ -283,7 +302,7 @@ export interface IFetchContentResult {
 	contentType?: string;
 }
 
-// ─── writeFile ───────────────────────────────────────────────────────────────
+// ─── resourceWrite ───────────────────────────────────────────────────────────
 
 /**
  * Writes content to a file on the server's filesystem.
@@ -295,7 +314,7 @@ export interface IFetchContentResult {
  * overwritten unless `createOnly` is set.
  *
  * @category Commands
- * @method writeFile
+ * @method resourceWrite
  * @direction Client → Server
  * @messageType Request
  * @version 1
@@ -305,7 +324,7 @@ export interface IFetchContentResult {
  * @example
  * ```jsonc
  * // Client → Server
- * { "jsonrpc": "2.0", "id": 11, "method": "writeFile",
+ * { "jsonrpc": "2.0", "id": 11, "method": "resourceWrite",
  *   "params": { "uri": "file:///workspace/hello.txt", "data": "SGVsbG8=",
  *              "encoding": "base64", "contentType": "text/plain" } }
  *
@@ -313,7 +332,7 @@ export interface IFetchContentResult {
  * { "jsonrpc": "2.0", "id": 11, "result": {} }
  * ```
  */
-export interface IWriteFileParams {
+export interface IResourceWriteParams {
 	/** Target file URI on the server filesystem */
 	uri: URI;
 	/** Content encoded as a string */
@@ -330,14 +349,14 @@ export interface IWriteFileParams {
 }
 
 /**
- * Result of the `writeFile` command.
+ * Result of the `resourceWrite` command.
  *
  * An empty object on success.
  */
-export interface IWriteFileResult {
+export interface IResourceWriteResult {
 }
 
-// ─── browseDirectory ────────────────────────────────────────────────────────
+// ─── resourceList ────────────────────────────────────────────────────────
 
 /**
  * Lists directory entries at a file URI on the server's filesystem.
@@ -350,20 +369,20 @@ export interface IWriteFileResult {
  * server MUST return a JSON-RPC error.
  *
  * @category Commands
- * @method browseDirectory
+ * @method resourceList
  * @direction Client → Server
  * @messageType Request
  * @version 1
  * @throws `NotFound` (`-32008`) if the directory does not exist.
  * @throws `PermissionDenied` (`-32009`) if the client is not permitted to browse the directory.
  */
-export interface IBrowseDirectoryParams {
+export interface IResourceListParams {
 	/** Directory URI on the server filesystem */
 	uri: URI;
 }
 
 /**
- * Directory entry returned by `browseDirectory`.
+ * Directory entry returned by `resourceList`.
  */
 export interface IDirectoryEntry {
 	/** Base name of the entry */
@@ -373,9 +392,9 @@ export interface IDirectoryEntry {
 }
 
 /**
- * Result of the `browseDirectory` command.
+ * Result of the `resourceList` command.
  */
-export interface IBrowseDirectoryResult {
+export interface IResourceListResult {
 	/** Entries directly contained in the requested directory */
 	entries: IDirectoryEntry[];
 }
@@ -464,31 +483,109 @@ export interface IDispatchActionParams {
 	action: IStateAction;
 }
 
-// ─── browseDirectory ────────────────────────────────────────────────────
+// ─── resourceCopy ────────────────────────────────────────────────────────────
 
 /**
- * Lists the contents of a directory on the server. Used by clients to
- * present directory pickers or file browsers.
+ * Copies a resource from one URI to another on the server's filesystem.
+ *
+ * If the destination already exists, it is overwritten unless `failIfExists`
+ * is set.
  *
  * @category Commands
- * @method browseDirectory
+ * @method resourceCopy
  * @direction Client → Server
  * @messageType Request
  * @version 1
+ * @throws `NotFound` (`-32008`) if the source does not exist.
+ * @throws `PermissionDenied` (`-32009`) if the client is not permitted to read the source or write to the destination.
+ * @throws `AlreadyExists` (`-32010`) if `failIfExists` is set and the destination already exists.
  */
-export interface IBrowseDirectoryParams {
-	/** Directory path to browse. Omit to list the default/root directory. */
-	directory?: string;
+export interface IResourceCopyParams {
+	/** Source URI to copy from */
+	source: URI;
+	/** Destination URI to copy to */
+	destination: URI;
+	/**
+	 * If `true`, the server MUST fail if the destination already exists instead
+	 * of overwriting it.
+	 */
+	failIfExists?: boolean;
 }
 
 /**
- * A single entry in a directory listing.
+ * Result of the `resourceCopy` command.
+ *
+ * An empty object on success.
  */
-export interface IBrowseDirectoryEntry {
-	/** Entry name (not a full path) */
-	name: string;
-	/** Whether this entry is a directory */
-	isDirectory: boolean;
+export interface IResourceCopyResult {
+}
+
+// ─── resourceDelete ──────────────────────────────────────────────────────────
+
+/**
+ * Deletes a resource at a URI on the server's filesystem.
+ *
+ * @category Commands
+ * @method resourceDelete
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ * @throws `NotFound` (`-32008`) if the resource does not exist.
+ * @throws `PermissionDenied` (`-32009`) if the client is not permitted to delete the resource.
+ */
+export interface IResourceDeleteParams {
+	/** URI of the resource to delete */
+	uri: URI;
+	/**
+	 * If `true` and the target is a directory, delete it and all its contents
+	 * recursively. If `false` (default), deleting a non-empty directory MUST fail.
+	 */
+	recursive?: boolean;
+}
+
+/**
+ * Result of the `resourceDelete` command.
+ *
+ * An empty object on success.
+ */
+export interface IResourceDeleteResult {
+}
+
+// ─── resourceMove ────────────────────────────────────────────────────────────
+
+/**
+ * Moves (renames) a resource from one URI to another on the server's filesystem.
+ *
+ * If the destination already exists, it is overwritten unless `failIfExists`
+ * is set.
+ *
+ * @category Commands
+ * @method resourceMove
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ * @throws `NotFound` (`-32008`) if the source does not exist.
+ * @throws `PermissionDenied` (`-32009`) if the client is not permitted to move the resource.
+ * @throws `AlreadyExists` (`-32010`) if `failIfExists` is set and the destination already exists.
+ */
+export interface IResourceMoveParams {
+	/** Source URI to move from */
+	source: URI;
+	/** Destination URI to move to */
+	destination: URI;
+	/**
+	 * If `true`, the server MUST fail if the destination already exists instead
+	 * of overwriting it.
+	 */
+	failIfExists?: boolean;
+}
+
+/**
+ * Result of the `resourceMove` command.
+ *
+ * An empty object on success.
+ */
+export interface IResourceMoveResult {
 }
 
 // ─── authenticate ────────────────────────────────────────────────────────────

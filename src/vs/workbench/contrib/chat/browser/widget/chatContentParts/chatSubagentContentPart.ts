@@ -28,11 +28,19 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { CollapsibleListPool } from './chatReferencesContentPart.js';
-import { createThinkingIcon, getToolInvocationIcon } from './chatThinkingContentPart.js';
+import { buildPhrasePool, createThinkingIcon, getToolInvocationIcon } from './chatThinkingContentPart.js';
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
+
+const subagentWorkingMessages = [
+	localize('chat.subagent.working.1', 'Processing'),
+	localize('chat.subagent.working.2', 'Preparing'),
+	localize('chat.subagent.working.3', 'Loading'),
+	localize('chat.subagent.working.4', 'Analyzing'),
+	localize('chat.subagent.working.5', 'Evaluating'),
+];
 
 /**
  * Represents a lazy tool item that will be created when the subagent section is expanded.
@@ -98,6 +106,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private toolsWaitingForConfirmation: number = 0;
 	private userManuallyExpanded: boolean = false;
 	private autoExpandedForConfirmation: boolean = false;
+
+	// Working spinner elements for expanded state
+	private workingSpinnerElement: HTMLElement | undefined;
+	private workingSpinnerLabel: HTMLElement | undefined;
+	private availableMessages: string[] | undefined;
 
 	// Persistent title elements for shimmer
 	private titleShimmerSpan: HTMLElement | undefined;
@@ -166,7 +179,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
 		const { description, isDefaultDescription, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
@@ -261,6 +274,52 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.watchToolCompletion(toolInvocation);
 	}
 
+	private getRandomWorkingMessage(): string {
+		if (!this.availableMessages || this.availableMessages.length === 0) {
+			this.availableMessages = buildPhrasePool(subagentWorkingMessages, this.configurationService);
+		}
+		const index = Math.floor(Math.random() * this.availableMessages.length);
+		return this.availableMessages.splice(index, 1)[0];
+	}
+
+	private createWorkingSpinner(): void {
+		if (this.workingSpinnerElement || !this.wrapper) {
+			return;
+		}
+		this.workingSpinnerElement = $('.chat-thinking-item.chat-thinking-spinner-item');
+		const spinnerIcon = createThinkingIcon(Codicon.circleFilled);
+		this.workingSpinnerElement.appendChild(spinnerIcon);
+		this.workingSpinnerLabel = $('span.chat-thinking-spinner-label');
+		this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
+		this.workingSpinnerElement.appendChild(this.workingSpinnerLabel);
+		this.wrapper.appendChild(this.workingSpinnerElement);
+	}
+
+	private removeWorkingSpinner(): void {
+		if (this.workingSpinnerElement) {
+			this.workingSpinnerElement.remove();
+			this.workingSpinnerElement = undefined;
+			this.workingSpinnerLabel = undefined;
+		}
+	}
+
+	private showWorkingSpinner(): void {
+		if (this.workingSpinnerElement) {
+			this.workingSpinnerElement.style.display = '';
+		} else {
+			this.createWorkingSpinner();
+		}
+	}
+
+	/**
+	 * Returns the insertion anchor for appending items to the wrapper.
+	 * Items should be inserted before the working spinner (if present),
+	 * then before the result container (if present), otherwise appended.
+	 */
+	private getInsertionAnchor(): HTMLElement | undefined {
+		return this.workingSpinnerElement ?? this.resultContainer;
+	}
+
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
 
@@ -272,6 +331,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Materialize any deferred content now that wrapper exists
 		// This handles the case where the subclass autorun ran before this base class autorun
 		this.materializePendingContent();
+
+		// Create working spinner if still active and no confirmations pending
+		if (!this.isInitiallyComplete && this.isActive && this.toolsWaitingForConfirmation === 0) {
+			this.createWorkingSpinner();
+		}
 
 		// Use ResizeObserver to trigger layout when wrapper content changes
 		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
@@ -354,12 +418,18 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		return this.isActive;
 	}
 
+	public get hasToolsWaitingForConfirmation(): boolean {
+		return this.toolsWaitingForConfirmation > 0;
+	}
+
 	public markAsInactive(): void {
 		this.isActive = false;
 		this.domNode.classList.remove('chat-thinking-active');
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+
+		this.removeWorkingSpinner();
 
 		if (this._isDefaultDescription) {
 			this.description = localize('chat.subagent.completedDefaultDescription', 'Ran subagent');
@@ -486,6 +556,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					this.autoExpandedForConfirmation = true;
 					this.setExpanded(true);
 				}
+				// Remove the working spinner while confirmation is shown
+				this.removeWorkingSpinner();
 			} else if (!isWaitingForConfirmation && wasWaitingForConfirmation) {
 				// Tool is no longer waiting for confirmation
 				this.toolsWaitingForConfirmation--;
@@ -493,6 +565,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					// Auto-collapse only if we auto-expanded and user didn't manually expand
 					this.autoExpandedForConfirmation = false;
 					this.setExpanded(false);
+				}
+				// Show the working spinner again if still active and no more confirmations
+				if (this.toolsWaitingForConfirmation === 0 && this.isActive) {
+					this.showWorkingSpinner();
 				}
 			}
 
@@ -647,6 +723,21 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Track tool state for title updates and auto-expand/collapse on confirmation
 		this.trackToolState(toolInvocation);
 
+		// Update working spinner label with a new random message
+		if (this.workingSpinnerLabel) {
+			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
+		}
+
+		// Ensure expanded when a tool needing confirmation is appended (e.g. after session switch)
+		if (toolInvocation.kind === 'toolInvocation') {
+			const state = toolInvocation.state.get();
+			if ((state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
+				state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) && !this.isExpanded()) {
+				this.autoExpandedForConfirmation = true;
+				this.setExpanded(true);
+			}
+		}
+
 		// Render immediately only if already expanded or has been expanded before
 		if (this.isExpanded() || this.hasExpandedOnce) {
 			const part = this.createToolPart(toolInvocation, codeBlockStartIndex);
@@ -743,8 +834,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (this.wrapper) {
-			if (this.resultContainer) {
-				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
+			const anchor = this.getInsertionAnchor();
+			if (anchor) {
+				this.wrapper.insertBefore(itemWrapper, anchor);
 			} else {
 				this.wrapper.appendChild(itemWrapper);
 			}
@@ -767,10 +859,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(domNode);
 		itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
 
-		// Insert before result container if it exists, otherwise append
+		// Insert before spinner/result container if either exists, otherwise append
 		if (this.wrapper) {
-			if (this.resultContainer) {
-				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
+			const anchor = this.getInsertionAnchor();
+			if (anchor) {
+				this.wrapper.insertBefore(itemWrapper, anchor);
 			} else {
 				this.wrapper.appendChild(itemWrapper);
 			}
@@ -838,11 +931,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
 		}
 
-		// Insert before result container if it exists, otherwise append
+		// Insert before spinner/result container if either exists, otherwise append
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
 		if (this.wrapper) {
-			if (this.resultContainer) {
-				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
+			const anchor = this.getInsertionAnchor();
+			if (anchor) {
+				this.wrapper.insertBefore(itemWrapper, anchor);
 			} else {
 				this.wrapper.appendChild(itemWrapper);
 			}
@@ -899,6 +993,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Materialize lazy tool items
 		for (const item of this.lazyItems) {
 			this.materializeLazyItem(item);
+		}
+
+		// Create working spinner if still active, no confirmations pending, and not yet created
+		if (!this.isInitiallyComplete && this.isActive && this.toolsWaitingForConfirmation === 0 && !this.workingSpinnerElement) {
+			this.createWorkingSpinner();
 		}
 
 		// Render pending result text

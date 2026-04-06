@@ -104,9 +104,8 @@
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
-	border-radius: var(--vscode-cornerRadius-large) !important;
+	border-radius: var(--vscode-cornerRadius-large);
 }
-
 .agent-sessions-workbench .interactive-session .interactive-input-part {
 	width: 100%;
 	max-width: 950px;
@@ -115,6 +114,13 @@
 	/* Align with panel (terminal) card margin */
 	padding: 4px 10px 10px 10px !important;
 	box-sizing: border-box;
+}
+
+/* Hide shared chat-session option-group pickers in the sessions app active chat UI.
+ * The sessions workbench provides its own new-session configuration controls and
+ * should not surface the shared workbench chat session pickers here. */
+.agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+	display: none;
 }
 
 /* ---- Modal Editor Block ---- */

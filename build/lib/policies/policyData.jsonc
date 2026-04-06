@@ -50,7 +50,8 @@
                 }
             },
             "type": "string",
-            "default": ""
+            "default": "",
+            "included": false
         },
         {
             "key": "chat.mcp.gallery.serviceUrl",
@@ -64,7 +65,8 @@
                 }
             },
             "type": "string",
-            "default": ""
+            "default": "",
+            "included": false
         },
         {
             "key": "extensions.allowed",
@@ -78,7 +80,8 @@
                 }
             },
             "type": "object",
-            "default": "*"
+            "default": "*",
+            "included": true
         },
         {
             "key": "chat.tools.global.autoApprove",
@@ -92,7 +95,8 @@
                 }
             },
             "type": "boolean",
-            "default": false
+            "default": false,
+            "included": true
         },
         {
             "key": "chat.tools.eligibleForAutoApproval",
@@ -106,7 +110,8 @@
                 }
             },
             "type": "object",
-            "default": {}
+            "default": {},
+            "included": true
         },
         {
             "key": "chat.mcp.access",
@@ -139,7 +144,8 @@
                 "none",
                 "registry",
                 "all"
-            ]
+            ],
+            "included": true
         },
         {
             "key": "chat.extensionTools.enabled",
@@ -153,7 +159,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "chat.agent.enabled",
@@ -167,7 +174,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "chat.editMode.hidden",
@@ -181,7 +189,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "chat.useHooks",
@@ -195,7 +204,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "chat.tools.terminal.enableAutoApprove",
@@ -209,7 +219,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "update.mode",
@@ -247,7 +258,8 @@
                 "manual",
                 "start",
                 "default"
-            ]
+            ],
+            "included": true
         },
         {
             "key": "telemetry.telemetryLevel",
@@ -285,7 +297,8 @@
                 "error",
                 "crash",
                 "off"
-            ]
+            ],
+            "included": true
         },
         {
             "key": "telemetry.feedback.enabled",
@@ -299,7 +312,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "workbench.browser.enableChatTools",
@@ -313,7 +327,8 @@
                 }
             },
             "type": "boolean",
-            "default": false
+            "default": false,
+            "included": true
         },
         {
             "key": "github.copilot.nextEditSuggestions.enabled",
@@ -327,7 +342,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "github.copilot.chat.reviewSelection.enabled",
@@ -341,7 +357,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "github.copilot.chat.reviewAgent.enabled",
@@ -355,7 +372,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         },
         {
             "key": "github.copilot.chat.claudeAgent.enabled",
@@ -369,7 +387,8 @@
                 }
             },
             "type": "boolean",
-            "default": true
+            "default": true,
+            "included": true
         }
     ]
 }

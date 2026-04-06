@@ -6,7 +6,6 @@
 export const enum TerminalToolId {
 	RunInTerminal = 'run_in_terminal',
 	SendToTerminal = 'send_to_terminal',
-	AwaitTerminal = 'await_terminal',
 	GetTerminalOutput = 'get_terminal_output',
 	KillTerminal = 'kill_terminal',
 	TerminalSelection = 'terminal_selection',

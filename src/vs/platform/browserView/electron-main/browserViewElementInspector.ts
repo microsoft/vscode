@@ -60,6 +60,12 @@ interface INode {
 	pseudoElements?: INode[];
 }
 
+interface ILayoutMetricsResult {
+	cssVisualViewport?: {
+		scale?: number;
+	};
+}
+
 function useScopedDisposal() {
 	const store = new DisposableStore() as DisposableStore & { [Symbol.dispose](): void };
 	store[Symbol.dispose] = () => store.dispose();
@@ -174,6 +180,23 @@ export class BrowserViewElementInspector extends Disposable {
 		}
 
 		return extractNodeData(connection, { objectId: result.objectId });
+	}
+
+	async getVisualViewportScale(): Promise<number> {
+		try {
+			const connection = await this._connectionPromise;
+			const result = await connection.sendCommand('Page.getLayoutMetrics') as ILayoutMetricsResult;
+			if (typeof result.cssVisualViewport?.scale === 'number') {
+				const scale = Number(result.cssVisualViewport.scale);
+				if (Number.isFinite(scale) && scale > 0) {
+					return scale;
+				}
+			}
+		} catch {
+			// Ignore execution errors while loading and use defaults.
+		}
+
+		return 1;
 	}
 }
 
