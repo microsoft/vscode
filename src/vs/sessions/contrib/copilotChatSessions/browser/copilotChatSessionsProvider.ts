@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
@@ -1417,10 +1418,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return committedSession;
 		} catch (error) {
-			// Clean up temp session on error
+			this._currentNewSession = undefined;
+
+			if (error instanceof CancellationError) {
+				// Session was stopped before the agent created a worktree.
+				// Keep the temp session in the list so the user can review
+				// whatever content the agent produced before cancellation.
+				session.setStatus(SessionStatus.Completed);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
+				return newSession;
+			}
+
+			// Unexpected error — clean up the temp session entirely
 			this._sessionCache.delete(key);
 			this._sessionGroupCache.delete(session.id);
-			this._currentNewSession = undefined;
 			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(session)], changed: [] });
 			session.dispose();
 			throw error;
@@ -1516,11 +1527,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return updatedSession;
 		} catch (error) {
-			// Clean up on error — fire changed on the parent session group
+			this._currentNewSession = undefined;
+
+			if (error instanceof CancellationError) {
+				// Cancelled before commit — keep the chat in the group so the
+				// user can review the content the agent produced.
+				newChatSession.setStatus(SessionStatus.Completed);
+				this._sessionGroupCache.delete(sessionId);
+				const updatedSession = this._chatToSession(newChatSession);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
+				return updatedSession;
+			}
+
+			// Unexpected error — clean up on error, fire changed on the parent session group
 			this._sessionCache.delete(key);
 			this._groupModel.removeChat(newChatSession.id);
 			this._sessionGroupCache.delete(sessionId);
-			this._currentNewSession = undefined;
 			newChatSession.dispose();
 			// Find the parent session's primary chat to fire a valid changed event
 			const parentChatIds = this._groupModel.getChatIds(sessionId);
@@ -1578,13 +1600,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * {@link IChatSessionsService.onDidCommitSession} event.
 	 *
 	 * When {@link responseCompletePromise} is provided, the wait is bounded by
-	 * response completion. If the response finishes before the commit event:
-	 * - If the response was **cancelled**, the session was stopped before the
-	 *   agent created the backing resource → throw immediately.
-	 * - If the response completed **normally**, the commit event is legitimately
-	 *   in-flight (the extension fired it mid-turn but the async IPC chain in
-	 *   {@link MainThreadChatSessions.$onDidCommitChatSessionItem} hasn't finished
-	 *   yet) → keep waiting with the safety timeout.
+	 * response completion. If the response finishes before the commit event,
+	 * the commit may still be in-flight (e.g. the user cancelled after the
+	 * worktree was initiated but before the commit IPC finished, or the
+	 * extension fired the commit mid-turn but it hasn't been delivered yet).
+	 * In both cases we wait with the safety timeout. Only if the timeout
+	 * expires *and* the response was cancelled do we throw a
+	 * {@link CancellationError} — signalling that the commit will never come.
 	 */
 	private async _waitForCommittedSession(
 		untitledResource: URI,
@@ -1613,20 +1635,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 
 				// Response finished before the commit event arrived.
-				// Check whether it was cancelled — if so, the commit will never come.
-				const response = await responseCreatedPromise;
-				if (response?.isCanceled) {
-					throw new Error('Session was cancelled before being committed');
-				}
-
-				// Response completed normally — the commit is in-flight (the extension
-				// fired it before the response finished, but the async IPC chain hasn't
-				// delivered it yet). It should arrive in milliseconds; use a short
-				// safety timeout to avoid blocking forever on an IPC failure.
+				// The commit may still be in-flight — the agent could have
+				// initiated the worktree before the user cancelled, and the
+				// async IPC chain hasn't delivered the event yet. Fall through
+				// to the safety timeout to give it a chance to arrive.
 			}
 
 			const result = await raceTimeout(commitPromise, 5_000);
 			if (!result) {
+				// Timed out — check whether this was a cancellation
+				const response = responseCreatedPromise ? await responseCreatedPromise : undefined;
+				if (response?.isCanceled) {
+					throw new CancellationError();
+				}
 				throw new Error('Timed out waiting for session commit');
 			}
 			return result;

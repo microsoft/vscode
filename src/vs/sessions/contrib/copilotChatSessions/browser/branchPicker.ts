@@ -137,7 +137,7 @@ export class BranchPicker extends Disposable {
 		const session = this._getSession();
 		const branches = session?.branches.get() ?? [];
 		const isLoading = session?.loading.get() ?? false;
-		const isDisabled = session?.isolationMode.get() === 'workspace' || branches.length === 0;
+		const isDisabled = session?.isolationMode.get() === 'workspace';
 		const label = session?.branch.get() ?? localize('branchPicker.select', "Branch");
 
 		dom.append(this._triggerElement, renderIcon(Codicon.gitBranch));
@@ -145,11 +145,11 @@ export class BranchPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		const visible = !(isLoading || isDisabled);
+		const visible = !(isLoading || branches.length === 0);
 		dom.setVisibility(visible, this._slotElement);
-		this._slotElement.classList.toggle('disabled', false);
+		this._slotElement.classList.toggle('disabled', isDisabled);
 		this._triggerElement.setAttribute('aria-hidden', String(!visible));
-		this._triggerElement.setAttribute('aria-disabled', String(!visible));
-		this._triggerElement.tabIndex = visible ? 0 : -1;
+		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
+		this._triggerElement.tabIndex = visible && !isDisabled ? 0 : -1;
 	}
 }

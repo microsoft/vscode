@@ -177,6 +177,7 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: () => Promise<ChatSendResult>,
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }> },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -195,7 +196,7 @@ function createProviderForSendTests(
 	instantiationService.stub(IChatSessionsService, {
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
-		onDidCommitSession: Event.None,
+		onDidCommitSession: opts?.onDidCommitSession ?? Event.None,
 		updateSessionOptions: () => true,
 		setSessionOption: () => true,
 		getSessionOption: () => undefined,
@@ -737,7 +738,78 @@ suite('CopilotChatSessionsProvider', () => {
 			await sendPromise.catch(() => { /* expected to reject */ });
 		});
 
-		test('cancelling the request before commit removes the temp session', async () => {
+		/**
+		 * Returns a provider where the commit event is controllable. The
+		 * caller can fire the commit event at the right moment to simulate
+		 * the session being committed mid-request, then cancel the request
+		 * afterwards. The session should persist after cancellation.
+		 */
+		function makeCommittableProvider(): {
+			provider: CopilotChatSessionsProvider;
+			commitSession: (original: URI, committed: URI) => void;
+			cancelRequest: () => void;
+		} {
+			let resolveComplete!: () => void;
+			let resolveCreated!: (r: IChatResponseModel) => void;
+			const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
+			const responseCreatedPromise = new Promise<IChatResponseModel>(r => { resolveCreated = r; });
+
+			const commitEmitter = disposables.add(new Emitter<{ original: URI; committed: URI }>());
+
+			const provider = createProviderForSendTests(disposables, model, async () => ({
+				kind: 'sent' as const,
+				data: {
+					responseCompletePromise,
+					responseCreatedPromise,
+					agent: new class extends mock<IChatAgentData>() { }(),
+				} as IChatSendRequestData,
+			}), { onDidCommitSession: commitEmitter.event });
+
+			return {
+				provider,
+				commitSession: (original, committed) => commitEmitter.fire({ original, committed }),
+				cancelRequest: () => {
+					resolveCreated({ isCanceled: true } as unknown as IChatResponseModel);
+					resolveComplete();
+				},
+			};
+		}
+
+		test('stopping a committed session keeps it in the list', async () => {
+			const { provider, commitSession, cancelRequest } = makeCommittableProvider();
+
+			const newSession = provider.createNewSession(workspace);
+			const sessionId = newSession.sessionId;
+
+			const added = waitForSessionAdded(provider);
+			const sendPromise = provider.sendAndCreateChat(sessionId, { query: 'test' });
+			await added;
+
+			assert.strictEqual(provider.getSessions().length, 1, 'session should appear while in-flight');
+
+			// Get the temp session's resource so we can fire the commit event
+			const tempSession = provider.getSessions()[0];
+			const tempResource = tempSession.resource;
+
+			// Simulate commit: the agent created the worktree, so the URI
+			// swaps from untitled to a real committed resource.
+			const committedResource = URI.from({ scheme: AgentSessionProviders.Background, path: `/committed-${Date.now()}` });
+			const committedAgentSession = createMockAgentSession(committedResource);
+			model.addSession(committedAgentSession);
+			commitSession(tempResource, committedResource);
+
+			// _sendFirstChat should complete successfully now
+			await sendPromise;
+
+			assert.strictEqual(provider.getSessions().length, 1, 'committed session should remain in list');
+
+			// Now cancel the request — session must stay
+			cancelRequest();
+
+			assert.strictEqual(provider.getSessions().length, 1, 'committed session should persist after stopping');
+		});
+
+		test('cancelling the request before commit keeps the session with completed status', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
 			const changes: ISessionChangeEvent[] = [];
@@ -755,13 +827,16 @@ suite('CopilotChatSessionsProvider', () => {
 
 			// Simulate user stopping the request
 			cancelRequest();
-			await sendPromise.catch(() => { /* expected to reject */ });
+			await sendPromise;
 
-			assert.strictEqual(provider.getSessions().length, 0, 'session should be cleaned up after cancellation');
+			assert.strictEqual(provider.getSessions().length, 1, 'session should stay in list after cancellation');
 			assert.ok(
-				changes.some(e => e.removed.some(s => s.sessionId === sessionId)),
-				'removed event should have fired',
+				changes.some(e => e.changed.some(s => s.sessionId === sessionId)),
+				'changed event should have fired',
 			);
+
+			// Clean up the kept session so it doesn't leak
+			await provider.deleteSession(sessionId);
 		});
 	});
 });

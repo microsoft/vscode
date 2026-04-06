@@ -42,6 +42,7 @@ const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionPr
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, /^agenthost-/);
+const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, 'local-agent-host');
 
 // -- Actions --
 
@@ -114,7 +115,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionRemoteAgentHost, IsActiveSessionLocalAgentHost),
 			}],
 		});
 	}

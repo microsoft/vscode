@@ -132,6 +132,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
 
+	readonly whenSessionsRevived: Promise<void>;
+
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	readonly chatModels: IObservable<Iterable<IChatModel>>;
@@ -207,7 +209,9 @@ export class ChatService extends Disposable implements IChatService {
 			this._transferredSessionResource = transferredData;
 		}
 
-		this.reviveSessionsWithEdits();
+		this.whenSessionsRevived = this.reviveSessionsWithEdits().catch(error => {
+			this.logService.error('Failed to revive chat sessions with edits', error);
+		});
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 

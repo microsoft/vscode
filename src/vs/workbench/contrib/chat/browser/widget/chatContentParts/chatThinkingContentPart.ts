@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, clearNode, getWindow, hide, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { $, clearNode, DisposableResizeObserver, getWindow, hide, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -242,10 +242,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 	private pendingRemovalFlushDisposable: IDisposable | undefined;
 	private pendingScrollDisposable: IDisposable | undefined;
-	private mutationObserverDisposable: IDisposable | undefined;
+	private wrapperResizeObserverDisposable: IDisposable | undefined;
+	private viewportResizeObserverDisposable: IDisposable | undefined;
 	private isUpdatingDimensions: boolean = false;
 	private lastKnownContentHeight: number = 0;
 	private lastKnownScrollTop: number = 0;
+	private _cachedViewportWidth: number = 0;
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
@@ -476,19 +478,22 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}));
 			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
 
-			// check for content changes to update scroll dimensions
-			const mutationObserver = new MutationObserver(() => {
+			// Use a ResizeObserver on the wrapper to detect content growth and drive scrolling.
+			const wrapperResizeObserver = this._register(new DisposableResizeObserver(() => {
 				if (!this.streamingCompleted && this.domNode.classList.contains('chat-used-context-collapsed')) {
-					this.syncDimensionsAndScheduleScroll();
+					this.updateScrollDimensionsOnResize();
 				}
-			});
-			mutationObserver.observe(this.wrapper, {
-				childList: true,
-				subtree: true,
-				characterData: true
-			});
-			this.mutationObserverDisposable = { dispose: () => mutationObserver.disconnect() };
-			this._register(this.mutationObserverDisposable);
+			}));
+			this.wrapperResizeObserverDisposable = this._register(wrapperResizeObserver.observe(this.wrapper));
+
+			// Track viewport width changes (only changes on panel resize, not during streaming)
+			const viewportResizeObserver = this._register(new DisposableResizeObserver((entries) => {
+				const entry = entries[0];
+				if (entry) {
+					this._cachedViewportWidth = entry.borderBoxSize[0]?.inlineSize ?? entry.contentRect.width;
+				}
+			}));
+			this.viewportResizeObserverDisposable = this._register(viewportResizeObserver.observe(this.scrollableElement.getDomNode()));
 
 			this._register(this._onDidChangeHeight.event(() => {
 				this.syncDimensionsAndScheduleScroll();
@@ -533,10 +538,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.domNode.classList.toggle('chat-thinking-fade-bottom', maxScrollTop > 0 && currentScrollTop < maxScrollTop - 5);
 	}
 
-	// Schedule a batched scroll dimension update for the next animation frame.
-	// All calls during a single frame (from updateThinking, MutationObserver, etc.)
-	// are coalesced into one layout read, avoiding forced synchronous layouts
-	// during tree splice operations.
+	// Fallback for non-ResizeObserver updates (onDidChangeHeight, initial setup).
+	// During streaming, ResizeObserver drives updates via updateScrollDimensionsFromCache().
 	private syncDimensionsAndScheduleScroll(): void {
 		if (this.pendingScrollDisposable) {
 			return;
@@ -555,9 +558,52 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			} finally {
 				this.isUpdatingDimensions = false;
 			}
-			// Use the cached values from updateScrollDimensions to avoid extra layout reads
 			this.updateFadeClasses(this.lastKnownScrollTop, this.lastKnownContentHeight);
+			this.updateDropdownClickability();
 		});
+	}
+
+	/**
+	 * Update scroll dimensions from ResizeObserver callback (post-layout, so reads are cheap).
+	 */
+	private updateScrollDimensionsOnResize(): void {
+		if (!this.scrollableElement || this._store.isDisposed) {
+			return;
+		}
+
+		const isCollapsed = this.domNode.classList.contains('chat-used-context-collapsed');
+		if (!isCollapsed) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		if (!contentHeight) {
+			return;
+		}
+
+		this.lastKnownContentHeight = contentHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.isUpdatingDimensions = true;
+		try {
+			this.scrollableElement.setScrollDimensions({
+				width: this._cachedViewportWidth || this.scrollableElement.getDomNode().clientWidth,
+				scrollWidth: this.wrapper.scrollWidth,
+				height: viewportHeight,
+				scrollHeight: contentHeight
+			});
+
+			this.lastKnownScrollTop = this.scrollableElement.getScrollPosition().scrollTop;
+
+			if (this.autoScrollEnabled) {
+				this.scrollToBottom(contentHeight);
+			}
+		} finally {
+			this.isUpdatingDimensions = false;
+		}
+
+		this.updateFadeClasses(this.lastKnownScrollTop, this.lastKnownContentHeight);
+		this.updateDropdownClickability(contentHeight);
 	}
 
 	private updateScrollDimensions(): number | undefined {
@@ -575,7 +621,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
 
 		this.scrollableElement.setScrollDimensions({
-			width: this.scrollableElement.getDomNode().clientWidth,
+			width: this._cachedViewportWidth || this.scrollableElement.getDomNode().clientWidth,
 			scrollWidth: this.wrapper.scrollWidth,
 			height: viewportHeight,
 			scrollHeight: contentHeight
@@ -617,7 +663,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
 
 		this.scrollableElement.setScrollDimensions({
-			width: this.scrollableElement.getDomNode().clientWidth,
+			width: this._cachedViewportWidth || this.scrollableElement.getDomNode().clientWidth,
 			scrollWidth: this.wrapper.scrollWidth,
 			height: viewportHeight,
 			scrollHeight: contentHeight
@@ -882,9 +928,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.streamingCompleted = true;
 
-		if (this.mutationObserverDisposable) {
-			this.mutationObserverDisposable.dispose();
-			this.mutationObserverDisposable = undefined;
+		if (this.wrapperResizeObserverDisposable) {
+			this.wrapperResizeObserverDisposable.dispose();
+			this.wrapperResizeObserverDisposable = undefined;
+		}
+
+		if (this.viewportResizeObserverDisposable) {
+			this.viewportResizeObserverDisposable.dispose();
+			this.viewportResizeObserverDisposable = undefined;
 		}
 
 		if (this.workingSpinnerElement) {

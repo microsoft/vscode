@@ -4,22 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
-import { join } from '../../../../base/common/path.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
-import { SessionDataService } from '../../node/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentService } from '../../node/agentService.js';
@@ -168,20 +163,28 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('listSessions overlays custom title from session database', async () => {
-			// Use a real SessionDataService with disk-backed SQLite to verify
-			// that listSessions reads custom titles from the database.
-			const testDir = join(tmpdir(), `vscode-agent-svc-test-${randomUUID()}`);
-			mkdirSync(testDir, { recursive: true });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider('file', disposables.add(new DiskFileSystemProvider(new NullLogService()))));
-			const sessionDataService = new SessionDataService(URI.file(testDir), diskFileService, new NullLogService());
+			// Pre-seed a custom title in an in-memory database
+			const db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'My Custom Title');
 
-			// Pre-seed a custom title in the database for a known session ID
 			const sessionId = 'test-session-abc';
 			const sessionUri = AgentSession.uri('copilot', sessionId);
-			const ref = sessionDataService.openDatabase(sessionUri);
-			await ref.object.setMetadata('customTitle', 'My Custom Title');
-			ref.dispose();
+
+			const sessionDataService: ISessionDataService = {
+				_serviceBrand: undefined,
+				getSessionDataDir: () => URI.parse('inmemory:/session-data'),
+				getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
+				openDatabase: (): IReference<ISessionDatabase> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				deleteSessionData: async () => { },
+				cleanupOrphanedData: async () => { },
+			};
 
 			// Create a mock that returns a session with that ID
 			const agent = new MockAgent('copilot');
@@ -190,14 +193,12 @@ suite('AgentService (node dispatcher)', () => {
 			// Manually add the session to the mock
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
-			const svc = disposables.add(new AgentService(new NullLogService(), diskFileService, sessionDataService));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'My Custom Title');
-
-			rmSync(testDir, { recursive: true, force: true });
 		});
 
 		test('listSessions uses SDK title when no custom title exists', async () => {

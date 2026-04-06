@@ -64,8 +64,6 @@ import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
-import { IChatDebugService } from '../../../../common/chatDebugService.js';
-import { createDebugEventsAttachment } from '../../../chatDebug/chatDebugAttachment.js';
 import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
@@ -256,10 +254,6 @@ class SlashCommandCompletions extends Disposable {
 				const userInvocableCommands = promptCommands
 					.filter(c => {
 						if (widget.lockedAgentId) {
-							// Exclude extension-provided prompt files for locked agents.
-							if (c.extension) {
-								return false;
-							}
 							// Exclude hooks as those don't work in locked agent scenarios.
 							try {
 								const promptType = getPromptFileType(c.uri);
@@ -861,7 +855,6 @@ interface IVariableCompletionsDetails {
 
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
-	private static readonly addDebugEventsSnapshotCommand = '_addDebugEventsSnapshotCmd';
 	private static readonly VariableNameDef = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][\\w:-]*`, 'g'); // MUST be using `g`-flag
 
 
@@ -878,7 +871,6 @@ class BuiltinDynamicCompletions extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
@@ -1037,45 +1029,9 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		}, sessionWordPattern);
 
-		// Debug Events Snapshot completion
-		this.registerVariableCompletions('debugEventsSnapshot', ({ widget, range }) => {
-			if (widget.location !== ChatAgentLocation.Chat) {
-				return;
-			}
-
-			const sessionResource = widget.viewModel?.sessionResource;
-			if (!sessionResource || this.chatDebugService.getEvents(sessionResource).length === 0) {
-				return;
-			}
-
-			const text = `${chatVariableLeader}debugEventsSnapshot`;
-			const result: CompletionList = { suggestions: [] };
-			result.suggestions.push({
-				label: { label: text, description: localize('debugEventsSnapshot.description', 'Attach debug events snapshot') },
-				filterText: text,
-				insertText: '',
-				range,
-				kind: CompletionItemKind.Text,
-				sortText: 'z',
-				command: {
-					id: BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, title: '', arguments: [widget]
-				}
-			});
-			return result;
-		});
-
 		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => {
 			assertType(arg instanceof ReferenceArgument);
 			return this.cmdAddReference(arg);
-		}));
-
-		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addDebugEventsSnapshotCommand, async (_services, widget: IChatWidget) => {
-			const sessionResource = widget.viewModel?.sessionResource;
-			if (!sessionResource) {
-				return;
-			}
-			const attachment = await createDebugEventsAttachment(sessionResource, this.chatDebugService);
-			widget.attachmentModel.addContext(attachment);
 		}));
 	}
 

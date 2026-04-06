@@ -1671,6 +1671,8 @@ export interface ExtHostChatAgentsShape2 {
 	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
 	$acceptInstructions(instructions: IInstructionDto[]): void;
 	$acceptSkills(skills: ISkillDto[]): void;
+	$acceptHooks(hooks: IHookDto[]): void;
+	$acceptPlugins(plugins: IPluginDto[]): void;
 }
 
 export interface ICustomAgentDto {
@@ -1682,6 +1684,14 @@ export interface IInstructionDto {
 }
 
 export interface ISkillDto {
+	uri: UriComponents;
+}
+
+export interface IHookDto {
+	uri: UriComponents;
+}
+
+export interface IPluginDto {
 	uri: UriComponents;
 }
 
@@ -3732,7 +3742,6 @@ export interface GitBranchDto {
 	readonly commit?: string;
 	readonly type: GitRefTypeDto;
 	readonly remote?: string;
-	readonly base?: GitBaseRefDto;
 	readonly upstream?: GitUpstreamRefDto;
 	readonly ahead?: number;
 	readonly behind?: number;

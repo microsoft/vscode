@@ -25,7 +25,7 @@ export const enum AgentHostIpcChannels {
 	ConnectionTracker = 'agentHostConnectionTracker',
 }
 
-/** Configuration key that controls whether the agent host process is spawned. */
+/** Configuration key that controls whether the local agent host process is spawned. */
 export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
 
 /** Configuration key that controls whether per-host IPC traffic output channels are created. */

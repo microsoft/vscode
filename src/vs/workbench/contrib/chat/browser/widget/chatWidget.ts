@@ -2328,6 +2328,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
 		if (isEditing) {
+			// Clear the carousel since the existing request is being replaced
+			this.inputPart?.clearToolConfirmationCarousel();
+
 			const editingPendingRequest = this.viewModel.editing!.pendingKind;
 			if (editingPendingRequest !== undefined) {
 				const editingRequestId = this.viewModel.editing!.id;
@@ -2414,7 +2417,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const requests = this.viewModel.model.getRequests();
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
-				if (request.shouldBeBlocked) {
+				if (request.shouldBeBlocked.get() || request === this.viewModel.model.checkpoint) {
 					this.chatService.removeRequest(this.viewModel.sessionResource, request.id);
 				}
 			}
