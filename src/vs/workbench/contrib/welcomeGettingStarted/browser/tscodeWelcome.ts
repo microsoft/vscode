@@ -13,18 +13,94 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { $ } from '../../../../base/browser/dom.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStartedInput.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Memento } from '../../../common/memento.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IWalkthroughsService } from './gettingStartedService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IWebviewService } from '../../webview/browser/webview.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+
+interface TscodeWelcomeMemento {
+	hasShownAnimation?: boolean;
+	lastFaceType?: string;
+}
 
 export class TscodeWelcomePage extends GettingStartedPage {
 	// Note: Cannot override parent class static ID, so we use a different ID during registration
 	private parentElement?: HTMLElement;
 	private iconAdded = false;
 	private animationShown = false; // test-workbench_change
+	private tscodeMemento!: Memento<TscodeWelcomeMemento>; // test-workbench_change - Use different name to avoid conflict with parent
+	private tscodeMementoData!: Partial<TscodeWelcomeMemento>; // test-workbench_change
+	private readonly tscodeStorageService: IStorageService; // test-workbench_change
+
+	// test-workbench_change start - Constructor to inject storage service
+	constructor(
+		group: any,
+		@ICommandService commandService: any,
+		@IProductService productService: any,
+		@IKeybindingService keybindingService: any,
+		@IWalkthroughsService gettingStartedService: any,
+		@IConfigurationService configurationService: any,
+		@ITelemetryService telemetryService: any,
+		@ILanguageService languageService: any,
+		@IFileService fileService: any,
+		@IOpenerService openerService: any,
+		@IWorkbenchThemeService themeService: any,
+		@IStorageService storageService: IStorageService,
+		@IExtensionService extensionService: any,
+		@IInstantiationService instantiationService: any,
+		@INotificationService notificationService: any,
+		@IEditorGroupsService groupsService: any,
+		@IContextKeyService contextService: any,
+		@IQuickInputService quickInputService: any,
+		@IWorkspacesService workspacesService: any,
+		@ILabelService labelService: any,
+		@IHostService hostService: any,
+		@IWebviewService webviewService: any,
+		@IWorkspaceContextService workspaceContextService: any,
+		@IAccessibilityService accessibilityService: any,
+		@IMarkdownRendererService markdownRendererService: any,
+	) {
+		super(
+			group, commandService, productService, keybindingService, gettingStartedService,
+			configurationService, telemetryService, languageService, fileService, openerService,
+			themeService, storageService, extensionService, instantiationService, notificationService,
+			groupsService, contextService, quickInputService, workspacesService, labelService,
+			hostService, webviewService, workspaceContextService, accessibilityService, markdownRendererService
+		);
+		this.tscodeStorageService = storageService;
+	}
+	// test-workbench_change end
 
 	protected override createEditor(parent: HTMLElement): void {
 		super.createEditor(parent);
 		this.parentElement = parent;
 		// Add custom styling for TSCode welcome page
 		parent.classList.add('tscode-welcome');
+
+		// test-workbench_change start - Initialize memento for storing animation state
+		this.tscodeMemento = new Memento('tscodeWelcome', this.tscodeStorageService);
+		this.tscodeMementoData = this.tscodeMemento.getMemento(StorageScope.APPLICATION, StorageTarget.USER);
+		// test-workbench_change end
 
 		// test-workbench_change start - Show opening animation
 		this.showOpeningAnimation(parent);
@@ -65,6 +141,13 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			return;
 		}
 		this.animationShown = true;
+
+		// test-workbench_change start - Check if animation has been shown before
+		if (this.tscodeMementoData.hasShownAnimation) {
+			// Skip animation if it has been shown before
+			return;
+		}
+		// test-workbench_change end
 
 		// Create animation overlay
 		const overlay = $('div.tscode-animation-overlay');
@@ -397,6 +480,11 @@ export class TscodeWelcomePage extends GettingStartedPage {
 				clearTimeout(autoEnterTimer);
 				autoEnterTimer = null;
 			}
+
+			// test-workbench_change start - Mark animation as shown
+			this.tscodeMementoData.hasShownAnimation = true;
+			this.tscodeMemento.saveMemento();
+			// test-workbench_change end
 
 			overlay.style.transition = 'opacity 0.5s ease-out';
 			overlay.style.opacity = '0';
