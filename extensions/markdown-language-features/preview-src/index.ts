@@ -360,8 +360,9 @@ document.addEventListener('click', event => {
 				}
 			}
 
-			// If original link doesn't look like a url, delegate back to VS Code to resolve
-			if (hrefText && !/^[a-z\-]+:/i.test(hrefText)) {
+			// If original link doesn't look like a url or is a file: url,
+			// delegate back to VS Code to resolve
+			if (hrefText && (!/^[a-z\-]+:/i.test(hrefText) || isOfScheme(Schemes.file, hrefText))) {
 				messaging.postMessage('openLink', { href: hrefText });
 				event.preventDefault();
 				event.stopPropagation();
