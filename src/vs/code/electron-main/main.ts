@@ -24,7 +24,7 @@ import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { Client as NodeIPCClient } from '../../base/parts/ipc/common/ipc.net.js';
-import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
+import { connect as nodeIPCConnect, createRandomIPCHandle, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
 import { CodeApplication } from './app.js';
 import { localize } from '../../nls.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -332,12 +332,18 @@ class CodeMain {
 
 				// Handle unexpected connection errors by showing a dialog to the user
 				if (!retry || isWindows || error.code !== 'ECONNREFUSED') {
-					if (error.code === 'EPERM') {
-						this.showStartupWarningDialog(
-							localize('secondInstanceAdmin', "Another instance of {0} is already running as administrator.", productService.nameShort),
-							localize('secondInstanceAdminDetail', "Please close the other instance and try again."),
-							productService
-						);
+
+					// Windows: when the existing instance is running at a different
+					// elevation level (e.g. admin vs non-admin), the connection
+					// fails with EPERM. In that case, allow this instance to start
+					// independently with its own IPC server rather than blocking.
+					if (isWindows && error.code === 'EPERM') {
+						logService.warn('Another instance is running at a different elevation level. Starting as independent instance.');
+
+						mainProcessNodeIpcServer = await nodeIPCServe(createRandomIPCHandle());
+						Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
+
+						return mainProcessNodeIpcServer;
 					}
 
 					throw error;

@@ -13,7 +13,7 @@ import { VSBuffer } from '../../../../common/buffer.js';
 import { Emitter, Event } from '../../../../common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
 import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent, SocketDiagnosticsEventType } from '../../common/ipc.net.js';
-import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from '../../node/ipc.net.js';
+import { connect as nodeIPCConnect, createRandomIPCHandle, createStaticIPCHandle, NodeSocket, serve as nodeIPCServe, WebSocketNodeSocket } from '../../node/ipc.net.js';
 import { flakySuite } from '../../../../test/common/testUtils.js';
 import { runWithFakedTimers } from '../../../../test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
@@ -873,4 +873,40 @@ suite('WebSocketNodeSocket', () => {
 			});
 		});
 	}
+
+	test('independent IPC server can start on random handle when static handle is in use', async () => {
+		// This test validates the mechanism used for the elevated/unelevated
+		// window fix: when one instance owns the static IPC handle and another
+		// instance cannot connect (e.g. EPERM due to elevation mismatch),
+		// the second instance can start its own IPC server on a random handle.
+
+		const staticHandle = createRandomIPCHandle(); // simulate a "static" handle
+		const server1 = await nodeIPCServe(staticHandle);
+
+		try {
+			// Attempting to serve on the same handle should fail with EADDRINUSE
+			let gotExpectedError = false;
+			try {
+				await nodeIPCServe(staticHandle);
+			} catch (err: any) {
+				assert.strictEqual(err.code, 'EADDRINUSE');
+				gotExpectedError = true;
+			}
+			assert.ok(gotExpectedError, 'Expected EADDRINUSE when serving on same handle');
+
+			// Fallback: create an independent server on a random handle
+			const fallbackHandle = createRandomIPCHandle();
+			const server2 = await nodeIPCServe(fallbackHandle);
+
+			try {
+				// Verify the fallback server accepts connections
+				const client = await nodeIPCConnect(fallbackHandle, 'test');
+				client.dispose();
+			} finally {
+				server2.dispose();
+			}
+		} finally {
+			server1.dispose();
+		}
+	});
 });
