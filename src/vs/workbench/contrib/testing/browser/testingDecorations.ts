@@ -770,6 +770,7 @@ const createRunTestDecoration = (
 		glyphMarginClassName: `${ThemeIcon.asClassName(primaryIcon)} ${glyphMarginClassName}`,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 10000,
+		overviewRuler: isFailedState(computedState) ? { color: themeColorFromId(overviewRulerError), position: OverviewRulerLane.Center } : undefined,
 	};
 
 	const alternateOptions: IModelDecorationOptions = {
