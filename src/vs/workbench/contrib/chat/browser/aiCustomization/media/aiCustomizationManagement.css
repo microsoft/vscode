@@ -909,24 +909,32 @@
 	flex-shrink: 0;
 }
 
+.mcp-list-widget .list-button-group .monaco-button:focus-visible {
+	outline-offset: -1px;
+}
+
 /* Back to installed link */
 .mcp-list-widget .mcp-back-link {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 4px 0;
+	padding: 4px 6px;
 	cursor: pointer;
 	font-size: 12px;
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
+	border-radius: 4px;
+	margin: 4px 0;
 }
 
 .mcp-list-widget .mcp-back-link:hover {
-	color: var(--vscode-textLink-activeForeground);
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
-.mcp-list-widget .mcp-back-link:hover span:last-child {
-	text-decoration: underline;
+.mcp-list-widget .mcp-back-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 /* Gallery item specifics */
@@ -956,6 +964,7 @@
 .mcp-gallery-item.extension-list-item > .details > .footer {
 	display: flex;
 	align-items: center;
+	padding-bottom: 4px;
 }
 
 .mcp-gallery-item.extension-list-item .mcp-gallery-action {

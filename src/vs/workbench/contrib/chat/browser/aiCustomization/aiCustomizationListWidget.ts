@@ -490,6 +490,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			promptType: element.promptType,
 			storage: element.storage,
 			pluginUri: element.pluginUri?.toString(),
+			itemId: element.id,
 		};
 
 		// Create scoped context key service with item-specific keys for when-clause filtering
@@ -824,6 +825,7 @@ export class AICustomizationListWidget extends Disposable {
 			promptType: item.promptType,
 			storage: item.storage,
 			pluginUri: item.pluginUri?.toString(),
+			itemId: item.id,
 		};
 
 		// Create scoped context key service with item-specific keys for when-clause filtering
@@ -1677,7 +1679,9 @@ export class AICustomizationListWidget extends Disposable {
 					id: item.uri.toString(),
 					uri: item.uri,
 					name: item.name,
-					filename: basename(item.uri),
+					filename: item.uri.scheme === Schemas.file
+						? this.labelService.getUriLabel(item.uri, { relative: true })
+						: basename(item.uri),
 					description: item.description ?? descriptionsByUri.get(item.uri),
 					promptType,
 					disabled: item.enabled === false,
