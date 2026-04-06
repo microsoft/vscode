@@ -870,3 +870,40 @@ export function getStashDescription(stash: Stash): string | undefined {
 export function isCopilotWorktreeFolder(path: string): boolean {
 	return basename(path).startsWith('copilot-');
 }
+
+export interface GitErrorClassification {
+	readonly type: 'error' | 'warning';
+	readonly message: string;
+}
+
+/**
+ * Classifies git stderr output to determine whether it represents a warning
+ * or an error. Git and SSH write informational warnings (e.g., "warning:
+ * permanently added 'host' to the list of known hosts") to stderr, which
+ * should not be surfaced as errors.
+ */
+export function classifyGitStderrMessage(stderrOrMessage: string, hasStdout: boolean): GitErrorClassification {
+	const hintLines = stderrOrMessage
+		.replace(/^error: /mi, '')
+		.replace(/^> husky.*$/mi, '')
+		.split(/[\r\n]/)
+		.filter((line: string) => !!line);
+
+	const warningLines = hintLines.filter((line: string) => /^warning:/i.test(line.trim()));
+	const nonWarningLines = hintLines.filter((line: string) => !/^warning:/i.test(line.trim()));
+
+	if (nonWarningLines.length === 0 && warningLines.length > 0) {
+		return {
+			type: 'warning',
+			message: warningLines[0].replace(/^warning:\s*/i, '').trim()
+		};
+	}
+
+	const displayLines = nonWarningLines.length > 0 ? nonWarningLines : hintLines;
+	return {
+		type: 'error',
+		message: displayLines.length > 0
+			? (hasStdout ? displayLines[displayLines.length - 1] : displayLines[0])
+			: ''
+	};
+}
