@@ -22,7 +22,7 @@ jobs:
             echo "No engineering systems were modified in this PR"
           fi
       - name: Allow automated distro or version field updates
-        id: distro_exception
+        id: package_json_field_exception
         if: ${{ steps.engineering_systems_check.outputs.engineering_systems_modified == 'true' && github.event.pull_request.user.login == 'vs-code-engineering[bot]' }}
         run: |
           # Allow the vs-code-engineering bot ONLY when package.json is the
