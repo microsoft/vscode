@@ -16,11 +16,13 @@ import { ITerminalInstance, ITerminalService } from '../../../../workbench/contr
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISession } from '../../sessions/common/sessionData.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -312,13 +314,16 @@ class OpenSessionInTerminalAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 9,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+				order: 10,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			}]
 		});
 	}
 
 	override async run(_accessor: ServicesAccessor): Promise<void> {
+		const telemetryService = _accessor.get(ITelemetryService);
+		logSessionsInteraction(telemetryService, 'openTerminal');
+
 		const layoutService = _accessor.get(IWorkbenchLayoutService);
 		const viewsService = _accessor.get(IViewsService);
 

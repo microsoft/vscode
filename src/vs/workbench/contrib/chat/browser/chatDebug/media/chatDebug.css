@@ -359,6 +359,18 @@
 	flex: 1;
 	overflow: hidden;
 }
+.chat-debug-logs-show-more {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 6px 0;
+	flex-shrink: 0;
+}
+.chat-debug-logs-show-more-status {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
 .chat-debug-log-row {
 	display: flex;
 	align-items: center;

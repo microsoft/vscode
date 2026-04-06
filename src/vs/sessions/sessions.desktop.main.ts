@@ -204,6 +204,9 @@ import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
 
+// Local Agent Host
+import './contrib/localAgentHost/browser/localAgentHost.contribution.js';
+
 //#endregion
 
 export { main } from './electron-browser/sessions.main.js';

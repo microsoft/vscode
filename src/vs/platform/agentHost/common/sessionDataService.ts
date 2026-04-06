@@ -6,6 +6,7 @@
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { FileEditKind } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
@@ -20,8 +21,12 @@ export interface IFileEditRecord {
 	turnId: string;
 	/** The tool call that produced this edit. */
 	toolCallId: string;
-	/** Absolute file path that was edited. */
+	/** Primary file path (after-path for edits/creates/renames, before-path for deletes). */
 	filePath: string;
+	/** The kind of file operation. */
+	kind: FileEditKind;
+	/** For renames, the original file path before the move. */
+	originalPath?: string;
 	/** Number of lines added (informational, for diff metadata). */
 	addedLines: number | undefined;
 	/** Number of lines removed (informational, for diff metadata). */
@@ -31,12 +36,15 @@ export interface IFileEditRecord {
 /**
  * The before/after content blobs for a single file edit.
  * Retrieved on demand via {@link ISessionDatabase.readFileEditContent}.
+ *
+ * For creates, `beforeContent` is absent.
+ * For deletes, `afterContent` is absent.
  */
 export interface IFileEditContent {
-	/** File content before the edit (may be empty for newly created files). */
-	beforeContent: Uint8Array;
-	/** File content after the edit. */
-	afterContent: Uint8Array;
+	/** File content before the edit. Absent for file creations. */
+	beforeContent?: Uint8Array;
+	/** File content after the edit. Absent for file deletions. */
+	afterContent?: Uint8Array;
 }
 
 // ---- Session database ---------------------------------------------------

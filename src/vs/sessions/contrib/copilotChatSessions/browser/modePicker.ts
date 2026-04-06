@@ -18,8 +18,8 @@ import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/p
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
 import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -215,14 +215,15 @@ export class ModePicker extends Disposable {
 		this._onDidChange.fire(mode);
 
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
-		if (providerSession instanceof CopilotCLISession) {
-			providerSession.setMode(mode);
+		if (!session) {
+			return;
 		}
+
+		this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId)?.setMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement) {
+		if (!this._triggerElement || !this._slotElement) {
 			return;
 		}
 
@@ -238,6 +239,10 @@ export class ModePicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		const modes = this._getAvailableModes();
-		this._slotElement?.classList.toggle('disabled', modes.length <= 1);
+		const visible = modes.length > 1;
+		dom.setVisibility(visible, this._slotElement);
+		this._slotElement.classList.toggle('disabled', false);
+		this._triggerElement.setAttribute('aria-hidden', String(!visible));
+		this._triggerElement.tabIndex = visible ? 0 : -1;
 	}
 }

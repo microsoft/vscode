@@ -364,6 +364,8 @@ export interface IChatWidget {
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
+	/** The main input part at the bottom of the widget. Unlike `input`, this always returns the main input, not the inline editing input. */
+	readonly inputPart: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 	readonly locationData?: IChatLocationData;
 	readonly contribs: readonly IChatWidgetContrib[];

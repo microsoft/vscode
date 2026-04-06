@@ -282,6 +282,12 @@ export class NotebookFindInput extends FindInput {
 		this._findFilter.applyStyles(this._filterChecked);
 	}
 
+	protected override getToggleDomNodes(): HTMLElement[] {
+		const nodes = super.getToggleDomNodes();
+		nodes.push(this._findFilter.container);
+		return nodes;
+	}
+
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		return getActionBarActions(menu.getActions({ shouldForwardArgs: true }), g => /^inline/.test(g));
 	}

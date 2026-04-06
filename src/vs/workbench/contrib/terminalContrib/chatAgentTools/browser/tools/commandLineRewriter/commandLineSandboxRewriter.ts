@@ -20,7 +20,7 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 			return undefined;
 		}
 
-		const wrappedCommand = this._sandboxService.wrapCommand(options.commandLine, options.requestUnsandboxedExecution);
+		const wrappedCommand = this._sandboxService.wrapCommand(options.commandLine, options.requestUnsandboxedExecution, options.shell);
 		return {
 			rewritten: wrappedCommand.command,
 			reasoning: wrappedCommand.requiresUnsandboxConfirmation ? 'Switched command to unsandboxed execution because the command includes a domain that is not in the sandbox allowlist' : 'Wrapped command for sandbox execution',

@@ -316,6 +316,23 @@ export class AgentSideEffects extends Disposable {
 				this._syncPendingMessages(action.session);
 				break;
 			}
+			case ActionType.SessionTruncated: {
+				const agent = this._options.getAgent(action.session);
+				let turnIndex: number | undefined;
+				if (action.turnId !== undefined) {
+					const state = this._stateManager.getSessionState(action.session);
+					if (state) {
+						const idx = state.turns.findIndex(t => t.id === action.turnId);
+						if (idx >= 0) {
+							turnIndex = idx;
+						}
+					}
+				}
+				agent?.truncateSession?.(URI.parse(action.session), turnIndex).catch(err => {
+					this._logService.error('[AgentSideEffects] truncateSession failed', err);
+				});
+				break;
+			}
 			case ActionType.SessionActiveClientChanged: {
 				const agent = this._options.getAgent(action.session);
 				const refs = action.activeClient?.customizations;

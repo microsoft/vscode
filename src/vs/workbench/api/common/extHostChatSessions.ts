@@ -343,6 +343,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		readonly extension: IExtensionDescription;
 		readonly disposable: DisposableStore;
 		readonly onDidChangeChatSessionItemStateEmitter: Emitter<vscode.ChatSessionItem>;
+		readonly inputStates: Set<ChatSessionInputStateImpl>;
 		optionGroups?: readonly vscode.ChatSessionProviderOptionGroup[];
 	}>();
 
@@ -404,7 +405,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			createChatSessionItem: (_resource: vscode.Uri, _label: string) => {
 				throw new Error('Not implemented for providers');
 			},
-			createChatSessionInputState: (_options: vscode.ChatSessionProviderOptionItem[]) => {
+			createChatSessionInputState: (_options: vscode.ChatSessionProviderOptionGroup[]) => {
 				return new ChatSessionInputStateImpl([]);
 			},
 			onDidChangeChatSessionItemState: onDidChangeChatSessionItemStateEmitter.event,
@@ -418,7 +419,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 		};
 
-		this._chatSessionItemControllers.set(controllerHandle, { chatSessionType: chatSessionType, controller, extension, disposable: disposables, onDidChangeChatSessionItemStateEmitter });
+		this._chatSessionItemControllers.set(controllerHandle, { chatSessionType: chatSessionType, controller, extension, disposable: disposables, onDidChangeChatSessionItemStateEmitter, inputStates: new Set() });
 		this._proxy.$registerChatSessionItemController(controllerHandle, chatSessionType);
 
 		if (provider.onDidChangeChatSessionItems) {
@@ -456,6 +457,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		let forkHandler: vscode.ChatSessionItemController['forkHandler'];
 		let provideChatSessionInputStateHandler: vscode.ChatSessionItemController['getChatSessionInputState'];
 		const onDidChangeChatSessionItemStateEmitter = disposables.add(new Emitter<vscode.ChatSessionItem>());
+		const inputStates = new Set<ChatSessionInputStateImpl>();
 
 		const collection = new ChatSessionItemCollectionImpl(controllerHandle, this._proxy);
 
@@ -508,12 +510,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 						items: g.items,
 						selected: g.selected,
 						when: g.when,
-						searchable: g.searchable,
 						icon: g.icon,
 						commands: g.commands,
 					}));
 					void this._proxy.$updateChatSessionInputState(controllerHandle, serializableGroups);
 				});
+				inputStates.add(inputState);
 				return inputState;
 			},
 			dispose: () => {
@@ -522,7 +524,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			},
 		});
 
-		this._chatSessionItemControllers.set(controllerHandle, { controller, extension, disposable: disposables, chatSessionType: id, onDidChangeChatSessionItemStateEmitter });
+		this._chatSessionItemControllers.set(controllerHandle, { controller, extension, disposable: disposables, chatSessionType: id, onDidChangeChatSessionItemStateEmitter, inputStates });
 
 		// Register the controller with the main thread
 		this._proxy.$registerChatSessionItemController(controllerHandle, id);
@@ -664,6 +666,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		} catch (error) {
 			this._logService.error(`Error calling provideHandleOptionsChange for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}
+
+		// Temporary workaround: input state changes for one resource are propagated to all
+		// input states for the same resource type until we can make this session-specific.
+		const controllerData = this.getChatSessionItemController(sessionResource.scheme);
+		for (const inputState of controllerData?.inputStates ?? []) {
+			inputState._fireDidChange();
+		}
 	}
 
 	async $provideChatSessionProviderOptions(handle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined> {
@@ -783,14 +792,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return undefined;
 	}
 
-	private _getControllerForContentProviderHandle(handle: number) {
-		const entry = this._chatSessionContentProviders.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-		return this.getChatSessionItemController(entry.chatSessionScheme);
-	}
-
 	private _createInputStateFromOptions(
 		groups: readonly vscode.ChatSessionProviderOptionGroup[],
 		sessionOptions?: ReadonlyArray<{ optionId: string; value: string }>,
@@ -908,29 +909,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	async $invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, query: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]> {
-		const optionGroups = this._chatSessionItemControllers.get(providerHandle)?.optionGroups
-			?? this._getControllerForContentProviderHandle(providerHandle)?.optionGroups;
-		if (!optionGroups) {
-			this._logService.warn(`No option groups found for provider handle ${providerHandle}`);
-			return [];
-		}
-
-		const group = optionGroups.find((g: vscode.ChatSessionProviderOptionGroup) => g.id === optionGroupId);
-		if (!group || !group.onSearch) {
-			this._logService.warn(`No onSearch callback found for option group ${optionGroupId}`);
-			return [];
-		}
-
-		try {
-			const results = await group.onSearch(query, token);
-			return results ?? [];
-		} catch (error) {
-			this._logService.error(`Error calling onSearch for option group ${optionGroupId}:`, error);
-			return [];
-		}
-	}
-
 	async $refreshChatSessionItems(handle: number, token: CancellationToken): Promise<void> {
 		const controllerData = this._chatSessionItemControllers.get(handle);
 		if (!controllerData) {
@@ -1022,7 +1000,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			items: g.items,
 			selected: g.selected,
 			when: g.when,
-			searchable: g.searchable,
 			icon: g.icon,
 			commands: g.commands,
 		}));

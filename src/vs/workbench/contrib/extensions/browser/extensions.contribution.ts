@@ -47,7 +47,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions as ConfigurationMigrationExtensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
-import { ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext, ResourceContextKey, WorkbenchStateContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
@@ -623,7 +623,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
 			},
 			group: '2_configuration',
-			order: 3
+			order: 3,
+			when: IsSessionsWindowContext.negate()
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			command: {

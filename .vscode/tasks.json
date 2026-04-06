@@ -424,6 +424,10 @@
 			"inSessions": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
+			},
+			"presentation": {
+				"focus": false,
+				"reveal": "never"
 			}
 		},
 		{

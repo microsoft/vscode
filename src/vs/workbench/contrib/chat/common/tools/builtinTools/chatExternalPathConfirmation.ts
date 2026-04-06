@@ -193,15 +193,13 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 					select: async () => {
 						const gitRootUri = await findGitRoot(pathUri);
 						gitRootCache.set(pathUri, gitRootUri ?? null);
-						if (!gitRootUri) {
-							return false;
-						}
 						let folders = allowlist.get(sessionResource);
 						if (!folders) {
 							folders = new ResourceSet();
 							allowlist.set(sessionResource, folders);
 						}
-						folders.add(gitRootUri);
+						// If we found the git root, allow the entire repo; otherwise fall back to just this folder
+						folders.add(gitRootUri ?? folderUri);
 						return true;
 					}
 				});

@@ -98,6 +98,8 @@ export interface IChatRequestViewModel {
 	readonly timestamp: number;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -334,7 +336,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
+			if (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop) {
+				return false;
+			}
+			return true;
+		});
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
@@ -475,6 +482,14 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get pendingKind() {
 		return this._pendingKind;
+	}
+
+	get isSystemInitiated() {
+		return this._model.isSystemInitiated;
+	}
+
+	get systemInitiatedLabel() {
+		return this._model.systemInitiatedLabel;
 	}
 
 	constructor(

@@ -484,8 +484,23 @@ export async function main(argv: string[]): Promise<void> {
 			if (!args.verbose && args.status) {
 				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
-			// We spawn process.execPath directly
-			child = spawn(process.execPath, argv.slice(2), options);
+
+			// Figure out the app to launch: with --agents we try to launch the embedded app on Windows
+			let execToLaunch = process.execPath;
+			if (isWindows && args.agents && product.embedded?.win32SiblingExeBasename) {
+				const siblingExe = join(dirname(process.execPath), `${product.embedded.win32SiblingExeBasename}.exe`);
+				try {
+					if (existsSync(siblingExe) && statSync(siblingExe).isFile()) {
+						execToLaunch = siblingExe;
+						argv = argv.filter(arg => arg !== '--agents');
+					}
+				} catch (error) {
+					/* may not exist on disk */
+				}
+			}
+
+			// We spawn the resolved executable directly
+			child = spawn(execToLaunch, argv.slice(2), options);
 		} else {
 			// On macOS, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock

@@ -1,0 +1,17 @@
+{
+  "name": "code-oss-component-fixture-tests",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "22.x",
+    "typescript": "^5.8.0"
+  }
+}

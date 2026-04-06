@@ -11,7 +11,7 @@ import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -279,6 +279,7 @@ export interface IChatMode {
 	readonly target: IObservable<Target>;
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
+	readonly when?: ContextKeyExpression;
 }
 
 export interface IVariableReference {
@@ -327,6 +328,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
+	private _when: ContextKeyExpression | undefined;
 
 	public readonly id: string;
 
@@ -390,6 +392,10 @@ export class CustomChatMode implements IChatMode {
 		return this._agentsObservable;
 	}
 
+	get when(): ContextKeyExpression | undefined {
+		return this._when;
+	}
+
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -408,6 +414,7 @@ export class CustomChatMode implements IChatMode {
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
+		this._when = customChatMode.when;
 	}
 
 	/**
@@ -427,6 +434,7 @@ export class CustomChatMode implements IChatMode {
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
+			this._when = newData.when;
 		});
 	}
 

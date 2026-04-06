@@ -163,7 +163,7 @@ export class BrowserViewDebugger extends Disposable implements ICDPTarget {
 	 * Detach from the Electron debugger
 	 */
 	private detachElectronDebugger(): void {
-		if (!this._electronDebugger.isAttached()) {
+		if (this.view.webContents.isDestroyed() || !this._electronDebugger.isAttached()) {
 			return;
 		}
 

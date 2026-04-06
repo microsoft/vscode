@@ -23,7 +23,7 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
-import { renderCustomizationDiscoveryContent, fileListToPlainText } from './chatCustomizationDiscoveryRenderer.js';
+import { renderCustomizationDiscoveryContent, fileListToPlainText, renderCustomizationSummaryContent, customizationSummaryToPlainText } from './chatCustomizationDiscoveryRenderer.js';
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
 import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
 import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebugModelTurnContentRenderer.js';
@@ -174,6 +174,13 @@ export class ChatDebugDetailPanel extends Disposable {
 			this.currentDetailText = fileListToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
 				renderCustomizationDiscoveryContent(resolved, this.openerService, accessor.get(IModelService), this.languageService, this.hoverService, accessor.get(ILabelService), this.scrollable)
+			);
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'customizationSummary') {
+			this.currentDetailText = customizationSummaryToPlainText(resolved);
+			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
+				renderCustomizationSummaryContent(resolved, this.openerService, accessor.get(IModelService), this.languageService, this.hoverService, accessor.get(ILabelService), this.scrollable)
 			);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);

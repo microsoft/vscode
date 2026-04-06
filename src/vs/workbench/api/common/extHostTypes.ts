@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
@@ -3574,6 +3574,7 @@ export class ChatSessionCustomizationType {
 	static readonly Instructions = new ChatSessionCustomizationType('instructions');
 	static readonly Prompt = new ChatSessionCustomizationType('prompt');
 	static readonly Hook = new ChatSessionCustomizationType('hook');
+	static readonly Plugins = new ChatSessionCustomizationType('plugins');
 
 	constructor(public readonly id: string) { }
 }
@@ -4026,7 +4027,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
-			data: this.data,
+			data: encodeBase64(VSBuffer.wrap(this.data)),
 			audience: this.audience
 		};
 	}

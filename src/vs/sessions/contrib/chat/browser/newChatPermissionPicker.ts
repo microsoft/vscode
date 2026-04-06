@@ -14,7 +14,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { CopilotCLISession } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -22,6 +21,7 @@ import Severity from '../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CopilotChatSessionsProvider } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
@@ -68,11 +68,10 @@ export class NewChatPermissionPicker extends Disposable {
 		// Write permission level to the active session data when it changes
 		this._register(this.onDidChangeLevel(level => {
 			const session = this.sessionsManagementService.activeSession.get();
-			const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
-			if (!(providerSession instanceof CopilotCLISession)) {
-				throw new Error('NewChatPermissionPicker requires a CopilotCLISession');
+			if (!session) {
+				return;
 			}
-			providerSession.setPermissionLevel(level);
+			this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId)?.setPermissionLevel(level);
 		}));
 	}
 

@@ -49,7 +49,6 @@ export interface GitRepositoryState {
 }
 
 export interface GitBranch extends GitRef {
-	readonly base?: GitBaseRef;
 	readonly upstream?: GitUpstreamRef;
 	readonly ahead?: number;
 	readonly behind?: number;

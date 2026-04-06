@@ -10,10 +10,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../../common/agentService.js';
-import { IFetchContentResult } from '../../common/state/protocol/commands.js';
+import { IResourceReadResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
-import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type IBrowseDirectoryResult, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IStateSnapshot, type IWriteFileParams, type IWriteFileResult } from '../../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IResourceListResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -105,8 +105,8 @@ class MockAgentService implements IAgentService {
 	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
 	async refreshModels(): Promise<void> { }
 	async listAgents(): Promise<IAgentDescriptor[]> { return []; }
-	async writeFile(_params: IWriteFileParams): Promise<IWriteFileResult> { return {}; }
-	async browseDirectory(uri: URI): Promise<IBrowseDirectoryResult> {
+	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
+	async resourceList(uri: URI): Promise<IResourceListResult> {
 		this.browsedUris.push(uri);
 		const error = this.browseErrors.get(uri.toString());
 		if (error) {
@@ -119,9 +119,12 @@ class MockAgentService implements IAgentService {
 			],
 		};
 	}
-	async fetchContent(_uri: URI): Promise<IFetchContentResult> {
+	async resourceRead(_uri: URI): Promise<IResourceReadResult> {
 		throw new Error('Not implemented');
 	}
+	async resourceCopy(): Promise<{}> { return {}; }
+	async resourceDelete(): Promise<{}> { return {}; }
+	async resourceMove(): Promise<{}> { return {}; }
 
 	dispose(): void {
 		this._onDidAction.dispose();
@@ -386,13 +389,13 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(URI.parse(result.defaultDirectory!).path, '/home/testuser');
 	});
 
-	test('browseDirectory routes to side effect handler', async () => {
+	test('resourceList routes to side effect handler', async () => {
 		const transport = connectClient('client-browse');
 		transport.sent.length = 0;
 
 		const dirUri = URI.file('/home/user/project').toString();
 		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		transport.simulateMessage(request(2, 'resourceList', { uri: dirUri }));
 		const resp = await responsePromise;
 
 		assert.strictEqual(agentService.browsedUris.length, 1);
@@ -407,14 +410,14 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.entries[1].type, 'file');
 	});
 
-	test('browseDirectory returns a JSON-RPC error when the target is invalid', async () => {
+	test('resourceList returns a JSON-RPC error when the target is invalid', async () => {
 		const transport = connectClient('client-browse-error');
 		transport.sent.length = 0;
 
 		const dirUri = URI.file('/missing').toString();
 		agentService.browseErrors.set(URI.file('/missing').toString(), new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Directory not found: ${dirUri}`));
 		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'browseDirectory', { uri: dirUri }));
+		transport.simulateMessage(request(2, 'resourceList', { uri: dirUri }));
 		const resp = await responsePromise as { error?: { code: number; message: string } };
 
 		assert.ok(resp?.error);

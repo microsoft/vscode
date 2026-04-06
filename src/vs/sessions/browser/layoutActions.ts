@@ -18,7 +18,8 @@ import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
-const sidebarToggleIcon = registerIcon('agent-sidebar-toggle', Codicon.tasklist, localize('agentSidebarToggleIcon', "Icon to toggle the sessions sidebar."));
+const sidebarToggleClosedIcon = registerIcon('agent-sidebar-toggle-closed', Codicon.layoutSidebarLeftOff, localize('agentSidebarToggleClosedIcon', "Icon for the sessions sidebar when closed."));
+const sidebarToggleOpenIcon = registerIcon('agent-sidebar-toggle-open', Codicon.layoutSidebarLeft, localize('agentSidebarToggleOpenIcon', "Icon for the sessions sidebar when open."));
 
 class ToggleSidebarVisibilityAction extends Action2 {
 
@@ -28,9 +29,10 @@ class ToggleSidebarVisibilityAction extends Action2 {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
 			title: localize2('toggleSidebar', 'Toggle Primary Side Bar Visibility'),
-			icon: sidebarToggleIcon,
+			icon: sidebarToggleClosedIcon,
 			toggled: {
 				condition: SideBarVisibleContext,
+				icon: sidebarToggleOpenIcon,
 			},
 			metadata: {
 				description: localize('openAndCloseSidebar', 'Open/Show and Close/Hide Sidebar'),

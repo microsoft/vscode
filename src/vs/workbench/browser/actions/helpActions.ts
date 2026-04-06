@@ -17,6 +17,7 @@ import { KeybindingWeight } from '../../../platform/keybinding/common/keybinding
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { IsSessionsWindowContext } from '../../common/contextkeys.js';
 
 class KeybindingsReferenceAction extends Action2 {
 
@@ -319,10 +320,12 @@ class GetStartedWithAccessibilityFeatures extends Action2 {
 			title: localize2('getStartedWithAccessibilityFeatures', 'Get Started with Accessibility Features'),
 			category: Categories.Help,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			menu: {
 				id: MenuId.MenubarHelpMenu,
 				group: '1_welcome',
-				order: 6
+				order: 6,
+				when: IsSessionsWindowContext.negate()
 			}
 		});
 	}
@@ -341,7 +344,7 @@ class AskVSCodeCopilot extends Action2 {
 			title: localize2('askVScode', 'Ask @vscode'),
 			category: Categories.Help,
 			f1: true,
-			precondition: ContextKeyExpr.equals('chatSetupHidden', false)
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -359,7 +362,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	},
 	order: 7,
 	group: '1_welcome',
-	when: ContextKeyExpr.equals('chatSetupHidden', false)
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), IsSessionsWindowContext.negate())
 });
 
 // --- Actions Registration

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -15,7 +13,7 @@ import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -88,14 +86,6 @@ export class UpdateTooltip extends Disposable {
 		const header = dom.append(this.domNode, dom.$('.header'));
 		this.titleNode = dom.append(header, dom.$('.title'));
 
-		const actionBar = this._register(new ActionBar(header, { hoverDelegate: nativeHoverDelegate }));
-		actionBar.push(toAction({
-			id: 'update.openSettings',
-			label: localize('updateTooltip.settingsTooltip', "Update Settings"),
-			class: ThemeIcon.asClassName(Codicon.gear),
-			run: () => this.runCommandAndClose('workbench.action.openSettings', '@id:update*'),
-		}), { icon: true, label: false });
-
 		// Product info section
 		this.productInfoNode = dom.append(this.domNode, dom.$('.product-info'));
 
@@ -142,7 +132,7 @@ export class UpdateTooltip extends Disposable {
 		this.buttonBar = dom.append(this.domNode, dom.$('.button-bar'));
 
 		this.releaseNotesButton = dom.append(this.buttonBar, dom.$('button.release-notes-button')) as HTMLButtonElement;
-		this.releaseNotesButton.textContent = localize('updateTooltip.viewReleaseNotes', "View Release Notes");
+		this.releaseNotesButton.textContent = localize('updateTooltip.viewReleaseNotes', "Release Notes");
 		this._register(dom.addDisposableListener(this.releaseNotesButton, 'click', () => {
 			if (this.releaseNotesVersion) {
 				this.runCommandAndClose(ShowCurrentReleaseNotesActionId, this.releaseNotesVersion);
@@ -374,8 +364,12 @@ export class UpdateTooltip extends Disposable {
 	}
 
 	private renderReady({ update }: Ready) {
-		this.renderTitleAndInfo(localize('updateTooltip.updateInstalledTitle', "Update Installed"), update);
-		this.renderActionButton(localize('updateTooltip.restartButton', "Restart"), 'update.restart');
+		if (this.configurationService.getValue<string>('update.mode') === 'manual') {
+			this.renderTitleAndInfo(localize('updateTooltip.updateInstalledTitle', "Update Installed"), update);
+			this.renderActionButton(localize('updateTooltip.restartButton', "Restart"), 'update.restart');
+		} else {
+			this.renderTitleAndInfo(localize('updateTooltip.restartToUpdateTitle', "Restart to Update"), update);
+		}
 	}
 
 	private renderOverwriting({ update }: Overwriting) {
@@ -461,6 +455,7 @@ export class UpdateTooltip extends Disposable {
 		// Release notes button
 		this.releaseNotesVersion = version ?? this.productService.version;
 		this.releaseNotesButton.style.display = this.releaseNotesVersion ? '' : 'none';
+		this.releaseNotesButton.style.marginRight = this.releaseNotesVersion ? 'auto' : '';
 		this.buttonBar.style.display = this.releaseNotesVersion ? '' : 'none';
 	}
 
@@ -468,7 +463,6 @@ export class UpdateTooltip extends Disposable {
 		this.actionButton.textContent = label;
 		this.actionButton.dataset.commandId = commandId;
 		this.actionButton.style.display = '';
-		this.releaseNotesButton.style.marginRight = 'auto';
 	}
 
 	private renderMessage(message: string, icon?: ThemeIcon) {

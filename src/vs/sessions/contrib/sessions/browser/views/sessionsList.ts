@@ -269,11 +269,23 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			DOM.clearNode(template.detailsRow);
 			const parts: HTMLElement[] = [];
 
+			const isWorkspaceSession = workspace &&
+				workspace.repositories.length > 0 &&
+				workspace?.repositories[0].workingDirectory === undefined;
+
 			// Session type icon in details row
 			// Disabling background icon - hacky but couldn't figure out how to do it from the new provider
 			if (element.sessionType !== CopilotCLISessionType.id) {
 				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
 				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(element.icon)}`));
+				parts.push(typeIconEl);
+			} else if (
+				element.sessionType === CopilotCLISessionType.id &&
+				sessionStatus !== SessionStatus.InProgress &&
+				isWorkspaceSession
+			) {
+				const typeIconEl = DOM.append(template.detailsRow, $('span.session-details-icon'));
+				DOM.append(typeIconEl, $(`span${ThemeIcon.asCSSSelector(Codicon.folder)}`));
 				parts.push(typeIconEl);
 			}
 
@@ -867,7 +879,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Add archived section at the bottom
 		if (archived.length > 0) {
-			sections.push({ id: 'archived', label: localize('archived', "Archived"), sessions: archived });
+			sections.push({ id: 'archived', label: localize('archived', "Done"), sessions: archived });
 		}
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);

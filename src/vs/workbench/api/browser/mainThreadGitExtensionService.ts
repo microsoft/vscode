@@ -38,7 +38,6 @@ function toGitRepositoryState(dto: GitRepositoryStateDto | undefined): GitReposi
 			name: dto.HEAD.name,
 			commit: dto.HEAD.commit,
 			remote: dto.HEAD.remote,
-			base: dto.HEAD.base,
 			upstream: dto.HEAD.upstream,
 			ahead: dto.HEAD.ahead,
 			behind: dto.HEAD.behind,

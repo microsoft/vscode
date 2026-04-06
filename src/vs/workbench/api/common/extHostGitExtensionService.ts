@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostExtensionService } from './extHostExtensionService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostGitExtensionShape, GitBaseRefDto, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
+import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
 import { ResourceMap } from '../../../base/common/map.js';
 
 const GIT_EXTENSION_ID = 'vscode.git';
@@ -31,7 +31,6 @@ function toGitBranchDto(branch: Branch): GitBranchDto {
 		commit: branch.commit,
 		type: toGitRefTypeDto(branch.type),
 		remote: branch.remote,
-		base: branch.base,
 		upstream: branch.upstream ? toGitUpstreamRefDto(branch.upstream) : undefined,
 		ahead: branch.ahead,
 		behind: branch.behind,
@@ -208,18 +207,8 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 
 		const existingHandle = this._repositoryByUri.get(repository.rootUri);
 		if (existingHandle !== undefined) {
-			const state = await this._getRepositoryState(repository);
+			const state = this._getRepositoryState(repository);
 			return { handle: existingHandle, rootUri: repository.rootUri, state };
-		}
-
-		let repositoryState = repository.state;
-		if (repositoryState.HEAD === undefined) {
-			// Opening the repository does not wait for the repository state to be
-			// initialized so we need to wait for the first change event to ensure
-			// that the repository state is fully loaded before we return it to the
-			// main thread.
-			await Event.toPromise(repositoryState.onDidChange, this._disposables);
-			repositoryState = repository.state;
 		}
 
 		// Store the repository and its handle in the maps
@@ -233,7 +222,7 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			this._proxy.$onDidChangeRepository(handle);
 		}));
 
-		const state = await this._getRepositoryState(repository);
+		const state = this._getRepositoryState(repository);
 		return { handle, rootUri: repository.rootUri, state };
 	}
 
@@ -279,34 +268,16 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 		return this._getRepositoryState(repository);
 	}
 
-	private async _getRepositoryState(repository: Repository): Promise<GitRepositoryStateDto> {
+	private _getRepositoryState(repository: Repository): GitRepositoryStateDto {
 		const state = repository.state;
 
-		// Base branch
-		const base = await this._getBranchBase(repository);
-
 		return {
-			HEAD: state.HEAD ? toGitBranchDto({ ...state.HEAD, base }) : undefined,
+			HEAD: state.HEAD ? toGitBranchDto(state.HEAD) : undefined,
 			mergeChanges: state.mergeChanges.map(toGitChangeDto),
 			indexChanges: state.indexChanges.map(toGitChangeDto),
 			workingTreeChanges: state.workingTreeChanges.map(toGitChangeDto),
 			untrackedChanges: state.untrackedChanges.map(toGitChangeDto),
 		};
-	}
-
-	private async _getBranchBase(repository: Repository): Promise<GitBaseRefDto | undefined> {
-		const state = repository.state;
-		if (!state.HEAD?.name) {
-			return undefined;
-		}
-
-		const baseBranch = await repository.getBranchBase(state.HEAD.name);
-		if (!baseBranch?.name) {
-			return undefined;
-		}
-
-		const isProtected = repository.isBranchProtected(baseBranch);
-		return { name: baseBranch.name, isProtected };
 	}
 
 	async $diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]> {

@@ -6,7 +6,7 @@
 import { ITreeNavigator } from '../../../../base/browser/ui/tree/tree.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { getSelectionKeyboardEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchRemoveIcon, searchReplaceIcon } from './searchIcons.js';
@@ -263,6 +263,7 @@ async function performReplace(accessor: ServicesAccessor,
 	context: ISearchActionContext | undefined) {
 	const configurationService = accessor.get(IConfigurationService);
 	const viewsService = accessor.get(IViewsService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const viewlet: SearchView | undefined = getSearchView(viewsService);
 	const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
@@ -283,7 +284,7 @@ async function performReplace(accessor: ServicesAccessor,
 	if (elementsToReplace.length === 0) {
 		return;
 	}
-	let nextFocusElement;
+	let nextFocusElement: RenderableMatch | undefined;
 	if (focusElement) {
 		nextFocusElement = await getElementToFocusAfterRemoved(viewer, focusElement, elementsToReplace);
 	}
@@ -308,10 +309,10 @@ async function performReplace(accessor: ServicesAccessor,
 
 			if (isSearchTreeMatch(nextFocusElement)) {
 				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof MatchInNotebook) {
+				if (!useReplacePreview || instantiationService.invokeFunction(accessor => hasToOpenFile(accessor, nextFocusElement!)) || nextFocusElement instanceof MatchInNotebook) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
-					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);
+					instantiationService.invokeFunction(accessor => accessor.get(IReplaceService)).openReplacePreview(nextFocusElement, true);
 				}
 			} else if (isSearchTreeFileMatch(nextFocusElement)) {
 				viewlet?.open(nextFocusElement, true);
@@ -425,4 +426,3 @@ export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsync
 }
 
 //#endregion
-

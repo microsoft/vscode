@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -20,11 +17,10 @@ import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
 import { PendingMessageKind, SessionStatus } from '../../common/state/sessionState.js';
-import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { AgentService } from '../../node/agentService.js';
+import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { SessionStateManager } from '../../node/sessionStateManager.js';
-import { join } from '../../../../base/common/path.js';
 import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
@@ -765,13 +761,8 @@ suite('AgentSideEffects', () => {
 
 	suite('title persistence', () => {
 
-		let testDir: string;
 		let sessionDb: SessionDatabase;
 
-		/**
-		 * Creates a real SessionDatabase-backed ISessionDataService.
-		 * All sessions share the same DB for simplicity.
-		 */
 		function createSessionDataServiceWithDb(): ISessionDataService {
 			return {
 				_serviceBrand: undefined,
@@ -779,11 +770,11 @@ suite('AgentSideEffects', () => {
 				getSessionDataDirById: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
 				openDatabase: (): IReference<ISessionDatabase> => ({
 					object: sessionDb,
-					dispose: () => { /* ref-counted; the suite teardown closes the DB */ },
+					dispose: () => { },
 				}),
 				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({
 					object: sessionDb,
-					dispose: () => { /* ref-counted; the suite teardown closes the DB */ },
+					dispose: () => { },
 				}),
 				deleteSessionData: async () => { },
 				cleanupOrphanedData: async () => { },
@@ -791,14 +782,11 @@ suite('AgentSideEffects', () => {
 		}
 
 		setup(async () => {
-			testDir = join(tmpdir(), `vscode-side-effects-title-test-${randomUUID()}`);
-			mkdirSync(testDir, { recursive: true });
-			sessionDb = await SessionDatabase.open(join(testDir, 'session.db'));
+			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
 
 		teardown(async () => {
 			await sessionDb.close();
-			rmSync(testDir, { recursive: true, force: true });
 		});
 
 		test('SessionTitleChanged persists to the database', async () => {

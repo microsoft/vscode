@@ -122,8 +122,8 @@ export class AgenticPromptsService extends PromptsService {
 	 * Override to include built-in skills, appending them with lowest priority.
 	 * Skills from any other source (workspace, user, extension, internal) take precedence.
 	 */
-	public override async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
-		const baseResult = await super.findAgentSkills(token, sessionResource);
+	public override async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
+		const baseResult = await super.findAgentSkills(token);
 		if (baseResult === undefined) {
 			return undefined;
 		}

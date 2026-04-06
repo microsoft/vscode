@@ -9,10 +9,24 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createCancelablePromise, raceCancellablePromises } from '../../../base/common/async.js';
 
+type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
+
 declare module 'playwright-core' {
 	interface Page {
-		// A hidden Playwright method that returns an AI-friendly snapshot of the page.
-		_snapshotForAI(options?: { track?: string }): Promise<{ full: string; incremental?: string }>;
+		// We defined this here to be able to use the unofficial `_track` option
+		ariaSnapshot(options?: IAiAriaSnapshotOptions): Promise<string>;
+	}
+}
+
+/**
+ * Thrown when a dialog (alert, confirm, prompt) opens while a page action is
+ * running. The caller should defer the underlying promise and let the agent
+ * handle the dialog before retrying.
+ */
+export class DialogInterruptedError extends Error {
+	constructor() {
+		super('Action was interrupted by a dialog');
+		this.name = 'DialogInterruptedError';
 	}
 }
 
@@ -152,7 +166,7 @@ export class PlaywrightTab {
 		return raceCancellablePromises([dialogOpened, actionCompleted]).then(() => {
 			if (!actionDidComplete) {
 				// A dialog was opened before the action completed. Note we don't cancel the action, just ignore its result.
-				throw new Error('Action was interrupted by a dialog');
+				throw new DialogInterruptedError();
 			}
 			return result!;
 		});
@@ -165,7 +179,7 @@ export class PlaywrightTab {
 			this._needsFullSnapshot = false;
 		}
 
-		const snapshotFromPage = await this.safeRunAgainstPage((page) => page._snapshotForAI({ track: 'response' })).catch(() => {
+		const snapshotFromPage = await this.safeRunAgainstPage((page) => this.getAiSnapshot(page, full)).catch(() => {
 			this._needsFullSnapshot = true;
 			return undefined;
 		});
@@ -174,7 +188,7 @@ export class PlaywrightTab {
 		const logs = this._logs;
 		this._logs = [];
 
-		const snapshot = (full ? snapshotFromPage?.full : snapshotFromPage?.incremental ?? snapshotFromPage?.full)?.trim() ?? '';
+		const snapshot = snapshotFromPage?.trim() ?? '';
 
 		return [
 			...(title ? [`Page Title: ${title}`] : []),
@@ -185,8 +199,16 @@ export class PlaywrightTab {
 				`Recent events:`,
 				...logs.map(log => `- [${new Date(log.time).toISOString()}] (${log.type}) ${log.description}`)
 			] : []),
-			...(snapshot ? ['Snapshot:', snapshot] : [])
+			`Snapshot: ${snapshotFromPage ? snapshot ? `\n${snapshot}` : '<unchanged>' : '<unavailable>'}`,
 		].join('\n');
+	}
+
+	private getAiSnapshot(page: playwright.Page, full: boolean): Promise<string> {
+		const options: IAiAriaSnapshotOptions = { mode: 'ai' };
+		if (!full) {
+			options._track = 'response';
+		}
+		return page.ariaSnapshot(options);
 	}
 
 	private async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {

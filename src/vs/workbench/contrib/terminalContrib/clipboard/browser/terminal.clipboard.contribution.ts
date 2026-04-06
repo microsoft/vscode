@@ -5,6 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Disposable, toDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalContribution, ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
@@ -81,7 +82,16 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 	 * Focuses and pastes the contents of the clipboard into the terminal instance.
 	 */
 	async paste(): Promise<void> {
-		await this._paste(await this._clipboardService.readText());
+		let text = await this._clipboardService.readText();
+
+		if (!text) {
+			const [resource] = await this._clipboardService.readResources();
+			if (resource?.scheme === Schemas.file) {
+				text = resource.fsPath;
+			}
+		}
+
+		await this._paste(text);
 	}
 
 	/**

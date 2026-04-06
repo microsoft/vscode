@@ -45,7 +45,6 @@ function createSession(id: string, opts: {
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		gitHubInfo: observableValue(`gitHubInfo-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
-		activeChat: observableValue<IChat>(`activeChat-${id}`, undefined!),
 		mainChat: undefined!,
 	};
 }

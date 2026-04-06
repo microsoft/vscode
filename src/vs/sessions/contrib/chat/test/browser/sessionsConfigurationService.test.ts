@@ -14,7 +14,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IActiveSession, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, SessionsConfigurationService, ITaskEntry } from '../../browser/sessionsConfigurationService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -37,27 +37,42 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		requiresWorkspaceTrust: false,
 	} : undefined;
 	const chat: IChat = {
-		chatId: 'test:session',
 		resource: URI.parse('file:///session'),
-		providerId: 'test',
-		sessionType: 'background',
-		icon: Codicon.copilot,
 		createdAt: new Date(),
-		workspace: observableValue('workspace', workspace),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
 		changes: observableValue('changes', []),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
-		loading: observableValue('loading', false),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
 		lastTurnEnd: observableValue('lastTurnEnd', undefined),
 		description: observableValue('description', undefined),
-		gitHubInfo: observableValue('gitHubInfo', undefined),
 	};
-	const session: ISession = { ...chat, sessionId: chat.chatId, chats: observableValue('chats', [chat]), activeChat: observableValue('activeChat', chat), mainChat: chat };
+	const session: ISession = {
+		sessionId: 'test:session',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: 'background',
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('workspace', workspace),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('gitHubInfo', undefined),
+		chats: observableValue('chats', [chat]),
+		mainChat: chat,
+	};
 	return session;
 }
 
@@ -86,7 +101,7 @@ suite('SessionsConfigurationService', () => {
 	let ranTasks: { label: string }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
-	let activeSessionObs: ReturnType<typeof observableValue<ISession | undefined>>;
+	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let tasksByLabel: Map<string, Task>;
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
 

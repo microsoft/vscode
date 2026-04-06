@@ -277,6 +277,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const breakpointOptions = this.buildBreakpointOptions();
 
 		const index = this.availableBreakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
+		if (index !== -1) {
+			this.triggeredByBreakpointInput = this.availableBreakpoints[index];
+		}
 
 		const selectBreakpointBox = this.selectBreakpointBox = this.store.add(new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
 		this.store.add(selectBreakpointBox.onDidSelect(e => {

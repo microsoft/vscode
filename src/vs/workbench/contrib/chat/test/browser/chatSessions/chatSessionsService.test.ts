@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
+import { ChatSessionOptionsMap, ReadonlyChatSessionOptionsMap } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite.skip('ChatSessionsService', () => {
@@ -102,6 +103,69 @@ suite.skip('ChatSessionsService', () => {
 			const input = '   Check [](file:///test.js)   ';
 			const result = callExtractFileNameFromLink(input);
 			assert.strictEqual(result, '   Check test.js   ');
+		});
+	});
+});
+
+suite('ChatSessionOptionsMap', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('toStrValueArray', () => {
+
+		test('should return undefined for undefined input', () => {
+			assert.strictEqual(ChatSessionOptionsMap.toStrValueArray(undefined), undefined);
+		});
+
+		test('should convert a Map to an array of {optionId, value}', () => {
+			const map = new Map([['models', 'gpt-4'], ['repo', 'my-repo']]);
+			assert.deepStrictEqual(ChatSessionOptionsMap.toStrValueArray(map), [
+				{ optionId: 'models', value: 'gpt-4' },
+				{ optionId: 'repo', value: 'my-repo' },
+			]);
+		});
+
+		test('should extract .id from IChatSessionProviderOptionItem values', () => {
+			const map: ReadonlyChatSessionOptionsMap = new Map([
+				['agent', { id: 'copilot', name: 'Copilot' }],
+			]);
+			assert.deepStrictEqual(ChatSessionOptionsMap.toStrValueArray(map), [
+				{ optionId: 'agent', value: 'copilot' },
+			]);
+		});
+
+		test('should handle a plain object as if it were a record (defensive fallback)', () => {
+			// Simulates a Map that lost its prototype during serialization
+			const plainObject = { models: 'gpt-4', repo: 'my-repo' } as unknown as ReadonlyChatSessionOptionsMap;
+			assert.deepStrictEqual(ChatSessionOptionsMap.toStrValueArray(plainObject), [
+				{ optionId: 'models', value: 'gpt-4' },
+				{ optionId: 'repo', value: 'my-repo' },
+			]);
+		});
+	});
+
+	suite('toRecord', () => {
+
+		test('should convert a Map to a record', () => {
+			const map = new Map([['models', 'gpt-4']]);
+			const record = ChatSessionOptionsMap.toRecord(map);
+			assert.strictEqual(record['models'], 'gpt-4');
+		});
+
+		test('should handle a plain object as if it were a record (defensive fallback)', () => {
+			const plainObject = { models: 'gpt-4' } as unknown as ReadonlyChatSessionOptionsMap;
+			const record = ChatSessionOptionsMap.toRecord(plainObject);
+			assert.strictEqual(record['models'], 'gpt-4');
+		});
+	});
+
+	suite('fromRecord', () => {
+
+		test('should convert a record to a Map', () => {
+			const map = ChatSessionOptionsMap.fromRecord({ models: 'gpt-4', repo: 'my-repo' });
+			assert.strictEqual(map.get('models'), 'gpt-4');
+			assert.strictEqual(map.get('repo'), 'my-repo');
+			assert.strictEqual(map.size, 2);
 		});
 	});
 });

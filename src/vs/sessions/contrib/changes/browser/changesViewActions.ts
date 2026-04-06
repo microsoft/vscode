@@ -11,11 +11,9 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CHANGES_VIEW_ID } from './changesView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-
-import { activeSessionHasChangesContextKey } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID } from '../common/changes.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -51,7 +49,7 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		// Bind context key: true when the active session has changes
-		this._register(bindContextKey(activeSessionHasChangesContextKey, contextKeyService, reader => {
+		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
 			const activeSession = sessionManagementService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;

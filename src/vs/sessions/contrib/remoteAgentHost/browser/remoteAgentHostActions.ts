@@ -8,21 +8,21 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { SessionsCategories } from '../../../common/categories.js';
 import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.remoteAgentHost.add',
 			title: localize2('addRemoteAgentHost', "Add Remote Agent Host..."),
-			category: CHAT_CATEGORY,
+			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
 		});
@@ -458,7 +458,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.sessions.connectViaSSH',
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
-			category: CHAT_CATEGORY,
+			category: SessionsCategories.Sessions,
 			f1: true,
 			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
 		});

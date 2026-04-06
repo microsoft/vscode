@@ -675,7 +675,7 @@
 			"name": "Component Explorer (Edge)",
 			"type": "msedge",
 			"request": "launch",
-			"url": "http://localhost:5337/__explorer",
+			"url": "http://localhost:5337/___explorer",
 			"preLaunchTask": "Component Explorer Server",
 			"presentation": {
 				"group": "1_component_explorer",
@@ -686,7 +686,7 @@
 			"name": "Component Explorer (Chrome)",
 			"type": "chrome",
 			"request": "launch",
-			"url": "http://localhost:5337/__explorer",
+			"url": "http://localhost:5337/___explorer",
 			"preLaunchTask": "Component Explorer Server",
 			"presentation": {
 				"group": "1_component_explorer",
