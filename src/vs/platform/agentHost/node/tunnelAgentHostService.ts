@@ -13,6 +13,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	ITunnelAgentHostMainService,
+	TUNNEL_ADDRESS_PREFIX,
 	TUNNEL_AGENT_HOST_PORT,
 	TUNNEL_LAUNCHER_LABEL,
 	TUNNEL_MIN_PROTOCOL_VERSION,
@@ -116,9 +117,6 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		// Look up additional tunnels by name
 		if (additionalTunnelNames) {
 			for (const tunnelName of additionalTunnelNames) {
-				if (seen.has(tunnelName)) {
-					continue;
-				}
 				try {
 					const [tunnel] = await client.listTunnels(undefined, undefined, {
 						labels: [tunnelName, TUNNEL_LAUNCHER_LABEL],
@@ -129,7 +127,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 					});
 					if (tunnel) {
 						const info = this._parseTunnelInfo(tunnel);
-						if (info && info.protocolVersion >= TUNNEL_MIN_PROTOCOL_VERSION) {
+						if (info && info.protocolVersion >= TUNNEL_MIN_PROTOCOL_VERSION && !seen.has(info.tunnelId)) {
 							results.push(info);
 							seen.add(info.tunnelId);
 						}
@@ -145,21 +143,21 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 	}
 
 	async connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string): Promise<ITunnelConnectResult> {
-		// Check for existing connection
-		for (const conn of this._connections.values()) {
-			if (conn.address === `tunnel:${tunnelId}`) {
-				return {
-					connectionId: conn.connectionId,
-					address: conn.address,
-					name: conn.name,
-					connectionToken: conn.connectionToken,
-				};
+		// Tear down any existing connection to this tunnel first.
+		// Each connect() call creates a fresh relay with its own protocol
+		// session, so the old one must be closed to avoid conflicts.
+		for (const [id, conn] of this._connections) {
+			if (conn.address === `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`) {
+				this._logService.info(`${LOG_PREFIX} Closing existing relay for tunnel ${tunnelId} before reconnecting`);
+				this._connections.delete(id);
+				conn.dispose();
+				break;
 			}
 		}
 
 		const client = await this._createManagementClient(token, authProvider);
 		const connectionId = generateUuid();
-		const address = `tunnel:${tunnelId}`;
+		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 
 		this._logService.info(`${LOG_PREFIX} Connecting to tunnel ${tunnelId} in cluster ${clusterId}...`);
 
@@ -264,12 +262,15 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 		}
 
 		const name = tags.name || tunnel.name || tunnelId;
+		const rawCount = tunnel.status?.hostConnectionCount;
+		const hostConnectionCount = typeof rawCount === 'number' ? rawCount : (rawCount?.current ?? 0);
 		return {
 			tunnelId,
 			clusterId,
 			name,
 			tags: labels,
 			protocolVersion: tags.protocolVersion,
+			hostConnectionCount,
 		};
 	}
 

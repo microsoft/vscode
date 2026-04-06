@@ -50,6 +50,12 @@ export class TunnelRelayTransport extends Disposable implements IProtocolTranspo
 		}));
 	}
 
+	override dispose(): void {
+		// Tear down the shared-process relay connection
+		this._tunnelService.disconnect(this._connectionId).catch(() => { /* best effort */ });
+		super.dispose();
+	}
+
 	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
 		this._tunnelService.relaySend(this._connectionId, JSON.stringify(message)).catch(() => {
 			// Send failed — connection probably closed

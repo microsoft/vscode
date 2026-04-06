@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -195,8 +196,13 @@ export class WorkspacePicker extends Disposable {
 					return;
 				}
 				if (item.remoteProvider && item.browseActionIndex === undefined) {
-					// Disconnected remote host — show options menu after widget hides
-					this._showRemoteHostOptionsDelayed(item.remoteProvider);
+					if (item.remoteProvider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+						// Disconnected tunnel — trigger connection flow
+						this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
+					} else {
+						// Disconnected SSH host — show options menu after widget hides
+						this._showRemoteHostOptionsDelayed(item.remoteProvider);
+					}
 				} else if (item.browseActionIndex !== undefined) {
 					this._executeBrowseAction(item.browseActionIndex);
 				} else if (item.selection) {
@@ -434,7 +440,7 @@ export class WorkspacePicker extends Disposable {
 			const toolbarActions: IAction[] = [];
 
 			// Gear menu only for SSH hosts, not tunnel providers
-			if (!provider.remoteAddress?.startsWith('tunnel:')) {
+			if (!provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
 				toolbarActions.push(toAction({
 					id: `workspacePicker.remote.gear.${provider.id}`,
 					label: localize('workspacePicker.remoteOptions', "Options"),
@@ -446,13 +452,15 @@ export class WorkspacePicker extends Disposable {
 				}));
 			}
 
+			const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
+
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: provider.label,
 				description: this._getStatusDescription(status),
 				hover: { content: this._getStatusHover(status, provider.remoteAddress) },
-				group: { title: '', icon: Codicon.remote },
-				disabled: !isConnected,
+				group: { title: '', icon: isTunnel ? Codicon.cloud : Codicon.remote },
+				disabled: isTunnel ? false : !isConnected,
 				item: {
 					browseActionIndex: isConnected && providerBrowseIndex >= 0 ? providerBrowseIndex : undefined,
 					remoteProvider: provider,

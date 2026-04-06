@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import * as nls from '../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ITunnelAgentHostService, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-
-const LOG_PREFIX = '[TunnelAgentHost]';
 
 /** Minimum interval between silent status checks (5 minutes). */
 const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;
@@ -24,7 +23,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private readonly _providerStores = this._register(new DisposableMap<string /* address */, DisposableStore>());
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
-	private readonly _pendingConnects = new Set<string>();
+	private readonly _pendingConnects = new Map<string, Promise<void>>();
 	private _lastStatusCheck = 0;
 
 	constructor(
@@ -33,7 +32,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -51,8 +50,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._reconcileProviders();
 		}));
 
-		// Silently reconnect cached tunnels on startup
-		this._silentReconnect();
+		// Silently check status of cached tunnels on startup
+		this._silentStatusCheck();
 	}
 
 	/**
@@ -63,7 +62,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		if (Date.now() - this._lastStatusCheck < STATUS_CHECK_INTERVAL) {
 			return;
 		}
-		await this._silentReconnect();
+		await this._silentStatusCheck();
 	}
 
 	// -- Provider management --
@@ -71,7 +70,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _reconcileProviders(): void {
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
 		const cached = enabled ? this._tunnelService.getCachedTunnels() : [];
-		const desiredAddresses = new Set(cached.map(t => `tunnel:${t.tunnelId}`));
+		const desiredAddresses = new Set(cached.map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`));
 
 		// Remove providers no longer cached
 		for (const [address] of this._providerStores) {
@@ -83,7 +82,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		// Add providers for cached tunnels
 		for (const tunnel of cached) {
-			const address = `tunnel:${tunnel.tunnelId}`;
+			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 			if (!this._providerStores.has(address)) {
 				this._createProvider(address, tunnel.name);
 			}
@@ -93,7 +92,11 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _createProvider(address: string, name: string): void {
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, { address, name },
+			RemoteAgentHostSessionsProvider, {
+			address,
+			name,
+			connectOnDemand: () => this._connectTunnel(address),
+		},
 		);
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
@@ -134,9 +137,62 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		}
 	}
 
-	// -- Silent reconnect --
+	// -- On-demand connection --
 
-	private async _silentReconnect(): Promise<void> {
+	/**
+	 * Establish a relay connection to a cached tunnel. Called on demand
+	 * when the user invokes the browse action on an online-but-not-connected tunnel.
+	 */
+	private _connectTunnel(address: string): Promise<void> {
+		const existing = this._pendingConnects.get(address);
+		if (existing) {
+			return existing;
+		}
+
+		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
+		const cached = this._tunnelService.getCachedTunnels().find(t => t.tunnelId === tunnelId);
+		if (!cached) {
+			return Promise.resolve();
+		}
+
+		const promise = (async () => {
+			// Show a progress notification after a short delay so quick
+			// connects don't flash a notification.
+			let handle: { close(): void } | undefined;
+			const timer = setTimeout(() => {
+				handle = this._notificationService.notify({
+					severity: Severity.Info,
+					message: nls.localize('tunnelConnecting', "Connecting to tunnel '{0}'...", cached.name),
+					progress: { infinite: true },
+				});
+			}, 1000);
+
+			this._updateConnectionStatuses();
+			try {
+				const tunnelInfo: ITunnelInfo = {
+					tunnelId: cached.tunnelId,
+					clusterId: cached.clusterId,
+					name: cached.name,
+					tags: [],
+					protocolVersion: 5,
+					hostConnectionCount: 0,
+				};
+				await this._tunnelService.connect(tunnelInfo, cached.authProvider);
+			} finally {
+				clearTimeout(timer);
+				handle?.close();
+				this._pendingConnects.delete(address);
+				this._updateConnectionStatuses();
+			}
+		})();
+
+		this._pendingConnects.set(address, promise);
+		return promise;
+	}
+
+	// -- Silent status check --
+
+	private async _silentStatusCheck(): Promise<void> {
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
 		if (!enabled) {
 			return;
@@ -144,60 +200,47 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._lastStatusCheck = Date.now();
 
-		// Validate cached tunnels still exist
+		// Fetch tunnel list silently to check online status
 		let onlineTunnels: ITunnelInfo[] | undefined;
 		try {
 			onlineTunnels = await this._tunnelService.listTunnels({ silent: true });
 		} catch {
-			// No cached token or network error — skip validation
+			// No cached token or network error — leave statuses as-is
+			return;
 		}
 
 		const cached = this._tunnelService.getCachedTunnels();
 		if (onlineTunnels) {
 			const onlineIds = new Set(onlineTunnels.map(t => t.tunnelId));
-			// Remove cached tunnels that no longer exist
+			// Remove cached tunnels that no longer exist on the account
 			for (const tunnel of cached) {
 				if (!onlineIds.has(tunnel.tunnelId)) {
 					this._tunnelService.removeCachedTunnel(tunnel.tunnelId);
 				}
 			}
-		}
 
-		// Try to reconnect cached tunnels that are disconnected
-		for (const tunnel of this._tunnelService.getCachedTunnels()) {
-			const address = `tunnel:${tunnel.tunnelId}`;
-			const hasConnection = this._remoteAgentHostService.connections.some(
-				c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
-			);
-			if (hasConnection || this._pendingConnects.has(address)) {
-				continue;
+			// Update online/offline status based on hostConnectionCount.
+			// For tunnels, Connected means "host is online" (clickable to connect),
+			// Disconnected means "host is offline". Actual relay connection
+			// establishment happens when the user clicks the tunnel.
+			const onlineTunnelMap = new Map(onlineTunnels.map(t => [t.tunnelId, t]));
+			for (const [address, provider] of this._providerInstances) {
+				// Skip tunnels that already have an active relay connection
+				const hasConnection = this._remoteAgentHostService.connections.some(
+					c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
+				);
+				if (hasConnection) {
+					continue;
+				}
+
+				const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
+				const info = onlineTunnelMap.get(tunnelId);
+				if (info && info.hostConnectionCount > 0) {
+					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connected);
+				} else {
+					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Disconnected);
+				}
 			}
-
-			// Only try if the tunnel was found online
-			if (onlineTunnels && !onlineTunnels.some(t => t.tunnelId === tunnel.tunnelId)) {
-				continue;
-			}
-
-			this._pendingConnects.add(address);
-			this._updateConnectionStatuses();
-
-			const tunnelInfo: ITunnelInfo = {
-				tunnelId: tunnel.tunnelId,
-				clusterId: tunnel.clusterId,
-				name: tunnel.name,
-				tags: [],
-				protocolVersion: 5,
-			};
-
-			this._tunnelService.connect(tunnelInfo, tunnel.authProvider).then(() => {
-				this._pendingConnects.delete(address);
-				this._logService.info(`${LOG_PREFIX} Silently reconnected to tunnel '${tunnel.name}'`);
-				this._updateConnectionStatuses();
-			}).catch(err => {
-				this._pendingConnects.delete(address);
-				this._logService.debug(`${LOG_PREFIX} Silent reconnect failed for tunnel '${tunnel.name}': ${err}`);
-				this._updateConnectionStatuses();
-			});
 		}
 	}
 }

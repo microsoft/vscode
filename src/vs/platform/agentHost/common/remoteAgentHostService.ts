@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentConnection } from './agentService.js';
+import { TUNNEL_ADDRESS_PREFIX } from './tunnelAgentHost.js';
 
 /** Connection status for a remote agent host. */
 export const enum RemoteAgentHostConnectionStatus {
@@ -64,7 +65,7 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 		case RemoteAgentHostEntryType.SSH:
 			return entry.connection.address;
 		case RemoteAgentHostEntryType.Tunnel:
-			return `tunnel:${entry.connection.tunnelId}`;
+			return `${TUNNEL_ADDRESS_PREFIX}${entry.connection.tunnelId}`;
 	}
 }
 

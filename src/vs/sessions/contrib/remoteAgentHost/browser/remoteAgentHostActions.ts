@@ -7,7 +7,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
-import { ITunnelAgentHostService, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -611,10 +611,10 @@ async function promptForTunnelFolder(
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-	const tunnelAddress = `tunnel:${tunnel.tunnelId}`;
+	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 
-	// The provider is created synchronously during addSSHConnection's
-	// onDidChangeConnections event, so it should exist by now.
+	// The provider is created by TunnelAgentHostContribution when the
+	// tunnel is cached (via onDidChangeTunnels / _reconcileProviders).
 	const provider = sessionsProvidersService.getProviders().find(p => p.remoteAddress === tunnelAddress);
 	if (!provider) {
 		return;

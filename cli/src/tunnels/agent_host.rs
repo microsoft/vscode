@@ -285,10 +285,9 @@ impl AgentHostManager {
 			let mut running = self_clone.running.lock().await;
 			if let Some(r) = &*running {
 				if r.commit == commit_prefix || r.commit.starts_with(&commit_prefix) {
-					// Only clear if it's still our server
+					*running = None;
 				}
 			}
-			*running = None;
 		});
 	}
 

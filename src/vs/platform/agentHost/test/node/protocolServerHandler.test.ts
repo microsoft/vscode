@@ -430,9 +430,10 @@ suite('ProtocolServerHandler', () => {
 
 		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
-		const resp = await responsePromise as { result?: Record<string, unknown> };
+		const resp = await responsePromise as { result?: Record<string, unknown>; error?: { code: number; message: string } };
 
-		assert.ok(resp?.result);
+		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
+		assert.deepStrictEqual(resp.result, {});
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {

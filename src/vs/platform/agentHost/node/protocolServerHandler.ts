@@ -15,6 +15,7 @@ import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
+	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
@@ -428,7 +429,7 @@ export class ProtocolServerHandler extends Disposable {
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);
 			if (!result.authenticated) {
-				throw new ProtocolError(-32602, 'Authentication failed for resource: ' + params.resource);
+				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
 			}
 			return {};
 		},

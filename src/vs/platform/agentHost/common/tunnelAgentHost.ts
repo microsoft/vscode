@@ -25,6 +25,9 @@ export const TUNNEL_AGENT_HOST_PORT = 31546;
 /** Label used to identify VS Code server launcher tunnels. */
 export const TUNNEL_LAUNCHER_LABEL = 'vscode-server-launcher';
 
+/** Address prefix for tunnel-backed connections (e.g. `tunnel:myTunnelId`). */
+export const TUNNEL_ADDRESS_PREFIX = 'tunnel:';
+
 /** Prefix for protocol version tags. */
 export const PROTOCOL_VERSION_TAG_PREFIX = 'protocolv';
 
@@ -82,6 +85,8 @@ export interface ITunnelInfo {
 	readonly tags: readonly string[];
 	/** Parsed protocol version from tags. */
 	readonly protocolVersion: number;
+	/** Number of hosts currently accepting connections (0 = offline). */
+	readonly hostConnectionCount: number;
 }
 
 /**
