@@ -624,10 +624,6 @@
 			}
 		}
 	}
-
-	&:not(:last-child) {
-		margin-bottom: 14px;
-	}
 }
 
 .interactive-item-container .value > .rendered-markdown li > p {
