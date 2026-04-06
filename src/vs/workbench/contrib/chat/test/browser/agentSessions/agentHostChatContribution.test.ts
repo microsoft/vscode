@@ -16,6 +16,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import type { IActionEnvelope, INotification, ISessionAction, IToolCallConfirmedAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -65,12 +66,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		return [...this._sessions.values()];
 	}
-
-	override async listAgents() {
-		return this.agents;
-	}
-
-	override async refreshModels(): Promise<void> { }
 
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		if (config) {
@@ -220,6 +215,8 @@ function createTestServices(disposables: DisposableStore) {
 function createContribution(disposables: DisposableStore) {
 	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
+	const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+	disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 		provider: 'copilot' as const,
@@ -229,6 +226,7 @@ function createContribution(disposables: DisposableStore) {
 		description: 'Copilot SDK agent running in a dedicated process',
 		connection: agentHostService,
 		connectionAuthority: 'local',
+		clientState,
 	}));
 	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
@@ -1446,6 +1444,8 @@ suite('AgentHostChatContribution', () => {
 		test('handler uses custom extensionId from config', async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
+			const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+			disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'remote-test-copilot',
@@ -1454,6 +1454,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'Remote agent',
 				connection: agentHostService,
 				connectionAuthority: 'local',
+				clientState,
 				extensionId: 'vscode.remote-agent-host',
 				extensionDisplayName: 'Remote Agent Host',
 			}));
@@ -1467,6 +1468,8 @@ suite('AgentHostChatContribution', () => {
 		test('handler defaults extensionId when not provided', async () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
+			const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+			disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'default-ext-test',
@@ -1475,6 +1478,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
+				clientState,
 			}));
 
 			const registered = chatAgentService.registeredAgents.get('default-ext-test');
@@ -1486,6 +1490,8 @@ suite('AgentHostChatContribution', () => {
 		test('handler uses resolveWorkingDirectory callback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
+			const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+			disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'workdir-test',
@@ -1494,6 +1500,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
+				clientState,
 				resolveWorkingDirectory: () => URI.file('/custom/working/dir'),
 			}));
 
@@ -1518,6 +1525,8 @@ suite('AgentHostChatContribution', () => {
 				path: '/file/-/home/user/project',
 			});
 
+			const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+			disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'workdir-agenthost-test',
@@ -1526,6 +1535,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'my-server',
+				clientState,
 				resolveWorkingDirectory: () => agentHostUri,
 			}));
 
@@ -1567,6 +1577,8 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 			// Create handler with agentHostService as IAgentConnection (not IAgentHostService)
+			const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+			disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'connection-test',
@@ -1575,6 +1587,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
+				clientState,
 			}));
 
 			// Verify it registered an agent
@@ -2163,6 +2176,8 @@ suite('AgentHostChatContribution', () => {
 				{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
 			]);
 
+			const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+			disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'agent-host-copilot',
@@ -2171,6 +2186,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
+				clientState,
 				customizations,
 			}));
 
@@ -2192,6 +2208,8 @@ suite('AgentHostChatContribution', () => {
 
 			const customizations = observableValue<ICustomizationRef[]>('customizations', []);
 
+			const clientState = disposables.add(new SessionClientState(agentHostService.clientId, new NullLogService(), () => agentHostService.nextClientSeq()));
+			disposables.add(agentHostService.onDidAction(e => clientState.receiveEnvelope(e)));
 			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
 				agentId: 'agent-host-copilot',
@@ -2200,6 +2218,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'test',
 				connection: agentHostService,
 				connectionAuthority: 'local',
+				clientState,
 				customizations,
 			}));
 
