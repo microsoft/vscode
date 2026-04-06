@@ -71,6 +71,7 @@ import '../platform/extensionResourceLoader/browser/extensionResourceLoaderServi
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../workbench/services/browserElements/browser/webBrowserElementsService.js';
 import '../workbench/services/power/browser/powerService.js';
+import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -90,8 +91,7 @@ import { UserDataAutoSyncService } from '../platform/userDataSync/common/userDat
 import { AccessibilityService } from '../platform/accessibility/browser/accessibilityService.js';
 import { ICustomEndpointTelemetryService } from '../platform/telemetry/common/telemetry.js';
 import { NullEndpointTelemetryService } from '../platform/telemetry/common/telemetryUtils.js';
-import { ITitleService } from '../workbench/services/title/browser/titleService.js';
-import { BrowserTitleService } from '../workbench/browser/parts/titlebar/titlebarPart.js';
+import './services/title/browser/titleService.js';
 import { ITimerService, TimerService } from '../workbench/services/timer/browser/timerService.js';
 import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnostics/common/diagnostics.js';
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
@@ -100,6 +100,7 @@ import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWeb
 import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryManifest.js';
 import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -111,7 +112,6 @@ registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, Insta
 registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncResourceProviderService, UserDataSyncResourceProviderService, InstantiationType.Delayed);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager);
-registerSingleton(ITitleService, BrowserTitleService, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);
@@ -120,6 +120,7 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, NullRemoteAgentHostService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -143,25 +144,6 @@ import '../workbench/contrib/issue/browser/issue.contribution.js';
 import '../workbench/contrib/splash/browser/splash.contribution.js';
 import '../workbench/contrib/remote/browser/remoteStartEntry.contribution.js';
 import '../workbench/contrib/processExplorer/browser/processExplorer.web.contribution.js';
-
-//#endregion
-
-
-//#region --- sessions contributions (same as desktop — these are all browser-safe)
-
-import './browser/paneCompositePartService.js';
-import './browser/layoutActions.js';
-
-import './contrib/accountMenu/browser/account.contribution.js';
-import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/sessions/browser/sessions.contribution.js';
-import './contrib/sessions/browser/customizationsToolbar.contribution.js';
-import './contrib/changes/browser/changesView.contribution.js';
-import './contrib/codeReview/browser/codeReview.contributions.js';
-import './contrib/github/browser/github.contribution.js';
-import './contrib/fileTreeView/browser/fileTreeView.contribution.js';
-import './contrib/configuration/browser/configuration.contribution.js';
-import './contrib/welcome/browser/welcome.contribution.js';
+import '../workbench/contrib/browserView/browser/browserView.contribution.js';
 
 //#endregion

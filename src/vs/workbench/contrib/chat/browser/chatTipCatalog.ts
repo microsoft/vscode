@@ -8,8 +8,10 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
@@ -374,6 +376,25 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
+		id: 'tip.autoAcceptDelay',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.autoAcceptDelay',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22chat.editing.autoAcceptDelay%22%5D \"Open Settings\") to automatically accept changes from the agent after a short countdown.",
+					'auto-accept delay'
+				)
+			);
+		},
+		when: ContextKeyExpr.or(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		),
+		excludeWhenSettingsChanged: ['chat.editing.autoAcceptDelay'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
+	},
+	{
 		id: 'tip.troubleshoot',
 		tier: ChatTipTier.Qol,
 		buildMessage(ctx) {
@@ -390,5 +411,24 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 		excludeWhenToolsInvoked: ['listDebugEvents'],
+	},
+	{
+		id: 'tip.openAgentsWindow',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.openAgentsWindow',
+					"Try the [Agents Application](command:workbench.action.openAgentsWindow \"Open Agents Application\") to run multiple agents simultaneously and manage your coding sessions."
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			ProductQualityContext.notEqualsTo('stable'),
+			IsSessionsWindowContext.negate(),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+		),
+		excludeWhenCommandsExecuted: ['workbench.action.openAgentsWindow'],
+		dismissWhenCommandsClicked: ['workbench.action.openAgentsWindow'],
 	},
 ];

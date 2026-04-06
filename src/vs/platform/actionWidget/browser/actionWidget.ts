@@ -174,9 +174,9 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
-			// Don't hide if focus moved to a hover that belongs to this action widget
+			// Don't hide if focus moved to a hover or submenu that belongs to this action widget
 			const activeElement = dom.getActiveElement();
-			if (activeElement?.closest('.action-widget-hover')) {
+			if (activeElement?.closest('.action-widget-hover') || activeElement?.closest('.action-list-submenu-panel')) {
 				return;
 			}
 			this.hide(true);

@@ -41,7 +41,7 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 	/** Returns all MCP server definitions known to the editor. */
 	readonly mcpServerDefinitions: readonly vscode.McpServerDefinition[];
 
-	/** Starts an MCP gateway that exposes MCP servers via an HTTP endpoint. */
+	/** Starts an MCP gateway that exposes MCP servers via HTTP endpoints. */
 	startMcpGateway(): Promise<vscode.McpGateway | undefined>;
 }
 
@@ -79,6 +79,12 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	private readonly _onDidChangeMcpServerDefinitions = this._register(new Emitter<void>());
 	readonly onDidChangeMcpServerDefinitions: Event<void> = this._onDidChangeMcpServerDefinitions.event;
 	private _mcpServerDefinitions: readonly vscode.McpServerDefinition[] = [];
+
+	// Active gateways with their server emitters for dynamic updates
+	private readonly _activeGateways = new Map<string, {
+		servers: vscode.McpGatewayServer[];
+		onDidChangeServers: Emitter<readonly vscode.McpGatewayServer[]>;
+	}>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -264,15 +270,40 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 			return undefined;
 		}
 
-		const address = URI.revive(result.address);
 		const gatewayId = result.gatewayId;
+		const servers: vscode.McpGatewayServer[] = result.servers.map(s => ({
+			label: s.label,
+			address: URI.revive(s.address),
+		}));
+		const onDidChangeServers = new Emitter<readonly vscode.McpGatewayServer[]>();
+
+		this._activeGateways.set(gatewayId, { servers, onDidChangeServers });
 
 		return {
-			address,
+			get servers() { return servers; },
+			onDidChangeServers: onDidChangeServers.event,
 			dispose: () => {
+				this._activeGateways.delete(gatewayId);
+				onDidChangeServers.dispose();
 				this._proxy.$disposeMcpGateway(gatewayId);
 			}
 		};
+	}
+
+	/** Called by main thread to notify that a gateway's server set has changed. */
+	$onDidChangeGatewayServers(gatewayId: string, newServers: { label: string; address: UriComponents }[]): void {
+		const gateway = this._activeGateways.get(gatewayId);
+		if (!gateway) {
+			return;
+		}
+
+		const servers: vscode.McpGatewayServer[] = newServers.map(s => ({
+			label: s.label,
+			address: URI.revive(s.address),
+		}));
+		gateway.servers.length = 0;
+		gateway.servers.push(...servers);
+		gateway.onDidChangeServers.fire(servers);
 	}
 }
 

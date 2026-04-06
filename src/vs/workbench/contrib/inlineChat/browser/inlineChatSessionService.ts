@@ -67,7 +67,7 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 	}
 }
 
-export async function askInPanelChat(accessor: ServicesAccessor, request: IChatRequestModel, state: IChatModelInputState | undefined) {
+export async function askInPanelChat(accessor: ServicesAccessor, request: IChatRequestModel, state: IChatModelInputState | undefined, fileContext?: { uri: URI; selection: Selection }) {
 
 	const widgetService = accessor.get(IChatWidgetService);
 	const chatService = accessor.get(IChatService);
@@ -88,6 +88,9 @@ export async function askInPanelChat(accessor: ServicesAccessor, request: IChatR
 	const widget = await widgetService.openSession(newModelRef.object.sessionResource);
 
 	newModelRef.dispose(); // can be freed after opening because the widget also holds a reference
+	if (widget && fileContext && !fileContext.selection.isEmpty()) {
+		await widget.attachmentModel.addFile(fileContext.uri, fileContext.selection);
+	}
 	widget?.acceptInput(request.message.text);
 }
 
@@ -97,7 +100,7 @@ export async function continueInPanelChat(accessor: ServicesAccessor, session: I
 		return;
 	}
 
-	await askInPanelChat(accessor, request, session.chatModel.inputModel.state.get());
+	await askInPanelChat(accessor, request, session.chatModel.inputModel.state.get(), { uri: session.uri, selection: session.initialSelection });
 	session.dispose();
 }
 

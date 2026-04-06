@@ -5,25 +5,31 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getCustomizationSecondaryText, truncateToFirstSentence } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
+import { getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suite('truncateToFirstSentence', () => {
-		test('keeps first sentence when within max chars', () => {
+	suite('truncateToFirstLine', () => {
+		test('keeps first line when text has multiple lines', () => {
 			assert.strictEqual(
-				truncateToFirstSentence('First sentence. Second sentence.'),
-				'First sentence.'
+				truncateToFirstLine('First line\nSecond line'),
+				'First line'
 			);
 		});
 
-		test('falls back to max chars when no sentence boundary is found', () => {
-			const longText = 'a'.repeat(140);
+		test('returns full text when no newline is present', () => {
 			assert.strictEqual(
-				truncateToFirstSentence(longText),
-				`${'a'.repeat(120)}\u2026`
+				truncateToFirstLine('No newline here. Even with sentences.'),
+				'No newline here. Even with sentences.'
+			);
+		});
+
+		test('handles carriage return line endings', () => {
+			assert.strictEqual(
+				truncateToFirstLine('First line\r\nSecond line'),
+				'First line'
 			);
 		});
 	});
@@ -36,10 +42,10 @@ suite('aiCustomizationListWidget', () => {
 			);
 		});
 
-		test('truncates non-hook descriptions to the first sentence', () => {
+		test('truncates non-hook descriptions to the first line', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText('Show the first sentence. Hide the rest.', 'prompt.md', PromptsType.prompt),
-				'Show the first sentence.'
+				getCustomizationSecondaryText('Show the first line.\nHide the rest.', 'prompt.md', PromptsType.prompt),
+				'Show the first line.'
 			);
 		});
 

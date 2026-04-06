@@ -360,7 +360,7 @@ export class TaskQuickPick extends Disposable {
 	public static getSettingEntry(configurationService: IConfigurationService, type: string): (ITaskTwoLevelQuickPickEntry & { settingType: string }) | undefined {
 		if (configurationService.getValue(`${type}.autoDetect`) === 'off') {
 			return {
-				label: nls.localize('TaskQuickPick.changeSettingsOptions', "$(gear) {0} task detection is turned off. Enable {1} task detection...",
+				label: '$(gear) ' + nls.localize('TaskQuickPick.changeSettingsOptions', "{0} task detection is turned off. Enable {1} task detection...",
 					type[0].toUpperCase() + type.slice(1), type),
 				task: null,
 				settingType: type,

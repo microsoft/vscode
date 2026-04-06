@@ -138,6 +138,14 @@ function fromLocalNormal(extensionPath: string): Stream {
 function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
+	const extensionName = path.basename(extensionPath);
+
+	// Extensions built with esbuild can still externalize runtime dependencies.
+	// Ensure those externals are included in the packaged built-in extension.
+	const packagedDependenciesByExtension: Record<string, string[]> = {
+		'git': ['@vscode/fs-copyfile']
+	};
+	const packagedDependencies = packagedDependenciesByExtension[extensionName] ?? [];
 
 	const esbuildScript = path.join(extensionPath, esbuildConfigFileName);
 
@@ -163,6 +171,25 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 		// After esbuild completes, collect all files using vsce
 		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
 	}).then(fileNames => {
+		if (packagedDependencies.length > 0) {
+			const packagedDependencyFileNames = packagedDependencies.flatMap(dependency =>
+				glob.sync(path.join(extensionPath, 'node_modules', dependency, '**'), { nodir: true, dot: true })
+					.map(filePath => path.relative(extensionPath, filePath))
+					.filter(filePath => {
+						// Exclude non-.node files from build directories to avoid timestamp-sensitive
+						// artifacts (e.g. Makefile) that break macOS universal builds due to SHA mismatches.
+						const parts = filePath.split(path.sep);
+						const buildIndex = parts.indexOf('build');
+						if (buildIndex !== -1) {
+							return filePath.endsWith('.node');
+						}
+						return true;
+					})
+			);
+
+			fileNames = Array.from(new Set([...fileNames, ...packagedDependencyFileNames]));
+		}
+
 		const files = fileNames
 			.map(fileName => path.join(extensionPath, fileName))
 			.map(filePath => new File({
@@ -175,6 +202,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 		es.readArray(files).pipe(result);
 	}).catch(err => {
 		console.error(extensionPath);
+		console.error(packagedDependencies);
 		result.emit('error', err);
 	});
 
@@ -269,6 +297,7 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
  * platform that is being built.
  */
 const nativeExtensions = [
+	'git',
 	'microsoft-authentication',
 ];
 

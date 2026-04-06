@@ -14,13 +14,29 @@ export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarke
 		return '';
 	}
 	const buffer = instance.xterm.raw.buffer.active;
-	const startLine = Math.max(startMarker?.line ?? 0, 0);
+	let startLine = Math.max(startMarker?.line ?? 0, 0);
+	while (startLine > 0 && buffer.getLine(startLine)?.isWrapped) {
+		startLine--;
+	}
 	const endLine = buffer.length;
-	const lines: string[] = new Array(endLine - startLine);
+	const lines: string[] = [];
+	let currentLine = '';
 
 	for (let y = startLine; y < endLine; y++) {
 		const line = buffer.getLine(y);
-		lines[y - startLine] = line ? line.translateToString(true) : '';
+		if (!line) {
+			continue;
+		}
+		// NOTE: xterm stores wrapping state on the *next* line, not the current one.
+		const isWrapped = !!buffer.getLine(y + 1)?.isWrapped;
+		currentLine += line.translateToString(!isWrapped);
+		if (!isWrapped) {
+			lines.push(currentLine);
+			currentLine = '';
+		}
+	}
+	if (currentLine) {
+		lines.push(currentLine);
 	}
 
 	let output = lines.join('\n');

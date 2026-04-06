@@ -261,7 +261,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 		this.logService.trace('Downloading extension from', vsix.toString());
 		const location = joinPath(this.extensionsDownloader.extensionsDownloadDir, generateUuid());
-		await this.downloadService.download(vsix, location);
+		await this.downloadService.download(vsix, location, 'extensionManagement.downloadVsix');
 		this.logService.info('Downloaded extension to', location.toString());
 		const cleanup = async () => {
 			try {

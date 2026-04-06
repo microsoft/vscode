@@ -12,12 +12,14 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
@@ -28,7 +30,9 @@ import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsConfigurationService, SessionsConfigurationService } from './sessionsConfigurationService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
+import { SessionsCustomizationHarnessService } from './customizationHarnessService.js';
 import { ChatViewContainerId, ChatViewId } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
@@ -37,7 +41,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -51,13 +55,16 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 10,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext),
+				order: 9,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			}]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const telemetryService = accessor.get(ITelemetryService);
+		logSessionsInteraction(telemetryService, 'openInVSCode');
+
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
@@ -67,7 +74,9 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			return;
 		}
 
-		const folderUri = activeSession.providerType === AgentSessionProviders.Background ? activeSession?.worktree ?? activeSession?.repository : undefined;
+		const workspace = activeSession.workspace.get();
+		const repo = workspace?.repositories[0];
+		const folderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
 
 		if (!folderUri) {
 			return;
@@ -195,3 +204,4 @@ registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, 
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
 registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
+registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);

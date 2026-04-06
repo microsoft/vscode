@@ -53,7 +53,7 @@ cfg-if = "1.0.0"
 pin-project = "1.1.0"
 console = "0.15.7"
 bytes = "1.11.1"
-tar = "0.4.38"
+tar = "0.4.45"
 
 [build-dependencies]
 serde = { version="1.0.163", features = ["derive"] }

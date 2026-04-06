@@ -81,3 +81,122 @@ export function getDisplayNameFromOuterHTML(outerHTML: string): string {
 	const className = classMatch ? `.${classMatch[1].replace(/\s+/g, '.')}` : '';
 	return `${tagName}${id}${className}`;
 }
+
+/**
+ * Format an array of element ancestors into a CSS-selector-like path string.
+ */
+export function formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
+	if (!ancestors || ancestors.length === 0) {
+		return undefined;
+	}
+
+	return ancestors
+		.map(ancestor => {
+			const classes = ancestor.classNames?.length ? `.${ancestor.classNames.join('.')}` : '';
+			const id = ancestor.id ? `#${ancestor.id}` : '';
+			return `${ancestor.tagName}${id}${classes}`;
+		})
+		.join(' > ');
+}
+
+/**
+ * Collapse margin-top/right/bottom/left or padding-top/right/bottom/left
+ * into a single shorthand value, removing the individual entries from the map.
+ */
+function createBoxShorthand(entries: Map<string, string>, propertyName: 'margin' | 'padding'): string | undefined {
+	const topKey = `${propertyName}-top`;
+	const rightKey = `${propertyName}-right`;
+	const bottomKey = `${propertyName}-bottom`;
+	const leftKey = `${propertyName}-left`;
+
+	const top = entries.get(topKey);
+	const right = entries.get(rightKey);
+	const bottom = entries.get(bottomKey);
+	const left = entries.get(leftKey);
+
+	if (top === undefined || right === undefined || bottom === undefined || left === undefined) {
+		return undefined;
+	}
+
+	entries.delete(topKey);
+	entries.delete(rightKey);
+	entries.delete(bottomKey);
+	entries.delete(leftKey);
+
+	return `${top} ${right} ${bottom} ${left}`;
+}
+
+/**
+ * Format a key-value record into a markdown-style list,
+ * collapsing margin/padding into shorthand values.
+ */
+export function formatElementMap(entries: Readonly<Record<string, string>> | undefined): string | undefined {
+	if (!entries || Object.keys(entries).length === 0) {
+		return undefined;
+	}
+
+	const normalizedEntries = new Map(Object.entries(entries));
+	const lines: string[] = [];
+
+	const marginShorthand = createBoxShorthand(normalizedEntries, 'margin');
+	if (marginShorthand) {
+		lines.push(`- margin: ${marginShorthand}`);
+	}
+
+	const paddingShorthand = createBoxShorthand(normalizedEntries, 'padding');
+	if (paddingShorthand) {
+		lines.push(`- padding: ${paddingShorthand}`);
+	}
+
+	for (const [name, value] of Array.from(normalizedEntries.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+		lines.push(`- ${name}: ${value}`);
+	}
+
+	return lines.join('\n');
+}
+
+/**
+ * Build a structured text representation of element data for use as chat context.
+ */
+export function createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean): string {
+	const sections: string[] = [];
+	sections.push('Attached Element Context from Integrated Browser');
+	sections.push(`Element: ${displayName}`);
+
+	const htmlPath = formatElementPath(elementData.ancestors);
+	if (htmlPath) {
+		sections.push(`HTML Path:\n${htmlPath}`);
+	}
+
+	const attributeTable = formatElementMap(elementData.attributes);
+	if (attributeTable) {
+		sections.push(`Attributes:\n${attributeTable}`);
+	}
+
+	if (attachCss) {
+		const computedStyleTable = formatElementMap(elementData.computedStyles);
+		if (computedStyleTable) {
+			sections.push(`Computed Styles:\n${computedStyleTable}`);
+		}
+	}
+
+	if (elementData.dimensions) {
+		const { top, left, width, height } = elementData.dimensions;
+		sections.push(
+			`Dimensions:\n- top: ${Math.round(top)}px\n- left: ${Math.round(left)}px\n- width: ${Math.round(width)}px\n- height: ${Math.round(height)}px`
+		);
+	}
+
+	const innerText = elementData.innerText?.trim();
+	if (innerText) {
+		sections.push(`Inner Text:\n\`\`\`text\n${innerText}\n\`\`\``);
+	}
+
+	sections.push(`Outer HTML:\n\`\`\`html\n${elementData.outerHTML}\n\`\`\``);
+
+	if (attachCss) {
+		sections.push(`Full Computed CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
+	}
+
+	return sections.join('\n\n');
+}

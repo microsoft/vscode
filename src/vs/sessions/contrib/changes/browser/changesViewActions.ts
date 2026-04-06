@@ -5,20 +5,15 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableFromEvent } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { hasValidDiff } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CHANGES_VIEW_ID } from './changesView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-
-import { activeSessionHasChangesContextKey } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID } from '../common/changes.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -50,21 +45,17 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
-		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
 		// Bind context key: true when the active session has changes
-		const sessionsChanged = observableFromEvent(this, agentSessionsService.model.onDidChangeSessions, () => { });
-		this._register(bindContextKey(activeSessionHasChangesContextKey, contextKeyService, reader => {
-			sessionManagementService.activeSession.read(reader);
-			sessionsChanged.read(reader);
-			const activeSession = sessionManagementService.getActiveSession();
+		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
+			const activeSession = sessionManagementService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
-			const agentSession = agentSessionsService.getSession(activeSession.resource);
-			return !!agentSession?.changes && hasValidDiff(agentSession.changes);
+			const changes = activeSession.changes.read(reader);
+			return changes.length > 0;
 		}));
 	}
 }

@@ -95,7 +95,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-arm64', ['linux', 'arm64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-arm64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
 		}
@@ -104,7 +104,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-armhf', ['linux', 'arm32', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-armhf');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
 		}
@@ -113,7 +113,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-x64', ['linux', 'x64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-x64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
 			await context.uninstallDeb();
 		}

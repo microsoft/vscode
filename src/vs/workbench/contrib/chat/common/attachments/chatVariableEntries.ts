@@ -56,7 +56,14 @@ export const enum OmittedState {
 	NotOmitted,
 	Partial,
 	Full,
+	ImageLimitExceeded,
 }
+
+/**
+ * The maximum number of images allowed per request.
+ * Claude has an upstream limit where more than 20 images causes issues.
+ */
+export const MAX_IMAGES_PER_REQUEST = 20;
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';
@@ -306,6 +313,9 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly resourceUri: URI;
 		readonly range: IRange;
 		readonly codeSelection?: string;
+		readonly diffHunks?: string;
+		/** When this item was converted from a PR review comment, the original thread ID. */
+		readonly sourcePRReviewCommentId?: string;
 	}>;
 }
 
@@ -317,6 +327,11 @@ export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVa
 	readonly sessionResource: URI;
 }
 
+export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'sessionReference';
+	readonly value: URI;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -324,7 +339,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 

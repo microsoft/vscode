@@ -48,7 +48,9 @@ steps:
         libxkbfile-dev \
         libkrb5-dev \
         libgbm1 \
-        rpm
+        rpm \
+        bubblewrap \
+        socat
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults

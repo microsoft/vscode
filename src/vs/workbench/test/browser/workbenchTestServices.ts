@@ -16,6 +16,7 @@ import { isValidBasename } from '../../../base/common/extpath.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { observableValue } from '../../../base/common/observable.js';
 import { posix, win32 } from '../../../base/common/path.js';
 import { IProcessEnvironment, isWindows, OperatingSystem } from '../../../base/common/platform.js';
 import { env } from '../../../base/common/process.js';
@@ -90,7 +91,7 @@ import { TestNotificationService } from '../../../platform/notification/test/com
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressIndicator, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions, Progress } from '../../../platform/progress/common/progress.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
@@ -1922,6 +1923,7 @@ export class TestQuickInputService implements IQuickInputService {
 	readonly onShow = Event.None;
 	readonly onHide = Event.None;
 
+	readonly alignment = observableValue('TestQuickInputService.alignment', 'top' as QuickInputAlignment);
 	readonly currentQuickInput = undefined;
 	readonly quickAccess = undefined!;
 	backButton!: IQuickInputButton;

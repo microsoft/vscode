@@ -23,6 +23,7 @@ import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitori
 import { Event } from '../../../../../base/common/event.js';
 import { IReconnectionTaskData } from '../../../tasks/browser/terminalTaskSystem.js';
 import { isString } from '../../../../../base/common/types.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 
 export function getTaskDefinition(id: string) {
@@ -180,7 +181,8 @@ export async function collectTerminalResults(
 	disposableStore: DisposableStore,
 	isActive?: (task: Task) => Promise<boolean>,
 	dependencyTasks?: Task[],
-	taskService?: ITaskService
+	taskService?: ITaskService,
+	startMarkersByTerminalInstanceId?: Map<number, IXtermMarker | undefined>
 ): Promise<Array<{
 	name: string;
 	output: string;
@@ -214,6 +216,9 @@ export async function collectTerminalResults(
 	progress.report({ message: new MarkdownString(`Checking output for ${terminalNames.map(n => `\`${n}\``).join(', ')}`) });
 
 	const terminalPromises = terminals.map(async (instance) => {
+		const startMarker = startMarkersByTerminalInstanceId
+			? startMarkersByTerminalInstanceId.get(instance.instanceId)
+			: instance.registerMarker();
 		let terminalTask = task;
 
 		// For composite tasks, find the actual dependency task running in this terminal
@@ -237,7 +242,7 @@ export async function collectTerminalResults(
 		}
 
 		const execution: IExecution = {
-			getOutput: () => getOutput(instance) ?? '',
+			getOutput: (marker) => getOutput(instance, marker ?? startMarker) ?? '',
 			task: terminalTask,
 			isActive: isActive ? () => isActive(terminalTask) : undefined,
 			instance,
@@ -258,32 +263,47 @@ export async function collectTerminalResults(
 			}
 		}
 
-		const hasProblemMatchers = terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0;
-		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, hasProblemMatchers ? taskProblemPollFn : undefined, invocationContext, token, task._label));
-		await Promise.race([
-			Event.toPromise(outputMonitor.onDidFinishCommand),
-			Event.toPromise(token.onCancellationRequested as Event<unknown>)
-		]);
-		const pollingResult = outputMonitor.pollingResult;
-		return {
-			name: instance.shellLaunchConfig.name ?? instance.title ?? 'unknown',
-			output: pollingResult?.output ?? '',
-			pollDurationMs: pollingResult?.pollDurationMs ?? 0,
-			resources: pollingResult?.resources,
-			state: pollingResult?.state || OutputMonitorState.Idle,
-			inputToolManualAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualAcceptCount ?? 0,
-			inputToolManualRejectCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualRejectCount ?? 0,
-			inputToolManualChars: outputMonitor.outputMonitorTelemetryCounters.inputToolManualChars ?? 0,
-			inputToolAutoAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoAcceptCount ?? 0,
-			inputToolAutoChars: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoChars ?? 0,
-			inputToolManualShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualShownCount ?? 0,
-			inputToolFreeFormInputShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount ?? 0,
-			inputToolFreeFormInputCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputCount ?? 0,
-		};
+		try {
+			const hasProblemMatchers = terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0;
+			const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, hasProblemMatchers ? taskProblemPollFn : undefined, invocationContext, token, task._label));
+			await Promise.race([
+				Event.toPromise(outputMonitor.onDidFinishCommand),
+				Event.toPromise(token.onCancellationRequested as Event<unknown>)
+			]);
+			const pollingResult = outputMonitor.pollingResult;
+			return {
+				name: instance.shellLaunchConfig.name ?? instance.title ?? 'unknown',
+				output: pollingResult?.output ?? '',
+				pollDurationMs: pollingResult?.pollDurationMs ?? 0,
+				resources: pollingResult?.resources,
+				state: pollingResult?.state || OutputMonitorState.Idle,
+				inputToolManualAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualAcceptCount ?? 0,
+				inputToolManualRejectCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualRejectCount ?? 0,
+				inputToolManualChars: outputMonitor.outputMonitorTelemetryCounters.inputToolManualChars ?? 0,
+				inputToolAutoAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoAcceptCount ?? 0,
+				inputToolAutoChars: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoChars ?? 0,
+				inputToolManualShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualShownCount ?? 0,
+				inputToolFreeFormInputShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount ?? 0,
+				inputToolFreeFormInputCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputCount ?? 0,
+			};
+		} finally {
+			startMarker?.dispose();
+		}
 	});
 
 	const parallelResults = await Promise.all(terminalPromises);
 	results.push(...parallelResults);
+
+	if (startMarkersByTerminalInstanceId) {
+		const activeInstanceIds = new Set(terminals.map(instance => instance.instanceId));
+		for (const [instanceId, marker] of startMarkersByTerminalInstanceId) {
+			if (!activeInstanceIds.has(instanceId)) {
+				marker?.dispose();
+				startMarkersByTerminalInstanceId.delete(instanceId);
+			}
+		}
+	}
+
 	return results;
 }
 

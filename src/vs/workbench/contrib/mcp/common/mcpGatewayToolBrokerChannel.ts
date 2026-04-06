@@ -9,27 +9,31 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGatewayCallToolResult, IGatewayServerResources, IGatewayServerResourceTemplates } from '../../../../platform/mcp/common/mcpGateway.js';
+import { IMcpGatewayServerDescriptor } from '../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../../../platform/mcp/common/modelContextProtocol.js';
 import { McpServer } from './mcpServer.js';
 import { IMcpServer, IMcpService, McpCapability, McpServerCacheState, McpToolVisibility } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
 
-interface ICallToolArgs {
+interface ICallToolForServerArgs {
+	serverId: string;
 	name: string;
 	args: Record<string, unknown>;
 }
 
-interface IReadResourceArgs {
-	serverIndex: number;
+interface IReadResourceForServerArgs {
+	serverId: string;
 	uri: string;
+}
+
+interface IServerIdArg {
+	serverId: string;
 }
 
 export class McpGatewayToolBrokerChannel extends Disposable implements IServerChannel<unknown> {
 	private readonly _onDidChangeTools = this._register(new Emitter<void>());
 	private readonly _onDidChangeResources = this._register(new Emitter<void>());
-	private readonly _serverIdMap = new Map<string, number>();
-	private _nextServerIndex = 0;
+	private readonly _onDidChangeServers = this._register(new Emitter<readonly IMcpGatewayServerDescriptor[]>());
 
 	/**
 	 * Per-server promise that races server startup against the grace period timeout.
@@ -78,21 +82,23 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 				resourcesInitialized = true;
 			}
 		}));
+
+		let serversInitialized = false;
+		this._register(autorun(reader => {
+			const servers = this._mcpService.servers.read(reader);
+
+			if (serversInitialized) {
+				this._logService.debug('[McpGateway][ToolBroker] Servers changed, firing onDidChangeServers');
+				this._onDidChangeServers.fire(servers.map(s => ({ id: s.definition.id, label: s.definition.label })));
+			} else {
+				serversInitialized = true;
+			}
+		}));
 	}
 
-	private _getServerIndex(server: IMcpServer): number {
-		const defId = server.definition.id;
-		let index = this._serverIdMap.get(defId);
-		if (index === undefined) {
-			index = this._nextServerIndex++;
-			this._serverIdMap.set(defId, index);
-		}
-		return index;
-	}
-
-	private _getServerByIndex(serverIndex: number): IMcpServer | undefined {
+	private _getServerById(serverId: string): IMcpServer | undefined {
 		for (const server of this._mcpService.servers.get()) {
-			if (this._getServerIndex(server) === serverIndex) {
+			if (server.definition.id === serverId) {
 				return server;
 			}
 		}
@@ -128,10 +134,6 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	private async _shouldUseCachedData(server: IMcpServer): Promise<boolean> {
 		const cacheState = server.cacheState.get();
 		if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
-			// On first list call: wait up to the grace period for the server to start.
-			// On subsequent calls: the stored promise is already resolved, returns immediately.
-			// Outdated servers get the same grace period as Unknown — a prior fast startup
-			// does not guarantee a fast restart.
 			await this._waitForStartup(server);
 			const newState = server.cacheState.get();
 			return newState === McpServerCacheState.Live
@@ -149,6 +151,8 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 				return this._onDidChangeTools.event as Event<T>;
 			case 'onDidChangeResources':
 				return this._onDidChangeResources.event as Event<T>;
+			case 'onDidChangeServers':
+				return this._onDidChangeServers.event as Event<T>;
 		}
 
 		throw new Error(`Invalid listen: ${event}`);
@@ -158,26 +162,33 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		this._logService.debug(`[McpGateway][ToolBroker] IPC call: ${command}`);
 
 		switch (command) {
-			case 'listTools': {
-				const tools = await this._listTools();
+			case 'listServers': {
+				const servers = this._listServers();
+				return servers as T;
+			}
+			case 'listToolsForServer': {
+				const { serverId } = arg as IServerIdArg;
+				const tools = await this._listToolsForServer(serverId);
 				return tools as T;
 			}
-			case 'callTool': {
-				const { name, args } = arg as ICallToolArgs;
-				const result = await this._callTool(name, args || {}, cancellationToken);
+			case 'callToolForServer': {
+				const { serverId, name, args } = arg as ICallToolForServerArgs;
+				const result = await this._callToolForServer(serverId, name, args || {}, cancellationToken);
 				return result as T;
 			}
-			case 'listResources': {
-				const resources = await this._listResources();
+			case 'listResourcesForServer': {
+				const { serverId } = arg as IServerIdArg;
+				const resources = await this._listResourcesForServer(serverId);
 				return resources as T;
 			}
-			case 'readResource': {
-				const { serverIndex, uri } = arg as IReadResourceArgs;
-				const result = await this._readResource(serverIndex, uri, cancellationToken);
+			case 'readResourceForServer': {
+				const { serverId, uri } = arg as IReadResourceForServerArgs;
+				const result = await this._readResourceForServer(serverId, uri, cancellationToken);
 				return result as T;
 			}
-			case 'listResourceTemplates': {
-				const templates = await this._listResourceTemplates();
+			case 'listResourceTemplatesForServer': {
+				const { serverId } = arg as IServerIdArg;
+				const templates = await this._listResourceTemplatesForServer(serverId);
 				return templates as T;
 			}
 		}
@@ -185,112 +196,114 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		throw new Error(`Invalid call: ${command}`);
 	}
 
-	private async _listTools(): Promise<readonly MCP.Tool[]> {
+	private _listServers(): readonly IMcpGatewayServerDescriptor[] {
 		const servers = this._mcpService.servers.get();
-		const perServer = await Promise.all(servers.map(async server => {
-			if (!await this._shouldUseCachedData(server)) {
-				this._logService.debug(`[McpGateway][ToolBroker] Server '${server.definition.id}' not ready, skipping tool listing`);
-				return [] as MCP.Tool[];
-			}
-			return server.tools.get()
-				.filter(t => t.visibility & McpToolVisibility.Model)
-				.map(t => t.definition);
-		}));
-
-		const mcpTools = perServer.flat();
-		this._logService.debug(`[McpGateway][ToolBroker] listTools result: ${mcpTools.length} tool(s): [${mcpTools.map(t => t.name).join(', ')}]`);
-
-		return mcpTools;
-	}
-
-	private async _callTool(name: string, args: Record<string, unknown>, token: CancellationToken = CancellationToken.None): Promise<IGatewayCallToolResult> {
-		this._logService.debug(`[McpGateway][ToolBroker] callTool '${name}' with args: ${JSON.stringify(args)}`);
-
-		for (const server of this._mcpService.servers.get()) {
-			const tool = server.tools.get().find(t =>
-				t.definition.name === name && (t.visibility & McpToolVisibility.Model)
-			);
-
-			if (tool) {
-				this._logService.debug(`[McpGateway][ToolBroker] Found tool '${name}' on server '${server.definition.id}' (index=${this._getServerIndex(server)})`);
-				const result = await tool.call(args, undefined, token);
-				this._logService.debug(`[McpGateway][ToolBroker] Tool '${name}' completed (isError=${result.isError ?? false}, content blocks=${result.content.length})`);
-				return { result, serverIndex: this._getServerIndex(server) };
-			}
+		const result: IMcpGatewayServerDescriptor[] = [];
+		for (const server of servers) {
+			result.push({ id: server.definition.id, label: server.definition.label });
 		}
-
-		this._logService.warn(`[McpGateway][ToolBroker] Tool '${name}' not found on any server`);
-		throw new Error(`Unknown tool: ${name}`);
-	}
-
-	private async _listResources(): Promise<readonly IGatewayServerResources[]> {
-		const results: IGatewayServerResources[] = [];
-		const servers = this._mcpService.servers.get();
-		this._logService.debug(`[McpGateway][ToolBroker] listResources: ${servers.length} server(s) known`);
-
-		await Promise.all(servers.map(async server => {
-			if (!await this._shouldUseCachedData(server)) {
-				return;
-			}
-
-			const capabilities = server.capabilities.get();
-			if (!capabilities || !(capabilities & McpCapability.Resources)) {
-				this._logService.debug(`[McpGateway][ToolBroker] Server '${server.definition.id}' has no resource capability, skipping`);
-				return;
-			}
-
-			try {
-				const resources = await McpServer.callOn(server, h => h.listResources());
-				this._logService.debug(`[McpGateway][ToolBroker] Server '${server.definition.id}' (index=${this._getServerIndex(server)}) listed ${resources.length} resource(s)`);
-				results.push({ serverIndex: this._getServerIndex(server), resources });
-			} catch (error) {
-				this._logService.warn(`[McpGateway][ToolBroker] Server '${server.definition.id}' failed to list resources`, error);
-			}
-		}));
-
-		this._logService.debug(`[McpGateway][ToolBroker] listResources result: ${results.length} server(s) with resources`);
-		return results;
-	}
-
-	private async _readResource(serverIndex: number, uri: string, token: CancellationToken = CancellationToken.None): Promise<MCP.ReadResourceResult> {
-		const server = this._getServerByIndex(serverIndex);
-		if (!server) {
-			this._logService.warn(`[McpGateway][ToolBroker] readResource: unknown server index ${serverIndex}`);
-			throw new Error(`Unknown server index: ${serverIndex}`);
-		}
-
-		this._logService.debug(`[McpGateway][ToolBroker] readResource '${uri}' from server '${server.definition.id}' (index=${serverIndex})`);
-		const result = await McpServer.callOn(server, h => h.readResource({ uri }, token), token);
-		this._logService.debug(`[McpGateway][ToolBroker] readResource returned ${result.contents.length} content(s)`);
+		this._logService.debug(`[McpGateway][ToolBroker] listServers result: ${result.length} server(s): [${result.map(s => s.label).join(', ')}]`);
 		return result;
 	}
 
-	private async _listResourceTemplates(): Promise<readonly IGatewayServerResourceTemplates[]> {
-		const results: IGatewayServerResourceTemplates[] = [];
-		const servers = this._mcpService.servers.get();
-		this._logService.debug(`[McpGateway][ToolBroker] listResourceTemplates: ${servers.length} server(s) known`);
+	private async _listToolsForServer(serverId: string): Promise<readonly MCP.Tool[]> {
+		const server = this._getServerById(serverId);
+		if (!server) {
+			this._logService.warn(`[McpGateway][ToolBroker] listToolsForServer: unknown server '${serverId}'`);
+			return [];
+		}
+		if (!await this._shouldUseCachedData(server)) {
+			this._logService.debug(`[McpGateway][ToolBroker] Server '${serverId}' not ready, skipping tool listing`);
+			return [];
+		}
+		const tools = server.tools.get()
+			.filter(t => t.visibility & McpToolVisibility.Model)
+			.map(t => t.definition);
+		this._logService.debug(`[McpGateway][ToolBroker] listToolsForServer '${serverId}': ${tools.length} tool(s)`);
+		return tools;
+	}
 
-		await Promise.all(servers.map(async server => {
-			if (!await this._shouldUseCachedData(server)) {
-				return;
-			}
+	private async _callToolForServer(serverId: string, name: string, args: Record<string, unknown>, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
+		this._logService.debug(`[McpGateway][ToolBroker] callToolForServer '${serverId}' tool '${name}' with args: ${JSON.stringify(args)}`);
 
-			const capabilities = server.capabilities.get();
-			if (!capabilities || !(capabilities & McpCapability.Resources)) {
-				return;
-			}
+		const server = this._getServerById(serverId);
+		if (!server) {
+			throw new Error(`Unknown server: ${serverId}`);
+		}
 
-			try {
-				const resourceTemplates = await McpServer.callOn(server, h => h.listResourceTemplates());
-				this._logService.debug(`[McpGateway][ToolBroker] Server '${server.definition.id}' (index=${this._getServerIndex(server)}) listed ${resourceTemplates.length} resource template(s)`);
-				results.push({ serverIndex: this._getServerIndex(server), resourceTemplates });
-			} catch (error) {
-				this._logService.warn(`[McpGateway][ToolBroker] Server '${server.definition.id}' failed to list resource templates`, error);
-			}
-		}));
+		const tool = server.tools.get().find(t =>
+			t.definition.name === name && (t.visibility & McpToolVisibility.Model)
+		);
+		if (!tool) {
+			throw new Error(`Unknown tool '${name}' on server '${serverId}'`);
+		}
 
-		this._logService.debug(`[McpGateway][ToolBroker] listResourceTemplates result: ${results.length} server(s) with templates`);
-		return results;
+		const result = await tool.call(args, undefined, token);
+		this._logService.debug(`[McpGateway][ToolBroker] Tool '${name}' on '${serverId}' completed (isError=${result.isError ?? false}, content blocks=${result.content.length})`);
+		return result;
+	}
+
+	private async _listResourcesForServer(serverId: string): Promise<readonly MCP.Resource[]> {
+		const server = this._getServerById(serverId);
+		if (!server) {
+			this._logService.warn(`[McpGateway][ToolBroker] listResourcesForServer: unknown server '${serverId}'`);
+			return [];
+		}
+		if (!await this._shouldUseCachedData(server)) {
+			return [];
+		}
+
+		const capabilities = server.capabilities.get();
+		if (!capabilities || !(capabilities & McpCapability.Resources)) {
+			this._logService.debug(`[McpGateway][ToolBroker] Server '${serverId}' has no resource capability`);
+			return [];
+		}
+
+		try {
+			const resources = await McpServer.callOn(server, h => h.listResources());
+			this._logService.debug(`[McpGateway][ToolBroker] Server '${serverId}' listed ${resources.length} resource(s)`);
+			return resources;
+		} catch (error) {
+			this._logService.warn(`[McpGateway][ToolBroker] Server '${serverId}' failed to list resources`, error);
+			return [];
+		}
+	}
+
+	private async _readResourceForServer(serverId: string, uri: string, token: CancellationToken = CancellationToken.None): Promise<MCP.ReadResourceResult> {
+		const server = this._getServerById(serverId);
+		if (!server) {
+			throw new Error(`Unknown server: ${serverId}`);
+		}
+
+		this._logService.debug(`[McpGateway][ToolBroker] readResourceForServer '${uri}' from server '${serverId}'`);
+		const result = await McpServer.callOn(server, h => h.readResource({ uri }, token), token);
+		this._logService.debug(`[McpGateway][ToolBroker] readResourceForServer returned ${result.contents.length} content(s)`);
+		return result;
+	}
+
+	private async _listResourceTemplatesForServer(serverId: string): Promise<readonly MCP.ResourceTemplate[]> {
+		const server = this._getServerById(serverId);
+		if (!server) {
+			this._logService.warn(`[McpGateway][ToolBroker] listResourceTemplatesForServer: unknown server '${serverId}'`);
+			return [];
+		}
+		if (!await this._shouldUseCachedData(server)) {
+			return [];
+		}
+
+		const capabilities = server.capabilities.get();
+		if (!capabilities || !(capabilities & McpCapability.Resources)) {
+			return [];
+		}
+
+		try {
+			const resourceTemplates = await McpServer.callOn(server, h => h.listResourceTemplates());
+			this._logService.debug(`[McpGateway][ToolBroker] Server '${serverId}' listed ${resourceTemplates.length} resource template(s)`);
+			return resourceTemplates;
+		} catch (error) {
+			this._logService.warn(`[McpGateway][ToolBroker] Server '${serverId}' failed to list resource templates`, error);
+			return [];
+		}
 	}
 
 	private async _ensureServerReady(server: IMcpServer): Promise<boolean> {

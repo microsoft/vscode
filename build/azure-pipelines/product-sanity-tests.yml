@@ -15,7 +15,6 @@ parameters:
   - name: buildCommit
     displayName: Published Build Commit
     type: string
-    default: ''
 
   - name: npmRegistry
     displayName: Custom NPM Registry URL
@@ -28,17 +27,9 @@ variables:
   - name: Codeql.SkipTaskAutoInjection
     value: true
   - name: BUILD_COMMIT
-    ${{ if ne(parameters.buildCommit, '') }}:
-      value: ${{ parameters.buildCommit }}
-    ${{ else }}:
-      value: $(resources.pipeline.vscode.sourceCommit)
+    value: ${{ parameters.buildCommit }}
   - name: BUILD_QUALITY
-    ${{ if ne(parameters.buildCommit, '') }}:
-      value: ${{ parameters.buildQuality }}
-    ${{ elseif startsWith(variables['Build.SourceBranch'], 'refs/heads/release/') }}:
-      value: stable
-    ${{ else }}:
-      value: insider
+    value: ${{ parameters.buildQuality }}
   - name: NPM_REGISTRY
     value: ${{ parameters.npmRegistry }}
 
@@ -50,17 +41,6 @@ resources:
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
       ref: refs/tags/release
-  pipelines:
-    - pipeline: vscode
-      # allow-any-unicode-next-line
-      source: '⭐️ VS Code'
-      trigger:
-        stages:
-          - Publish
-        branches:
-          include:
-            - main
-            - release/*
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines

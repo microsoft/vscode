@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IUntypedEditorInput } from '../../../common/editor.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IImageCarouselCollection } from './imageCarouselTypes.js';
@@ -13,6 +13,11 @@ export class ImageCarouselEditorInput extends EditorInput {
 	static readonly ID = 'workbench.input.imageCarousel';
 
 	private _resource: URI;
+	private _name: string;
+
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
+	}
 
 	constructor(
 		public readonly collection: IImageCarouselCollection,
@@ -23,6 +28,7 @@ export class ImageCarouselEditorInput extends EditorInput {
 			scheme: Schemas.vscodeImageCarousel,
 			path: `/${encodeURIComponent(collection.id)}`,
 		});
+		this._name = collection.title;
 	}
 
 	get typeId(): string {
@@ -34,7 +40,14 @@ export class ImageCarouselEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return this.collection.title;
+		return this._name;
+	}
+
+	setName(name: string): void {
+		if (this._name !== name) {
+			this._name = name;
+			this._onDidChangeLabel.fire();
+		}
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {

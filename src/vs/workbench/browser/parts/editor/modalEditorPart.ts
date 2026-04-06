@@ -6,8 +6,11 @@
 import './media/modalEditorPart.css';
 import { $, addDisposableListener, append, Dimension, EventHelper, EventType, hide, IDimension, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionBar, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Action } from '../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
@@ -25,16 +28,17 @@ import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
+import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID } from './editorCommands.js';
-import { IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
+import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
+import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar } from '../../../../platform/editor/common/editor.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
@@ -44,6 +48,10 @@ const MODAL_BORDER_SIZE = 2; // 1px border on each side
 const MODAL_HEADER_HEIGHT = 33; // 32px header + 1px border bottom
 const MODAL_SNAP_THRESHOLD = 20;
 const MODAL_MAXIMIZED_PADDING = 16;
+const MODAL_SIDEBAR_MIN_WIDTH = 160;
+const MODAL_SIDEBAR_DEFAULT_WIDTH = 260;
+const MODAL_SIDEBAR_PADDING = 8; // matches CSS padding on sidebar container
+const MODAL_SIDEBAR_BORDER_RIGHT = 1; // matches CSS border-right on sidebar container
 
 const defaultModalEditorAllowableCommands = new Set([
 
@@ -101,6 +109,7 @@ const defaultModalEditorAllowableCommands = new Set([
 	TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID,
 	NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID,
 	NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
+	TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID,
 ]);
 
 const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
@@ -109,6 +118,21 @@ export interface ICreateModalEditorPartResult {
 	readonly part: ModalEditorPartImpl;
 	readonly instantiationService: IInstantiationService;
 	readonly disposables: DisposableStore;
+}
+
+interface IModalEditorSidebarController {
+
+	readonly onDidResize: Event<void>;
+
+	getWidth(): number;
+	hasCustomWidth(): boolean;
+	clampWidth(modalWidth: number): void;
+
+	isVisible(): boolean;
+	setVisible(visible: boolean): void;
+
+	layout(height: number): void;
+	updateContent(content: IModalEditorSidebar): void;
 }
 
 export class ModalEditorPart {
@@ -137,7 +161,7 @@ export class ModalEditorPart {
 				EventHelper.stop(e, true);
 
 				// Close modal when clicking outside the dialog
-				editorPart.close();
+				void editorPart.close();
 			}
 		}));
 
@@ -169,7 +193,8 @@ export class ModalEditorPart {
 		const resizableElement = new ResizableHTMLElement();
 		disposables.add(toDisposable(() => resizableElement.dispose()));
 		resizableElement.domNode.classList.add('modal-editor-resizable');
-		resizableElement.minSize = new Dimension(MODAL_MIN_WIDTH, MODAL_MIN_HEIGHT);
+		const effectiveMinWidth = MODAL_MIN_WIDTH + (options?.sidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
+		resizableElement.minSize = new Dimension(effectiveMinWidth, MODAL_MIN_HEIGHT);
 		modalElement.appendChild(resizableElement.domNode);
 
 		const shadowElement = resizableElement.domNode.appendChild($('.modal-editor-shadow'));
@@ -185,6 +210,16 @@ export class ModalEditorPart {
 
 		// Header
 		const headerElement = editorPartContainer.appendChild($('.modal-editor-header'));
+
+		// Sidebar toggle button (only when sidebar is configured)
+		const sidebarToggleContainer = append(headerElement, $('div.modal-editor-sidebar-toggle'));
+		if (!options?.sidebar) {
+			hide(sidebarToggleContainer);
+		}
+		const sidebarToggleIcon = options?.sidebar?.sidebarHidden ? Codicon.layoutSidebarLeftOff : Codicon.layoutSidebarLeft;
+		const sidebarToggleAction = disposables.add(new Action(TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID, localize('toggleSidebar', "Toggle Sidebar"), ThemeIcon.asClassName(sidebarToggleIcon), true));
+		const sidebarToggleActionBar = disposables.add(new ActionBar(sidebarToggleContainer));
+		sidebarToggleActionBar.push(sidebarToggleAction, { icon: true, label: false });
 
 		// Title element
 		const titleElement = append(headerElement, $('div.modal-editor-title.show-file-icons'));
@@ -222,6 +257,15 @@ export class ModalEditorPart {
 		// Toolbar
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
 
+		// Sidebar
+		const sidebarResult = this.createSidebar(editorPartContainer, options?.sidebar, disposables);
+		if (sidebarResult) {
+			if (sidebarResult.isVisible()) {
+				editorPartContainer.classList.add('has-sidebar');
+			}
+			disposables.add(sidebarResult.onDidResize(() => layoutModal()));
+		}
+
 		// Create the editor part
 		const editorPart = disposables.add(this.instantiationService.createInstance(
 			ModalEditorPartImpl,
@@ -244,6 +288,21 @@ export class ModalEditorPart {
 				hide(navigationContainer);
 			}
 		}), editorPart.navigation));
+		if (sidebarResult) {
+			disposables.add(Event.runAndSubscribe(sidebarResult.onDidResize, () => {
+				if (sidebarResult.isVisible()) {
+					editorPart.sidebarWidth = sidebarResult.hasCustomWidth() ? sidebarResult.getWidth() : undefined;
+				}
+			}));
+			disposables.add(editorPart.onDidToggleSidebar(() => {
+				sidebarResult.setVisible(!editorPart.sidebarHidden);
+				sidebarToggleAction.class = ThemeIcon.asClassName(editorPart.sidebarHidden ? Codicon.layoutSidebarLeftOff : Codicon.layoutSidebarLeft);
+				layoutModal();
+			}));
+		}
+
+		// Wire up sidebar toggle button
+		disposables.add(sidebarToggleActionBar.onDidRun(() => editorPart.toggleSidebar()));
 
 		// Create scoped instantiation service
 		const modalEditorService = this.editorService.createScoped(editorPart, disposables);
@@ -284,7 +343,9 @@ export class ModalEditorPart {
 
 		// Create label
 		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
-		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
+		const labelChangeDisposable = disposables.add(new MutableDisposable());
+		let trackedEditor: EditorInput | undefined;
+		const updateLabel = () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			if (activeEditor) {
 				const { labelFormat } = editorPart.partOptions;
@@ -300,10 +361,19 @@ export class ModalEditorPart {
 						extraClasses: activeEditor.getLabelExtraClasses(),
 					}
 				);
+
+				// Only (re)subscribe when the active editor changes, not on every label update
+				if (trackedEditor !== activeEditor) {
+					trackedEditor = activeEditor;
+					labelChangeDisposable.value = activeEditor.onDidChangeLabel(() => updateLabel());
+				}
 			} else {
 				label.element.clear();
+				trackedEditor = undefined;
+				labelChangeDisposable.clear();
 			}
-		}));
+		};
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {
@@ -425,31 +495,68 @@ export class ModalEditorPart {
 		}));
 
 		disposables.add(resizableElement.onDidResize(e => {
-			const deltaWidth = e.dimension.width - resizeStartSize.width;
-			const deltaHeight = e.dimension.height - resizeStartSize.height;
 
-			// Adjust position to keep the opposite edge fixed
-			if (e.west) {
-				resizableElement.domNode.style.left = `${resizeStartLeft - deltaWidth}px`;
-			}
-			if (e.north) {
-				resizableElement.domNode.style.top = `${resizeStartTop - deltaHeight}px`;
+			// Clamp position and size to window bounds during active resize
+			// (skip on `done` — values are already correct from prior events,
+			//  and directional flags are not set on the done event)
+			if (!e.done) {
+				const containerDimension = this.layoutService.mainContainerDimension;
+				const titleBarOffset = this.layoutService.mainContainerOffset.top;
+
+				const deltaWidth = e.dimension.width - resizeStartSize.width;
+				const deltaHeight = e.dimension.height - resizeStartSize.height;
+
+				let newLeft = e.west ? resizeStartLeft - deltaWidth : resizeStartLeft;
+				let newTop = e.north ? resizeStartTop - deltaHeight : resizeStartTop;
+				let newWidth = e.dimension.width;
+				let newHeight = e.dimension.height;
+
+				if (newLeft < 0) {
+					newWidth += newLeft;
+					newLeft = 0;
+				}
+				if (newTop < titleBarOffset) {
+					newHeight += newTop - titleBarOffset;
+					newTop = titleBarOffset;
+				}
+				if (newLeft + newWidth > containerDimension.width) {
+					newWidth = containerDimension.width - newLeft;
+				}
+				if (newTop + newHeight > containerDimension.height) {
+					newHeight = containerDimension.height - newTop;
+				}
+
+				// Apply corrected size if it was clamped
+				if (newWidth !== e.dimension.width || newHeight !== e.dimension.height) {
+					resizableElement.layout(newHeight, newWidth);
+				}
+
+				// Adjust position to keep the opposite edge fixed
+				if (e.west) {
+					resizableElement.domNode.style.left = `${newLeft}px`;
+				}
+				if (e.north) {
+					resizableElement.domNode.style.top = `${newTop}px`;
+				}
 			}
 
 			// Update editor part layout during resize
-			editorPart.layout(e.dimension.width - MODAL_BORDER_SIZE, e.dimension.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			const size = resizableElement.size;
+			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
+			editorPart.layout(Math.max(0, size.width - MODAL_BORDER_SIZE - sidebarWidth), size.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			sidebarResult?.layout(size.height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT);
 
 			if (e.done) {
 				isResizing = false;
 
 				// Check if size matches the default (from sash double-click reset)
 				const defaultSize = getDefaultSize();
-				if (e.dimension.width === defaultSize.width && e.dimension.height === defaultSize.height) {
+				if (size.width === defaultSize.width && size.height === defaultSize.height) {
 					editorPart.size = undefined;
 					editorPart.position = undefined;
 					layoutModal();
 				} else {
-					editorPart.size = new Dimension(e.dimension.width, e.dimension.height);
+					editorPart.size = new Dimension(size.width, size.height);
 					editorPart.position = {
 						left: parseFloat(resizableElement.domNode.style.left) || 0,
 						top: parseFloat(resizableElement.domNode.style.top) || 0,
@@ -472,6 +579,7 @@ export class ModalEditorPart {
 		};
 
 		// Layout the modal editor part
+		let isFirstLayout = true;
 		const layoutModal = () => {
 			if (isResizing) {
 				return; // skip layout during interactive resize
@@ -500,6 +608,12 @@ export class ModalEditorPart {
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
 
+			// On first layout, clamp sidebar width if it would leave the editor too narrow
+			if (isFirstLayout) {
+				isFirstLayout = false;
+				sidebarResult?.clampWidth(width);
+			}
+
 			// Update resizable element size and constraints
 			resizableElement.maxSize = new Dimension(containerDimension.width, availableHeight);
 			resizableElement.preferredSize = defaultSize;
@@ -522,7 +636,8 @@ export class ModalEditorPart {
 				resizableElement.domNode.style.top = `${top}px`;
 			}
 
-			editorPart.layout(width - MODAL_BORDER_SIZE, height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			editorPart.layout(Math.max(0, width - MODAL_BORDER_SIZE - (sidebarResult?.getWidth() ?? 0)), height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT, 0, 0);
+			sidebarResult?.layout(height - MODAL_BORDER_SIZE - MODAL_HEADER_HEIGHT);
 		};
 		disposables.add(Event.runAndSubscribe(this.layoutService.onDidLayoutMainContainer, layoutModal));
 		disposables.add(editorPart.onDidChangeMaximized(() => layoutModal()));
@@ -539,6 +654,99 @@ export class ModalEditorPart {
 			part: editorPart,
 			instantiationService: scopedInstantiationService,
 			disposables
+		};
+	}
+
+	private createSidebar(container: HTMLElement, content: IModalEditorSidebar | undefined, disposables: DisposableStore): IModalEditorSidebarController | undefined {
+		if (!content) {
+			return undefined;
+		}
+
+		let sidebarWidth = content.sidebarWidth && content.sidebarWidth > 0 ? content.sidebarWidth : MODAL_SIDEBAR_DEFAULT_WIDTH;
+		let customWidth = content.sidebarWidth !== undefined && content.sidebarWidth > 0;
+		let visible = !content.sidebarHidden;
+
+		const sidebarContainer = append(container, $('div.modal-editor-sidebar.show-file-icons'));
+		sidebarContainer.style.width = `${sidebarWidth}px`;
+		setVisibility(visible, sidebarContainer);
+
+		// Let the caller render content
+		const onDidLayoutEmitter = disposables.add(new Emitter<{ readonly height: number; readonly width: number }>());
+		const contentDisposable = disposables.add(new MutableDisposable());
+		contentDisposable.value = content.render(sidebarContainer, onDidLayoutEmitter.event);
+
+		// Sash for resizing sidebar
+		const sash = disposables.add(new Sash(container, {
+			getVerticalSashLeft: () => sidebarWidth,
+			getVerticalSashTop: () => MODAL_HEADER_HEIGHT,
+			getVerticalSashHeight: () => (container.clientHeight - MODAL_HEADER_HEIGHT),
+		}, { orientation: Orientation.VERTICAL }));
+		if (!visible) {
+			sash.state = SashState.Disabled;
+		}
+
+		const onDidResizeEmitter = disposables.add(new Emitter<void>());
+
+		let sashStartWidth: number | undefined;
+		disposables.add(sash.onDidStart(() => sashStartWidth = sidebarWidth));
+		disposables.add(sash.onDidEnd(() => sashStartWidth = undefined));
+		disposables.add(sash.onDidChange(e => {
+			if (sashStartWidth === undefined) {
+				return;
+			}
+
+			const delta = e.currentX - e.startX;
+			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+			sidebarWidth = Math.min(maxWidth, Math.max(MODAL_SIDEBAR_MIN_WIDTH, sashStartWidth + delta));
+			customWidth = true;
+			sidebarContainer.style.width = `${sidebarWidth}px`;
+			sash.layout();
+			onDidResizeEmitter.fire();
+		}));
+		disposables.add(sash.onDidReset(() => {
+			const maxWidth = Math.max(MODAL_SIDEBAR_MIN_WIDTH, container.clientWidth - MODAL_MIN_WIDTH);
+			sidebarWidth = Math.min(maxWidth, MODAL_SIDEBAR_DEFAULT_WIDTH);
+			customWidth = false;
+			sidebarContainer.style.width = `${sidebarWidth}px`;
+			sash.layout();
+			onDidResizeEmitter.fire();
+		}));
+
+		return {
+			onDidResize: onDidResizeEmitter.event,
+			getWidth: () => visible ? sidebarWidth : 0,
+			hasCustomWidth: () => customWidth,
+			clampWidth: (modalWidth: number) => {
+				if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
+					sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
+					customWidth = false;
+					sidebarContainer.style.width = `${sidebarWidth}px`;
+					sash.layout();
+					onDidResizeEmitter.fire();
+				}
+			},
+			isVisible: () => visible,
+			setVisible: (value: boolean) => {
+				visible = value;
+				setVisibility(visible, sidebarContainer);
+				container.classList.toggle('has-sidebar', visible);
+				sash.state = visible ? SashState.Enabled : SashState.Disabled;
+				onDidResizeEmitter.fire();
+			},
+			layout: (height: number) => {
+				if (visible) {
+					onDidLayoutEmitter.fire({
+						height: height - MODAL_SIDEBAR_PADDING * 2,
+						width: sidebarWidth - MODAL_SIDEBAR_PADDING * 2 - MODAL_SIDEBAR_BORDER_RIGHT
+					});
+				}
+				sash.layout();
+			},
+			updateContent: (newContent: IModalEditorSidebar) => {
+				contentDisposable.clear();
+				sidebarContainer.textContent = '';
+				contentDisposable.value = newContent.render(sidebarContainer, onDidLayoutEmitter.event);
+			},
 		};
 	}
 }
@@ -575,6 +783,21 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	get position(): IPosition | undefined { return this._position; }
 	set position(value: IPosition | undefined) { this._position = value; }
 
+	private _sidebarWidth: number | undefined;
+	get sidebarWidth(): number | undefined { return this._sidebarWidth; }
+	set sidebarWidth(value: number | undefined) { this._sidebarWidth = value; }
+
+	private _sidebarHidden = false;
+	get sidebarHidden(): boolean { return this._sidebarHidden; }
+	set sidebarHidden(value: boolean) { this._sidebarHidden = value; }
+
+	private _hasSidebar = false;
+	get hasSidebar(): boolean { return this._hasSidebar; }
+	set hasSidebar(value: boolean) { this._hasSidebar = value; }
+
+	private readonly _onDidToggleSidebar = this._register(new Emitter<void>());
+	readonly onDidToggleSidebar = this._onDidToggleSidebar.event;
+
 	private savedSize: IDimension | undefined;
 	private savedPosition: IPosition | undefined;
 
@@ -605,6 +828,9 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		this._size = options?.size;
 		this._position = options?.position;
 		this._navigation = options?.navigation;
+		this._hasSidebar = !!options?.sidebar;
+		this._sidebarHidden = options?.sidebar?.sidebarHidden ?? false;
+		this._sidebarWidth = options?.sidebar?.sidebarWidth;
 
 		// When restoring a maximized state with custom layout,
 		// initialize saved state so un-maximize can restore it
@@ -671,6 +897,12 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		this._onDidChangeMaximized.fire(this._maximized);
 	}
 
+	toggleSidebar(): void {
+		this._sidebarHidden = !this._sidebarHidden;
+
+		this._onDidToggleSidebar.fire();
+	}
+
 	handleHeaderDoubleClick(): void {
 		if (this._maximized) {
 			// Clear saved state so that toggleMaximized restores to default
@@ -697,6 +929,13 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		const hasNavigationContext = EditorPartModalNavigationContext.bindTo(this.scopedContextKeyService);
 		hasNavigationContext.set(!!this._navigation && this._navigation.total > 1);
 		this._register(this.onDidChangeNavigation(navigation => hasNavigationContext.set(!!navigation && navigation.total > 1)));
+
+		const sidebarContext = EditorPartModalSidebarContext.bindTo(this.scopedContextKeyService);
+		sidebarContext.set(this._hasSidebar);
+
+		const sidebarVisibleContext = EditorPartModalSidebarVisibleContext.bindTo(this.scopedContextKeyService);
+		sidebarVisibleContext.set(this._hasSidebar && !this._sidebarHidden);
+		this._register(this.onDidToggleSidebar(() => sidebarVisibleContext.set(this._hasSidebar && !this._sidebarHidden)));
 
 		super.handleContextKeys();
 	}
@@ -737,38 +976,37 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 			this.previousMainWindowActiveElement.focus();
 		}
 
-		this.doClose({ mergeConfirmingEditorsToMainPart: false });
+		this._onWillClose.fire();
 	}
 
 	protected override saveState(): void {
 		return; // disabled, modal editor part state is not persisted
 	}
 
-	close(options?: { mergeAllEditorsToMainPart?: boolean }): boolean {
-		return this.doClose({ ...options, mergeConfirmingEditorsToMainPart: true });
-	}
+	async close(options?: { mergeAllEditorsToMainPart?: boolean }): Promise<boolean> {
 
-	private doClose(options?: { mergeAllEditorsToMainPart?: boolean; mergeConfirmingEditorsToMainPart?: boolean }): boolean {
-		let result = true;
-		if (options?.mergeConfirmingEditorsToMainPart) {
-
-			// First close all editors that are non-confirming (unless we merge all)
-			if (!options.mergeAllEditorsToMainPart) {
-				for (const group of this.groups) {
-					group.closeAllEditors({ excludeConfirming: true });
-				}
-			}
-
-			// Then merge remaining to main part
-			result = this.mergeGroupsToMainPart();
+		// Merge all editors to main part (editors stay open, no confirmation needed)
+		if (options?.mergeAllEditorsToMainPart) {
+			const result = this.mergeGroupsToMainPart();
 			if (!result) {
-				return false; // Do not close when editors could not be merged back
+				return false;
+			}
+		}
+
+		// Close all editors in each group, leveraging the existing
+		// confirmation infrastructure for dirty editors
+		else {
+			for (const group of this.groups) {
+				const closed = await group.closeAllEditors();
+				if (!closed) {
+					return false; // user cancelled
+				}
 			}
 		}
 
 		this._onWillClose.fire();
 
-		return result;
+		return true;
 	}
 
 	private mergeGroupsToMainPart(): boolean {

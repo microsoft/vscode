@@ -31,14 +31,14 @@ import {
 	ToolProgress,
 } from '../../chat/common/tools/languageModelToolsService.js';
 import { TestId } from './testId.js';
-import { FileCoverage, getTotalCoveragePercent } from './testCoverage.js';
+import { FileCoverage, TestCoverage, getTotalCoveragePercent } from './testCoverage.js';
 import { TestingContextKeys } from './testingContextKeys.js';
 import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
 import { LiveTestResult } from './testResult.js';
 import { ITestResultService } from './testResultService.js';
 import { ITestService, testsInFile, waitForTestToBeIdle } from './testService.js';
-import { IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
+import { DetailType, IncrementalTestCollectionItem, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset } from './testTypes.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { ITestProfileService } from './testProfileService.js';
 
@@ -70,7 +70,7 @@ interface IRunTestToolParams {
 	mode?: Mode;
 }
 
-class RunTestTool implements IToolImpl {
+export class RunTestTool implements IToolImpl {
 	public static readonly ID = 'runTests';
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
@@ -101,7 +101,7 @@ class RunTestTool implements IToolImpl {
 				coverageFiles: {
 					type: 'array',
 					items: { type: 'string' },
-					description: 'When mode="coverage": absolute file paths to include detailed coverage info for. Only the first matching file will be summarized.'
+					description: 'When mode="coverage": absolute file paths to include detailed coverage info for. If not provided, a file-level summary of all files with incomplete coverage is shown.'
 				}
 			},
 		},
@@ -168,139 +168,13 @@ class RunTestTool implements IToolImpl {
 			};
 		}
 
-		const summary = await this._buildSummary(result, mode, coverageFiles);
+		const summary = await buildTestRunSummary(result, mode, coverageFiles);
 		const content = [{ kind: 'text', value: summary } as const];
 
 		return {
 			content: content as Mutable<IToolResult['content']>,
 			toolResultMessage: getTestProgressText(collectTestStateCounts(false, [result])),
 		};
-	}
-
-	private async _buildSummary(result: LiveTestResult, mode: Mode, coverageFiles: string[] | undefined): Promise<string> {
-		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
-		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />\n`;
-		if (failures !== 0) {
-			str += await this._getFailureDetails(result);
-		}
-		if (mode === 'coverage') {
-			str += await this._getCoverageSummary(result, coverageFiles);
-		}
-		return str;
-	}
-
-	private async _getCoverageSummary(result: LiveTestResult, coverageFiles: string[] | undefined): Promise<string> {
-		if (!coverageFiles || !coverageFiles.length) {
-			return '';
-		}
-		for (const task of result.tasks) {
-			const coverage = task.coverage.get();
-			if (!coverage) {
-				continue;
-			}
-			const normalized = coverageFiles.map(file => URI.file(file).fsPath);
-			const coveredFilesMap = new Map<string, FileCoverage>();
-			for (const file of coverage.getAllFiles().values()) {
-				coveredFilesMap.set(file.uri.fsPath, file);
-			}
-			for (const path of normalized) {
-				const file = coveredFilesMap.get(path);
-				if (!file) {
-					continue;
-				}
-				let summary = `<coverage task=${JSON.stringify(task.name || '')}>\n`;
-				const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
-				summary += `<firstUncoveredFile path=${JSON.stringify(path)} statementsCovered=${file.statement.covered} statementsTotal=${file.statement.total}`;
-				if (file.branch) {
-					summary += ` branchesCovered=${file.branch.covered} branchesTotal=${file.branch.total}`;
-				}
-				if (file.declaration) {
-					summary += ` declarationsCovered=${file.declaration.covered} declarationsTotal=${file.declaration.total}`;
-				}
-				summary += ` percent=${pct.toFixed(2)}`;
-				try {
-					const details = await file.details();
-					for (const detail of details) {
-						if (detail.count || !detail.location) {
-							continue;
-						}
-						let startLine: number;
-						let endLine: number;
-						if (Position.isIPosition(detail.location)) {
-							startLine = endLine = detail.location.lineNumber;
-						} else {
-							startLine = detail.location.startLineNumber;
-							endLine = detail.location.endLineNumber;
-						}
-						summary += ` firstUncoveredStart=${startLine} firstUncoveredEnd=${endLine}`;
-						break;
-					}
-				} catch { /* ignore */ }
-				summary += ` />\n`;
-				summary += `</coverage>\n`;
-				return summary;
-			}
-		}
-		return '';
-	}
-
-	private async _getFailureDetails(result: LiveTestResult): Promise<string> {
-		let str = '';
-		let hadMessages = false;
-		for (const failure of result.tests) {
-			if (!isFailedState(failure.ownComputedState)) {
-				continue;
-			}
-
-			const [, ...testPath] = TestId.split(failure.item.extId);
-			const testName = testPath.pop();
-			str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
-			// Extract detailed failure information from error messages
-			for (const task of failure.tasks) {
-				for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
-					hadMessages = true;
-
-					// Add expected/actual outputs if available
-					if (message.expected !== undefined && message.actual !== undefined) {
-						str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
-						str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
-					} else {
-						// Fallback to the message content
-						const messageText = typeof message.message === 'string' ? message.message : message.message.value;
-						str += `<message>\n${messageText}\n</message>\n`;
-					}
-
-					// Add stack trace information if available (limit to first 10 frames)
-					if (message.stackTrace && message.stackTrace.length > 0) {
-						for (const frame of message.stackTrace.slice(0, 10)) {
-							if (frame.uri && frame.position) {
-								str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
-							} else if (frame.uri) {
-								str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
-							} else {
-								str += `<stackFrame>${frame.label}</stackFrame>\n`;
-							}
-						}
-					}
-
-					// Add location information if available
-					if (message.location) {
-						str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
-					}
-				}
-			}
-
-			str += `</testFailure>\n`;
-		}
-
-		if (!hadMessages) { // some adapters don't have any per-test messages and just output
-			const output = result.tasks.map(t => t.output.getRange(0, t.output.length).toString().trim()).join('\n');
-			if (output) {
-				str += `<output>\n${output}\n</output>\n`;
-			}
-		}
-
-		return str;
 	}
 
 	/** Updates the UI progress as the test runs, resolving when the run is finished. */
@@ -450,4 +324,203 @@ class RunTestTool implements IToolImpl {
 			},
 		});
 	}
+}
+
+/** Builds the full summary string for a completed test run. */
+export async function buildTestRunSummary(result: LiveTestResult, mode: Mode, coverageFiles: string[] | undefined): Promise<string> {
+	const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
+	let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />\n`;
+	if (failures !== 0) {
+		str += await getFailureDetails(result);
+	}
+	if (mode === 'coverage') {
+		str += await getCoverageSummary(result, coverageFiles);
+	}
+	return str;
+}
+
+/** Gets a coverage summary from a test result, either overall or per-file. */
+export async function getCoverageSummary(result: LiveTestResult, coverageFiles: string[] | undefined): Promise<string> {
+	let str = '';
+	for (const task of result.tasks) {
+		const coverage = task.coverage.get();
+		if (!coverage) {
+			continue;
+		}
+
+		if (!coverageFiles || !coverageFiles.length) {
+			str += getOverallCoverageSummary(coverage);
+			continue;
+		}
+
+		const normalized = coverageFiles.map(file => URI.file(file).fsPath);
+		const coveredFilesMap = new Map<string, FileCoverage>();
+		for (const file of coverage.getAllFiles().values()) {
+			coveredFilesMap.set(file.uri.fsPath, file);
+		}
+
+		for (const path of normalized) {
+			const file = coveredFilesMap.get(path);
+			if (!file) {
+				continue;
+			}
+			str += await getFileCoverageDetails(file, path);
+		}
+	}
+	return str;
+}
+
+/** Gets a file-level coverage overview sorted by lowest coverage first. */
+export function getOverallCoverageSummary(coverage: TestCoverage): string {
+	const files = [...coverage.getAllFiles().values()]
+		.map(f => ({ path: f.uri.fsPath, pct: getTotalCoveragePercent(f.statement, f.branch, f.declaration) * 100 }))
+		.filter(f => f.pct < 100)
+		.sort((a, b) => a.pct - b.pct);
+
+	if (!files.length) {
+		return '<coverageSummary>All files have 100% coverage.</coverageSummary>\n';
+	}
+
+	let str = '<coverageSummary>\n';
+	for (const f of files) {
+		str += `<file path="${f.path}" percent=${f.pct.toFixed(1)} />\n`;
+	}
+	str += '</coverageSummary>\n';
+	return str;
+}
+
+/** Gets detailed coverage information for a single file including uncovered items. */
+export async function getFileCoverageDetails(file: FileCoverage, path: string): Promise<string> {
+	const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
+	let str = `<coverage path="${path}" percent=${pct.toFixed(1)} statements=${file.statement.covered}/${file.statement.total}`;
+	if (file.branch) {
+		str += ` branches=${file.branch.covered}/${file.branch.total}`;
+	}
+	if (file.declaration) {
+		str += ` declarations=${file.declaration.covered}/${file.declaration.total}`;
+	}
+	str += '>\n';
+
+	try {
+		const details = await file.details();
+
+		const uncoveredDeclarations: { name: string; line: number }[] = [];
+		const uncoveredBranches: { line: number; label?: string }[] = [];
+		const uncoveredLines: [number, number][] = [];
+
+		for (const detail of details) {
+			if (detail.type === DetailType.Declaration) {
+				if (!detail.count) {
+					const line = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.startLineNumber;
+					uncoveredDeclarations.push({ name: detail.name, line });
+				}
+			} else {
+				if (!detail.count) {
+					const startLine = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.startLineNumber;
+					const endLine = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.endLineNumber;
+					uncoveredLines.push([startLine, endLine]);
+				}
+				if (detail.branches) {
+					for (const branch of detail.branches) {
+						if (!branch.count) {
+							let line: number;
+							if (branch.location) {
+								line = Position.isIPosition(branch.location) ? branch.location.lineNumber : branch.location.startLineNumber;
+							} else {
+								line = Position.isIPosition(detail.location) ? detail.location.lineNumber : detail.location.startLineNumber;
+							}
+							uncoveredBranches.push({ line, label: branch.label });
+						}
+					}
+				}
+			}
+		}
+
+		if (uncoveredDeclarations.length) {
+			str += 'uncovered functions: ' + uncoveredDeclarations.map(d => `${d.name}(L${d.line})`).join(', ') + '\n';
+		}
+		if (uncoveredBranches.length) {
+			str += 'uncovered branches: ' + uncoveredBranches.map(b => b.label ? `L${b.line}(${b.label})` : `L${b.line}`).join(', ') + '\n';
+		}
+		if (uncoveredLines.length) {
+			str += 'uncovered lines: ' + mergeLineRanges(uncoveredLines) + '\n';
+		}
+	} catch { /* ignore - details not available */ }
+
+	str += '</coverage>\n';
+	return str;
+}
+
+/** Merges overlapping/contiguous line ranges and formats them compactly. */
+export function mergeLineRanges(ranges: [number, number][]): string {
+	if (!ranges.length) {
+		return '';
+	}
+	ranges.sort((a, b) => a[0] - b[0]);
+	const merged: [number, number][] = [ranges[0]];
+	for (let i = 1; i < ranges.length; i++) {
+		const last = merged[merged.length - 1];
+		const [start, end] = ranges[i];
+		if (start <= last[1] + 1) {
+			last[1] = Math.max(last[1], end);
+		} else {
+			merged.push([start, end]);
+		}
+	}
+	return merged.map(([s, e]) => s === e ? `${s}` : `${s}-${e}`).join(', ');
+}
+
+/** Formats failure details from a test result into an XML-like string. */
+export async function getFailureDetails(result: LiveTestResult): Promise<string> {
+	let str = '';
+	let hadMessages = false;
+	for (const failure of result.tests) {
+		if (!isFailedState(failure.ownComputedState)) {
+			continue;
+		}
+
+		const [, ...testPath] = TestId.split(failure.item.extId);
+		const testName = testPath.pop();
+		str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
+		for (const task of failure.tasks) {
+			for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
+				hadMessages = true;
+
+				if (message.expected !== undefined && message.actual !== undefined) {
+					str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
+					str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
+				} else {
+					const messageText = typeof message.message === 'string' ? message.message : message.message.value;
+					str += `<message>\n${messageText}\n</message>\n`;
+				}
+
+				if (message.stackTrace && message.stackTrace.length > 0) {
+					for (const frame of message.stackTrace.slice(0, 10)) {
+						if (frame.uri && frame.position) {
+							str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
+						} else if (frame.uri) {
+							str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
+						} else {
+							str += `<stackFrame>${frame.label}</stackFrame>\n`;
+						}
+					}
+				}
+
+				if (message.location) {
+					str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
+				}
+			}
+		}
+
+		str += `</testFailure>\n`;
+	}
+
+	if (!hadMessages) {
+		const output = result.tasks.map(t => t.output.getRange(0, t.output.length).toString().trim()).join('\n');
+		if (output) {
+			str += `<output>\n${output}\n</output>\n`;
+		}
+	}
+
+	return str;
 }
