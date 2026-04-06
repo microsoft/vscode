@@ -26,6 +26,7 @@ import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platf
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../../base/browser/ui/sash/sash.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import type { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NthMatchInput } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -54,6 +55,7 @@ const MATCHES_COUNT_WIDTH = 73;
 
 export abstract class SimpleFindWidget extends Widget implements IVerticalSashLayoutProvider {
 	private readonly _findInput: FindInput;
+	private readonly _nthMatchInput: NthMatchInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerDomNode: HTMLElement;
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -105,6 +107,9 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService));
+
+		this._nthMatchInput = this.getNthMatchInput(contextViewService);
+
 		// Find History with update delayer
 		this._updateHistoryDelayer = this._register(new Delayer<void>(500));
 
@@ -251,6 +256,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	}
 
 	public abstract find(previous: boolean): void;
+	public abstract findNth(nthMatchPosition: number): void;
 	public abstract findFirst(): void;
 	protected abstract _onInputChanged(): boolean;
 	protected abstract _onFocusTrackerFocus(): void;
@@ -420,11 +426,20 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 				matchesPosition = '?';
 			}
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+
+			this._nthMatchInput.setValue(`${matchesPosition}`);
+			this._nthMatchInput.min = +matchesCount >= 1 ? 1 : 0;
+			this._nthMatchInput.max = +matchesCount;
+
+			this._matchesCount.appendChild(this._nthMatchInput.domNode);
+			this._matchesCount.appendChild(document.createTextNode(' of '));
+			this._matchesCount.appendChild(document.createTextNode(`${matchesCount}`));
 		} else {
 			label = NLS_NO_RESULTS;
+			this._matchesCount.appendChild(document.createTextNode(label));
 		}
 		status(this._announceSearchResults(label, this.inputValue));
-		this._matchesCount.appendChild(document.createTextNode(label));
+		// this._matchesCount.appendChild(document.createTextNode(label));
 		this._foundMatch = !!count && count.resultCount > 0;
 		this.updateButtons(this._foundMatch);
 	}
@@ -444,6 +459,56 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		}
 
 		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
+	}
+
+	private getNthMatchInput(contextViewService: IContextViewService): NthMatchInput {
+		const matchPositionAndCountArr = this._matchesCount?.innerText?.split(' of ') ?? [];
+
+		const input = new NthMatchInput(this._domNode, contextViewService, {
+			placeholder: '',
+			width: 20,
+			validation: undefined,
+			label: '',
+			type: 'text',
+			min: parseInt(matchPositionAndCountArr[1]?.trim() || '0') >= 1 ? 1 : 0,
+			max: parseInt(matchPositionAndCountArr[1]?.trim()) || 0,
+			flexibleHeight: undefined,
+			flexibleWidth: undefined,
+			flexibleMaxHeight: undefined,
+			toggleStyles: defaultToggleStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+		});
+
+		this._register(input.onStep((e) => {
+			if (e.direction === 'up') {
+				this.find(false);
+			}
+			else {
+				this.find(true);
+			}
+			input.focus();
+		}));
+
+		this._register(input.onJump((e) => {
+			this.findNth(e.targetMatchPos || input.min);
+			input.focus();
+		}));
+
+		this._register(input.onInput((e) => {
+			const currentValueAsInt = parseInt(input.getValue());
+			// Enforce the numerical input and min/max constraints here.
+			input.setValue(
+				isNaN(currentValueAsInt) ?
+					`${input.min}` : currentValueAsInt > input.max ?
+						`${input.max}` : currentValueAsInt < input.min ?
+							`${input.min}` : `${currentValueAsInt}`
+			);
+		}));
+
+		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
+		input.setValue(`${matchPositionAndCountArr[0]}`.trim());
+
+		return input;
 	}
 }
 

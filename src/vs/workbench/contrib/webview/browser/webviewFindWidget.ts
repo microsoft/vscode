@@ -59,6 +59,10 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		}
 	}
 
+	public override findNth(nthMatchPosition: number): void {
+
+	}
+
 	public override hide(animated = true) {
 		super.hide(animated);
 		this._delegate.stopFind(true);

@@ -103,6 +103,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 
+	public override findNth(nthMatchPosition: number): void {
+		const xterm = this._instance.xterm;
+		if (!xterm) {
+			return;
+		}
+		this._findNthWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), nthMatchPosition: nthMatchPosition });
+	}
+
 	override reveal(): void {
 		const initialInput = this._instance.hasSelection() && !this._instance.selection!.includes('\n') ? this._instance.selection : undefined;
 		const inputValue = initialInput ?? this.inputValue;
@@ -189,6 +197,13 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	private async _findPreviousWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
 		return xterm.findPrevious(term, options).then(foundMatch => {
+			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
+			return foundMatch;
+		});
+	}
+
+	private async _findNthWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
+		return xterm.findNth(term, options).then(foundMatch => {
 			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
 			return foundMatch;
 		});
