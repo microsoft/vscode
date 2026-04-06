@@ -8,6 +8,7 @@ import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oa
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
+import { IProtectedResourceMetadata } from './state/protocol/state.js';
 import type { IActionEnvelope, INotification, ISessionAction } from './state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { AttachmentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
@@ -48,31 +49,9 @@ export interface IAgentDescriptor {
 	readonly provider: AgentProvider;
 	readonly displayName: string;
 	readonly description: string;
-	/**
-	 * Whether the renderer should push a GitHub auth token for this agent.
-	 * @deprecated Use {@link IResourceMetadata.resources} from {@link IAgentService.getResourceMetadata} instead.
-	 */
-	readonly requiresAuth: boolean;
 }
 
 // ---- Auth types (RFC 9728 / RFC 6750 inspired) -----------------------------
-
-/**
- * Describes the agent host as an OAuth 2.0 protected resource.
- * Uses {@link IAuthorizationProtectedResourceMetadata} from RFC 9728
- * to describe auth requirements, enabling clients to resolve tokens
- * using the standard VS Code authentication service.
- *
- * Returned from the server via {@link IAgentService.getResourceMetadata}.
- */
-export interface IResourceMetadata {
-	/**
-	 * Protected resources the agent host requires authentication for.
-	 * Each entry uses the standard RFC 9728 shape so clients can resolve
-	 * tokens via {@link IAuthenticationService.getOrActivateProviderIdForServer}.
-	 */
-	readonly resources: readonly IAuthorizationProtectedResourceMetadata[];
-}
 
 /**
  * Parameters for the `authenticate` command.
@@ -359,7 +338,7 @@ export interface IAgent {
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
 	/** Declare protected resources this agent requires auth for (RFC 9728). */
-	getProtectedResources(): IAuthorizationProtectedResourceMetadata[];
+	getProtectedResources(): IProtectedResourceMetadata[];
 
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.
@@ -421,27 +400,13 @@ export const IAgentService = createDecorator<IAgentService>('agentService');
 export interface IAgentService {
 	readonly _serviceBrand: undefined;
 
-	/** Discover available agent backends from the agent host. */
-	listAgents(): Promise<IAgentDescriptor[]>;
-
-	/**
-	 * Retrieve the resource metadata describing auth requirements.
-	 * Modeled on RFC 9728 (OAuth 2.0 Protected Resource Metadata).
-	 */
-	getResourceMetadata(): Promise<IResourceMetadata>;
-
 	/**
 	 * Authenticate for a protected resource on the server.
 	 * The {@link IAuthenticateParams.resource} must match a resource from
-	 * {@link getResourceMetadata}. Analogous to RFC 6750 bearer token delivery.
+	 * the agent's protectedResources in root state. Analogous to RFC 6750
+	 * bearer token delivery.
 	 */
 	authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
-
-	/**
-	 * Refresh the model list from all providers, publishing updated
-	 * agents (with models) to root state via `root/agentsChanged`.
-	 */
-	refreshModels(): Promise<void>;
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;

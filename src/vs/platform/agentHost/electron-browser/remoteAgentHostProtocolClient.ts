@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
@@ -151,31 +151,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/**
-	 * Retrieve the server's resource metadata describing auth requirements.
-	 */
-	async getResourceMetadata(): Promise<IResourceMetadata> {
-		return await this._sendExtensionRequest('getResourceMetadata') as IResourceMetadata;
-	}
-
-	/**
 	 * Authenticate with the remote agent host using a specific scheme.
 	 */
 	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
-		return await this._sendExtensionRequest('authenticate', params) as IAuthenticateResult;
-	}
-
-	/**
-	 * Refresh the model list from all providers on the remote host.
-	 */
-	async refreshModels(): Promise<void> {
-		await this._sendExtensionRequest('refreshModels');
-	}
-
-	/**
-	 * Discover available agent backends from the remote host.
-	 */
-	async listAgents(): Promise<IAgentDescriptor[]> {
-		return await this._sendExtensionRequest('listAgents') as IAgentDescriptor[];
+		await this._sendRequest('authenticate', params);
+		return { authenticated: true };
 	}
 
 	/**
