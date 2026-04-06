@@ -444,6 +444,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	userDataDir: string;
 
 	partsSplash?: IPartsSplash;
+	storedThemeData?: { baseTheme: string; background: string; foreground: string };
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
