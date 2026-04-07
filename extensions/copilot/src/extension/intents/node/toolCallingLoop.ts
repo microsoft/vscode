@@ -20,7 +20,7 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
-import { IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, resolveWorkspaceOTelMetadata, StdAttr, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
@@ -214,11 +214,16 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		super();
 	}
 
+	/** Resolves the endpoint to use for this round. Override in subclasses that need a custom endpoint. */
+	protected async resolveEndpoint(): Promise<IChatEndpoint> {
+		return this._endpointProvider.getChatEndpoint(this.options.request);
+	}
+
 	/** Builds a prompt with the context. */
-	protected abstract buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult>;
+	protected abstract buildPrompt(endpoint: IChatEndpoint, buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult>;
 
 	/** Gets the tools that should be callable by the model. */
-	protected abstract getAvailableTools(outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<LanguageModelToolInformation[]>;
+	protected abstract getAvailableTools(endpoint: IChatEndpoint, outputStream: ChatResponseStream | undefined, token: CancellationToken): Promise<LanguageModelToolInformation[]>;
 
 	/** Creates the prompt context for the request. */
 	protected createPromptContext(availableTools: LanguageModelToolInformation[], outputStream: ChatResponseStream | undefined): Mutable<IBuildPromptContext> {
@@ -267,6 +272,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	}
 
 	protected abstract fetch(
+		endpoint: IChatEndpoint,
 		options: ToolCallingLoopFetchOptions,
 		token: CancellationToken
 	): Promise<ChatResponse>;
@@ -1274,7 +1280,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 	/** Runs a single iteration of the tool calling loop. */
 	public async runOne(outputStream: ChatResponseStream | undefined, iterationNumber: number, token: CancellationToken): Promise<IToolCallSingleResult> {
-		let availableTools = await this.getAvailableTools(outputStream, token);
+		const endpoint = await this.resolveEndpoint();
+		let availableTools = await this.getAvailableTools(endpoint, outputStream, token);
 
 		// Emit tools_available on the agent span once, before the first CHAT span
 		// starts in fetch(). This lets the debug logger write tools_*.json early.
@@ -1291,14 +1298,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillBuildPrompt);
 		let buildPromptResult: IBuildPromptResult;
 		try {
-			buildPromptResult = await this.buildPrompt2(context, outputStream, token);
+			buildPromptResult = await this.buildPrompt2(endpoint, context, outputStream, token);
 		} finally {
 			markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidBuildPrompt);
 		}
 		this.throwIfCancelled(token);
 		this.turn.addReferences(buildPromptResult.references);
 		// Possible the tool call resulted in new tools getting added.
-		availableTools = await this.getAvailableTools(outputStream, token);
+		availableTools = await this.getAvailableTools(endpoint, outputStream, token);
 
 		// Apply debug prompt/tool overrides from either inline YAML text or a YAML file.
 		const promptOverride = this._configurationService.getConfig(ConfigKey.Advanced.DebugPromptOverrideString);
@@ -1339,7 +1346,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			});
 		}
 
-		const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
 		const tokenizer = endpoint.acquireTokenizer();
 		const promptTokenLength = await tokenizer.countMessagesTokens(effectiveBuildPromptResult.messages);
 		const toolTokenCount = availableTools.length > 0 ? await tokenizer.countToolTokens(availableTools) : 0;
@@ -1425,7 +1431,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		let compaction: OpenAIContextManagementResponse | undefined;
 		this._isInlineSummarizationRequest = inlineSummarizationRequested;
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillFetch);
-		const fetchResult = await this.fetch({
+		const fetchResult = await this.fetch(endpoint, {
 			messages: this.applyMessagePostProcessing(effectiveBuildPromptResult.messages, { stripOrphanedToolCalls: isGeminiFamily(endpoint) }),
 			turnId: this.turn.id,
 			finishedCb: async (text, index, delta) => {
@@ -1813,14 +1819,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		return filtered;
 	}
 
-	private async buildPrompt2(buildPromptContext: IBuildPromptContext, stream: ChatResponseStream | undefined, token: CancellationToken): Promise<IBuildPromptResult> {
+	private async buildPrompt2(endpoint: IChatEndpoint, buildPromptContext: IBuildPromptContext, stream: ChatResponseStream | undefined, token: CancellationToken): Promise<IBuildPromptResult> {
 		const progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart> = {
 			report(obj) {
 				stream?.push(obj);
 			}
 		};
 
-		const buildPromptResult = await this.buildPrompt(buildPromptContext, progress, token);
+		const buildPromptResult = await this.buildPrompt(endpoint, buildPromptContext, progress, token);
 		for (const metadata of buildPromptResult.metadata.getAll(ToolResultMetadata)) {
 			this.logToolResult(buildPromptContext, metadata);
 			this.toolCallResults[metadata.toolCallId] = metadata.result;

@@ -18,6 +18,7 @@ import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart, ChatResponseReferencePart } from '../../../vscodeTypes';
 import { IToolCallingLoopOptions, ToolCallingLoop, ToolCallingLoopFetchOptions } from '../../intents/node/toolCallingLoop';
@@ -79,7 +80,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	/**
 	 * Get the endpoint to use for the execution subagent
 	 */
-	private async getEndpoint() {
+	protected override async resolveEndpoint(): Promise<IChatEndpoint> {
 		const modelName = this._configurationService.getConfig(ConfigKey.Advanced.ExecutionSubagentModel) as ChatEndpointFamily;
 		if (modelName) {
 			try {
@@ -99,8 +100,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		}
 	}
 
-	protected async buildPrompt(buildpromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
-		const endpoint = await this.getEndpoint();
+	protected async buildPrompt(endpoint: IChatEndpoint, buildpromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const maxExecutionTurns = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolCallLimit, this._experimentationService);
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
@@ -114,8 +114,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return await renderer.render(progress, token);
 	}
 
-	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
-		const endpoint = await this.getEndpoint();
+	protected async getAvailableTools(endpoint: IChatEndpoint): Promise<LanguageModelToolInformation[]> {
 		const allTools = this.toolsService.getEnabledTools(this.options.request, endpoint);
 
 		const allowedExecutionTools = new Set([
@@ -125,8 +124,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return allTools.filter(tool => allowedExecutionTools.has(tool.name as ToolName));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions, enableThinking, reasoningEffort }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
-		const endpoint = await this.getEndpoint();
+	protected async fetch(endpoint: IChatEndpoint, { messages, finishedCb, requestOptions, enableThinking, reasoningEffort }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		return endpoint.makeChatRequest2({
 			debugName: ExecutionSubagentToolCallingLoop.ID,
 			messages,

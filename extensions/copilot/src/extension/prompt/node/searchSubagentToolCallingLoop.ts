@@ -19,6 +19,7 @@ import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart, ChatResponseReferencePart } from '../../../vscodeTypes';
 import { IToolCallingLoopOptions, ToolCallingLoop, ToolCallingLoopFetchOptions } from '../../intents/node/toolCallingLoop';
@@ -82,33 +83,28 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	/**
 	 * Get the endpoint to use for the search subagent
 	 */
-	private async getEndpoint() {
+	protected override async resolveEndpoint(): Promise<IChatEndpoint> {
 		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
 
 		if (useAgenticProxy) {
-			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
 			const agenticProxyModel = modelName || SearchSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
 			return this.instantiationService.createInstance(ProxyAgenticSearchEndpoint, agenticProxyModel);
 		}
 
 		if (modelName) {
 			try {
-				// Try to get the specified model
 				return await this.endpointProvider.getChatEndpoint(modelName);
 			} catch (error) {
-				// Model not available or doesn't support tool calls, fallback to main agent
 				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
 		} else {
-			// No model name specified, use main agent endpoint
 			return await this.endpointProvider.getChatEndpoint(this.options.request);
 		}
 	}
 
-	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
-		const endpoint = await this.getEndpoint();
+	protected async buildPrompt(endpoint: IChatEndpoint, buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const maxSearchTurns = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolCallLimit, this._experimentationService);
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
@@ -122,15 +118,11 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		return await renderer.render(progress, token);
 	}
 
-	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
-		const endpoint = await this.getEndpoint();
+	protected async getAvailableTools(endpoint: IChatEndpoint): Promise<LanguageModelToolInformation[]> {
 		const allTools = this.toolsService.getEnabledTools(this.options.request, endpoint);
 
-		// Only include tools relevant for search operations.
-		// We include semantic_search (Codebase) and the basic search primitives.
-		// The Codebase tool checks for inSubAgent context to prevent nested tool calling loops.
 		const allowedSearchTools = new Set([
-			ToolName.Codebase,  // Semantic search
+			ToolName.Codebase,
 			ToolName.FindFiles,
 			ToolName.FindTextInFiles,
 			ToolName.ReadFile
@@ -139,8 +131,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		return allTools.filter(tool => allowedSearchTools.has(tool.name as ToolName));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions, enableThinking, reasoningEffort }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
-		const endpoint = await this.getEndpoint();
+	protected async fetch(endpoint: IChatEndpoint, { messages, finishedCb, requestOptions, enableThinking, reasoningEffort }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		return endpoint.makeChatRequest2({
 			debugName: SearchSubagentToolCallingLoop.ID,
 			messages,

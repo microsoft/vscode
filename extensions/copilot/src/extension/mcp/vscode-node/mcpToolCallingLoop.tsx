@@ -17,6 +17,7 @@ import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart, ChatResponseReferencePart } from '../../../vscodeTypes';
 import { IToolCallingLoopOptions, ToolCallingLoop, ToolCallingLoopFetchOptions } from '../../intents/node/toolCallingLoop';
@@ -52,12 +53,11 @@ export class McpToolCallingLoop extends ToolCallingLoop<IMcpToolCallingLoopOptio
 		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
 	}
 
-	private async getEndpoint() {
+	protected override async resolveEndpoint(): Promise<IChatEndpoint> {
 		return await this.endpointProvider.getChatEndpoint('copilot-fast');
 	}
 
-	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
-		const endpoint = await this.getEndpoint();
+	protected async buildPrompt(endpoint: IChatEndpoint, buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
 			endpoint,
@@ -70,7 +70,7 @@ export class McpToolCallingLoop extends ToolCallingLoop<IMcpToolCallingLoopOptio
 		return await renderer.render(progress, token);
 	}
 
-	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
+	protected async getAvailableTools(_endpoint: IChatEndpoint): Promise<LanguageModelToolInformation[]> {
 		if (this.options.conversation.turns.length > 5) {
 			return []; // force a response
 		}
@@ -90,8 +90,7 @@ export class McpToolCallingLoop extends ToolCallingLoop<IMcpToolCallingLoopOptio
 		}];
 	}
 
-	protected async fetch(opts: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
-		const endpoint = await this.getEndpoint();
+	protected async fetch(endpoint: IChatEndpoint, opts: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		return endpoint.makeChatRequest2({
 			...opts,
 			debugName: McpToolCallingLoop.ID,

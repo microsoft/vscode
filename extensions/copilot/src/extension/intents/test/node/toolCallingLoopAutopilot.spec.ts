@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatRequest, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
@@ -24,15 +25,15 @@ import { MockChatHookService } from './toolCallingLoopHooks.spec';
  * Concrete test implementation that exposes autopilot-related protected methods.
  */
 class AutopilotTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions> {
-	protected override async buildPrompt(_buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
+	protected override async buildPrompt(_endpoint: IChatEndpoint, _buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
 		return nullRenderPromptResult();
 	}
 
-	protected override async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
+	protected override async getAvailableTools(_endpoint: IChatEndpoint): Promise<LanguageModelToolInformation[]> {
 		return [];
 	}
 
-	protected override async fetch(): Promise<never> {
+	protected override async fetch(_endpoint: IChatEndpoint): Promise<never> {
 		throw new Error('fetch should not be called in these tests');
 	}
 
