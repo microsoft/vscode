@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { GitHubDiffFetcher } from '../../browser/fetchers/githubDiffFetcher.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher, computeOverallCIStatus } from '../../browser/fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
@@ -103,6 +104,39 @@ suite('GitHubRepositoryFetcher', () => {
 			() => fetcher.getRepository('owner', 'nonexistent'),
 			(err: Error) => err instanceof GitHubApiError && (err as GitHubApiError).statusCode === 404,
 		);
+	});
+});
+
+suite('GitHubDiffFetcher', () => {
+
+	const store = new DisposableStore();
+	let mockApi: MockApiClient;
+	let fetcher: GitHubDiffFetcher;
+
+	setup(() => {
+		mockApi = new MockApiClient();
+		fetcher = new GitHubDiffFetcher(mockApi as unknown as GitHubApiClient);
+	});
+
+	teardown(() => store.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getChangedFiles maps metadata including previous filename for renamed files', async () => {
+		mockApi.setNextResponse({
+			files: [
+				{ filename: 'src/new-name.ts', previous_filename: 'src/old-name.ts', status: 'renamed', additions: 103, deletions: 21 },
+				{ filename: 'src/other.ts', status: 'added', additions: 7, deletions: 0 },
+			],
+		});
+
+		const result = await fetcher.getChangedFiles('microsoft', 'vscode', 'main', 'feature');
+
+		assert.deepStrictEqual(result, [
+			{ filename: 'src/new-name.ts', previousFilename: 'src/old-name.ts', status: 'renamed', additions: 103, deletions: 21 },
+			{ filename: 'src/other.ts', previousFilename: undefined, status: 'added', additions: 7, deletions: 0 },
+		]);
+		assert.strictEqual(mockApi.requestCalls[0].path, '/repos/microsoft/vscode/compare/main...feature');
 	});
 });
 

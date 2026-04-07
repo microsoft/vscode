@@ -10,9 +10,9 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISessionType } from '../../../services/sessions/common/session.js';
 
 export class SessionTypePicker extends Disposable {
 

@@ -24,10 +24,10 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { autorun } from '../../../../base/common/observable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ISessionWorkspace } from '../../sessions/common/sessionData.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsBrowseAction, ISessionsProvider } from '../../sessions/browser/sessionsProvider.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
@@ -274,7 +274,7 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		try {
-			const workspace = await action.execute();
+			const workspace = await action.run();
 			if (workspace) {
 				this._selectProject({ providerId: action.providerId, workspace });
 			}
@@ -283,7 +283,7 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _getActiveProviders(): import('../../sessions/browser/sessionsProvider.js').ISessionsProvider[] {
+	private _getActiveProviders(): import('../../../services/sessions/common/sessionsProvider.js').ISessionsProvider[] {
 		const activeProviderId = this.sessionsManagementService.activeProviderId.get();
 		const allProviders = this.sessionsProvidersService.getProviders();
 		if (activeProviderId) {
@@ -298,7 +298,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Collects browse actions from all registered providers.
 	 */
-	private _getAllBrowseActions(): ISessionsBrowseAction[] {
+	private _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		return this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 	}
 
@@ -365,7 +365,7 @@ export class WorkspacePicker extends Disposable {
 		if (hasMultipleProviders && (allBrowseActions.length + remoteProviders.length) > 1) {
 			// Show a single "Select..." entry with provider-grouped submenu actions
 			// that also includes remote host entries
-			const providerMap = new Map<string, { provider: typeof allProviders[0]; actions: { action: ISessionsBrowseAction; index: number }[] }>();
+			const providerMap = new Map<string, { provider: typeof allProviders[0]; actions: { action: ISessionWorkspaceBrowseAction; index: number }[] }>();
 			allBrowseActions.forEach((action, i) => {
 				let entry = providerMap.get(action.providerId);
 				if (!entry) {
@@ -659,7 +659,7 @@ export class WorkspacePicker extends Disposable {
 					continue;
 				}
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
 				if (workspace) {
 					return { providerId: stored.providerId, workspace };
 				}
@@ -689,7 +689,7 @@ export class WorkspacePicker extends Disposable {
 					continue;
 				}
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
 				if (workspace) {
 					return { providerId: stored.providerId, workspace };
 				}
@@ -759,7 +759,7 @@ export class WorkspacePicker extends Disposable {
 		return this._getStoredRecentWorkspaces()
 			.map(stored => {
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
 				if (!workspace) {
 					return undefined;
 				}

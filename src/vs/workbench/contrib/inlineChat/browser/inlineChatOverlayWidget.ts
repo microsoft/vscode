@@ -11,6 +11,7 @@ import { renderAsPlaintext, renderMarkdown } from '../../../../base/browser/mark
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -609,9 +610,20 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 		const that = this;
 
+		// Focus the owning editor before running any toolbar action so that
+		// EditorAction2-based actions resolve the correct editor instance
+		// even when the user has clicked into a different editor.
+		const actionRunner = this._showStore.add(new class extends ActionRunner {
+			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+				that._editorObs.editor.focus();
+				return super.runAction(action, context);
+			}
+		});
+
 		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, MenuId.ChatEditorInlineExecute, {
 			telemetrySource: 'inlineChatProgress.overlayToolbar',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			actionRunner,
 			toolbarOptions: {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true

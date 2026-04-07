@@ -11,6 +11,8 @@ on:
 permissions:
   contents: read
   statuses: write
+  pull-requests: write
+  id-token: write
 
 concurrency:
   group: screenshots-${{ github.event.pull_request.number || github.sha }}
@@ -23,8 +25,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -61,16 +61,79 @@ jobs:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
-      - name: Trigger ingestion
+      - name: Get OIDC token
+        id: oidc
         run: |
-          curl -sS -X POST "https://hediet-screenshots.azurewebsites.net/ingest" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "owner": "${{ github.repository_owner }}",
-              "repo": "${{ github.event.repository.name }}",
-              "runId": ${{ github.run_id }},
-              "artifactName": "screenshots"
-            }'
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
+            | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload screenshots
+        run: |
+          cd test/componentFixtures/.screenshots/current
+          zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
+          curl -sS -f -X POST "https://hediet-screenshots.azurewebsites.net/upload" \
+            -H "Content-Type: application/zip" \
+            -H "Authorization: Bearer $SCREENSHOT_SERVICE_TOKEN" \
+            --data-binary @"$GITHUB_WORKSPACE/screenshots.zip"
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
+
+      - name: Diff screenshots against merge base
+        id: diff
+        if: github.event_name == 'pull_request'
+        run: |
+          BODY=$(node build/lib/screenshotDiffReport.ts \
+            https://hediet-screenshots.azurewebsites.net \
+            ${{ github.repository_owner }} \
+            ${{ github.event.repository.name }} \
+            ${{ github.event.pull_request.base.sha }} \
+            ${{ github.sha }})
+          if [ -n "$BODY" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+            echo "$BODY" >> "$GITHUB_OUTPUT"
+            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && steps.diff.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- screenshot-diff-report -->';
+            const body = process.env.COMMENT_BODY;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body?.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+        env:
+          COMMENT_BODY: ${{ steps.diff.outputs.body }}
 
       # - name: Compare screenshots
       #   id: compare

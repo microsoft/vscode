@@ -10,7 +10,7 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { GitHubService } from '../../browser/githubService.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../sessions/common/sessionData.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 
 suite('GitHubService', () => {
 
@@ -62,6 +62,24 @@ suite('GitHubService', () => {
 		const model1 = service.getPullRequestCI('owner', 'repo', 'abc');
 		const model2 = service.getPullRequestCI('owner', 'repo', 'def');
 		assert.notStrictEqual(model1, model2);
+	});
+
+	test('getChangedFiles forwards to diff fetcher', async () => {
+		const expected = [
+			{ filename: 'src/new-name.ts', previousFilename: 'src/old-name.ts', status: 'renamed', additions: 103, deletions: 21 },
+			{ filename: 'src/other.ts', previousFilename: undefined, status: 'added', additions: 7, deletions: 0 },
+		] as const;
+
+		const diffFetcher = {
+			async getChangedFiles(): Promise<typeof expected> {
+				return expected;
+			}
+		};
+
+		(service as unknown as { _diffFetcher: typeof diffFetcher })._diffFetcher = diffFetcher;
+
+		const result = await service.getChangedFiles('owner', 'repo', 'main', 'feature');
+		assert.deepStrictEqual(result, expected);
 	});
 
 	test('disposing service does not throw', () => {

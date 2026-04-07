@@ -29,7 +29,7 @@ import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { logChangesViewToggle } from '../../../common/sessionsTelemetry.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../common/changes.js';
 
 const TOGGLE_CHANGES_VIEW_ID = 'workbench.action.agentSessions.toggleChangesView';

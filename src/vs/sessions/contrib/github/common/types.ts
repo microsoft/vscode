@@ -29,7 +29,8 @@ export interface IGitHubRepository {
 }
 
 export interface IGitHubChangedFile {
-	readonly path: string;
+	readonly filename: string;
+	readonly previous_filename: string | undefined;
 	readonly status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
 	readonly additions: number;
 	readonly deletions: number;

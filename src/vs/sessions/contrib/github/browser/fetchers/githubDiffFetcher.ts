@@ -9,6 +9,7 @@ import { IGitHubChangedFile } from '../../common/types.js';
 interface IGitHubCompareResponse {
 	readonly files: readonly {
 		readonly filename: string;
+		readonly previous_filename?: string;
 		readonly status: IGitHubChangedFile['status'];
 		readonly additions: number;
 		readonly deletions: number;
@@ -32,7 +33,8 @@ export class GitHubDiffFetcher {
 		);
 
 		return data.files.map(file => ({
-			path: file.filename,
+			filename: file.filename,
+			previous_filename: file.previous_filename,
 			status: file.status,
 			additions: file.additions,
 			deletions: file.deletions,
