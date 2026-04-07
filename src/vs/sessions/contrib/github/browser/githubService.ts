@@ -8,13 +8,13 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubChangedFile } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
-import { GitHubDiffFetcher } from './fetchers/githubDiffFetcher.js';
 import { GitHubRepositoryFetcher } from './fetchers/githubRepositoryFetcher.js';
 import { GitHubPRFetcher } from './fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from './fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryModel } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from './models/githubPullRequestCIModel.js';
+import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
@@ -53,7 +53,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	private readonly _apiClient: GitHubApiClient;
 	private readonly _repoFetcher: GitHubRepositoryFetcher;
-	private readonly _diffFetcher: GitHubDiffFetcher;
+	private readonly _changesFetcher: GitHubChangesFetcher;
 	private readonly _prFetcher: GitHubPRFetcher;
 	private readonly _ciFetcher: GitHubPRCIFetcher;
 
@@ -69,7 +69,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		this._apiClient = this._register(instantiationService.createInstance(GitHubApiClient));
 		this._repoFetcher = new GitHubRepositoryFetcher(this._apiClient);
-		this._diffFetcher = new GitHubDiffFetcher(this._apiClient);
+		this._changesFetcher = new GitHubChangesFetcher(this._apiClient);
 		this._prFetcher = new GitHubPRFetcher(this._apiClient);
 		this._ciFetcher = new GitHubPRCIFetcher(this._apiClient);
 	}
@@ -108,6 +108,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
-		return this._diffFetcher.getChangedFiles(owner, repo, base, head);
+		return this._changesFetcher.getChangedFiles(owner, repo, base, head);
 	}
 }
