@@ -680,6 +680,10 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		}
 	}
 
+	protected override async resolveEndpoint(): Promise<IChatEndpoint> {
+		return this.options.invocation.endpoint;
+	}
+
 	protected override async buildPrompt(_endpoint: IChatEndpoint, buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const buildPromptResult = await this.options.invocation.buildPrompt(buildPromptContext, progress, token);
 		this.fixMessageNames(buildPromptResult.messages);
