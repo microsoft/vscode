@@ -23,8 +23,8 @@ import { IChatSendRequestOptions, IChatService } from '../../../../workbench/con
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsBrowseAction, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus, type IGitHubInfo } from '../../sessions/common/sessionData.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
 
 const LOCAL_PROVIDER_ID = 'local-agent-host';
 
@@ -169,7 +169,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 	readonly sessionTypes: readonly ISessionType[];
 	readonly capabilities = { multipleChatsPerSession: false };
 
-	readonly browseActions: readonly ISessionsBrowseAction[];
+	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
@@ -205,7 +205,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			label: localize('folders', "Folders"),
 			icon: Codicon.folderOpened,
 			providerId: this.id,
-			execute: () => this._browseForFolder(),
+			run: () => this._browseForFolder(),
 		}];
 
 		// Listen for notifications from the agent host to update the session list

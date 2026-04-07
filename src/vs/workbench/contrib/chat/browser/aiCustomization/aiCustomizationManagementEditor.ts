@@ -301,6 +301,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private readonly editorDisposables = this._register(new DisposableStore());
 	private readonly promptsSectionCountScheduler = this._register(new RunOnceScheduler(() => this._doRefreshAllPromptsSectionCounts(), 100));
 	private _editorContentChanged = false;
+	private _previousActiveHarnessId: string | undefined;
 
 	// Folder picker (sessions window only)
 	private folderPickerContainer: HTMLElement | undefined;
@@ -573,6 +574,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
+			// Reset counts to zero immediately on harness switch to prevent
+			// stale counts from the previous harness flashing before the async
+			// count refresh completes. Only reset when the active harness
+			// actually changed to avoid flicker on harness registration events.
+			if (this._previousActiveHarnessId !== undefined && this._previousActiveHarnessId !== activeId) {
+				for (const section of this.sections) {
+					this.updateSectionCount(section.id, 0);
+				}
+			}
+			this._previousActiveHarnessId = activeId;
 			this.refreshAllPromptsSectionCounts();
 		}));
 
@@ -607,6 +618,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.harnessDropdownButton = DOM.append(container, $('button.harness-dropdown-button'));
 		this.harnessDropdownButton.setAttribute('aria-label', localize('selectHarness', "Select customization target"));
 		this.harnessDropdownButton.setAttribute('aria-haspopup', 'listbox');
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.harnessDropdownButton, () => {
+			const descriptor = this.harnessService.availableHarnesses.get().find(h => h.id === this.harnessService.activeHarness.get());
+			return descriptor?.label ?? '';
+		}));
 
 		this.harnessDropdownIcon = DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-icon'));
 		this.harnessDropdownLabel = DOM.append(this.harnessDropdownButton, $('span.harness-dropdown-label'));
@@ -626,18 +641,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * unregistered).
 	 */
 	private ensureHarnessDropdown(): void {
-		const harnesses = this.harnessService.availableHarnesses.get();
-		const shouldShow = this.isHarnessSelectorEnabled && harnesses.length > 1;
-
-		if (shouldShow && !this.harnessDropdownContainer && this.sidebarContent) {
-			this.createHarnessDropdown(this.sidebarContent);
-		} else if (!shouldShow && this.harnessDropdownContainer) {
+		if (!this.isHarnessSelectorEnabled && this.harnessDropdownContainer) {
+			// Setting is off — remove the dropdown entirely
 			this.harnessDropdownContainer.remove();
 			this.harnessDropdownContainer = undefined;
 			this.harnessDropdownButton = undefined;
 			this.harnessDropdownIcon = undefined;
 			this.harnessDropdownLabel = undefined;
+		} else if (this.isHarnessSelectorEnabled && !this.harnessDropdownContainer && this.sidebarContent) {
+			this.createHarnessDropdown(this.sidebarContent);
 		}
+		// Visibility is handled by updateHarnessDropdown based on harness count
 	}
 
 	private updateHarnessDropdown(): void {

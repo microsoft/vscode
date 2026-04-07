@@ -57,6 +57,7 @@ import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsSe
 import { MockChatService } from './mockChatService.js';
 import { ChatSessionOptionsMap, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -1038,6 +1039,74 @@ suite('ChatService', () => {
 				{ optionId: 'repo', value: 'my-repo' },
 			]
 		);
+	});
+	test('troubleshoot skill via attachedContext is blocked when fileLogging.enabled is off', async () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, false);
+
+		const troubleshootAgent: IChatAgentImplementation = {
+			async invoke(_request, _progress, _history, _token) {
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent('troubleshootAgent', { ...getAgentData('troubleshootAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('troubleshootAgent', troubleshootAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const skillUri = URI.from({ scheme: COPILOT_SKILL_URI_SCHEME, path: TROUBLESHOOT_SKILL_PATH });
+		const response = await testService.sendRequest(model.sessionResource, 'investigate this issue', {
+			attachedContext: [{
+				id: 'troubleshoot-skill',
+				name: 'troubleshoot',
+				kind: 'generic',
+				value: skillUri,
+			}],
+		});
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+		const responseContent = requests[0].response?.response.toString();
+		assert.ok(responseContent?.includes(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING), 'Response should mention the fileLogging setting');
+	});
+
+	test('troubleshoot skill via attachedContext proceeds when fileLogging.enabled is on', async () => {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, true);
+
+		const troubleshootAgent: IChatAgentImplementation = {
+			async invoke(_request, progress, _history, _token) {
+				progress([{ kind: 'markdownContent', content: new MarkdownString('Troubleshooting complete') }]);
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent('troubleshootAgent2', { ...getAgentData('troubleshootAgent2'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('troubleshootAgent2', troubleshootAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const skillUri = URI.from({ scheme: COPILOT_SKILL_URI_SCHEME, path: TROUBLESHOOT_SKILL_PATH });
+		const response = await testService.sendRequest(model.sessionResource, 'investigate this issue', {
+			attachedContext: [{
+				id: 'troubleshoot-skill',
+				name: 'troubleshoot',
+				kind: 'generic',
+				value: skillUri,
+			}],
+		});
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+		const responseContent = requests[0].response?.response.toString();
+		assert.ok(!responseContent?.includes(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING), 'Response should not contain the settings gate message');
 	});
 });
 

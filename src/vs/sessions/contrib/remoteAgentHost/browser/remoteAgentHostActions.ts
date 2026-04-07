@@ -14,8 +14,8 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -368,7 +368,7 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	const workspace = await browseAction.execute();
+	const workspace = await browseAction.run();
 	if (!workspace) {
 		return;
 	}

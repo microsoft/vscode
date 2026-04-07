@@ -2119,7 +2119,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
-						'vs/sessions/contrib/*/~'
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2134,6 +2135,7 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
+						'vs/workbench/contrib/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'

@@ -11,6 +11,7 @@ import { renderAsPlaintext, renderMarkdown } from '../../../../base/browser/mark
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -198,6 +199,9 @@ export class InlineChatInputWidget extends Disposable {
 			this._container.style.width = `${totalWidth}px`;
 			this._inputContainer.style.width = `${inputWidth}px`;
 			this._input.layout({ width: inputWidth, height });
+			if (this._position.read(undefined) !== null) {
+				this._updatePosition();
+			}
 		}));
 
 		// Toggle focus class on the container
@@ -332,10 +336,9 @@ export class InlineChatInputWidget extends Disposable {
 			allowEditorOverflow: true,
 		}));
 
-		// If anchoring above, adjust position after render to account for widget height
-		if (anchorAbove) {
-			this._updatePosition();
-		}
+		// Re-adjust position after render to account for widget dimensions (offsetWidth/offsetHeight
+		// are only available after the widget is added to the DOM)
+		this._updatePosition();
 
 		// Update position on scroll, hide if anchor line is out of view (only when input is empty)
 		this._showStore.add(this._editorObs.editor.onDidScrollChange(() => {
@@ -349,6 +352,11 @@ export class InlineChatInputWidget extends Disposable {
 			} else {
 				this._updatePosition();
 			}
+		}));
+
+		// Update position when the editor resizes (e.g. sidebar toggle, window resize)
+		this._showStore.add(this._editorObs.editor.onDidLayoutChange(() => {
+			this._updatePosition();
 		}));
 
 		// Focus the input editor
@@ -377,15 +385,19 @@ export class InlineChatInputWidget extends Disposable {
 		const stickyScrollHeight = this._stickyScrollHeight.get();
 		const layoutInfo = editor.getLayoutInfo();
 		const widgetHeight = this._domNode.offsetHeight;
+		const widgetWidth = this._domNode.offsetWidth;
 		const minTop = stickyScrollHeight;
 		const maxTop = layoutInfo.height - widgetHeight;
+		const padding = 8;
+		const maxLeft = layoutInfo.width - layoutInfo.verticalScrollbarWidth - layoutInfo.minimap.minimapWidth - widgetWidth - padding;
 
 		const clampedTop = Math.max(minTop, Math.min(adjustedTop, maxTop));
-		const isClamped = clampedTop !== adjustedTop;
+		const clampedLeft = Math.max(0, Math.min(this._anchorLeft, maxLeft));
+		const isClamped = clampedTop !== adjustedTop || clampedLeft !== this._anchorLeft;
 		this._domNode.classList.toggle('clamped', isClamped);
 
 		this._position.set({
-			preference: { top: clampedTop, left: this._anchorLeft },
+			preference: { top: clampedTop, left: clampedLeft },
 			stackOrdinal: 10000,
 		}, undefined);
 	}
@@ -598,9 +610,20 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 		const that = this;
 
+		// Focus the owning editor before running any toolbar action so that
+		// EditorAction2-based actions resolve the correct editor instance
+		// even when the user has clicked into a different editor.
+		const actionRunner = this._showStore.add(new class extends ActionRunner {
+			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+				that._editorObs.editor.focus();
+				return super.runAction(action, context);
+			}
+		});
+
 		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, MenuId.ChatEditorInlineExecute, {
 			telemetrySource: 'inlineChatProgress.overlayToolbar',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			actionRunner,
 			toolbarOptions: {
 				primaryGroup: () => true,
 				useSeparatorsInPrimaryActions: true

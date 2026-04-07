@@ -16,10 +16,10 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -223,7 +223,7 @@ export class ModePicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement) {
 			return;
 		}
 
@@ -239,10 +239,6 @@ export class ModePicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		const modes = this._getAvailableModes();
-		const visible = modes.length > 1;
-		dom.setVisibility(visible, this._slotElement);
-		this._slotElement.classList.toggle('disabled', false);
-		this._triggerElement.setAttribute('aria-hidden', String(!visible));
-		this._triggerElement.tabIndex = visible ? 0 : -1;
+		this._slotElement?.classList.toggle('disabled', modes.length <= 1);
 	}
 }
