@@ -1770,7 +1770,7 @@ export class AICustomizationListWidget extends Disposable {
 	private _inferStorageAndGroup(uri: URI, workspaceFolders: readonly { uri: URI }[]): { storage?: PromptsStorage; groupKey?: string } {
 		// Non-file schemes are synthetic/built-in (includes vscode-userdata: for extension-contributed items)
 		if (uri.scheme !== Schemas.file) {
-			return { groupKey: BUILTIN_STORAGE };
+			return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE };
 		}
 
 		// file: URI under a workspace folder = workspace (local)
@@ -1793,7 +1793,7 @@ export class AICustomizationListWidget extends Disposable {
 		const extensionId = extractExtensionIdFromPath(uri.path);
 		if (extensionId) {
 			if (this.isChatExtensionItem(new ExtensionIdentifier(extensionId))) {
-				return { groupKey: BUILTIN_STORAGE };
+				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE };
 			}
 			return { storage: PromptsStorage.extension };
 		}
