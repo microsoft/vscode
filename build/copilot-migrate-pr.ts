@@ -139,8 +139,13 @@ function gh(args: string[]): string {
 	return execFileSync('gh', args, { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 });
 }
 
-function git(args: string[], cwd?: string): string {
-	return execFileSync('git', args, { encoding: 'utf-8', cwd, maxBuffer: 50 * 1024 * 1024 });
+function git(args: string[], cwd?: string, env?: NodeJS.ProcessEnv): string {
+	return execFileSync('git', args, {
+		encoding: 'utf-8',
+		cwd,
+		env: env ? { ...process.env, ...env } : process.env,
+		maxBuffer: 50 * 1024 * 1024
+	});
 }
 
 function getCurrentRef(repoRoot: string): string {
@@ -204,6 +209,48 @@ function fetchPrDiff(prNumber: number): string {
 	return gh([
 		'pr', 'diff', String(prNumber),
 		'--repo', SOURCE_REPO,
+	]);
+}
+
+interface CommitPerson {
+	name: string;
+	email: string;
+	date: string;
+}
+
+interface SourceCommit {
+	sha: string;
+	author: CommitPerson | null;
+	committer: CommitPerson | null;
+}
+
+function fetchPrCommits(prNumber: number): SourceCommit[] {
+	const json = gh([
+		'api',
+		`repos/${SOURCE_REPO}/pulls/${prNumber}/commits`,
+		'--paginate',
+	]);
+
+	const commits = JSON.parse(json) as Array<{
+		sha: string;
+		commit: {
+			author: CommitPerson | null;
+			committer: CommitPerson | null;
+		};
+	}>;
+
+	return commits.map(commit => ({
+		sha: commit.sha,
+		author: commit.commit.author,
+		committer: commit.commit.committer,
+	}));
+}
+
+function fetchCommitPatch(sha: string): string {
+	return gh([
+		'api',
+		`repos/${SOURCE_REPO}/commits/${sha}`,
+		'-H', 'Accept: application/vnd.github.patch',
 	]);
 }
 
@@ -309,10 +356,61 @@ function rewriteDiffLine(line: string): string {
 // Branch and PR creation
 // ---------------------------------------------------------------------------
 
-async function createBranchAndApplyDiff(
+function hasActiveRebaseApply(repoRoot: string): boolean {
+	return fs.existsSync(path.join(repoRoot, '.git', 'rebase-apply'));
+}
+
+async function resolveAmConflicts(repoRoot: string): Promise<void> {
+	console.log('\nA commit patch could not be applied cleanly.');
+	console.log('Resolve merge conflicts in your working tree, stage the changes, and continue.');
+	for (; ;) {
+		await waitForEnter('After resolving conflicts and staging the changes, continue.');
+		const unresolved = git(['diff', '--name-only', '--diff-filter=U'], repoRoot).trim();
+		if (unresolved) {
+			console.log('\nThese files still have unresolved conflicts:');
+			for (const file of unresolved.split('\n')) {
+				console.log(`  - ${file}`);
+			}
+			continue;
+		}
+
+		try {
+			git(['am', '--continue'], repoRoot);
+			break;
+		} catch (error) {
+			console.log(`\nCould not continue apply: ${error instanceof Error ? error.message : String(error)}`);
+			console.log('Fix any remaining issues, ensure all changes are staged, then try again.');
+		}
+	}
+}
+
+function amendHeadCommitMetadata(commit: SourceCommit, repoRoot: string): void {
+	if (!commit.author && !commit.committer) {
+		return;
+	}
+
+	const author = commit.author ?? commit.committer;
+	const committer = commit.committer ?? commit.author;
+	if (!author || !committer) {
+		return;
+	}
+
+	git([
+		'commit',
+		'--amend',
+		'--no-edit',
+		'--author', `${author.name} <${author.email}>`,
+		'--date', author.date,
+	], repoRoot, {
+		GIT_COMMITTER_NAME: committer.name,
+		GIT_COMMITTER_EMAIL: committer.email,
+		GIT_COMMITTER_DATE: committer.date,
+	});
+}
+
+async function createBranchAndApplyCommits(
 	prNumber: number,
-	title: string,
-	rewrittenDiff: string,
+	commits: SourceCommit[],
 	repoRoot: string,
 ): Promise<string> {
 	const branchName = getMigrationBranchName(prNumber);
@@ -330,40 +428,38 @@ async function createBranchAndApplyDiff(
 		git(['reset', '--hard', 'main'], repoRoot);
 	}
 
-	// Write diff to a temp file and apply
-	const tmpDiff = path.join(os.tmpdir(), `copilot-migrate-pr-${prNumber}.patch`);
-	try {
-		fs.writeFileSync(tmpDiff, rewrittenDiff);
+	for (let i = 0; i < commits.length; i++) {
+		const commit = commits[i];
+		const patch = fetchCommitPatch(commit.sha);
+		const rewrittenPatch = rewriteDiff(patch);
+		const tmpPatch = path.join(os.tmpdir(), `copilot-migrate-pr-${prNumber}-${i + 1}.patch`);
 
 		try {
-			git(['apply', '--3way', tmpDiff], repoRoot);
-		} catch {
-			console.log('\nThe diff could not be applied cleanly.');
-			console.log('Resolve merge conflicts in your working tree, then continue.');
-			for (; ;) {
-				await waitForEnter('After resolving conflicts and staging the changes, continue.');
-				const unresolved = git(['diff', '--name-only', '--diff-filter=U'], repoRoot).trim();
-				if (!unresolved) {
-					break;
+			fs.writeFileSync(tmpPatch, rewrittenPatch);
+
+			try {
+				git(['am', '--3way', tmpPatch], repoRoot);
+			} catch {
+				if (!hasActiveRebaseApply(repoRoot)) {
+					throw new Error(`Failed to apply commit ${commit.sha}.`);
 				}
 
-				console.log('\nThese files still have unresolved conflicts:');
-				for (const file of unresolved.split('\n')) {
-					console.log(`  - ${file}`);
-				}
+				await resolveAmConflicts(repoRoot);
 			}
+		} finally {
+			fs.unlinkSync(tmpPatch);
 		}
-	} finally {
-		fs.unlinkSync(tmpDiff);
+
+		amendHeadCommitMetadata(commit, repoRoot);
 	}
 
-	// Stage and commit
-	git(['add', '-A'], repoRoot);
-	git([
-		'commit',
-		'-m', `Migrate ${SOURCE_REPO}#${prNumber}: ${title}`,
-		'--allow-empty',
-	], repoRoot);
+	if (!commits.length) {
+		git([
+			'commit',
+			'--allow-empty',
+			'-m', `Migrate ${SOURCE_REPO}#${prNumber}`,
+		], repoRoot);
+	}
 
 	return branchName;
 }
@@ -455,11 +551,14 @@ async function main() {
 		logger.detail(`Labels: ${meta.labels.map(l => l.name).join(', ') || '(none)'}`);
 		logger.detail(`Assignees: ${meta.assignees.map(a => a.login).join(', ') || '(none)'}`);
 
+		logger.step('Fetching source PR commits');
+		const commits = fetchPrCommits(prNumber);
+		logger.info(`Commit count: ${commits.length}`);
+
 		logger.step('Fetching and rewriting diff');
 		const diff = fetchPrDiff(prNumber);
-		const rewrittenDiff = rewriteDiff(diff);
 		const diffStats = getDiffStats(diff);
-		logger.detail(`Diff size: ${diff.length} bytes (rewritten: ${rewrittenDiff.length} bytes)`);
+		logger.detail(`Diff size: ${diff.length} bytes`);
 		logger.info(`Diff stats: ${diffStats.filesChanged} files changed, ${diffStats.insertions} insertions(+), ${diffStats.deletions} deletions(-)`);
 
 		if (dryRun) {
@@ -467,8 +566,8 @@ async function main() {
 			return;
 		}
 
-		logger.step('Creating branch and applying diff');
-		const branchName = await createBranchAndApplyDiff(prNumber, meta.title, rewrittenDiff, repoRoot);
+		logger.step('Creating branch and applying commit series');
+		const branchName = await createBranchAndApplyCommits(prNumber, commits, repoRoot);
 		shouldRestoreRef = true;
 		logger.info(`Branch: ${branchName}`);
 
