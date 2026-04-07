@@ -1728,16 +1728,14 @@ type ChatModelsAtStartupEvent = {
 	totalModels: number;
 	modelsOpenInWidgets: number;
 	backgroundModels: number;
-	modelsKeptAliveOnlyForEdits: number;
 };
 
 type ChatModelsAtStartupClassification = {
-	totalModels: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of live chat models after startup revival.' };
+	totalModels: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of live chat models at startup.' };
 	modelsOpenInWidgets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models that are open in a chat widget or editor.' };
 	backgroundModels: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models kept alive in the background without a widget.' };
-	modelsKeptAliveOnlyForEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models kept alive solely because they have unaccepted edits.' };
 	owner: 'roblourens';
-	comment: 'Tracks chat model counts at startup after reviving sessions with pending edits.';
+	comment: 'Tracks chat model counts at startup.';
 };
 
 class ChatModelsAtStartupTelemetry extends Disposable implements IWorkbenchContribution {
@@ -1754,22 +1752,16 @@ class ChatModelsAtStartupTelemetry extends Disposable implements IWorkbenchContr
 	}
 
 	private async logTelemetry(): Promise<void> {
-		await this.chatService.whenSessionsRevived;
-
 		const snapshot = this.chatService.getChatModelReferenceDebugInfo();
 
 		let modelsOpenInWidgets = 0;
 		let backgroundModels = 0;
-		let modelsKeptAliveOnlyForEdits = 0;
 
 		for (const model of snapshot.models) {
 			if (this.chatWidgetService.getWidgetBySessionResource(model.sessionResource)) {
 				modelsOpenInWidgets++;
 			} else {
 				backgroundModels++;
-				if (model.hasPendingEdits && model.referenceCount === 1) {
-					modelsKeptAliveOnlyForEdits++;
-				}
 			}
 		}
 
@@ -1777,7 +1769,6 @@ class ChatModelsAtStartupTelemetry extends Disposable implements IWorkbenchContr
 			totalModels: snapshot.totalModels,
 			modelsOpenInWidgets,
 			backgroundModels,
-			modelsKeptAliveOnlyForEdits,
 		});
 	}
 }
