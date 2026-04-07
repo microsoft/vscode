@@ -659,4 +659,101 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(capturedToken.isCancellationRequested, true);
 		});
 	});
+
+	suite('event deduplication', () => {
+		test('should deduplicate events with the same ID, keeping the richer kind', () => {
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-1',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				message: 'hello',
+				sections: [],
+			};
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-1',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				agentName: 'Explore',
+			};
+			service.addEvent(userMsg);
+			service.addEvent(subagent);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 1);
+			assert.strictEqual(events[0].kind, 'subagentInvocation');
+		});
+
+		test('should keep richer event when it arrives first', () => {
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-2',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				agentName: 'Explore',
+			};
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-2',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				message: 'hello',
+				sections: [],
+			};
+			service.addEvent(subagent);
+			service.addEvent(userMsg);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 1);
+			assert.strictEqual(events[0].kind, 'subagentInvocation');
+		});
+
+		test('should not fire onDidAddEvent for skipped duplicates', () => {
+			const firedKinds: string[] = [];
+			disposables.add(service.onDidAddEvent(e => firedKinds.push(e.kind)));
+
+			const subagent: IChatDebugEvent = {
+				kind: 'subagentInvocation',
+				id: 'shared-id-3',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				agentName: 'Explore',
+			};
+			const userMsg: IChatDebugEvent = {
+				kind: 'userMessage',
+				id: 'shared-id-3',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				message: 'hello',
+				sections: [],
+			};
+			service.addEvent(subagent);
+			service.addEvent(userMsg); // should be skipped
+
+			assert.deepStrictEqual(firedKinds, ['subagentInvocation']);
+		});
+
+		test('should allow events without IDs to coexist', () => {
+			const event1: IChatDebugGenericEvent = {
+				kind: 'generic',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:00Z'),
+				name: 'a',
+				level: ChatDebugLogLevel.Info,
+			};
+			const event2: IChatDebugGenericEvent = {
+				kind: 'generic',
+				sessionResource: session1,
+				created: new Date('2026-01-01T00:00:01Z'),
+				name: 'b',
+				level: ChatDebugLogLevel.Info,
+			};
+			service.addEvent(event1);
+			service.addEvent(event2);
+
+			const events = service.getEvents(session1);
+			assert.strictEqual(events.length, 2);
+		});
+	});
 });

@@ -5,13 +5,16 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHAgentHostConnection, type ISSHResolvedConfig } from '../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -76,9 +79,12 @@ registerAction2(class extends Action2 {
 		// Connect
 		try {
 			await remoteAgentHostService.addRemoteAgentHost({
-				address: parsed.parsed.address,
 				name: name.trim(),
 				connectionToken: parsed.parsed.connectionToken,
+				connection: {
+					type: RemoteAgentHostEntryType.WebSocket,
+					address: parsed.parsed.address,
+				},
 			});
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
@@ -466,5 +472,182 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		await promptToConnectViaSSH(accessor);
+	}
+});
+
+// ---- Connect via Dev Tunnel -------------------------------------------------
+
+interface ITunnelPickItem extends IQuickPickItem {
+	readonly tunnel: ITunnelInfo;
+}
+
+interface IAuthProviderPickItem extends IQuickPickItem {
+	readonly provider: 'github' | 'microsoft';
+}
+
+async function promptToConnectViaTunnel(
+	accessor: ServicesAccessor,
+): Promise<void> {
+	const tunnelService = accessor.get(ITunnelAgentHostService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const notificationService = accessor.get(INotificationService);
+	const authenticationService = accessor.get(IAuthenticationService);
+	const instantiationService = accessor.get(IInstantiationService);
+	const productService = accessor.get(IProductService);
+
+	// Step 1: Determine auth provider — try cached sessions first, then prompt
+	let authProvider = await tunnelService.getAuthProvider({ silent: true });
+
+	if (!authProvider) {
+		// No cached session — prompt user to choose auth provider
+		const authPicks: IAuthProviderPickItem[] = [
+			{
+				provider: 'github',
+				label: localize('tunnelAuthGitHub', "GitHub"),
+				description: localize('tunnelAuthGitHubDesc', "Sign in with your GitHub account"),
+			},
+			{
+				provider: 'microsoft',
+				label: localize('tunnelAuthMicrosoft', "Microsoft Account"),
+				description: localize('tunnelAuthMicrosoftDesc', "Sign in with your Microsoft account"),
+			},
+		];
+
+		const authPicked = await quickInputService.pick(authPicks, {
+			title: localize('tunnelAuthTitle', "Sign In for Dev Tunnels"),
+			placeHolder: localize('tunnelAuthPlaceholder', "Choose an authentication provider"),
+		});
+		if (!authPicked) {
+			return;
+		}
+		authProvider = authPicked.provider;
+
+		// Trigger interactive auth for the chosen provider
+		const scopes = productService.tunnelApplicationConfig?.authenticationProviders?.[authProvider]?.scopes ?? [];
+		try {
+			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+		} catch {
+			notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
+			return;
+		}
+	}
+
+	// Step 2: Show tunnel picker immediately in busy state while enumerating
+	const tunnelPicker = quickInputService.createQuickPick<ITunnelPickItem>();
+	tunnelPicker.title = localize('tunnelPickTitle', "Connect via Dev Tunnel");
+	tunnelPicker.placeholder = localize('tunnelPickPlaceholder', "Select a dev tunnel to connect to");
+	tunnelPicker.busy = true;
+	tunnelPicker.show();
+
+	let tunnels: ITunnelInfo[];
+	try {
+		tunnels = await tunnelService.listTunnels();
+	} catch (err) {
+		tunnelPicker.dispose();
+		notificationService.error(localize('tunnelListFailed', "Failed to list dev tunnels: {0}", err instanceof Error ? err.message : String(err)));
+		return;
+	}
+
+	if (tunnels.length === 0) {
+		tunnelPicker.dispose();
+		notificationService.info(localize('tunnelNoneFound', "No dev tunnels with agent host support were found. Start a tunnel with 'code tunnel' on another machine."));
+		return;
+	}
+
+	tunnelPicker.items = tunnels.map(t => ({
+		label: t.name,
+		description: `${t.tunnelId} · protocol v${t.protocolVersion}`,
+		tunnel: t,
+	}));
+	tunnelPicker.busy = false;
+
+	// Step 3: Wait for user selection
+	const picked = await new Promise<ITunnelPickItem | undefined>(resolve => {
+		tunnelPicker.onDidAccept(() => {
+			resolve(tunnelPicker.selectedItems[0]);
+			tunnelPicker.dispose();
+		});
+		tunnelPicker.onDidHide(() => {
+			resolve(undefined);
+			tunnelPicker.dispose();
+		});
+	});
+	if (!picked) {
+		return;
+	}
+
+	// Step 4: Connect to the tunnel with progress notification
+	const handle = notificationService.notify({
+		severity: Severity.Info,
+		message: localize('tunnelConnecting', "Connecting to tunnel '{0}'...", picked.tunnel.name),
+		progress: { infinite: true },
+	});
+
+	try {
+		await tunnelService.connect(picked.tunnel, authProvider);
+		handle.close();
+	} catch (err) {
+		handle.close();
+		notificationService.error(localize('tunnelConnectFailed', "Failed to connect to tunnel '{0}': {1}", picked.tunnel.name, err instanceof Error ? err.message : String(err)));
+		return;
+	}
+
+	// Cache the tunnel for future reconnections
+	tunnelService.cacheTunnel(picked.tunnel, authProvider);
+
+	// Step 5: Open folder picker (same pattern as SSH)
+	await instantiationService.invokeFunction(accessor => promptForTunnelFolder(accessor, picked.tunnel));
+}
+
+/**
+ * After a successful tunnel connection, show the remote folder picker and
+ * pre-select the chosen folder in the workspace picker.
+ */
+async function promptForTunnelFolder(
+	accessor: ServicesAccessor,
+	tunnel: ITunnelInfo,
+): Promise<void> {
+	const viewsService = accessor.get(IViewsService);
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+
+	// The provider is created by TunnelAgentHostContribution when the
+	// tunnel is cached (via onDidChangeTunnels / _reconcileProviders).
+	const provider = sessionsProvidersService.getProviders().find(p => p.remoteAddress === tunnelAddress);
+	if (!provider) {
+		return;
+	}
+
+	// Use the provider's existing browse action to show the folder picker
+	const browseAction = provider.browseActions[0];
+	if (!browseAction) {
+		return;
+	}
+
+	const workspace = await browseAction.execute();
+	if (!workspace) {
+		return;
+	}
+
+	sessionsManagementService.openNewSessionView();
+	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
+	view?.selectWorkspace({ providerId: provider.id, workspace });
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.connectViaTunnel',
+			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
+			category: SessionsCategories.Sessions,
+			f1: true,
+			precondition: ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await promptToConnectViaTunnel(accessor);
 	}
 });

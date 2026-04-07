@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -802,7 +803,7 @@ suite('PluginInstallService', () => {
 				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
 			});
 
-			await service.installPlugin(plugin);
+			await assert.rejects(() => service.installPlugin(plugin), (err: unknown) => isCancellationError(err as Error));
 
 			assert.strictEqual(state.trustedMarketplaces.length, 0);
 			assert.strictEqual(state.addedPlugins.length, 0);
@@ -820,7 +821,7 @@ suite('PluginInstallService', () => {
 			];
 
 			for (const sourceDescriptor of kinds) {
-				await service.installPlugin(createPlugin({ sourceDescriptor }));
+				await assert.rejects(() => service.installPlugin(createPlugin({ sourceDescriptor })), (err: unknown) => isCancellationError(err as Error));
 			}
 
 			assert.strictEqual(state.addedPlugins.length, 0, 'no plugins should be installed when trust is declined');

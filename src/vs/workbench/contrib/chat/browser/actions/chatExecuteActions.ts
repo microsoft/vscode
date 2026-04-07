@@ -181,23 +181,7 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
-const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
-	ChatContextKeys.requestInProgress,
-	ChatContextKeys.Editing.hasToolConfirmation,
-	ChatContextKeys.Editing.hasQuestionCarousel,
-);
-const requestInProgressWithoutInput = ContextKeyExpr.and(
-	ChatContextKeys.requestInProgress,
-	ChatContextKeys.inputHasText.negate(),
-);
-const pendingToolCall = ContextKeyExpr.or(
-	ChatContextKeys.Editing.hasToolConfirmation,
-	ContextKeyExpr.and(ChatContextKeys.Editing.hasQuestionCarousel, ChatContextKeys.inputHasText.negate()),
-);
-const noQuestionCarouselOrHasInput = ContextKeyExpr.or(
-	ChatContextKeys.Editing.hasQuestionCarousel.negate(),
-	ChatContextKeys.inputHasText,
-);
+const whenNoActiveRequest = ChatContextKeys.hasActiveRequest.negate();
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
 export class ChatSubmitAction extends SubmitAction {
@@ -236,10 +220,9 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						whenNotInProgress,
+						whenNoActiveRequest,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
-						noQuestionCarouselOrHasInput,
 					),
 					group: 'navigation',
 					alt: {
@@ -253,8 +236,7 @@ export class ChatSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.or(ctxHasEditorModification.negate(), ChatContextKeys.inputHasText),
-						whenNotInProgress,
-						ChatContextKeys.requestInProgress.negate(),
+						whenNoActiveRequest,
 						menuCondition
 					),
 				}]
@@ -735,7 +717,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const notInProgressOrEditing = ContextKeyExpr.and(
-			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
+			ContextKeyExpr.or(whenNoActiveRequest, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Queue),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Steer)
 		);
@@ -760,8 +742,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						notInProgressOrEditing,
-						menuCondition,
-						noQuestionCarouselOrHasInput),
+						menuCondition),
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
@@ -919,7 +900,7 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(requestInProgressWithoutInput, pendingToolCall),
+					ChatContextKeys.hasActiveRequest,
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),
@@ -940,7 +921,7 @@ export class CancelAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					requestInProgressOrPendingToolCall,
+					ChatContextKeys.hasActiveRequest,
 					ChatContextKeys.remoteJobCreating.negate()
 				),
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },

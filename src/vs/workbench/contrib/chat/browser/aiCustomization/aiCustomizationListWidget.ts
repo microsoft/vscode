@@ -47,7 +47,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
-import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
+import { extractExtensionIdFromPath, getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -490,6 +490,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			promptType: element.promptType,
 			storage: element.storage,
 			pluginUri: element.pluginUri?.toString(),
+			itemId: element.id,
 		};
 
 		// Create scoped context key service with item-specific keys for when-clause filtering
@@ -824,6 +825,7 @@ export class AICustomizationListWidget extends Disposable {
 			promptType: item.promptType,
 			storage: item.storage,
 			pluginUri: item.pluginUri?.toString(),
+			itemId: item.id,
 		};
 
 		// Create scoped context key service with item-specific keys for when-clause filtering
@@ -1677,7 +1679,9 @@ export class AICustomizationListWidget extends Disposable {
 					id: item.uri.toString(),
 					uri: item.uri,
 					name: item.name,
-					filename: basename(item.uri),
+					filename: item.uri.scheme === Schemas.file
+						? this.labelService.getUriLabel(item.uri, { relative: true })
+						: basename(item.uri),
 					description: item.description ?? descriptionsByUri.get(item.uri),
 					promptType,
 					disabled: item.enabled === false,
@@ -1766,7 +1770,7 @@ export class AICustomizationListWidget extends Disposable {
 	private _inferStorageAndGroup(uri: URI, workspaceFolders: readonly { uri: URI }[]): { storage?: PromptsStorage; groupKey?: string } {
 		// Non-file schemes are synthetic/built-in (includes vscode-userdata: for extension-contributed items)
 		if (uri.scheme !== Schemas.file) {
-			return { groupKey: BUILTIN_STORAGE };
+			return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE };
 		}
 
 		// file: URI under a workspace folder = workspace (local)
@@ -1774,6 +1778,24 @@ export class AICustomizationListWidget extends Disposable {
 			if (isEqualOrParent(uri, folder.uri)) {
 				return { storage: PromptsStorage.local };
 			}
+		}
+
+		// file: URI under an installed plugin = plugin
+		for (const plugin of this.agentPluginService.plugins.get()) {
+			if (isEqualOrParent(uri, plugin.uri)) {
+				return { storage: PromptsStorage.plugin };
+			}
+		}
+
+		// file: URI inside an extension install directory = extension or built-in.
+		// At this point we've already checked workspace folders and plugins, so
+		// a path containing /extensions/<id>-<version>/ is an extension directory.
+		const extensionId = extractExtensionIdFromPath(uri.path);
+		if (extensionId) {
+			if (this.isChatExtensionItem(new ExtensionIdentifier(extensionId))) {
+				return { storage: PromptsStorage.extension, groupKey: BUILTIN_STORAGE };
+			}
+			return { storage: PromptsStorage.extension };
 		}
 
 		// file: URI elsewhere = user directory
@@ -1964,21 +1986,26 @@ export class AICustomizationListWidget extends Disposable {
 						{ groupKey: 'on-demand-instructions', label: localize('onDemandInstructionsGroup', "Loaded on Demand"), icon: instructionsIcon, description: localize('onDemandInstructionsGroupDescription', "Instructions loaded only when explicitly referenced."), items: [] },
 						{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 						{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+						{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
 						{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 					]
 					: [
 						{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 						{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+						{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
 						{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 						{ groupKey: BUILTIN_STORAGE, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 					];
 
 			for (const item of matchedItems) {
 				const key = item.groupKey ?? item.storage ?? PromptsStorage.local;
-				const group = groups.find(g => g.groupKey === key);
-				if (group) {
-					group.items.push(item);
+				let group = groups.find(g => g.groupKey === key);
+				if (!group) {
+					// Dynamically create a group for unknown groupKeys from providers
+					group = { groupKey: key, label: formatDisplayName(key), icon: Codicon.folder, description: '', items: [] };
+					groups.push(group);
 				}
+				group.items.push(item);
 			}
 
 			this.buildGroupedEntries(groups);

@@ -1431,11 +1431,6 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	/**
-	 * Promise that resolves when sessions with pending edits have been revived at startup.
-	 */
-	readonly whenSessionsRevived: Promise<void>;
-
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;

@@ -31,7 +31,8 @@ use crate::{
 	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	auth::Auth,
 	constants::{
-		APPLICATION_NAME, CONTROL_PORT, IS_A_TTY, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME,
+		AGENT_HOST_PORT, APPLICATION_NAME, CONTROL_PORT, IS_A_TTY, TUNNEL_CLI_LOCK_NAME,
+		TUNNEL_SERVICE_LOCK_NAME,
 	},
 	log,
 	state::LauncherPaths,
@@ -330,7 +331,8 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 		}
 		TunnelUserSubCommands::Show => {
 			if let Ok(Some(sc)) = auth.get_current_credential() {
-				ctx.log.result(format!("logged in with provider {}", sc.provider));
+				ctx.log
+					.result(format!("logged in with provider {}", sc.provider));
 			} else {
 				ctx.log.result("not logged in");
 				return Ok(1);
@@ -649,7 +651,7 @@ async fn serve_with_csa(
 			dt.start_existing_tunnel(t).await
 		} else {
 			tokio::select! {
-				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT]) => t,
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT, AGENT_HOST_PORT]) => t,
 				_ = shutdown.wait() => return Ok(1),
 			}
 		}?;

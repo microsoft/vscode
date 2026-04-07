@@ -242,7 +242,6 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					logSessionsInteraction(that._telemetryService, 'addTask');
 					const task = await that._showConfigureQuickPick(session);
 					if (task) {
 						await that._sessionsConfigService.runTask(task, session);
@@ -266,7 +265,6 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
-					logSessionsInteraction(that._telemetryService, 'generateNewTask');
 					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 				}
 			}));
@@ -485,7 +483,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super(undefined, action);
@@ -521,7 +519,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			this._actionWidgetService,
 			this._keybindingService,
 			contextKeyService,
-			telemetryService,
+			this._telemetryService,
 		));
 	}
 
@@ -683,6 +681,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: tasksCategory,
 			run: async () => {
+				logSessionsInteraction(this._telemetryService, 'addTask');
 				const task = await this._showConfigureQuickPick(session);
 				if (task) {
 					await this._sessionsConfigService.runTask(task, session);
@@ -704,6 +703,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: tasksCategory,
 			run: async () => {
+				logSessionsInteraction(this._telemetryService, 'generateNewTask');
 				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 			},
 		});

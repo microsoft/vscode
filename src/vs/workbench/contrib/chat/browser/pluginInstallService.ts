@@ -6,6 +6,7 @@
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -39,7 +40,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
 		if (!await this._ensureMarketplaceTrusted(plugin)) {
-			return;
+			throw new CancellationError();
 		}
 
 		const kind = plugin.sourceDescriptor.kind;

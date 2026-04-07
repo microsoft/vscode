@@ -580,6 +580,10 @@ export class NewChatContextAttachments extends Disposable {
 		return name;
 	}
 
+	addAttachments(...entries: IChatRequestVariableEntry[]): void {
+		this._addAttachments(...entries);
+	}
+
 	private _addAttachments(...entries: IChatRequestVariableEntry[]): void {
 		for (const entry of entries) {
 			if (!this._attachedContext.some(e => e.id === entry.id)) {

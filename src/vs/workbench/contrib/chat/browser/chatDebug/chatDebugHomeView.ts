@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { AGENT_DEBUG_LOG_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -45,7 +45,7 @@ export class ChatDebugHomeView extends Disposable {
 		this.scrollContent = DOM.append(this.container, $('div.chat-debug-home-content'));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+			if (e.affectsConfiguration(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
 				this.render();
 			}
 		}));
@@ -66,7 +66,7 @@ export class ChatDebugHomeView extends Disposable {
 
 		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Logs")));
 
-		const isEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
+		const isEnabled = this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 		if (!isEnabled) {
 			DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
 				localize('chatDebug.disabled', "Enable to view debug logs and investigate chat issues with /troubleshoot.")
@@ -76,7 +76,7 @@ export class ChatDebugHomeView extends Disposable {
 			enableButton.element.style.width = 'auto';
 			enableButton.label = localize('chatDebug.openSetting', "Enable in Settings");
 			this.renderDisposables.add(enableButton.onDidClick(() => {
-				this.preferencesService.openSettings({ jsonEditor: false, query: AGENT_DEBUG_LOG_ENABLED_SETTING });
+				this.preferencesService.openSettings({ jsonEditor: false, query: `@id:${AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING}` });
 			}));
 			return;
 		}

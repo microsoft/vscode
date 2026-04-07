@@ -48,6 +48,7 @@ import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.j
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { SlashCommandHandler } from './slashCommands.js';
+import { VariableCompletionHandler } from './variableCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -292,7 +293,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			renderWhitespace: 'none',
 			overflowWidgetsDomNode,
 			suggest: {
-				showIcons: false,
+				showIcons: true,
 				showSnippets: false,
 				showWords: true,
 				showStatusBar: false,
@@ -367,6 +368,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Slash commands
 		this._slashCommandHandler = this._register(this.instantiationService.createInstance(SlashCommandHandler, this._editor));
+
+		// Variable completions (#file, #folder)
+		this._register(this.instantiationService.createInstance(
+			VariableCompletionHandler, this._editor, this._contextAttachments, () => this._getContextFolderUri(),
+		));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();

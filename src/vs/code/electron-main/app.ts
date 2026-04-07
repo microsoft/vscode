@@ -6,6 +6,7 @@
 import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
+import { execFile } from 'child_process';
 import { hostname, release } from 'os';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
@@ -1729,5 +1730,25 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
+
+		// macOS: eagerly register the embedded app with Launch Services
+		this.registerEmbeddedAppWithLaunchServices();
+	}
+
+	private registerEmbeddedAppWithLaunchServices(): void {
+		if (!isMacintosh || (process as INodeProcess).isEmbeddedApp || !this.productService.embedded?.nameShort || this.productService.quality === 'stable') {
+			return;
+		}
+
+		// appRoot points to Contents/Resources/app on macOS
+		const embeddedAppPath = join(this.environmentMainService.appRoot, '..', '..', 'Applications', `${this.productService.embedded.nameShort}.app`);
+		const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+		this.logService.trace('Registering embedded app with Launch Services:', embeddedAppPath);
+		const child = execFile(lsregister, ['-f', embeddedAppPath], { timeout: 30_000 }, (error) => {
+			if (error) {
+				this.logService.error('Failed to register embedded app with Launch Services:', error.message);
+			}
+		});
+		child.unref();
 	}
 }

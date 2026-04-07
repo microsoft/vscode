@@ -141,7 +141,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
 		appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
 
-		const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE.com';
+		const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE';
 		const enterpriseBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact.provider-enterprise')) as HTMLButtonElement;
 		enterpriseBtn.setAttribute('aria-label', localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName));
 		enterpriseBtn.title = localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName);

@@ -591,6 +591,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.agentSessionTypeKey.set(newSessionType);
 				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(newSessionType));
 				this.updateWidgetLockStateFromSessionType(newSessionType);
+				this.checkModeInSessionPool(newSessionType);
 				this.refreshChatSessionPickers();
 			}));
 		}
@@ -1151,6 +1152,42 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (lm && !this.isModelValidForCurrentSession(lm)) {
 			this.setCurrentLanguageModelToDefault();
 		}
+	}
+
+	/**
+	 * Validate that the current mode is valid for the current session type.
+	 * When the session has a customAgentTarget, only Agent mode and custom
+	 * modes matching that target are valid. Resets to Agent mode if invalid.
+	 */
+	private checkModeInSessionPool(sessionType?: string): void {
+		if (!sessionType) {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (!sessionResource) {
+				return;
+			}
+			sessionType = getChatSessionType(sessionResource);
+		}
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType);
+		if (!customAgentTarget || customAgentTarget === Target.Undefined) {
+			return;
+		}
+		const currentMode = this._currentModeObservable.get();
+		// Built-in Agent mode is always valid in sessions with customAgentTarget
+		if (currentMode.id === ChatMode.Agent.id) {
+			return;
+		}
+		// Built-in Ask/Edit modes are not valid in sessions with customAgentTarget
+		if (currentMode.isBuiltin) {
+			this.setChatMode(ChatModeKind.Agent, false);
+			return;
+		}
+		// Custom modes with matching target or no target (Target.Undefined) are valid
+		const modeTarget = currentMode.target.get();
+		if (modeTarget === customAgentTarget || modeTarget === Target.Undefined) {
+			return;
+		}
+		// Current mode is not valid for this session type, reset to Agent
+		this.setChatMode(ChatModeKind.Agent, false);
 	}
 
 	/**
@@ -1921,6 +1958,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
 				this.checkModelInSessionPool();
+				this.checkModeInSessionPool();
 			}
 
 			// For contributed sessions with history, pre-select the model

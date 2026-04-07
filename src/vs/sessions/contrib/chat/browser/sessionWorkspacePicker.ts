@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -14,8 +14,11 @@ import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { IOutputService } from '../../../../workbench/services/output/common/output.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -62,6 +65,8 @@ interface IWorkspacePickerItem {
 	readonly checked?: boolean;
 	/** Remote provider reference for gear menu actions. */
 	readonly remoteProvider?: ISessionsProvider;
+	/** When true, clicking this item triggers the tunnel connection command. */
+	readonly tunnelAction?: boolean;
 }
 
 /**
@@ -98,6 +103,8 @@ export class WorkspacePicker extends Disposable {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -182,13 +189,20 @@ export class WorkspacePicker extends Disposable {
 		const delegate: IActionListDelegate<IWorkspacePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
+				if (item.tunnelAction) {
+					this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
+				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
 					// Workspace belongs to an unavailable remote — ignore selection
 					return;
 				}
 				if (item.remoteProvider && item.browseActionIndex === undefined) {
-					// Disconnected remote host — show options menu after widget hides
-					this._showRemoteHostOptionsDelayed(item.remoteProvider);
+					if (item.remoteProvider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+						// Disconnected tunnel — trigger connection flow
+						this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
+					} else {
+						// Disconnected SSH host — show options menu after widget hides
+						this._showRemoteHostOptionsDelayed(item.remoteProvider);
+					}
 				} else if (item.browseActionIndex !== undefined) {
 					this._executeBrowseAction(item.browseActionIndex);
 				} else if (item.selection) {
@@ -414,37 +428,57 @@ export class WorkspacePicker extends Disposable {
 			}
 		}
 
+		if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator && remoteProviders.length) {
+			items.push({ kind: ActionListItemKind.Separator, label: '' });
+		}
+
 		for (const provider of remoteProviders) {
 			const status = provider.connectionStatus!.get();
 			const isConnected = status === RemoteAgentHostConnectionStatus.Connected;
 			const providerBrowseIndex = allBrowseActions.findIndex(a => a.providerId === provider.id);
 
-			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
-				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			const toolbarActions: IAction[] = [];
+
+			// Gear menu only for SSH hosts, not tunnel providers
+			if (!provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+				toolbarActions.push(toAction({
+					id: `workspacePicker.remote.gear.${provider.id}`,
+					label: localize('workspacePicker.remoteOptions', "Options"),
+					class: ThemeIcon.asClassName(Codicon.gear),
+					run: () => {
+						this.actionWidgetService.hide();
+						this._showRemoteHostOptionsDelayed(provider);
+					},
+				}));
 			}
+
+			const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
 
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: provider.label,
 				description: this._getStatusDescription(status),
 				hover: { content: this._getStatusHover(status, provider.remoteAddress) },
-				group: { title: '', icon: Codicon.remote },
-				disabled: !isConnected,
+				group: { title: '', icon: isTunnel ? Codicon.cloud : Codicon.remote },
+				disabled: isTunnel ? false : !isConnected,
 				item: {
 					browseActionIndex: isConnected && providerBrowseIndex >= 0 ? providerBrowseIndex : undefined,
 					remoteProvider: provider,
 				},
-				toolbarActions: [
-					toAction({
-						id: `workspacePicker.remote.gear.${provider.id}`,
-						label: localize('workspacePicker.remoteOptions', "Options"),
-						class: ThemeIcon.asClassName(Codicon.gear),
-						run: () => {
-							this.actionWidgetService.hide();
-							this._showRemoteHostOptionsDelayed(provider);
-						},
-					}),
-				],
+				toolbarActions,
+			});
+		}
+
+		// "Tunnels..." entry — shown when remote agent hosts are enabled
+		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('workspacePicker.tunnels', "Tunnels..."),
+				group: { title: '', icon: Codicon.cloud },
+				item: { tunnelAction: true },
 			});
 		}
 

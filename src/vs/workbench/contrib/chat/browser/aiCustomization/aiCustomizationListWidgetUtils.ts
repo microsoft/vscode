@@ -27,3 +27,23 @@ export function getCustomizationSecondaryText(description: string | undefined, f
 
 	return promptType === PromptsType.hook ? description : truncateToFirstLine(description);
 }
+
+/**
+ * Extracts an extension ID from a file path if the path is inside an
+ * extension install directory (e.g. `~/.vscode/extensions/<id>-<version>/...`).
+ *
+ * Returns the extension ID (e.g. `github.copilot-chat`) or `undefined`
+ * if the path is not inside an extension directory.
+ */
+export function extractExtensionIdFromPath(uriPath: string): string | undefined {
+	const segments = uriPath.split('/');
+	const extensionsIdx = segments.lastIndexOf('extensions');
+	if (extensionsIdx < 0 || extensionsIdx + 1 >= segments.length) {
+		return undefined;
+	}
+	const folderName = segments[extensionsIdx + 1];
+	// Strip version suffix: the version starts with digits after the last hyphen
+	// e.g. "github.copilot-chat-0.43.2026040602" → "github.copilot-chat"
+	const versionMatch = folderName.match(/^(.+)-\d+\./);
+	return versionMatch ? versionMatch[1] : undefined;
+}

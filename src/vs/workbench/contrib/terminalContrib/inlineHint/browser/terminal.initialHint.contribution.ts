@@ -287,49 +287,74 @@ class TerminalInitialHintWidget extends Disposable {
 		const hintElement = $('div.terminal-initial-hint');
 		hintElement.style.display = 'block';
 
+		const copilotCliEnabled = this._configurationService.getValue(TerminalInitialHintSettingId.CopilotCli);
+
 		// Chat hint
 		if (!this._chatEntitlementService.sentiment.hidden) {
-			const keybindingHint = this._keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
-			const keybindingHintLabel = keybindingHint?.getLabel();
-
-			if (keybindingHint && keybindingHintLabel) {
-				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
-				if (terminalAgents?.length) {
-					const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
-
-					const { before, after } = this._createWrappedHintElements(actionPart, keybindingHintLabel, handleClick);
-
-					hintElement.appendChild(before);
-
-					const label = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
-					label.set(keybindingHint);
-					label.element.style.width = 'min-content';
-					label.element.style.display = 'inline';
-
-					label.element.style.cursor = 'pointer';
-					this._toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
-
-					hintElement.appendChild(after);
-					hintElement.appendChild($('span.terminal-initial-hint-separator'));
-
-					ariaLabelParts.push(actionPart);
-				}
-			} else {
-				const hintMsg = localize({
-					key: 'inlineChatHint',
+			if (copilotCliEnabled) {
+				// Copilot CLI hint
+				const handleCopilotCliClick = () => {
+					this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+						id: 'terminalCopilotCli.hintAction',
+						from: 'hint'
+					});
+					this._instance.sendText('copilot', false);
+				};
+				const copilotCliHint = localize({
+					key: 'copilotCliHint',
 					comment: [
 						'Preserve double-square brackets and their order',
 					]
-				}, '[[Open chat]] or start typing to dismiss.');
-				const rendered = renderFormattedText(hintMsg, { actionHandler: hintHandler });
-				hintElement.appendChild(rendered);
+				}, "Type [[copilot]] to use Copilot CLI.");
+				const copilotCliHintHandler: IContentActionHandler = {
+					callback: () => handleCopilotCliClick(),
+					disposables: this._toDispose
+				};
+				hintElement.appendChild(renderFormattedText(copilotCliHint, { actionHandler: copilotCliHintHandler }));
+				ariaLabelParts.push(localize('copilotCliHintAriaLabel', "Type copilot to use Copilot CLI."));
+			} else {
+				const keybindingHint = this._keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
+				const keybindingHintLabel = keybindingHint?.getLabel();
 
-				ariaLabelParts.push(localize('openChatHint', 'Open chat or start typing to dismiss.'));
+				if (keybindingHint && keybindingHintLabel) {
+					const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
+					if (terminalAgents?.length) {
+						const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
+
+						const { before, after } = this._createWrappedHintElements(actionPart, keybindingHintLabel, handleClick);
+
+						hintElement.appendChild(before);
+
+						const label = hintHandler.disposables.add(new KeybindingLabel(hintElement, OS));
+						label.set(keybindingHint);
+						label.element.style.width = 'min-content';
+						label.element.style.display = 'inline';
+
+						label.element.style.cursor = 'pointer';
+						this._toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
+
+						hintElement.appendChild(after);
+						hintElement.appendChild($('span.terminal-initial-hint-separator'));
+
+						ariaLabelParts.push(actionPart);
+					}
+				} else {
+					const hintMsg = localize({
+						key: 'inlineChatHint',
+						comment: [
+							'Preserve double-square brackets and their order',
+						]
+					}, '[[Open chat]] or start typing to dismiss.');
+					const rendered = renderFormattedText(hintMsg, { actionHandler: hintHandler });
+					hintElement.appendChild(rendered);
+
+					ariaLabelParts.push(localize('openChatHint', 'Open chat or start typing to dismiss.'));
+				}
 			}
 		}
 
-		// Suggest hint
-		const suggestEnabled = this._configurationService.getValue<boolean>(TerminalSuggestSettingId.Enabled);
+		// Suggest hint (skip when Copilot CLI hint is shown)
+		const suggestEnabled = !copilotCliEnabled && this._configurationService.getValue<boolean>(TerminalSuggestSettingId.Enabled);
 		const suggestKeybinding = suggestEnabled ? this._keybindingService.lookupKeybinding(TerminalSuggestCommandId.TriggerSuggest) : undefined;
 		const suggestKeybindingLabel = suggestKeybinding?.getLabel();
 		if (suggestKeybinding && suggestKeybindingLabel) {
