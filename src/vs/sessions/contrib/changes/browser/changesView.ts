@@ -177,7 +177,6 @@ class ChangesButtonBarWidget extends Disposable {
 			return { showIcon: true, showLabel: false, isSecondary: true };
 		}
 		if (
-			action.id === 'chatEditing.viewAllSessionChanges' ||
 			action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
 		) {
 			return { showIcon: true, showLabel: false, isSecondary: true };

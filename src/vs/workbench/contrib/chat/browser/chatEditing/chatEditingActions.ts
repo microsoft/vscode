@@ -39,6 +39,7 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -360,6 +361,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 					id: MenuId.ChatEditingSessionChangesToolbar,
 					group: 'navigation',
 					order: 10,
+					when: IsSessionsWindowContext.negate(),
 				}
 			],
 		});
