@@ -83,9 +83,6 @@ export class PromptFileContribution extends Disposable implements IExtensionCont
 					updateExploreProvider();
 				}
 			}));
-			this._register(experimentationService.onDidTreatmentsChange(() => {
-				updateExploreProvider();
-			}));
 		}
 
 		// Register instructions provider
