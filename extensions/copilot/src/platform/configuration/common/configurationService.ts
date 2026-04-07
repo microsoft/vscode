@@ -998,6 +998,8 @@ export namespace ConfigKey {
 	/** Model override for Ask agent (empty = use default) */
 	export const AskAgentModel = defineSetting<string>('chat.askAgent.model', ConfigType.Simple, '');
 
+	/** Whether the Explore (Code Research) subagent is enabled */
+	export const ExploreAgentEnabled = defineSetting<boolean>('chat.exploreAgent.enabled', ConfigType.ExperimentBased, true);
 	/** Model override for Explore (Code Research) agent — reads from core `chat.exploreAgent.defaultModel` */
 	export const ExploreAgentModel = defineSetting<string>('chat.exploreAgent.model', ConfigType.Simple, '');
 
