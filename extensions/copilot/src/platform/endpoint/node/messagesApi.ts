@@ -104,6 +104,9 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 
 	const toolSearchEnabled = isAnthropicToolSearchEnabled(endpoint, configurationService);
 	const customToolSearchEnabled = isAnthropicCustomToolSearchEnabled(endpoint, configurationService, experimentationService);
+	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
+	// TODO: Use a dedicated flag on options instead of relying on telemetry subType
+	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
 
 	// Split tools into non-deferred and deferred up front so we can build finalTools
 	// with non-deferred first. This ensures the cache_control breakpoint on the last
@@ -115,7 +118,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 			if (!tool.function.name || tool.function.name.length === 0) {
 				continue;
 			}
-			const isDeferred = options.modelCapabilities?.enableToolSearch && toolSearchEnabled && !toolDeferralService.isNonDeferredTool(tool.function.name);
+			const isDeferred = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && !toolDeferralService.isNonDeferredTool(tool.function.name);
 			const anthropicTool: AnthropicMessagesTool = {
 				name: tool.function.name,
 				description: tool.function.description || '',
@@ -128,7 +131,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 
 	// Build final tools array, adding tool search tool if enabled
 	const finalTools: AnthropicMessagesTool[] = [];
-	if (options.modelCapabilities?.enableToolSearch && toolSearchEnabled && !customToolSearchEnabled) {
+	if (isAllowedConversationAgent && !isSubagent && toolSearchEnabled && !customToolSearchEnabled) {
 		// Server-side tool search: use the built-in tool_search_tool_regex
 		finalTools.push({ name: TOOL_SEARCH_TOOL_NAME, type: TOOL_SEARCH_TOOL_TYPE, defer_loading: false });
 	}
@@ -141,9 +144,9 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// Thinking is enabled only when options.enableThinking is true, a non-zero thinking budget
 	// is configured for the model, and the model supports thinking. reasoningEffort (if present)
 	// is used only to configure the effort level when thinking is enabled, not to gate it.
-	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
+	const reasoningEffort = options.reasoningEffort;
 	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number } | undefined;
-	if (options.modelCapabilities?.enableThinking) {
+	if (options.enableThinking) {
 		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
 		const thinkingExplicitlyDisabled = configuredBudget === 0;
 		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
@@ -174,7 +177,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	}
 
 	// Build context management configuration
-	const contextManagement = options.modelCapabilities?.enableContextEditing && isAnthropicContextEditingEnabled(endpoint, configurationService, experimentationService)
+	const contextManagement = isAllowedConversationAgent && !isSubagent && isAnthropicContextEditingEnabled(endpoint, configurationService, experimentationService)
 		? getContextManagementFromConfig(configurationService, experimentationService, thinkingEnabled)
 		: undefined;
 

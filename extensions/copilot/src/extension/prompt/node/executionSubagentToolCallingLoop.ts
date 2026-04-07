@@ -125,14 +125,15 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return allTools.filter(tool => allowedExecutionTools.has(tool.name as ToolName));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions, modelCapabilities }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
+	protected async fetch({ messages, finishedCb, requestOptions, enableThinking, reasoningEffort }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const endpoint = await this.getEndpoint();
 		return endpoint.makeChatRequest2({
 			debugName: ExecutionSubagentToolCallingLoop.ID,
 			messages,
 			finishedCb,
 			location: this.options.location,
-			modelCapabilities,
+			enableThinking,
+			reasoningEffort,
 			requestOptions: {
 				...(requestOptions ?? {}),
 				temperature: 0

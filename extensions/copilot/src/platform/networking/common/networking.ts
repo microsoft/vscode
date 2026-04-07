@@ -152,18 +152,6 @@ export interface IEmbeddingsEndpoint extends IEndpoint {
 	readonly maxBatchSize: number;
 }
 
-/** Per-request model capability opt-ins. All off by default. */
-export interface IModelCapabilityOptions {
-	/** Explicitly enable thinking for this request. */
-	enableThinking?: boolean;
-	/** Reasoning effort level (e.g. 'low', 'medium', 'high'). Only used when enableThinking is true or when the model supports reasoning effort. */
-	reasoningEffort?: string;
-	/** Enable the tool search tool for this request. */
-	enableToolSearch?: boolean;
-	/** Enable context editing for this request. */
-	enableContextEditing?: boolean;
-}
-
 export interface IMakeChatRequestOptions {
 	/** The debug name for this request */
 	debugName: string;
@@ -196,8 +184,10 @@ export interface IMakeChatRequestOptions {
 	enableRetryOnError?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
-	/** Per-request model capability opt-ins (thinking, tool search, context editing). */
-	modelCapabilities?: IModelCapabilityOptions;
+	/** Explicitly enable thinking for this request. When not set, thinking is disabled. */
+	enableThinking?: boolean;
+	/** Reasoning effort level for this request (e.g. 'low', 'medium', 'high'). Only used when enableThinking is true or when the model supports reasoning effort. */
+	reasoningEffort?: string;
 	/** Enable retrying once on simple network errors like ECONNRESET. */
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
@@ -244,8 +234,6 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly minThinkingBudget?: number;
 	readonly maxThinkingBudget?: number;
 	readonly supportsReasoningEffort?: string[];
-	readonly supportsToolSearch?: boolean;
-	readonly supportsContextEditing?: boolean;
 	readonly supportsToolCalls: boolean;
 	readonly supportsVision: boolean;
 	readonly supportsPrediction: boolean;

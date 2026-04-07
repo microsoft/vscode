@@ -30,7 +30,7 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { isGeminiFamily } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
@@ -129,8 +129,6 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly minThinkingBudget?: number;
 	public readonly maxThinkingBudget?: number;
 	public readonly supportsReasoningEffort?: string[];
-	public readonly supportsToolSearch?: boolean;
-	public readonly supportsContextEditing?: boolean;
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
@@ -172,8 +170,6 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this.model);
-		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this.model);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
@@ -183,29 +179,35 @@ export class ChatEndpoint implements IChatEndpoint {
 	// so getExtraHeaders can gate the interleaved-thinking header on whether thinking is actually enabled for the
 	// request, rather than using the location check. Once plumbed, replace isAllowedConversationAgentModel with
 	// an enableThinking check for the thinking header (keep location gate for context management / tool search).
-	public getExtraHeaders(_location?: ChatLocation): Record<string, string> {
+	public getExtraHeaders(location?: ChatLocation): Record<string, string> {
 		const headers: Record<string, string> = { ...this.modelMetadata.requestHeaders };
 
-		if (this.useMessagesApi) {
+		const isAllowedConversationAgentModel = location === ChatLocation.Agent || location === ChatLocation.MessagesProxy;
+		if (isAllowedConversationAgentModel && this.useMessagesApi) {
 
 			const modelProviderPreference = this._configurationService.getConfig(ConfigKey.TeamInternal.ModelProviderPreference);
 			if (modelProviderPreference) {
 				headers['X-Model-Provider-Preference'] = modelProviderPreference;
 			}
 
-			const betas: string[] = [];
+			const betaFeatures: string[] = [];
 
 			if (!this.supportsAdaptiveThinking) {
-				betas.push('interleaved-thinking-2025-05-14');
+				betaFeatures.push('interleaved-thinking-2025-05-14');
 			}
-			if (isAnthropicToolSearchEnabled(this, this._configurationService)) {
-				betas.push('advanced-tool-use-2025-11-20');
+
+			// Add context management beta if enabled (required for context editing)
+			if (isAnthropicContextEditingEnabled(this.model, this._configurationService, this._expService)) {
+				betaFeatures.push('context-management-2025-06-27');
 			}
-			if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {
-				betas.push('context-management-2025-06-27');
+
+			// Add tool search beta if enabled
+			if (isAnthropicToolSearchEnabled(this.model, this._configurationService)) {
+				betaFeatures.push('advanced-tool-use-2025-11-20');
 			}
-			if (betas.length > 0) {
-				headers['anthropic-beta'] = betas.join(',');
+
+			if (betaFeatures.length > 0) {
+				headers['anthropic-beta'] = betaFeatures.join(',');
 			}
 		}
 

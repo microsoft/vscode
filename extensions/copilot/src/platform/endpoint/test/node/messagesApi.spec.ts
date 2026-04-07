@@ -732,7 +732,8 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: ['low', 'medium', 'high'],
 		});
 		const options = createMinimalOptions({
-			modelCapabilities: { enableThinking: true, reasoningEffort: 'high' },
+			enableThinking: true,
+			reasoningEffort: 'high',
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
@@ -747,7 +748,8 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			// supportsReasoningEffort is undefined
 		});
 		const options = createMinimalOptions({
-			modelCapabilities: { enableThinking: true, reasoningEffort: 'high' },
+			enableThinking: true,
+			reasoningEffort: 'high',
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
@@ -762,7 +764,8 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: [],
 		});
 		const options = createMinimalOptions({
-			modelCapabilities: { enableThinking: true, reasoningEffort: 'medium' },
+			enableThinking: true,
+			reasoningEffort: 'medium',
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
@@ -777,7 +780,8 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: ['low', 'medium', 'high'],
 		});
 		const options = createMinimalOptions({
-			modelCapabilities: { enableThinking: false, reasoningEffort: 'high' },
+			enableThinking: false,
+			reasoningEffort: 'high',
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
@@ -792,7 +796,8 @@ describe('createMessagesRequestBody reasoning effort', () => {
 			supportsReasoningEffort: ['low', 'medium', 'high'],
 		});
 		const options = createMinimalOptions({
-			modelCapabilities: { enableThinking: true, reasoningEffort: 'xhigh' as any },
+			enableThinking: true,
+			reasoningEffort: 'xhigh' as any,
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
@@ -810,7 +815,8 @@ describe('createMessagesRequestBody reasoning effort', () => {
 		});
 		mockConfig.setConfig(ConfigKey.AnthropicThinkingBudget, 10000);
 		const options = createMinimalOptions({
-			modelCapabilities: { enableThinking: true, reasoningEffort: 'low' },
+			enableThinking: true,
+			reasoningEffort: 'low',
 		});
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);

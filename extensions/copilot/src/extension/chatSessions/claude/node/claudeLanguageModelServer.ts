@@ -229,7 +229,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 				messages: messagesForLogging,
 				finishedCb: async () => undefined,
 				location: ChatLocation.MessagesProxy,
-				modelCapabilities: { enableThinking: true },
+				enableThinking: true,
 				userInitiatedRequest: isUserInitiatedMessage
 			}, tokenSource.token);
 
