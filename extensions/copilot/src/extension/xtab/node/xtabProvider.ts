@@ -39,7 +39,7 @@ import { ErrorUtils } from '../../../util/common/errors';
 import { Result } from '../../../util/common/result';
 import { assertNever } from '../../../util/vs/base/common/assert';
 import { DeferredPromise, raceCancellation, raceTimeout, timeout } from '../../../util/vs/base/common/async';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { isAbsolute } from '../../../util/vs/base/common/path';
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -65,6 +65,7 @@ import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifie
 import { PromptTags, ResponseTags } from '../common/tags';
 import { TerminalMonitor } from '../common/terminalOutput';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
+import { isModelCursorLineCompatible } from './cursorLineDivergence';
 import { XtabCustomDiffPatchResponseHandler } from './xtabCustomDiffPatchResponseHandler';
 import { XtabEndpoint } from './xtabEndpoint';
 import { CursorJumpPrediction, XtabNextCursorPredictor } from './xtabNextCursorPredictor';
@@ -690,6 +691,53 @@ export class XtabProvider implements IStatelessNextEditProvider {
 	): EditStreaming {
 		const tracer = parentTracer.createSubLogger('streamEdits');
 
+		// Create a local cancellation source linked to the caller's token.
+		// This lets us cancel the fetch immediately on cursor-line divergence
+		// without reaching into the request's CancellationTokenSource (which
+		// is owned by nextEditProvider.ts).
+		const fetchCts = new CancellationTokenSource(cancellationToken);
+		const fetchCancellationToken = fetchCts.token;
+
+		try {
+			return yield* this._streamEditsImpl(
+				request, endpoint, modelServiceConfig, messages, clippedTaggedCurrentDoc,
+				editWindow, editWindowLines, cursorOriginalLinesOffset, editWindowLineRange,
+				promptPieces, prediction, opts, delaySession, tracer, telemetryBuilder,
+				logContext, cancellationToken, originalEditWindow, fetchCts, fetchCancellationToken,
+			);
+		} finally {
+			fetchCts.dispose();
+		}
+	}
+
+	private async *_streamEditsImpl(
+		request: StatelessNextEditRequest,
+		endpoint: IChatEndpoint,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
+		messages: Raw.ChatMessage[],
+		clippedTaggedCurrentDoc: ClippedDocument,
+		editWindow: OffsetRange,
+		editWindowLines: string[],
+		cursorOriginalLinesOffset: number,
+		editWindowLineRange: OffsetRange,
+		promptPieces: PromptPieces,
+		prediction: Prediction | undefined,
+		opts: {
+			responseFormat: xtabPromptOptions.ResponseFormat;
+			shouldRemoveCursorTagFromResponse: boolean;
+			retryState: RetryState.t;
+			aggressivenessLevel: xtabPromptOptions.AggressivenessLevel;
+			userHappinessScore: number | undefined;
+		},
+		delaySession: DelaySession,
+		tracer: ILogger,
+		telemetryBuilder: StatelessNextEditTelemetryBuilder,
+		logContext: InlineEditRequestLogContext,
+		cancellationToken: CancellationToken,
+		originalEditWindow: OffsetRange | undefined,
+		fetchCts: CancellationTokenSource,
+		fetchCancellationToken: CancellationToken,
+	): EditStreaming {
 		const targetDocument = request.getActiveDocument().id;
 
 		const useFetcher = this.configService.getExperimentBasedConfig(ConfigKey.NextEditSuggestionsFetcher, this.expService) || undefined;
@@ -747,7 +795,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					userHappinessScore: opts.userHappinessScore,
 				},
 			},
-			cancellationToken,
+			fetchCancellationToken,
 		);
 
 		telemetryBuilder.setResponse(fetchResultPromise.then((response) => ({ response, ttft })));
@@ -936,10 +984,56 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		tracer.trace(`starting to diff stream against edit window lines with latency ${fetchRequestStopWatch.elapsed()} ms`);
 
+		// Wrap the line stream to detect early cursor-line divergence.
+		// If the user has typed at the cursor since the request started and the cursor line
+		// in the model's response doesn't match what the user currently has, the response
+		// is stale and we can cancel early instead of waiting for the full response.
+		//
+		// We check compatibility using `isModelCursorLineCompatible`: the user's
+		// cursor-line change must be contained within the model's cursor-line change range
+		// and match via the helper's `startsWith` / auto-close subsequence rules.
+		const earlyCursorLineDivergenceCancellation = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabEarlyCursorLineDivergenceCancellation, this.expService);
+		let cursorLineDiverged = false;
+		const divergenceCheckedStream: AsyncIterable<string> = earlyCursorLineDivergenceCancellation
+			? (async function* () {
+				let lineIdx = 0;
+				for await (const line of cleanedLinesStream) {
+					if (lineIdx === cursorOriginalLinesOffset) {
+						const intermediateEdit = request.intermediateUserEdit;
+						if (intermediateEdit && !intermediateEdit.isEmpty()) {
+							const currentDoc = intermediateEdit.apply(request.documentBeforeEdits.value);
+							const cursorDocLineIdx = editWindowLineRange.start + cursorOriginalLinesOffset;
+							const currentLines = currentDoc.split('\n');
+							if (cursorDocLineIdx < currentLines.length) {
+								const currentCursorLine = currentLines[cursorDocLineIdx];
+								const originalCursorLine = editWindowLines[cursorOriginalLinesOffset];
+								if (currentCursorLine !== originalCursorLine // user changed the cursor line
+									&& !isModelCursorLineCompatible(originalCursorLine, currentCursorLine, line) // model's cursor line isn't compatible with user's typing
+								) {
+									cursorLineDiverged = true;
+									tracer.trace(`Cursor line DIVERGED: model="${line}" current="${currentCursorLine}"`);
+									// Cancel our local fetch token so the HTTP request is
+									// aborted immediately. We own this token, so this is safe.
+									fetchCts.cancel();
+									return;
+								}
+							}
+						}
+					}
+					yield line;
+					lineIdx++;
+				}
+			})()
+			: cleanedLinesStream;
+
 		let i = 0;
 		let hasBeenDelayed = false;
 		try {
-			for await (const edit of ResponseProcessor.diff(editWindowLines, cleanedLinesStream, cursorOriginalLinesOffset, diffOptions)) {
+			for await (const edit of ResponseProcessor.diff(editWindowLines, divergenceCheckedStream, cursorOriginalLinesOffset, diffOptions)) {
+
+				if (cursorLineDiverged) {
+					break;
+				}
 
 				tracer.trace(`ResponseProcessor streamed edit #${i} with latency ${fetchRequestStopWatch.elapsed()} ms`);
 
@@ -997,6 +1091,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					yield { edit: singleLineEdit, isFromCursorJump, window: editWindow, originalWindow: originalEditWindow, targetDocument };
 					i++;
 				}
+			}
+
+			if (cursorLineDiverged) {
+				return new NoNextEditReason.GotCancelled('cursorLineDiverged');
 			}
 
 			if (chatResponseFailure) {
