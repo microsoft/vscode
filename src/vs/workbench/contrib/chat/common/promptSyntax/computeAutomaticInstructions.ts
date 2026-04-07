@@ -27,7 +27,7 @@ import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService, newInstructionsCollectionEvent, type InstructionsCollectionEvent } from './service/promptsService.js';
 export type { InstructionsCollectionEvent } from './service/promptsService.js';
 export { newInstructionsCollectionEvent } from './service/promptsService.js';
-import { AGENT_DEBUG_LOG_ENABLED_SETTING, AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
@@ -386,8 +386,7 @@ export class ComputeAutomaticInstructions {
 			const agentSkills = await this._promptsService.findAgentSkills(token);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
 			// Also filter by `when` clause using the scoped context key service
-			// Also filter out the troubleshoot skill when the feature flags are disabled
-			const isDebugLogEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING);
+			// Also filter out the troubleshoot skill when  agent debug log file logging setting is disabled
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 			const modelInvocableSkills = agentSkills?.filter(skill => {
 				if (skill.disableModelInvocation) {
@@ -398,7 +397,7 @@ export class ComputeAutomaticInstructions {
 					telemetryEvent.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillWhenClause', "when clause not satisfied") });
 					return false;
 				}
-				if ((!isDebugLogEnabled || !isFileLoggingEnabled) && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
+				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
 					telemetryEvent.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillDebugDisabled', 'debug logging disabled') });
 					return false;
 				}

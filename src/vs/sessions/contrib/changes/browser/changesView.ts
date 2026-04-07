@@ -7,15 +7,14 @@ import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IObjectTreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
-import { basename } from '../../../../base/common/path.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -70,6 +69,7 @@ import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFil
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 
 const $ = dom.$;
 
@@ -294,8 +294,7 @@ export class ChangesViewPane extends ViewPane {
 		// can use it in their `when` clauses. Update reactively when the active session
 		// changes.
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.sessionType ?? '';
+			return this.viewModel.activeSessionTypeObs.read(reader) ?? '';
 		}));
 
 		// Title actions
@@ -750,29 +749,29 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		const sampleUri = items[0].uri;
+		let name: string = '';
 		let resourceTreeRootUri = workspaceFolderUri;
 
-		if (sampleUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = sampleUri.path.split('/').filter(Boolean);
-			if (parts.length >= 3) {
-				resourceTreeRootUri = sampleUri.with({ path: '/' + parts.slice(0, 3).join('/'), query: '', fragment: '' });
-			}
-		} else if (sampleUri.scheme !== workspaceFolderUri.scheme || sampleUri.authority !== workspaceFolderUri.authority) {
-			resourceTreeRootUri = sampleUri.with({ path: workspaceFolderUri.path, authority: workspaceFolderUri.authority, query: '', fragment: '' });
+		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			// Cloud session
+			resourceTreeRootUri = URI.from({ scheme: 'copilot-pr', path: '/' });
+			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
+			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
+		} else {
+			// Local session
+			const branchName = this.viewModel.activeSessionStateObs.get()?.branchName;
+			name = repository.workingDirectory
+				? `${basename(repository.uri)} (${branchName})`
+				: basename(repository.uri);
 		}
-
-		const branchName = this.viewModel.activeSessionStateObs.get()?.branchName;
 
 		return {
 			root: {
 				type: 'root',
 				uri: workspaceFolderUri,
-				name: repository.workingDirectory
-					? `${basename(repository.uri.fsPath)} (${branchName})`
-					: basename(repository.uri.fsPath),
+				name
 			},
-			resourceTreeRootUri,
+			resourceTreeRootUri
 		};
 	}
 
@@ -884,12 +883,14 @@ export class ChangesViewPane extends ViewPane {
 					// Pass in the tree root to be used to compute the label description
 					const activeSession = this.sessionManagementService.activeSession.get();
 					const repository = activeSession?.workspace.get()?.repositories[0];
-					return repository?.workingDirectory ?? repository?.uri;
+					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
+						? URI.from({ scheme: 'copilot-pr', path: '/' })
+						: repository?.workingDirectory ?? repository?.uri;
 				})],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
-					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri.path) : element.name,
+					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri) : element.name,
 					getWidgetAriaLabel: () => localize('changesViewTree', "Changes Tree")
 				},
 				dnd: {
@@ -919,6 +920,7 @@ export class ChangesViewPane extends ViewPane {
 				},
 				indent: this.viewModel.viewModeObs.get() === ChangesViewMode.List ? 0 : 8,
 				compressionEnabled: true,
+				sorter: new ChangesTreeSorter(() => this.viewModel.viewModeObs.get()),
 				twistieAdditionalCssClass: (e: unknown) => {
 					return this.viewModel.viewModeObs.get() === ChangesViewMode.List
 						? 'force-no-twistie'
@@ -991,7 +993,7 @@ class ChangesViewActionRunner extends ActionRunner {
 	}
 }
 
-// --- Tree Delegate
+// --- Tree Delegate and Sorter
 
 class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
 	static readonly ROW_HEIGHT = 22;
@@ -1002,6 +1004,37 @@ class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
 
 	getTemplateId(_element: ChangesTreeElement): string {
 		return ChangesTreeRenderer.TEMPLATE_ID;
+	}
+}
+
+class ChangesTreeSorter implements ITreeSorter<ChangesTreeElement> {
+	constructor(private readonly viewMode: () => ChangesViewMode) { }
+
+	compare(a: ChangesTreeElement, b: ChangesTreeElement): number {
+		if (this.viewMode() === ChangesViewMode.List) {
+			// List
+			const aPath = (a as IChangesFileItem).uri.fsPath;
+			const bPath = (b as IChangesFileItem).uri.fsPath;
+
+			return comparePaths(aPath, bPath);
+		}
+
+		// Tree
+		const aIsDirectory = ResourceTree.isResourceNode(a);
+		const bIsDirectory = ResourceTree.isResourceNode(b);
+
+		if (aIsDirectory !== bIsDirectory) {
+			return aIsDirectory ? -1 : 1;
+		}
+
+		const aName = ResourceTree.isResourceNode(a)
+			? a.name
+			: basename((a as IChangesFileItem).uri);
+		const bName = ResourceTree.isResourceNode(b)
+			? b.name
+			: basename((b as IChangesFileItem).uri);
+
+		return compareFileNames(aName, bName);
 	}
 }
 

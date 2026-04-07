@@ -44,8 +44,6 @@
 	cursor: default;
 	user-select: text;
 	-webkit-user-select: text;
-
-	contain: layout style;
 }
 
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
@@ -393,6 +391,10 @@
 	overflow-wrap: anywhere;
 }
 
+.chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
+	padding-bottom: 37px;
+}
+
 .interactive-item-container .value > :last-child,
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child,
 .interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
@@ -623,10 +625,6 @@
 				font-size: var(--vscode-chat-font-size-body-xs);
 			}
 		}
-	}
-
-	&:not(:last-child) {
-		margin-bottom: 14px;
 	}
 }
 

@@ -17,6 +17,7 @@ import { GitDiffChange, GitRepositoryState, IGitRepository, IGitService } from '
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { COPILOT_CLOUD_SESSION_TYPE } from '../../sessions/browser/sessionTypes.js';
 import { ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 
 function toIChatSessionFileChange2(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChatSessionFileChange2[] {
@@ -52,6 +53,7 @@ export interface ActiveSessionState {
 
 export class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
+	readonly activeSessionTypeObs: IObservable<string | undefined>;
 	readonly activeSessionRepositoryObs: IObservableWithChange<IGitRepository | undefined>;
 	readonly activeSessionRepositoryStateObs: IObservableWithChange<GitRepositoryState | undefined>;
 	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
@@ -100,13 +102,20 @@ export class ChangesViewModel extends Disposable {
 			return activeSession?.resource;
 		});
 
+		// Active session type
+		this.activeSessionTypeObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.sessionType;
+		});
+
 		// Active session metadata
 		this._activeSessionMetadataObs = this._getActiveSessionMetadata();
 
 		// Active session has git repository
 		this.activeSessionHasGitRepositoryObs = derived(reader => {
+			const sessionType = this.activeSessionTypeObs.read(reader);
 			const metadata = this._activeSessionMetadataObs.read(reader);
-			return metadata?.repositoryPath !== undefined;
+			return sessionType === COPILOT_CLOUD_SESSION_TYPE || metadata?.repositoryPath !== undefined;
 		});
 
 		// Active session first checkpoint ref
@@ -298,8 +307,9 @@ export class ChangesViewModel extends Disposable {
 		const isLoadingObs = derived(reader => {
 			// If there is a git repository, wait for the repository to be opened first,
 			// as there are many context keys that depend on the repository information.
+			const sessionType = this.activeSessionTypeObs.read(reader);
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			if (hasGitRepository && this.activeSessionRepositoryStateObs.read(reader) === undefined) {
+			if (hasGitRepository && sessionType !== COPILOT_CLOUD_SESSION_TYPE && this.activeSessionRepositoryStateObs.read(reader) === undefined) {
 				return true;
 			}
 
@@ -337,7 +347,7 @@ export class ChangesViewModel extends Disposable {
 			const workspace = activeSession?.workspace.read(reader);
 			const workspaceRepository = workspace?.repositories[0];
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			const branchName = sessionMetadata?.branchName as string | undefined;
+			const branchName = (sessionMetadata?.branchName ?? sessionMetadata?.branch) as string | undefined;
 			const baseBranchName = sessionMetadata?.baseBranchName as string | undefined;
 			const isMergeBaseBranchProtected = workspaceRepository?.baseBranchProtected;
 			const isolationMode = workspaceRepository?.workingDirectory === undefined

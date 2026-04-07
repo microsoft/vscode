@@ -228,7 +228,6 @@
 
 	.session-approval-row {
 		display: none;
-		align-items: flex-end;
 		gap: 8px;
 		margin-top: 4px;
 		padding: 4px 8px;
@@ -237,6 +236,7 @@
 		border-radius: 4px;
 		background-color: var(--vscode-editor-background);
 		color: var(--vscode-editor-foreground);
+		align-items: center;
 
 		&.visible {
 			display: flex;
