@@ -359,14 +359,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeListPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		const prompts = await Promise.all([
-			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
-			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))),
+		const [orderedFiles, extensionPrompts, pluginPrompts] = await Promise.all([
+			this.fileLocator.listAllFilesInOrder(type, token),
 			this.getExtensionPromptFiles(type, token),
 			this._pluginPromptFilesByType.get(type) ?? [],
 		]);
 
-		return prompts.flat();
+		const prompts: IPromptPath[] = orderedFiles.map(({ uri, storage }) =>
+			storage === PromptsStorage.user
+				? { uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath
+				: { uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath
+		);
+
+		return [...prompts, ...extensionPrompts, ...pluginPrompts];
 	}
 
 	/**

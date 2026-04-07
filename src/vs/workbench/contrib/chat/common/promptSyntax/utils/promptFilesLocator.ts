@@ -177,6 +177,39 @@ export class PromptFilesLocator {
 		return [...paths];
 	}
 
+	/**
+	 * List all prompt files in the order configured by `chat.promptFilesLocations`.
+	 * Unlike {@link listFiles}, this method returns files from all storage types
+	 * in their configured order with storage metadata attached.
+	 */
+	public async listAllFilesInOrder(type: PromptsType, token: CancellationToken): Promise<readonly { uri: URI; storage: PromptsStorage }[]> {
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const absoluteLocations = await this.toAbsoluteLocations(type, configuredLocations);
+
+		if (type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt) {
+			absoluteLocations.push(this.userDataFolder);
+		}
+
+		const seen = new ResourceSet();
+		const result: { uri: URI; storage: PromptsStorage }[] = [];
+
+		for (const location of absoluteLocations) {
+			const files = (location.filePattern === undefined)
+				? await this.resolveFilesAtLocation(location.parent, type, token)
+				: await this.searchFilesInLocation(location.parent, location.filePattern, token);
+			for (const file of files) {
+				if (getPromptFileType(file) === type && !seen.has(file)) {
+					seen.add(file);
+					result.push({ uri: file, storage: location.storage });
+				}
+			}
+			if (token.isCancellationRequested) {
+				return [];
+			}
+		}
+		return result;
+	}
+
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
 		const disposables = new DisposableStore();
 		const eventEmitter = disposables.add(new Emitter<void>());
@@ -347,16 +380,13 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Gets all resolved source folders in the same order that file discovery
-	 * searches them (user folders first, then local/workspace folders).
-	 * This matches the order used by {@link listFiles} and should be used
-	 * for debug/diagnostic output so the displayed order is accurate.
+	 * Gets all resolved source folders in the order they are configured
+	 * in `chat.promptFilesLocations`. This preserves the user's intended
+	 * precedence order for file discovery and deduplication.
 	 */
 	public async getSourceFoldersInDiscoveryOrder(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
 		const absoluteLocations = await this.getLocalStorageFolders(type);
-		const userFolders = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
-		const localFolders = absoluteLocations.filter(loc => loc.storage === PromptsStorage.local);
-		return this.dedupeSourceFolders([...userFolders, ...localFolders]);
+		return this.dedupeSourceFolders(absoluteLocations);
 	}
 
 	/**
