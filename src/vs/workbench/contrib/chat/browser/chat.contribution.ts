@@ -1396,8 +1396,8 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.CustomizationsProviderApi]: {
 			type: 'boolean',
 			description: nls.localize('chat.customizations.providerApi.enabled', "When enabled, the Customizations management UI reads items from the session type's customizations provider instead of built-in discovery."),
-			default: false,
-			tags: ['experimental'],
+			default: true,
+			tags: ['preview'],
 		},
 	}
 });
