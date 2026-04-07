@@ -72,17 +72,14 @@ jobs:
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
-      - name: Trigger ingestion
+      - name: Upload screenshots
         run: |
-          curl -sS -f -X POST "https://hediet-screenshots.azurewebsites.net/ingest" \
-            -H "Content-Type: application/json" \
+          cd test/componentFixtures/.screenshots/current
+          zip -r "$GITHUB_WORKSPACE/screenshots.zip" .
+          curl -sS -f -X POST "https://hediet-screenshots.azurewebsites.net/upload" \
+            -H "Content-Type: application/zip" \
             -H "Authorization: Bearer $SCREENSHOT_SERVICE_TOKEN" \
-            -d '{
-              "owner": "${{ github.repository_owner }}",
-              "repo": "${{ github.event.repository.name }}",
-              "runId": ${{ github.run_id }},
-              "artifactName": "screenshots"
-            }'
+            --data-binary @"$GITHUB_WORKSPACE/screenshots.zip"
         env:
           SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
 
