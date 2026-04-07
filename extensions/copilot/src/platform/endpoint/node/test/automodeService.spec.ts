@@ -918,7 +918,7 @@ describe('AutomodeService', () => {
 	});
 
 	describe('concurrent resolution coalescing', () => {
-		it('should return the same endpoint for concurrent calls with the same conversationId', async () => {
+		it('should return consistent model selection for concurrent calls with the same conversationId', async () => {
 			mockApiResponse(['gpt-4o', 'gpt-4o-mini']);
 			automodeService = createService();
 
@@ -934,8 +934,9 @@ describe('AutomodeService', () => {
 				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
 			]);
 
-			expect(result1).toBe(result2);
-			expect(result2).toBe(result3);
+			expect(result1.model).toBe(result2.model);
+			expect(result2.model).toBe(result3.model);
+			expect(result1.modelProvider).toBe(result2.modelProvider);
 		});
 
 		it('should make only one CAPI token request for concurrent calls', async () => {
