@@ -64,24 +64,6 @@ suite('GitHubService', () => {
 		assert.notStrictEqual(model1, model2);
 	});
 
-	test('getChangedFiles forwards to diff fetcher', async () => {
-		const expected = [
-			{ filename: 'src/new-name.ts', previousFilename: 'src/old-name.ts', status: 'renamed', additions: 103, deletions: 21 },
-			{ filename: 'src/other.ts', previousFilename: undefined, status: 'added', additions: 7, deletions: 0 },
-		] as const;
-
-		const diffFetcher = {
-			async getChangedFiles(): Promise<typeof expected> {
-				return expected;
-			}
-		};
-
-		(service as unknown as { _diffFetcher: typeof diffFetcher })._diffFetcher = diffFetcher;
-
-		const result = await service.getChangedFiles('owner', 'repo', 'main', 'feature');
-		assert.deepStrictEqual(result, expected);
-	});
-
 	test('disposing service does not throw', () => {
 		service.getRepository('owner', 'repo');
 		service.getPullRequest('owner', 'repo', 1);

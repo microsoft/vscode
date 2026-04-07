@@ -19,7 +19,7 @@ interface IGitHubCompareResponse {
 /**
  * Stateless fetcher for GitHub repository compare data.
  */
-export class GitHubDiffFetcher {
+export class GitHubChangesFetcher {
 
 	constructor(
 		private readonly _apiClient: GitHubApiClient,

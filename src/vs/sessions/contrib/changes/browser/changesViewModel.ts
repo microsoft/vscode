@@ -485,34 +485,32 @@ export class ChangesViewModel extends Disposable {
 
 	private async _getPullRequestChanges(firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined> {
 		const gitHubInfo = this.sessionManagementService.activeSession.get()?.gitHubInfo.get();
-		if (!gitHubInfo?.owner || !gitHubInfo?.repo || !gitHubInfo?.pullRequest) {
+		if (!gitHubInfo?.owner || !gitHubInfo?.repo || !gitHubInfo?.pullRequest?.number) {
 			return [];
 		}
 
-		const owner = gitHubInfo.owner;
-		const name = gitHubInfo.repo;
-		const prNumber = gitHubInfo.pullRequest.number;
+		const params = {
+			owner: gitHubInfo.owner,
+			repo: gitHubInfo.repo,
+			prNumber: gitHubInfo.pullRequest.number,
+		} as const;
 
-		const changes = await this.gitHubService.getChangedFiles(owner, name, firstCheckpointRef, lastCheckpointRef);
+		const changes = await this.gitHubService.getChangedFiles(params.owner, params.repo, firstCheckpointRef, lastCheckpointRef);
 		return changes.map(change => {
 			const uri = toPRContentUri(change.filename, {
-				owner: owner,
-				repo: name,
-				prNumber: prNumber,
+				...params,
 				commitSha: lastCheckpointRef,
-				isBase: false,
-				status: change.status
+				status: change.status,
+				isBase: false
 			});
 
 			const originalUri = change.status !== 'added'
 				? toPRContentUri(change.previous_filename || change.filename, {
-					owner: owner,
-					repo: name,
-					prNumber: prNumber,
+					...params,
 					commitSha: firstCheckpointRef,
-					isBase: true,
 					previousFileName: change.previous_filename,
-					status: change.status
+					status: change.status,
+					isBase: true
 				})
 				: undefined;
 
