@@ -20,7 +20,7 @@ import { ISessionsManagementService } from '../../sessions/browser/sessionsManag
 import { COPILOT_CLOUD_SESSION_TYPE } from '../../sessions/browser/sessionTypes.js';
 import { ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 
-function toIChatSessionFileChange2(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChatSessionFileChange2[] {
+function toIChatSessionFileChange2(changes: GitDiffChange[], originalRef: string | undefined, modifiedRef: string | undefined): IChatSessionFileChange2[] {
 	return changes.map(change => ({
 		uri: change.uri,
 		originalUri: change.originalUri
@@ -66,8 +66,8 @@ export class ChangesViewModel extends Disposable {
 	readonly activeSessionIsLoadingObs: IObservable<boolean>;
 
 	private _activeSessionMetadataObs!: IObservable<{ readonly [key: string]: unknown } | undefined>;
-	private _activeSessionAllChangesPromiseObs!: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
-	private _activeSessionLastTurnChangesPromiseObs!: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
+	private _activeSessionAllChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
+	private _activeSessionLastTurnChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -240,6 +240,12 @@ export class ChangesViewModel extends Disposable {
 			return activeSession.changes.read(reader);
 		});
 
+		// Repository changes
+		const getRepositoryChanges = async (repository: IGitRepository, firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[]> => {
+			const changes = await repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+			return toIChatSessionFileChange2(changes, firstCheckpointRef, lastCheckpointRef);
+		};
+
 		// All changes
 		this._activeSessionAllChangesPromiseObs = derived(reader => {
 			const repository = this.activeSessionRepositoryObs.read(reader);
@@ -250,16 +256,8 @@ export class ChangesViewModel extends Disposable {
 				return constObservable([]);
 			}
 
-			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+			const diffPromise = getRepositoryChanges(repository, firstCheckpointRef, lastCheckpointRef);
 			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		const activeSessionAllChangesObs = derived(reader => {
-			const diffChanges = this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
-			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(undefined);
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
-
-			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, firstCheckpointRef);
 		});
 
 		// Last turn changes
@@ -271,15 +269,8 @@ export class ChangesViewModel extends Disposable {
 				return constObservable([]);
 			}
 
-			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
+			const diffPromise = getRepositoryChanges(repository, `${lastCheckpointRef}^`, lastCheckpointRef);
 			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		const activeSessionLastTurnChangesObs = derived(reader => {
-			const diffChanges = this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader) ?? [];
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
-
-			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined);
 		});
 
 		return derivedOpts({
@@ -294,9 +285,9 @@ export class ChangesViewModel extends Disposable {
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return activeSessionChangesObs.read(reader);
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
-				return activeSessionAllChangesObs.read(reader);
+				return this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
-				return activeSessionLastTurnChangesObs.read(reader);
+				return this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader) ?? [];
 			}
 
 			return [];
