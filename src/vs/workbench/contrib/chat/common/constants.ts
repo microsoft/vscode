@@ -65,7 +65,6 @@ export enum ChatConfiguration {
 	ArtifactsMode = 'chat.artifacts.mode',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
-	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
 	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 }
