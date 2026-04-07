@@ -956,7 +956,7 @@ describe('AutomodeService', () => {
 
 			// Only one CAPI token request for auto models should be made (not two)
 			const capiCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls;
-			const autoModelsCalls = capiCalls.filter(([, requestType]: [unknown, { type?: RequestType }]) => requestType?.type === RequestType.AutoModels);
+			const autoModelsCalls = capiCalls.filter(call => call[1]?.type === RequestType.AutoModels);
 			expect(autoModelsCalls.length).toBe(1);
 		});
 
