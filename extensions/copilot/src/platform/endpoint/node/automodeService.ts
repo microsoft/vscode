@@ -186,9 +186,14 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return pending;
 		}
 
-		const promise = this._resolveAutoModeEndpointCore(chatRequest, conversationId, knownEndpoints);
-		this._pendingResolutions.set(conversationId, promise);
-		return promise.finally(() => this._pendingResolutions.delete(conversationId));
+		const corePromise = this._resolveAutoModeEndpointCore(chatRequest, conversationId, knownEndpoints);
+		const pendingPromise = corePromise.finally(() => {
+			if (this._pendingResolutions.get(conversationId) === pendingPromise) {
+				this._pendingResolutions.delete(conversationId);
+			}
+		});
+		this._pendingResolutions.set(conversationId, pendingPromise);
+		return pendingPromise;
 	}
 
 	private async _resolveAutoModeEndpointCore(chatRequest: ChatRequest | undefined, conversationId: string, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
