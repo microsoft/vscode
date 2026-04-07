@@ -114,7 +114,7 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement) {
 			return;
 		}
 
@@ -129,10 +129,7 @@ export class SessionTypePicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 
 		const hasMultipleTypes = this._sessionTypes.length > 1;
-		dom.setVisibility(hasMultipleTypes, this._slotElement);
-		this._slotElement.classList.toggle('disabled', false);
-		this._triggerElement.setAttribute('aria-hidden', String(!hasMultipleTypes));
-		this._triggerElement.tabIndex = hasMultipleTypes ? 0 : -1;
+		this._slotElement?.classList.toggle('disabled', !hasMultipleTypes);
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
 }

@@ -160,7 +160,7 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement) {
 			return;
 		}
 
@@ -187,11 +187,9 @@ export class IsolationPicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		const visible = this._isolationOptionEnabled && this._hasGitRepo;
-		dom.setVisibility(visible, this._slotElement);
-		this._slotElement.classList.toggle('disabled', false);
-		this._triggerElement.setAttribute('aria-hidden', String(!visible));
-		this._triggerElement.setAttribute('aria-disabled', String(!visible));
-		this._triggerElement.tabIndex = visible ? 0 : -1;
+		const isDisabled = !this._hasGitRepo;
+		this._slotElement?.classList.toggle('disabled', isDisabled);
+		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
+		this._triggerElement.tabIndex = isDisabled ? -1 : 0;
 	}
 }

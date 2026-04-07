@@ -223,7 +223,7 @@ export class ModePicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement) {
 			return;
 		}
 
@@ -239,10 +239,6 @@ export class ModePicker extends Disposable {
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
 		const modes = this._getAvailableModes();
-		const visible = modes.length > 1;
-		dom.setVisibility(visible, this._slotElement);
-		this._slotElement.classList.toggle('disabled', false);
-		this._triggerElement.setAttribute('aria-hidden', String(!visible));
-		this._triggerElement.tabIndex = visible ? 0 : -1;
+		this._slotElement?.classList.toggle('disabled', modes.length <= 1);
 	}
 }
