@@ -44,8 +44,6 @@
 	cursor: default;
 	user-select: text;
 	-webkit-user-select: text;
-
-	contain: layout style;
 }
 
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
