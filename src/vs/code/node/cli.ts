@@ -499,8 +499,19 @@ export async function main(argv: string[]): Promise<void> {
 				}
 			}
 
+			// On Windows, Electron/Chromium's security layer filters out standalone
+			// command-line arguments that look like URLs (containing "://"). This
+			// breaks --folder-uri and --file-uri when the URI value is a separate
+			// argument token. Combine these flags with their values using "="
+			// so that the URI is part of a "--flag=value" token, which Chromium
+			// treats as a flag rather than a URL. (https://github.com/microsoft/vscode/issues/209072)
+			let spawnArgs = argv.slice(2);
+			if (isWindows) {
+				spawnArgs = combineUriFlags(spawnArgs);
+			}
+
 			// We spawn the resolved executable directly
-			child = spawn(execToLaunch, argv.slice(2), options);
+			child = spawn(execToLaunch, spawnArgs, options);
 		} else {
 			// On macOS, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
@@ -603,6 +614,26 @@ export async function main(argv: string[]): Promise<void> {
 
 function getAppRoot() {
 	return dirname(FileAccess.asFileUri('').fsPath);
+}
+
+/**
+ * Combine --folder-uri / --file-uri flags with their URI values into
+ * "--flag=value" form so that Electron/Chromium does not filter them
+ * out as standalone URL-like arguments.
+ */
+function combineUriFlags(args: string[]): string[] {
+	const uriFlags = new Set(['--folder-uri', '--file-uri']);
+	const result: string[] = [];
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (uriFlags.has(arg) && i + 1 < args.length && !args[i + 1].startsWith('-')) {
+			result.push(`${arg}=${args[i + 1]}`);
+			i++; // skip the value, it's now part of the flag
+		} else {
+			result.push(arg);
+		}
+	}
+	return result;
 }
 
 function eventuallyExit(code: number): void {
