@@ -14,12 +14,12 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, GitRepositoryState, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_PR_FILE_SCHEME } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { IGitHubChangedFile } from '../../github/common/types.js';
+import { toPRContentUri } from '../../github/common/utils.js';
 import { ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 
 function toIChatSessionFileChange2(changes: GitDiffChange[], originalRef: string | undefined, modifiedRef: string | undefined): IChatSessionFileChange2[] {
@@ -527,23 +527,4 @@ export class ChangesViewModel extends Disposable {
 			} satisfies IChatSessionFileChange2;
 		});
 	}
-}
-
-export interface PRContentUriParams {
-	owner: string;
-	repo: string;
-	prNumber: number;
-	fileName: string;
-	commitSha: string;
-	isBase: boolean; // true for left side, false for right side
-	previousFileName?: string; // for renames
-	status?: IGitHubChangedFile['status'];
-}
-
-export function toPRContentUri(fileName: string, params: Omit<PRContentUriParams, 'fileName'>): URI {
-	return URI.from({
-		scheme: GITHUB_PR_FILE_SCHEME,
-		path: `/${fileName}`,
-		query: JSON.stringify({ ...params, fileName })
-	});
 }
