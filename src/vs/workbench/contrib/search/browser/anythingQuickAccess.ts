@@ -13,7 +13,6 @@ import { getOutOfWorkspaceEditorResources, extractRangeFromFilter, IWorkbenchSea
 import { ISearchService, ISearchComplete } from '../../../services/search/common/search.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { untildify, shorten } from '../../../../base/common/labels.js';
-import { untildify } from '../../../../base/common/labels.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toLocalResource, dirname, basenameOrAuthority } from '../../../../base/common/resources.js';
@@ -612,7 +611,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Filter excludes & convert to picks
-	    const configuration = this.configuration;
+		const configuration = this.configuration;
 		let picks = fileMatches
 			.filter(resource => !excludes.has(resource))
 			.map(resource => this.createAnythingPick(resource, configuration));
