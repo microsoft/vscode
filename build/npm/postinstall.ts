@@ -96,7 +96,6 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		}
 	}
 	removeParcelWatcherPrebuild(dir);
-	removeNonCurrentPlatformPrebuilds(dir);
 }
 
 function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
@@ -149,32 +148,6 @@ function removeParcelWatcherPrebuild(dir: string) {
 			const modulePath = path.join(parcelModuleFolder, moduleName);
 			fs.rmSync(modulePath, { recursive: true, force: true });
 			log(dir, `Removed @parcel/watcher prebuilt module ${modulePath}`);
-		}
-	}
-}
-
-function removeNonCurrentPlatformPrebuilds(dir: string) {
-	const utf8ValidatePrebuilds = path.join(root, dir, 'node_modules', 'utf-8-validate', 'prebuilds');
-	if (!fs.existsSync(utf8ValidatePrebuilds)) {
-		return;
-	}
-
-	const platform = process.platform;
-	const arch = process.env['npm_config_arch'] || process.arch;
-
-	for (const entry of fs.readdirSync(utf8ValidatePrebuilds)) {
-		const entryPath = path.join(utf8ValidatePrebuilds, entry);
-		if (!fs.statSync(entryPath).isDirectory()) {
-			continue;
-		}
-
-		// Folder names are like "win32-x64", "linux-x64", "darwin-x64+arm64"
-		const [entryPlatform, ...archParts] = entry.split('-');
-		const entryArchs = archParts.join('-').split('+');
-
-		if (entryPlatform !== platform || !entryArchs.includes(arch)) {
-			fs.rmSync(entryPath, { recursive: true, force: true });
-			log(dir, `Removed non-current-platform prebuild ${entry}`);
 		}
 	}
 }
@@ -276,7 +249,6 @@ async function main() {
 	for (const dir of dirs) {
 		if (dir === '') {
 			removeParcelWatcherPrebuild(dir);
-			removeNonCurrentPlatformPrebuilds(dir);
 			continue; // already executed in root
 		}
 
