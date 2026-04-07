@@ -386,8 +386,6 @@ export class ProtocolServerHandler extends Disposable {
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
 				workingDirectory: s.workingDirectory?.toString(),
-				isRead: s.isRead,
-				isDone: s.isDone,
 			}));
 			return { items };
 		},
@@ -427,12 +425,6 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
-		},
-		createTerminal: async () => {
-			return null;
-		},
-		disposeTerminal: async () => {
-			return null;
 		},
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);

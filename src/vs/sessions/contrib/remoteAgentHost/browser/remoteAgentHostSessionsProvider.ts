@@ -22,6 +22,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -132,25 +133,12 @@ class RemoteSessionAdapter implements IChatData {
 		this.workspace = observableValue('workspace', metadata.workingDirectory
 			? RemoteAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory, providerLabel, connectionAuthority)
 			: undefined);
-
-		if (metadata.isRead === false) {
-			this.isRead.set(false, undefined);
-		}
-		if (metadata.isDone) {
-			this.isArchived.set(true, undefined);
-		}
 	}
 
 	update(metadata: IAgentSessionMetadata): void {
 		this.title.set(metadata.summary ?? this.title.get(), undefined);
 		this.updatedAt.set(new Date(metadata.modifiedTime), undefined);
 		this.lastTurnEnd.set(metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined, undefined);
-		if (metadata.isRead !== undefined) {
-			this.isRead.set(metadata.isRead, undefined);
-		}
-		if (metadata.isDone !== undefined) {
-			this.isArchived.set(metadata.isDone, undefined);
-		}
 	}
 }
 
@@ -225,6 +213,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
@@ -291,10 +280,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 				this._refreshSessions(cts.token).finally(() => cts.dispose());
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.action.session, e.action.title);
-			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
-				this._handleIsReadChanged(e.action.session, e.action.isRead);
-			} else if (e.action.type === ActionType.SessionIsDoneChanged && isSessionAction(e.action)) {
-				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			}
 		}));
 
@@ -433,11 +418,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
 			cached.isArchived.set(true, undefined);
+			this._storeArchivedState(rawId, true);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-			if (this._connection) {
-				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: true };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
-			}
 		}
 	}
 
@@ -446,11 +428,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
 			cached.isArchived.set(false, undefined);
+			this._storeArchivedState(rawId, false);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
-			if (this._connection) {
-				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: false };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
-			}
 		}
 	}
 
@@ -460,6 +439,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		if (cached && rawId && this._connection) {
 			await this._connection.disposeSession(AgentSession.uri(cached.agentProvider, rawId));
 			this._sessionCache.delete(rawId);
+			this._storeArchivedState(rawId, false);
 			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(cached)], changed: [] });
 		}
 	}
@@ -484,10 +464,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached) {
 			cached.isRead.set(read, undefined);
-			if (this._connection && rawId) {
-				const action = { type: ActionType.SessionIsReadChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isRead: read };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
-			}
 		}
 	}
 
@@ -617,6 +593,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 					changed.push(this._chatToSession(existing));
 				} else {
 					const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+					this._restoreArchivedState(rawId, cached);
 					this._sessionCache.set(rawId, cached);
 					added.push(this._chatToSession(cached));
 				}
@@ -629,6 +606,9 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 					removed.push(this._chatToSession(cached));
 				}
 			}
+
+			// Prune archived IDs that no longer exist on the server
+			this._pruneArchivedIds(currentKeys);
 
 			if (added.length > 0 || removed.length > 0 || changed.length > 0) {
 				this._onDidChangeSessions.fire({ added, removed, changed });
@@ -674,7 +654,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
-	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
+	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string }): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -691,10 +671,9 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			modifiedTime: summary.modifiedAt,
 			summary: summary.title,
 			workingDirectory: workingDir,
-			isRead: summary.isRead,
-			isDone: summary.isDone,
 		};
 		const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+		this._restoreArchivedState(rawId, cached);
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [this._chatToSession(cached)], removed: [], changed: [] });
 	}
@@ -704,6 +683,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			this._sessionCache.delete(rawId);
+			this._storeArchivedState(rawId, false);
 			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(cached)], changed: [] });
 		}
 	}
@@ -717,21 +697,60 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
-	private _handleIsReadChanged(session: string, isRead: boolean): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.isRead.set(isRead, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+	// -- Private: Archived State Persistence --
+
+	private get _archivedStorageKey(): string {
+		return `remoteAgentHost.archivedSessions.${this.id}`;
+	}
+
+	private _loadArchivedIds(): Set<string> {
+		const raw = this._storageService.get(this._archivedStorageKey, StorageScope.PROFILE);
+		if (!raw) {
+			return new Set();
+		}
+		try {
+			const parsed = JSON.parse(raw);
+			return new Set(Array.isArray(parsed) ? parsed : []);
+		} catch {
+			return new Set();
 		}
 	}
 
-	private _handleIsDoneChanged(session: string, isDone: boolean): void {
-		const rawId = AgentSession.id(session);
-		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.isArchived.set(isDone, undefined);
-			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+	private _storeArchivedState(rawId: string, archived: boolean): void {
+		const ids = this._loadArchivedIds();
+		if (archived) {
+			ids.add(rawId);
+		} else {
+			ids.delete(rawId);
+		}
+		this._storageService.store(this._archivedStorageKey, JSON.stringify([...ids]), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private _restoreArchivedState(rawId: string, session: RemoteSessionAdapter): void {
+		if (this._loadArchivedIds().has(rawId)) {
+			session.isArchived.set(true, undefined);
+		}
+	}
+
+	/**
+	 * Remove archived IDs that are no longer present on the server.
+	 * Called after a full refresh to prevent unbounded growth of stored IDs.
+	 */
+	private _pruneArchivedIds(validIds: Set<string>): void {
+		const archivedIds = this._loadArchivedIds();
+		let changed = false;
+		for (const id of archivedIds) {
+			if (!validIds.has(id)) {
+				archivedIds.delete(id);
+				changed = true;
+			}
+		}
+		if (changed) {
+			if (archivedIds.size === 0) {
+				this._storageService.remove(this._archivedStorageKey, StorageScope.PROFILE);
+			} else {
+				this._storageService.store(this._archivedStorageKey, JSON.stringify([...archivedIds]), StorageScope.PROFILE, StorageTarget.USER);
+			}
 		}
 	}
 

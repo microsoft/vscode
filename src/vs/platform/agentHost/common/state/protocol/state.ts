@@ -152,8 +152,6 @@ export interface IRootState {
 	agents: IAgentInfo[];
 	/** Number of active (non-disposed) sessions on the server */
 	activeSessions?: number;
-	/** Known terminals on the server. Subscribe to individual terminal URIs for full state. */
-	terminals?: ITerminalInfo[];
 }
 
 /**
@@ -316,20 +314,6 @@ export interface ISessionActiveClient {
 }
 
 /**
- * A summary of changes to a single file within a session.
- *
- * @category Session State
- */
-export interface ISessionFileDiff {
-	/** URI of the affected file */
-	uri: URI;
-	/** Number of items added (e.g., lines for text files, cells for notebooks) */
-	added?: number;
-	/** Number of items removed (e.g., lines for text files, cells for notebooks) */
-	removed?: number;
-}
-
-/**
  * @category Session State
  */
 export interface ISessionSummary {
@@ -349,12 +333,6 @@ export interface ISessionSummary {
 	model?: string;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
-	/** Whether the client has viewed this session since its last modification */
-	isRead?: boolean;
-	/** Whether the session has been marked as done by the client */
-	isDone?: boolean;
-	/** Files changed during this session with diff statistics */
-	diffs?: ISessionFileDiff[];
 }
 
 // ─── Turn Types ──────────────────────────────────────────────────────────────
@@ -681,13 +659,6 @@ export interface IToolCallRunningState extends IToolCallBase, IToolCallParameter
 	status: ToolCallStatus.Running;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
-	/**
-	 * Partial content produced while the tool is still executing.
-	 *
-	 * For example, a terminal content block lets clients subscribe to live
-	 * output before the tool completes.
-	 */
-	content?: IToolResultContent[];
 }
 
 /**
@@ -824,7 +795,6 @@ export const enum ToolResultContentType {
 	EmbeddedResource = 'embeddedResource',
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
-	Terminal = 'terminal',
 }
 
 /**
@@ -900,28 +870,11 @@ export interface IToolResultFileEditContent {
 }
 
 /**
- * A reference to a terminal whose output is relevant to this tool result.
- *
- * Clients can subscribe to the terminal's URI to stream its output in real
- * time, providing live feedback while a tool is executing.
- *
- * @category Tool Result Content
- */
-export interface IToolResultTerminalContent {
-	type: ToolResultContentType.Terminal;
-	/** Terminal URI (subscribable for full terminal state) */
-	resource: URI;
-	/** Display title for the terminal content */
-	title: string;
-}
-
-/**
  * Content block in a tool result.
  *
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
- * `IToolResultResourceContent` for lazy-loading large results,
- * `IToolResultFileEditContent` for file edit diffs, and
- * `IToolResultTerminalContent` for live terminal output (AHP extensions).
+ * `IToolResultResourceContent` for lazy-loading large results and
+ * `IToolResultFileEditContent` for file edit diffs (AHP extensions).
  *
  * @category Tool Result Content
  */
@@ -929,8 +882,7 @@ export type IToolResultContent =
 	| IToolResultTextContent
 	| IToolResultEmbeddedResourceContent
 	| IToolResultResourceContent
-	| IToolResultFileEditContent
-	| IToolResultTerminalContent;
+	| IToolResultFileEditContent;
 
 // ─── Customization Types ─────────────────────────────────────────────────────
 
@@ -998,95 +950,6 @@ export interface ISessionCustomization {
 	statusMessage?: string;
 }
 
-// ─── Terminal Types ──────────────────────────────────────────────────────────
-
-/**
- * Lightweight terminal metadata exposed on the root state.
- *
- * @category Terminal Types
- */
-export interface ITerminalInfo {
-	/** Terminal URI (subscribable for full terminal state) */
-	resource: URI;
-	/** Human-readable terminal title */
-	title: string;
-	/** Who currently holds this terminal */
-	claim: ITerminalClaim;
-	/** Process exit code, if the terminal process has exited */
-	exitCode?: number;
-}
-
-/**
- * Discriminant for terminal claim kinds.
- *
- * @category Terminal Types
- */
-export const enum TerminalClaimKind {
-	Client = 'client',
-	Session = 'session',
-}
-
-/**
- * A terminal claimed by a connected client.
- *
- * @category Terminal Types
- */
-export interface ITerminalClientClaim {
-	/** Discriminant */
-	kind: TerminalClaimKind.Client;
-	/** The `clientId` of the claiming client */
-	clientId: string;
-}
-
-/**
- * A terminal claimed by a session, optionally scoped to a specific turn or tool call.
- *
- * @category Terminal Types
- */
-export interface ITerminalSessionClaim {
-	/** Discriminant */
-	kind: TerminalClaimKind.Session;
-	/** Session URI that claimed the terminal */
-	session: URI;
-	/** Optional turn identifier within the session */
-	turnId?: string;
-	/** Optional tool call identifier within the turn */
-	toolCallId?: string;
-}
-
-/**
- * Describes who currently holds a terminal. A terminal may be claimed by
- * either a connected client or a session (e.g. during a tool call).
- *
- * @category Terminal Types
- */
-export type ITerminalClaim = ITerminalClientClaim | ITerminalSessionClaim;
-
-/**
- * Full state for a single terminal, loaded when a client subscribes to the terminal's URI.
- *
- * @category Terminal Types
- */
-export interface ITerminalState {
-	/** Human-readable terminal title */
-	title: string;
-	/** Current working directory of the terminal process */
-	cwd?: URI;
-	/** Terminal width in columns */
-	cols?: number;
-	/** Terminal height in rows */
-	rows?: number;
-	/**
-	 * Accumulated terminal output. May contain ANSI escape sequences.
-	 * The scrollback length is implementation-defined.
-	 */
-	content: string;
-	/** Process exit code, set when the terminal process exits */
-	exitCode?: number;
-	/** Who currently holds this terminal */
-	claim: ITerminalClaim;
-}
-
 // ─── Common Types ────────────────────────────────────────────────────────────
 
 /**
@@ -1125,7 +988,7 @@ export interface ISnapshot {
 	/** The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: IRootState | ISessionState | ITerminalState;
+	state: IRootState | ISessionState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

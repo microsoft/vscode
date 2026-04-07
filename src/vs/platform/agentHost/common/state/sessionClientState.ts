@@ -20,7 +20,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActionEnvelope, INotification, ISessionAction, isRootAction, isSessionAction, IStateAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
-import { IRootState, ISessionState, ITerminalState, ROOT_STATE_URI } from './sessionState.js';
+import { IRootState, ISessionState, ROOT_STATE_URI } from './sessionState.js';
 import { ILogService } from '../../../log/common/log.js';
 
 // ---- Pending action tracking ------------------------------------------------
@@ -110,7 +110,7 @@ export class SessionClientState extends Disposable {
 	 * Apply a state snapshot received from the server (from handshake,
 	 * subscribe response, or reconnection).
 	 */
-	handleSnapshot(resource: string, state: IRootState | ISessionState | ITerminalState, fromSeq: number): void {
+	handleSnapshot(resource: string, state: IRootState | ISessionState, fromSeq: number): void {
 		this._lastSeenServerSeq = Math.max(this._lastSeenServerSeq, fromSeq);
 
 		if (resource === ROOT_STATE_URI) {

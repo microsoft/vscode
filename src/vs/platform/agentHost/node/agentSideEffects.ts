@@ -384,14 +384,6 @@ export class AgentSideEffects extends Disposable {
 				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
 				break;
 			}
-			case ActionType.SessionIsReadChanged: {
-				this._persistSessionFlag(action.session, 'isRead', action.isRead ? 'true' : '');
-				break;
-			}
-			case ActionType.SessionIsDoneChanged: {
-				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
-				break;
-			}
 		}
 	}
 
@@ -399,15 +391,6 @@ export class AgentSideEffects extends Disposable {
 		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
 		ref.object.setMetadata('customTitle', title).catch(err => {
 			this._logService.warn('[AgentSideEffects] Failed to persist session title', err);
-		}).finally(() => {
-			ref.dispose();
-		});
-	}
-
-	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
-		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
-		ref.object.setMetadata(key, value).catch(err => {
-			this._logService.warn(`[AgentSideEffects] Failed to persist ${key}`, err);
 		}).finally(() => {
 			ref.dispose();
 		});

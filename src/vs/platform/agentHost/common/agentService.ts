@@ -40,8 +40,6 @@ export interface IAgentSessionMetadata {
 	readonly modifiedTime: number;
 	readonly summary?: string;
 	readonly workingDirectory?: URI;
-	readonly isRead?: boolean;
-	readonly isDone?: boolean;
 }
 
 export type AgentProvider = string;
