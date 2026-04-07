@@ -179,21 +179,34 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
 
-		// Coalesce concurrent calls for the same conversation to avoid duplicate
-		// router calls and telemetry emissions.
-		const pending = this._pendingResolutions.get(conversationId);
-		if (pending) {
-			return pending;
-		}
+		// Coalesce concurrent calls for the same conversation so we don't fire
+		// duplicate router requests or telemetry. Concurrent callers within a
+		// single turn always share the same prompt, so reusing the result is safe.
+		return this._singleFlight(conversationId, () => this._resolveAutoModeEndpointCore(chatRequest, conversationId, knownEndpoints));
+	}
 
-		const corePromise = this._resolveAutoModeEndpointCore(chatRequest, conversationId, knownEndpoints);
-		const pendingPromise = corePromise.finally(() => {
-			if (this._pendingResolutions.get(conversationId) === pendingPromise) {
-				this._pendingResolutions.delete(conversationId);
+	/**
+	 * Single-flight coalescer: if a resolution for `key` is already in progress,
+	 * return that pending promise instead of starting a new one.
+	 *
+	 * This function MUST remain synchronous (not `async`). The atomicity of the
+	 * `get -> check -> set` sequence relies on no `await` running between them, and
+	 * keeping the function non-`async` makes that invariant structural rather than
+	 * a comment a future edit might miss.
+	 */
+	private _singleFlight(key: string, fn: () => Promise<IChatEndpoint>): Promise<IChatEndpoint> {
+		const existing = this._pendingResolutions.get(key);
+		if (existing) {
+			return existing;
+		}
+		const promise = fn().finally(() => {
+			// Reference-equality guard: only clear if this entry is still ours.
+			if (this._pendingResolutions.get(key) === promise) {
+				this._pendingResolutions.delete(key);
 			}
 		});
-		this._pendingResolutions.set(conversationId, pendingPromise);
-		return pendingPromise;
+		this._pendingResolutions.set(key, promise);
+		return promise;
 	}
 
 	private async _resolveAutoModeEndpointCore(chatRequest: ChatRequest | undefined, conversationId: string, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
