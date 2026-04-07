@@ -2922,14 +2922,24 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
 		if (extensionPick && extensionPick.extension) {
 			const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extensionPick.extension, true);
-			await action.run();
+			// TODO: replace with `using` once available
+			try {
+				await action.run();
+			} finally {
+				action.dispose();
+			}
 			await this.extensionsWorkbenchService.openSearch(extensionPick.extension.identifier.id);
 		}
 	}
 
 	private isEnabled(extension: IExtension): boolean {
 		const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extension, true);
-		return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		// TODO: replace with `using` once available
+		try {
+			return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		} finally {
+			action.dispose();
+		}
 	}
 
 	private async getExtensionEntries(): Promise<IExtensionPickItem[]> {
