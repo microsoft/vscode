@@ -11,7 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -91,6 +91,20 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- auth ---------------------------------------------------------------
 
+	async listAgents(): Promise<IAgentDescriptor[]> {
+		return [...this._providers.values()].map(p => p.getDescriptor());
+	}
+
+	async getResourceMetadata(): Promise<IResourceMetadata> {
+		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
+		return { resources };
+	}
+
+	getResourceMetadataSync(): IResourceMetadata {
+		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
+		return { resources };
+	}
+
 	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
 		for (const provider of this._providers.values()) {
@@ -137,6 +151,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 		this._logService.trace(`[AgentService] listSessions returned ${result.length} sessions`);
 		return result;
+	}
+
+	/**
+	 * Refreshes the model list from all providers and publishes the updated
+	 * agents (with their models) to root state via `root/agentsChanged`.
+	 */
+	async refreshModels(): Promise<void> {
+		this._logService.trace('[AgentService] refreshModels called');
+		this._updateAgents();
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {

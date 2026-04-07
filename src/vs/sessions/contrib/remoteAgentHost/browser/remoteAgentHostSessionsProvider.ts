@@ -79,8 +79,6 @@ interface IChatData {
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
 	readonly name: string;
-	/** Optional hook to establish a connection on demand (e.g. tunnel relay). */
-	readonly connectOnDemand?: () => Promise<void>;
 }
 
 /**
@@ -203,7 +201,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	private readonly _connectionListeners = this._register(new DisposableStore());
 	private readonly _onDidDisconnect = this._register(new Emitter<void>());
 	private readonly _connectionAuthority: string;
-	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 
 	constructor(
 		config: IRemoteAgentHostSessionsProviderConfig,
@@ -218,7 +215,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		super();
 
 		this._connectionAuthority = agentHostAuthority(config.address);
-		this._connectOnDemand = config.connectOnDemand;
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
@@ -771,11 +767,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	// -- Private: Browse --
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
-		// Establish connection on demand if a hook is provided (e.g. tunnel relay)
-		if (!this._connection && this._connectOnDemand) {
-			await this._connectOnDemand();
-		}
-
 		if (!this._connection) {
 			this._notificationService.error(localize('notConnected', "Unable to connect to remote agent host '{0}'.", this.label));
 			return undefined;

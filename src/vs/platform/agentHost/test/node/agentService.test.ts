@@ -86,6 +86,24 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	// ---- listAgents -----------------------------------------------------
+
+	suite('listAgents', () => {
+
+		test('returns descriptors from all registered providers', async () => {
+			service.registerProvider(copilotAgent);
+
+			const agents = await service.listAgents();
+			assert.strictEqual(agents.length, 1);
+			assert.ok(agents.some(a => a.provider === 'copilot'));
+		});
+
+		test('returns empty array when no providers are registered', async () => {
+			const agents = await service.listAgents();
+			assert.strictEqual(agents.length, 0);
+		});
+	});
+
 	// ---- createSession --------------------------------------------------
 
 	suite('createSession', () => {
@@ -192,6 +210,46 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
+		});
+
+		test('refreshModels publishes models in root state via agentsChanged', async () => {
+			service.registerProvider(copilotAgent);
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(service.onDidAction(e => envelopes.push(e)));
+
+			service.refreshModels();
+
+			// Model fetch is async inside AgentSideEffects — wait for it
+			await new Promise(r => setTimeout(r, 50));
+
+			const agentsChanged = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
+			assert.ok(agentsChanged);
+		});
+	});
+
+	// ---- getResourceMetadata --------------------------------------------
+
+	suite('getResourceMetadata', () => {
+
+		test('aggregates protected resources from all providers', async () => {
+			service.registerProvider(copilotAgent);
+
+			const mockAgent = new MockAgent('other');
+			disposables.add(toDisposable(() => mockAgent.dispose()));
+			service.registerProvider(mockAgent);
+
+			const metadata = await service.getResourceMetadata();
+			// copilot agent returns one resource (https://api.github.com),
+			// generic MockAgent('other') returns empty
+			assert.deepStrictEqual(metadata, {
+				resources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }],
+			});
+		});
+
+		test('returns empty resources when no providers registered', async () => {
+			const metadata = await service.getResourceMetadata();
+			assert.deepStrictEqual(metadata, { resources: [] });
 		});
 	});
 

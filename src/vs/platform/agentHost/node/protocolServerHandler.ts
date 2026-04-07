@@ -10,12 +10,11 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { AgentSession, type IAgentService } from '../common/agentService.js';
+import { AgentSession, type IAgentService, type IAuthenticateParams } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
 import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
-	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
@@ -60,7 +59,7 @@ function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
  * Methods handled by the request dispatcher. Excludes `initialize` and
  * `reconnect` which are handled during the handshake phase.
  */
-type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect'>;
+type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect' | 'authenticate'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -426,13 +425,6 @@ export class ProtocolServerHandler extends Disposable {
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
 		},
-		authenticate: async (_client, params) => {
-			const result = await this._agentService.authenticate(params);
-			if (!result.authenticated) {
-				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
-			}
-			return {};
-		},
 	};
 
 
@@ -504,8 +496,21 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
 		switch (method) {
+			case 'getResourceMetadata':
+				return this._agentService.getResourceMetadata();
+			case 'authenticate': {
+				const authParams = params as IAuthenticateParams;
+				if (!authParams || typeof authParams.resource !== 'string' || typeof authParams.token !== 'string') {
+					return Promise.reject(new ProtocolError(-32602, 'Invalid authenticate params'));
+				}
+				return this._agentService.authenticate(authParams);
+			}
+			case 'refreshModels':
+				return this._agentService.refreshModels();
+			case 'listAgents':
+				return this._agentService.listAgents();
 			case 'shutdown':
 				return this._agentService.shutdown();
 			default:

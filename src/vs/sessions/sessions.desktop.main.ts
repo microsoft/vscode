@@ -201,10 +201,8 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 import '../platform/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
 import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
-import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
-import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Local Agent Host
 import './contrib/localAgentHost/browser/localAgentHost.contribution.js';

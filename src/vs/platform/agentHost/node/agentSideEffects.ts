@@ -87,11 +87,7 @@ export class AgentSideEffects extends Disposable {
 			} catch {
 				models = [];
 			}
-			const protectedResources = a.getProtectedResources();
-			return {
-				provider: d.provider, displayName: d.displayName, description: d.description, models,
-				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
-			};
+			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
 		}));
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
