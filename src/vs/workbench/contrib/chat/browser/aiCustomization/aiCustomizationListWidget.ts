@@ -47,7 +47,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
-import { getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
+import { extractExtensionIdFromPath, getCustomizationSecondaryText } from './aiCustomizationListWidgetUtils.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -1785,6 +1785,17 @@ export class AICustomizationListWidget extends Disposable {
 			if (isEqualOrParent(uri, plugin.uri)) {
 				return { storage: PromptsStorage.plugin };
 			}
+		}
+
+		// file: URI inside an extension install directory = extension or built-in.
+		// At this point we've already checked workspace folders and plugins, so
+		// a path containing /extensions/<id>-<version>/ is an extension directory.
+		const extensionId = extractExtensionIdFromPath(uri.path);
+		if (extensionId) {
+			if (this.isChatExtensionItem(new ExtensionIdentifier(extensionId))) {
+				return { groupKey: BUILTIN_STORAGE };
+			}
+			return { storage: PromptsStorage.extension };
 		}
 
 		// file: URI elsewhere = user directory
