@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentCreateSessionConfig, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../common/agentService.js';
+import type { IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../../common/agentService.js';
 import { IResourceReadResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
@@ -101,7 +101,10 @@ class MockAgentService implements IAgentService {
 	}
 	unsubscribe(_resource: URI): void { }
 	async shutdown(): Promise<void> { }
+	async getResourceMetadata(): Promise<IResourceMetadata> { return { resources: [] }; }
 	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
+	async refreshModels(): Promise<void> { }
+	async listAgents(): Promise<IAgentDescriptor[]> { return []; }
 	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<IResourceListResult> {
 		this.browsedUris.push(uri);
@@ -424,16 +427,28 @@ suite('ProtocolServerHandler', () => {
 
 	// ---- Extension methods: auth ----------------------------------------
 
-	test('authenticate returns result via typed request', async () => {
+	test('getResourceMetadata returns resource metadata via extension request', async () => {
+		const transport = connectClient('client-metadata');
+		transport.sent.length = 0;
+
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'getResourceMetadata'));
+		const resp = await responsePromise as { result?: { resources: unknown[] } };
+
+		assert.ok(resp?.result);
+		assert.ok(Array.isArray(resp.result!.resources));
+	});
+
+	test('authenticate returns result via extension request', async () => {
 		const transport = connectClient('client-auth');
 		transport.sent.length = 0;
 
 		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
-		const resp = await responsePromise as { result?: Record<string, unknown>; error?: { code: number; message: string } };
+		const resp = await responsePromise as { result?: { authenticated: boolean } };
 
-		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
-		assert.deepStrictEqual(resp.result, {});
+		assert.ok(resp?.result);
+		assert.strictEqual(resp.result!.authenticated, true);
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {

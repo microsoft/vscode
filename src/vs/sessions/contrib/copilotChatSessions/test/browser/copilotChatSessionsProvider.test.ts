@@ -29,8 +29,8 @@ import { ILanguageModelToolsService } from '../../../../../workbench/contrib/cha
 import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
-import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
-import { ISessionWorkspace } from '../../../sessions/common/sessionData.js';
+import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 
 // ---- Helpers ----------------------------------------------------------------

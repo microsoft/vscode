@@ -286,6 +286,7 @@ export interface ILocalExtension extends IExtension {
 	preRelease: boolean;
 	updated: boolean;
 	pinned: boolean;
+	forceAutoUpdate: boolean;
 	source: InstallSource;
 	size: number;
 }

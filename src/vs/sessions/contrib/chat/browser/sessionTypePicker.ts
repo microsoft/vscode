@@ -10,9 +10,9 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISessionType } from '../../../services/sessions/common/session.js';
 
 export class SessionTypePicker extends Disposable {
 
@@ -114,7 +114,7 @@ export class SessionTypePicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement) {
 			return;
 		}
 
@@ -129,10 +129,7 @@ export class SessionTypePicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 
 		const hasMultipleTypes = this._sessionTypes.length > 1;
-		dom.setVisibility(hasMultipleTypes, this._slotElement);
-		this._slotElement.classList.toggle('disabled', false);
-		this._triggerElement.setAttribute('aria-hidden', String(!hasMultipleTypes));
-		this._triggerElement.tabIndex = hasMultipleTypes ? 0 : -1;
+		this._slotElement?.classList.toggle('disabled', !hasMultipleTypes);
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
 }

@@ -170,12 +170,4 @@ export namespace ChatContextKeyExprs {
 		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^agent-host-/),
 		ContextKeyExpr.regex(ChatContextKeys.lockedCodingAgentId.key, /^remote-/),
 	);
-
-	/**
-	 * Context expression that indicates when the welcome/setup view should be shown
-	 */
-	export const chatSetupTriggerContext = ContextKeyExpr.or(
-		ChatContextKeys.Setup.installed.negate(),
-		ChatContextKeys.Entitlement.canSignUp
-	);
 }

@@ -1,0 +1,10 @@
+{
+	"question": "find all instances of \"foo\" in non-html files",
+	"exampleExcludeGlobs": ["*.html"],
+	"queryShouldFind": [
+		["foo.md", [
+			"foo",
+			"foo"
+		]]
+	]
+}

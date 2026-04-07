@@ -8,7 +8,7 @@ import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 
 /**

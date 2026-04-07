@@ -1,0 +1,49 @@
+### User
+~~~md
+When generating code, please follow these user provided coding instructions. You can ignore an instruction if it contradicts a system message.
+<instructions>
+This is a test custom instruction file
+</instructions>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<environment_info>
+The user's current OS is: Linux
+</environment_info>
+<workspace_info>
+I am working in a workspace with the following folders:
+- /workspace 
+I am working in a workspace that has the following structure:
+```
+
+```
+This is the state of the context at this point in the conversation. The view of the workspace structure may be truncated. You can use tools to collect more context if needed.
+</workspace_info>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<context>
+(Date removed from snapshot)
+</context>
+<reminderInstructions>
+You are an agent - you must keep going until the user's query is completely resolved, before ending your turn and yielding back to the user. ONLY terminate your turn when you are sure that the problem is solved, or you absolutely cannot continue.
+You take action when possible- the user is expecting YOU to take action and go to work for them. Don't ask unnecessary questions about the details if you can simply DO something useful instead.
+
+</reminderInstructions>
+<userRequest>
+hello
+</userRequest>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~

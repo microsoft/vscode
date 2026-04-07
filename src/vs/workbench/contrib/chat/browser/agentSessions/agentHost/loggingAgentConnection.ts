@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
@@ -101,8 +101,20 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	// ---- IAgentConnection method proxies with logging -----------------------
 
+	async listAgents(): Promise<IAgentDescriptor[]> {
+		return this._logCall('listAgents', undefined, () => this._inner.listAgents());
+	}
+
+	async getResourceMetadata(): Promise<IResourceMetadata> {
+		return this._logCall('getResourceMetadata', undefined, () => this._inner.getResourceMetadata());
+	}
+
 	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
 		return this._logCall('authenticate', params, () => this._inner.authenticate(params));
+	}
+
+	async refreshModels(): Promise<void> {
+		return this._logCall('refreshModels', undefined, () => this._inner.refreshModels());
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {

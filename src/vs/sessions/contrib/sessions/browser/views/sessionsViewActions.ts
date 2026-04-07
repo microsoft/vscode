@@ -20,11 +20,11 @@ import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/commo
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
-import { ISessionsManagementService, ActiveSessionSupportsMultiChatContext } from '../sessionsManagementService.js';
-import { ISession, SessionStatus } from '../../common/sessionData.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 //  Constants
 

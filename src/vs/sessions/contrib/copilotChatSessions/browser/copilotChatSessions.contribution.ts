@@ -8,7 +8,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { CopilotChatSessionsProvider, COPILOT_MULTI_CHAT_SETTING } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 import '../../copilotChatSessions/browser/copilotChatSessionsActions.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';

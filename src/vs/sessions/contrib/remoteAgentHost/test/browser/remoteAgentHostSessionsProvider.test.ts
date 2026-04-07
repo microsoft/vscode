@@ -24,9 +24,8 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService, type ChatSendResult } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
-import { CopilotCLISessionType } from '../../../sessions/browser/sessionTypes.js';
-import { SessionStatus } from '../../../sessions/common/sessionData.js';
+import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
+import { CopilotCLISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 
 // ---- Mock connection --------------------------------------------------------

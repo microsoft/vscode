@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChat, ISession, SessionStatus } from '../../common/sessionData.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { groupByWorkspace, sortSessions, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {

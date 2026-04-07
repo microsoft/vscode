@@ -17,9 +17,9 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { ISession } from '../../../sessions/common/sessionData.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { ICodeReviewService, CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion } from '../../browser/codeReviewService.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('CodeReviewService', () => {
 

@@ -65,21 +65,31 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 function fromLocal(extensionPath: string, forWeb: boolean, _disableMangle: boolean): Stream {
 
-	const esbuildConfigFileName = forWeb
+	let esbuildConfigFileName = forWeb
 		? 'esbuild.browser.mts'
 		: 'esbuild.mts';
 
-	const hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+	let hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+
+	// Fallback: check for .esbuild.ts (used by extensions with their own build system, e.g. copilot)
+	if (!hasEsbuild && !forWeb) {
+		esbuildConfigFileName = '.esbuild.ts';
+		hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+	}
 
 	let input: Stream;
 	let isBundled = false;
 
 	if (hasEsbuild) {
-		// Esbuild only does bundling so we still want to run a separate type check step
-		input = es.merge(
-			fromLocalEsbuild(extensionPath, esbuildConfigFileName),
-			...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
-		);
+		const isStandardEsbuild = esbuildConfigFileName.endsWith('.mts');
+		input = isStandardEsbuild
+			? es.merge(
+				fromLocalEsbuild(extensionPath, esbuildConfigFileName),
+				// Standard esbuild extensions need a separate type check step
+				...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
+			)
+			// Extensions with their own build system (e.g. .esbuild.ts) handle type checking internally
+			: fromLocalEsbuild(extensionPath, esbuildConfigFileName);
 		isBundled = true;
 	} else {
 		input = fromLocalNormal(extensionPath);
@@ -151,7 +161,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string):
 
 	// Run esbuild, then collect the files
 	new Promise<void>((resolve, reject) => {
-		const proc = cp.execFile(process.argv[0], [esbuildScript], {}, (error, _stdout, stderr) => {
+		const proc = cp.execFile(process.argv[0], [esbuildScript], { cwd: extensionPath }, (error, _stdout, stderr) => {
 			if (error) {
 				return reject(error);
 			}
@@ -302,6 +312,7 @@ const nativeExtensions = [
 ];
 
 const excludedExtensions = [
+	'copilot',
 	'vscode-api-tests',
 	'vscode-colorize-tests',
 	'vscode-colorize-perf-tests',

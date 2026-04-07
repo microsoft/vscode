@@ -1360,6 +1360,7 @@ export class TestHostService implements IHostService {
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
+	async shutdown(): Promise<void> { }
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
 		return await expectedShutdownTask();
 	}

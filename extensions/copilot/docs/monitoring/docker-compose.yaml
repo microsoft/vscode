@@ -1,0 +1,36 @@
+# Copilot Chat OTel monitoring stack
+#
+# Starts an OpenTelemetry Collector that accepts OTLP on :4318 (HTTP) and :4317 (gRPC),
+# then forwards traces/metrics/logs to Azure Application Insights and a local Jaeger instance.
+#
+# Usage:
+#   # Set your App Insights connection string:
+#   export APPLICATIONINSIGHTS_CONNECTION_STRING="InstrumentationKey=...;IngestionEndpoint=..."
+#
+#   # Start the stack:
+#   docker compose up -d
+#
+#   # View traces in Jaeger:
+#   open http://localhost:16687
+#
+#   # Then launch VS Code with:
+#   COPILOT_OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4328 code .
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4327:4317"   # OTLP gRPC (host:4327 → container:4317)
+      - "4328:4318"   # OTLP HTTP (host:4328 → container:4318)
+    environment:
+      - APPLICATIONINSIGHTS_CONNECTION_STRING=${APPLICATIONINSIGHTS_CONNECTION_STRING:-}
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    ports:
+      - "16687:16686" # Jaeger UI (host:16687 to avoid conflict)
+    restart: unless-stopped

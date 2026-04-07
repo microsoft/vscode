@@ -1,0 +1,9 @@
+{
+	"question": "email addresses",
+	"isRegex": true,
+	"queryShouldFind": [
+		[ "bar.html", [
+				"example@website.com"
+			] ]
+	]
+}

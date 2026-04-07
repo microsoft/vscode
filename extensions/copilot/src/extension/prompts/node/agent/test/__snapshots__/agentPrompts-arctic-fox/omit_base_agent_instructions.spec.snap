@@ -1,0 +1,42 @@
+### User
+~~~md
+When generating code, please follow these user provided coding instructions. You can ignore an instruction if it contradicts a system message.
+<instructions>
+This is a test custom instruction file
+</instructions>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<environment_info>
+The user's current OS is: Linux
+</environment_info>
+<workspace_info>
+I am working in a workspace with the following folders:
+- /workspace 
+</workspace_info>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<context>
+(Date removed from snapshot)
+</context>
+<reminderInstructions>
+
+</reminderInstructions>
+<userRequest>
+hello
+</userRequest>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~

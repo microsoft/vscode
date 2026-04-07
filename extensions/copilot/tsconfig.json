@@ -1,0 +1,39 @@
+{
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"jsx": "react",
+		"jsxFactory": "vscpp",
+		"jsxFragmentFactory": "vscppf",
+		"rootDir": ".",
+		"types": [
+			"minimist",
+			"mocha",
+			"node",
+			"picomatch",
+			"sinon",
+			"tar",
+			"vscode"
+		],
+		// Needed for tsx to run test files
+		"paths": {
+			"vscode": ["./src/util/common/test/shims/vscodeTypesShim.ts"]
+		}
+	},
+	"include": [
+		"vscodeTypes.ts",
+		"src",
+		"test",
+		".vscode/extensions/test-extension"
+	],
+	"exclude": [
+		"test/scenarios/**/*",
+		"test/simulation/fixtures/**/*",
+		"test/simulation/workbench/**/*",
+		"src/platform/parser/test/node/fixtures/**/*",
+		"src/extension/test/node/fixtures/**/*",
+		"src/extension/prompts/node/test/fixtures/**/*",
+		"src/extension/typescriptContext/serverPlugin/fixtures/**",
+		"src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/suggestionsPanelWebview.ts",
+		"test/aml/out"
+	]
+}

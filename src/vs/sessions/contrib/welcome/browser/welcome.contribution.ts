@@ -25,7 +25,7 @@ const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 function needsChatSetup(chatEntitlementService: Pick<IChatEntitlementService, 'sentiment' | 'entitlement' | 'anonymous'>, includeUnknown: boolean = true): boolean {
 	const { sentiment, entitlement } = chatEntitlementService;
 	return (
-		!sentiment?.installed ||
+		!sentiment?.completed || // Setup not yet completed
 		sentiment?.disabled ||
 		entitlement === ChatEntitlement.Available ||
 		(

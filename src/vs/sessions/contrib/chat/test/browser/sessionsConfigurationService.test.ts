@@ -14,14 +14,14 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IJSONEditingService, IJSONValue } from '../../../../../workbench/services/configuration/common/jsonEditing.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IActiveSession, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, SessionsConfigurationService, ITaskEntry } from '../../browser/sessionsConfigurationService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Task } from '../../../../../workbench/contrib/tasks/common/tasks.js';
 import { ITaskService } from '../../../../../workbench/contrib/tasks/common/taskService.js';
-import { IChat, ISession, SessionStatus } from '../../../sessions/common/sessionData.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession {
 	const workspace = opts.repository ? {

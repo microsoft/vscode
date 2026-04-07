@@ -53,10 +53,10 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../sessions/common/sessionData.js';
+import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_PR_FILE_SCHEME, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -754,7 +754,7 @@ export class ChangesViewPane extends ViewPane {
 
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			// Cloud session
-			resourceTreeRootUri = URI.from({ scheme: 'copilot-pr', path: '/' });
+			resourceTreeRootUri = URI.from({ scheme: GITHUB_PR_FILE_SCHEME, path: '/' });
 			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
 			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
 		} else {
@@ -884,7 +884,7 @@ export class ChangesViewPane extends ViewPane {
 					const activeSession = this.sessionManagementService.activeSession.get();
 					const repository = activeSession?.workspace.get()?.repositories[0];
 					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
-						? URI.from({ scheme: 'copilot-pr', path: '/' })
+						? URI.from({ scheme: GITHUB_PR_FILE_SCHEME, path: '/' })
 						: repository?.workingDirectory ?? repository?.uri;
 				})],
 			{
@@ -1154,8 +1154,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						category: { label: 'checkpoints', order: 2, showHeader: false },
-						enabled: viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
-							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
+						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
+								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.AllChanges);
@@ -1171,8 +1172,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						description: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
 						category: { label: 'checkpoints', order: 3, showHeader: false },
-						enabled: viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
-							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
+						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
+								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.LastTurn);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.LastTurn);

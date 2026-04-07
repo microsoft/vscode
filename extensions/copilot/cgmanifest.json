@@ -1,0 +1,16 @@
+{
+	"$schema": "https://json.schemastore.org/component-detection-manifest.json",
+	"Registrations": [
+		{
+			"Component": {
+				"Type": "git",
+				"git": {
+					"Name": "codex",
+					"RepositoryUrl": "https://github.com/openai/codex",
+					"CommitHash": "acc4acc81eea0339ad46d1c6f8459f58eaee6211"
+				},
+				"DevelopmentDependency": false
+			}
+		}
+	]
+}

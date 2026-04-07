@@ -17,6 +17,7 @@ jobs:
       DISPLAY: ":10"
       NPM_ARCH: x64
       VSCODE_ARCH: x64
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputs:
         - output: pipelineArtifact

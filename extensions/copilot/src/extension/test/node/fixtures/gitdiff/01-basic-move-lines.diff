@@ -1,0 +1,19 @@
+diff --git a/01-basic b/01-basic-move-lines
+index 30c5fc9cb..516748dfa 100644
+--- a/01-basic
++++ b/01-basic-move-lines
+@@ -5,11 +5,11 @@ import { spawn } from 'child_process';
+ 
+ export function f(args_: string[], flags: any, child: any) {
+ 	if (flags.verbose) {
+-		child.stdout?.on('data', (data) => console.log(data.toString('utf8')));
+-		child.stderr?.on('data', (data) => console.error(data.toString('utf8')));
++		return new Promise((c) => child.once('exit', () => c(null)));
+ 	}
+ 	if (flags.verbose) {
+-		return new Promise((c) => child.once('exit', () => c(null)));
++		child.stdout?.on('data', (data) => console.log(data.toString('utf8')));
++		child.stderr?.on('data', (data) => console.error(data.toString('utf8')));
+ 	}
+ 	child.unref();
+ 	return Promise.resolve();

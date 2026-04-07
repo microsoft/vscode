@@ -18,20 +18,14 @@ import type { IAgentConnection } from '../common/agentService.js';
 import {
 	IRemoteAgentHostService,
 	RemoteAgentHostConnectionStatus,
-	RemoteAgentHostEntryType,
 	RemoteAgentHostsEnabledSettingId,
 	RemoteAgentHostsSettingId,
-	entryToRawEntry,
-	getEntryAddress,
-	rawEntryToEntry,
-	type IRawRemoteAgentHostEntry,
 	type IRemoteAgentHostConnectionInfo,
 	type IRemoteAgentHostEntry,
 } from '../common/remoteAgentHostService.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
-import { isDefined } from '../../../base/common/types.js';
 
 /** Tracks a single remote connection through its lifecycle. */
 interface IConnectionEntry {
@@ -96,12 +90,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	get configuredEntries(): readonly IRemoteAgentHostEntry[] {
-		return this._getConfiguredEntries().map(e => {
-			if (e.connection.type === RemoteAgentHostEntryType.Tunnel) {
-				return e;
-			}
-			return { ...e, connection: { ...e.connection, address: normalizeRemoteAgentHostAddress(e.connection.address) } };
-		});
+		return this._getConfiguredEntries().map(e => ({ ...e, address: normalizeRemoteAgentHostAddress(e.address) }));
 	}
 
 	getConnection(address: string): IAgentConnection | undefined {
@@ -113,11 +102,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	reconnect(address: string): void {
 		const normalized = normalizeRemoteAgentHostAddress(address);
 
-		// SSH/tunnel entries are reconnected by their respective services
+		// SSH entries are reconnected by the SSH service, not via WebSocket
 		const configuredEntry = this._getConfiguredEntries().find(
-			e => normalizeRemoteAgentHostAddress(getEntryAddress(e)) === normalized
+			e => normalizeRemoteAgentHostAddress(e.address) === normalized
 		);
-		if (configuredEntry && configuredEntry.connection.type !== RemoteAgentHostEntryType.WebSocket) {
+		if (configuredEntry?.sshConfigHost) {
 			return;
 		}
 
@@ -143,11 +132,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
-		const entry: IRemoteAgentHostEntry = input.connection.type === RemoteAgentHostEntryType.Tunnel
-			? input
-			: { ...input, connection: { ...input.connection, address: normalizeRemoteAgentHostAddress(input.connection.address) } };
-		const address = getEntryAddress(entry);
-		const existingConnection = this._getConnectionInfo(address);
+		const entry: IRemoteAgentHostEntry = { ...input, address: normalizeRemoteAgentHostAddress(input.address) };
+		const existingConnection = this._getConnectionInfo(entry.address);
 		await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
 
 		if (existingConnection) {
@@ -157,36 +143,24 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			};
 		}
 
-		// SSH entries are connected externally — just persist
-		// the entry and return a disconnected placeholder. The connection
-		// will be established by the SSH contribution.
-		if (entry.connection.type === RemoteAgentHostEntryType.SSH) {
-			return {
-				address,
-				name: entry.name,
-				clientId: '',
-				status: RemoteAgentHostConnectionStatus.Disconnected,
-			};
-		}
-
-		const connectedConnection = this._getConnectionInfo(address);
+		const connectedConnection = this._getConnectionInfo(entry.address);
 		if (connectedConnection) {
 			return connectedConnection;
 		}
 
-		const wait = this._getOrCreateConnectionWait(address);
+		const wait = this._getOrCreateConnectionWait(entry.address);
 		const connection = await raceTimeout(wait.p, RemoteAgentHostService.ConnectionWaitTimeout, () => {
-			this._pendingConnectionWaits.delete(address);
+			this._pendingConnectionWaits.delete(entry.address);
 		});
 		if (!connection) {
-			throw new Error(`Timed out connecting to ${address}`);
+			throw new Error(`Timed out connecting to ${entry.address}`);
 		}
 
 		return connection;
 	}
 
 	async addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo> {
-		const address = getEntryAddress(entry);
+		const address = entry.address;
 
 		// Dispose any existing entry for this address to avoid leaking
 		// old protocol clients and relay transports on reconnect.
@@ -216,9 +190,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 		}));
 
-		// Persist entries — await so that the config is written before
+		// Persist SSH entries — await so that the config is written before
 		// onDidChangeConnections fires, ensuring _reconcile creates the provider.
-		// Tunnel entries are filtered out by _storeConfiguredEntries automatically.
 		await this._storeConfiguredEntries(this._upsertConfiguredEntry(entry));
 
 		this._onDidChangeConnections.fire();
@@ -237,7 +210,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// This setting is only used in the sessions app (user scope), so we
 		// don't need to inspect per-scope values like _upsertConfiguredEntry does.
 		const entries = this._getConfiguredEntries().filter(
-			e => normalizeRemoteAgentHostAddress(getEntryAddress(e)) !== normalized
+			e => normalizeRemoteAgentHostAddress(e.address) !== normalized
 		);
 		await this._storeConfiguredEntries(entries);
 
@@ -273,9 +246,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return;
 		}
 
-		const rawEntries = (this._configurationService.getValue<IRawRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? []).map(rawEntryToEntry).filter(isDefined);
-		const entriesWithAddress = rawEntries.map(e => ({ entry: e, address: normalizeRemoteAgentHostAddress(getEntryAddress(e)) }));
-		const desired = new Set(entriesWithAddress.map(e => e.address));
+		const rawEntries: IRemoteAgentHostEntry[] = this._configurationService.getValue<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
+		const entries = rawEntries.map(e => ({ ...e, address: normalizeRemoteAgentHostAddress(e.address) }));
+		const desired = new Set(entries.map(e => e.address));
 
 		this._logService.info(`[RemoteAgentHost] Reconciling: desired=[${[...desired].join(', ')}], current=[${[...this._entries.keys()].map(a => `${a}(${this._entries.get(a)!.connected ? 'connected' : 'pending'})`).join(', ')}]`);
 
@@ -284,10 +257,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const oldNames = new Map(this._names);
 		this._names.clear();
 		this._tokens.clear();
-		for (const { entry, address } of entriesWithAddress) {
-			this._names.set(address, entry.name);
-			this._tokens.set(address, entry.connectionToken);
-			if (this._entries.has(address) && oldNames.get(address) !== entry.name) {
+		for (const entry of entries) {
+			this._names.set(entry.address, entry.name);
+			this._tokens.set(entry.address, entry.connectionToken);
+			if (this._entries.has(entry.address) && oldNames.get(entry.address) !== entry.name) {
 				namesChanged = true;
 			}
 		}
@@ -302,11 +275,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 		}
 
-		// Add new connections (skip SSH entries — those are handled by ISSHRemoteAgentHostService,
-		// and skip tunnel entries — those are handled by ITunnelAgentHostService)
-		for (const { entry, address } of entriesWithAddress) {
-			if (!this._entries.has(address) && entry.connection.type === RemoteAgentHostEntryType.WebSocket) {
-				this._connectTo(address, entry.connectionToken);
+		// Add new connections (skip SSH entries — those are handled by ISSHRemoteAgentHostService)
+		for (const entry of entries) {
+			if (!this._entries.has(entry.address) && !entry.sshConfigHost) {
+				this._connectTo(entry.address, entry.connectionToken);
 			}
 		}
 
@@ -417,7 +389,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	/** Check whether the given normalized address is still in the configured entries. */
 	private _isAddressConfigured(address: string): boolean {
 		const entries = this._getConfiguredEntries();
-		return entries.some(e => normalizeRemoteAgentHostAddress(getEntryAddress(e)) === address);
+		return entries.some(e => normalizeRemoteAgentHostAddress(e.address) === address);
 	}
 
 	private _getConnectionInfo(address: string): IRemoteAgentHostConnectionInfo | undefined {
@@ -425,7 +397,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _getConfiguredEntries(): IRemoteAgentHostEntry[] {
-		return (this._configurationService.getValue<IRawRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? []).map(rawEntryToEntry).filter(isDefined);
+		return this._configurationService.getValue<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId) ?? [];
 	}
 
 	private _upsertConfiguredEntry(entry: IRemoteAgentHostEntry): IRemoteAgentHostEntry[] {
@@ -433,28 +405,27 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// merge entries from an overriding scope (e.g. workspace) into the
 		// user scope and then lose them on the next read.
 		const target = this._getConfigurationTarget();
-		const inspected = this._configurationService.inspect<IRawRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId);
-		let configuredRaw: readonly IRawRemoteAgentHostEntry[];
+		const inspected = this._configurationService.inspect<IRemoteAgentHostEntry[]>(RemoteAgentHostsSettingId);
+		let configuredEntries: readonly IRemoteAgentHostEntry[];
 		switch (target) {
 			case ConfigurationTarget.USER_LOCAL:
-				configuredRaw = inspected.userLocalValue ?? [];
+				configuredEntries = inspected.userLocalValue ?? [];
 				break;
 			case ConfigurationTarget.USER_REMOTE:
-				configuredRaw = inspected.userRemoteValue ?? [];
+				configuredEntries = inspected.userRemoteValue ?? [];
 				break;
 			default:
-				configuredRaw = inspected.userValue ?? [];
+				configuredEntries = inspected.userValue ?? [];
 				break;
 		}
 
-		const configuredEntries = configuredRaw.map(rawEntryToEntry).filter((e): e is IRemoteAgentHostEntry => e !== undefined);
-		const normalizedAddress = normalizeRemoteAgentHostAddress(getEntryAddress(entry));
-		const existingIndex = configuredEntries.findIndex(e => normalizeRemoteAgentHostAddress(getEntryAddress(e)) === normalizedAddress);
+		const normalizedAddress = normalizeRemoteAgentHostAddress(entry.address);
+		const existingIndex = configuredEntries.findIndex(configuredEntry => normalizeRemoteAgentHostAddress(configuredEntry.address) === normalizedAddress);
 		if (existingIndex === -1) {
 			return [...configuredEntries, entry];
 		}
 
-		return configuredEntries.map((e, index) => index === existingIndex ? entry : e);
+		return configuredEntries.map((configuredEntry, index) => index === existingIndex ? entry : configuredEntry);
 	}
 
 	private _getConfigurationTarget(): ConfigurationTarget {
@@ -472,8 +443,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private async _storeConfiguredEntries(entries: IRemoteAgentHostEntry[]): Promise<void> {
-		const raw = entries.map(entryToRawEntry).filter(isDefined);
-		await this._configurationService.updateValue(RemoteAgentHostsSettingId, raw, this._getConfigurationTarget());
+		await this._configurationService.updateValue(RemoteAgentHostsSettingId, entries, this._getConfigurationTarget());
 	}
 
 	private _getOrCreateConnectionWait(address: string): DeferredPromise<IRemoteAgentHostConnectionInfo> {

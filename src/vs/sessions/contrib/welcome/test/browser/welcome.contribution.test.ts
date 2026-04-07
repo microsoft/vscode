@@ -166,23 +166,6 @@ suite('SessionsWelcomeContribution', () => {
 		assert.strictEqual(isOverlayVisible(), false, 'should NOT show overlay for Unresolved');
 	});
 
-	test('returning user: extension uninstalled DOES show overlay', () => {
-		markReturningUser();
-		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
-
-		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
-		assert.ok(contribution);
-		assert.strictEqual(isOverlayVisible(), false, 'should not show initially');
-
-		// Simulate extension being uninstalled
-		transaction(tx => {
-			mockEntitlementService.sentimentObs.set({ completed: true, installed: false } as IChatSentiment, tx);
-		});
-
-		assert.strictEqual(isOverlayVisible(), true, 'should show overlay when extension is uninstalled');
-	});
-
 	test('returning user: extension disabled DOES show overlay', () => {
 		markReturningUser();
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);

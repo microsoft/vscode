@@ -1499,8 +1499,6 @@ export default tseslint.config(
 					'when': 'hasNode',
 					'allow': [
 						'@github/copilot-sdk',
-						'@microsoft/dev-tunnels-contracts',
-						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -2121,7 +2119,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
-						'vs/sessions/contrib/*/~'
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2136,6 +2135,7 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
+						'vs/workbench/contrib/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'

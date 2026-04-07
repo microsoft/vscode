@@ -23,8 +23,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { SessionStatus } from '../../common/sessionData.js';
-import { ISessionsManagementService } from '../sessionsManagementService.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -33,6 +32,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';

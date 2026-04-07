@@ -549,6 +549,8 @@ export class ExtensionsScanner extends Disposable {
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -558,6 +560,7 @@ export class ExtensionsScanner extends Disposable {
 
 	async cleanUp(): Promise<void> {
 		await this.removeTemporarilyDeletedFolders();
+		await this.removeStaleAutoUpdateBuiltinExtensions();
 		await this.deleteExtensionsMarkedForRemoval();
 		//TODO: Remove this initiialization after coupe of releases
 		await this.initializeExtensionSize();
@@ -914,6 +917,7 @@ export class ExtensionsScanner extends Disposable {
 			installedTimestamp: extension.metadata?.installedTimestamp,
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
+			forceAutoUpdate: extension.forceAutoUpdate,
 			private: !!extension.metadata?.private,
 			isWorkspaceScoped: false,
 			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix'),
@@ -930,6 +934,28 @@ export class ExtensionsScanner extends Disposable {
 				await this.extensionsScannerService.updateManifestMetadata(extension.location, { size });
 			}
 		}));
+	}
+
+	private async removeStaleAutoUpdateBuiltinExtensions(): Promise<void> {
+		const autoUpdateBuiltinExtensions = this.productService.builtInExtensionsEnabledWithAutoUpdates;
+		if (!autoUpdateBuiltinExtensions?.length) {
+			return;
+		}
+		const productVersion = this.productService.version;
+		const productMajorMinor = `${semver.major(productVersion)}.${semver.minor(productVersion)}`;
+		const extensions = await this.extensionsScannerService.scanAllUserExtensions();
+		const staleExtensions = extensions.filter(extension => {
+			if (!autoUpdateBuiltinExtensions.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
+				return false;
+			}
+			const extensionMajorMinor = `${semver.major(extension.manifest.version)}.${semver.minor(extension.manifest.version)}`;
+			return productMajorMinor !== extensionMajorMinor;
+		});
+		if (staleExtensions.length) {
+			this.logService.info('Removing stale auto-update builtin extensions:', staleExtensions.map(e => `${e.identifier.id}@${e.manifest.version}`).join(', '));
+			await this.extensionsProfileScannerService.removeExtensionsFromProfile(staleExtensions.map(e => e.identifier), this.userDataProfilesService.defaultProfile.extensionsResource);
+			await Promise.allSettled(staleExtensions.map(e => this.deleteExtension(e, 'stale auto-update builtin')));
+		}
 	}
 
 	private async deleteExtensionsMarkedForRemoval(): Promise<void> {

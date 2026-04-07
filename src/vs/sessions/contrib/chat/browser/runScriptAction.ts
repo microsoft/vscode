@@ -29,9 +29,9 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { ISession } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';

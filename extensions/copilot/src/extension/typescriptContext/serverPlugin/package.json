@@ -1,0 +1,16 @@
+{
+	"name": "@vscode/copilot-typescript-server-plugin",
+	"private": true,
+	"version": "1.0.0",
+	"description": "TypeScript plugin to provide TS specific inline suggestion context for Copilot",
+	"author": "MS",
+	"license": "MIT",
+	"main": "./dist/main.js",
+	"devdependencies": {
+		"typescript": "5.5.4"
+	},
+	"scripts": {
+		"compile": "tsx .esbuild.ts",
+		"bootstrap": "npm run compile && npm pack --pack-destination ../../../../bootstrap"
+	}
+}

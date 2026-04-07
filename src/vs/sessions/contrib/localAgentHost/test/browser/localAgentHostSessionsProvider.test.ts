@@ -22,9 +22,9 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService, type ChatSendResult } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 
-import { SessionStatus } from '../../../sessions/common/sessionData.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------

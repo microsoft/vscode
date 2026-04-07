@@ -1,0 +1,27 @@
+{
+	// This TS configuration is used to ensure that all source code in the
+	// layers common, vscode, worker, vscode-worker compile without errors
+	// when using ES2022 and WebWorker types.
+	//
+	// The intent is to compile against an environment that matches the
+	// web worker based extension host.
+
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ES2022", "WebWorker"],
+		"types": [],
+		"noEmit": true,
+		"skipLibCheck": true,
+		"jsx": "react",
+		"jsxFactory": "vscpp",
+		"jsxFragmentFactory": "vscppf"
+	},
+	"include": [
+		"src/**/common/**/*.ts",
+		"src/**/vscode/**/*.ts",
+		"src/**/worker/**/*.ts",
+		"src/**/vscode-worker/**/*.ts",
+		"src/**/*.d.ts"
+	],
+	"exclude": ["src/**/test/**", "src/**/fixtures/**", "src/extension/completions-core/**/*.test.ts"]
+}

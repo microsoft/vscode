@@ -14,13 +14,15 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, GitRepositoryState, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { COPILOT_CLOUD_SESSION_TYPE } from '../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { COPILOT_CLOUD_SESSION_TYPE } from '../../sessions/browser/sessionTypes.js';
+import { IGitHubService } from '../../github/browser/githubService.js';
+import { toPRContentUri } from '../../github/common/utils.js';
 import { ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
 
-function toIChatSessionFileChange2(changes: GitDiffChange[], modifiedRef: string | undefined, originalRef: string | undefined): IChatSessionFileChange2[] {
+function toIChatSessionFileChange2(changes: GitDiffChange[], originalRef: string | undefined, modifiedRef: string | undefined): IChatSessionFileChange2[] {
 	return changes.map(change => ({
 		uri: change.uri,
 		originalUri: change.originalUri
@@ -66,8 +68,8 @@ export class ChangesViewModel extends Disposable {
 	readonly activeSessionIsLoadingObs: IObservable<boolean>;
 
 	private _activeSessionMetadataObs!: IObservable<{ readonly [key: string]: unknown } | undefined>;
-	private _activeSessionAllChangesPromiseObs!: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
-	private _activeSessionLastTurnChangesPromiseObs!: IObservableWithChange<IObservable<GitDiffChange[] | undefined>>;
+	private _activeSessionAllChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
+	private _activeSessionLastTurnChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -90,6 +92,7 @@ export class ChangesViewModel extends Disposable {
 		@IAgentFeedbackService private readonly agentFeedbackService: IAgentFeedbackService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ICodeReviewService private readonly codeReviewService: ICodeReviewService,
+		@IGitHubService private readonly gitHubService: IGitHubService,
 		@IGitService private readonly gitService: IGitService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -242,6 +245,24 @@ export class ChangesViewModel extends Disposable {
 
 		// All changes
 		this._activeSessionAllChangesPromiseObs = derived(reader => {
+			const sessionType = this.activeSessionTypeObs.read(reader);
+
+			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
+				// Cloud session
+				const metadata = this._activeSessionMetadataObs.read(reader);
+
+				const firstCheckpointRef = metadata?.baseRefOid as string | undefined;
+				const lastCheckpointRef = metadata?.headRefOid as string | undefined;
+
+				if (!firstCheckpointRef || !lastCheckpointRef) {
+					return constObservable([]);
+				}
+
+				const diffPromise = this._getPullRequestChanges(firstCheckpointRef, lastCheckpointRef);
+				return new ObservablePromise(diffPromise).resolvedValue;
+			}
+
+			// Local session
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(reader);
 			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
@@ -250,20 +271,28 @@ export class ChangesViewModel extends Disposable {
 				return constObservable([]);
 			}
 
-			const diffPromise = repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+			const diffPromise = this._getRepositoryChanges(repository, firstCheckpointRef, lastCheckpointRef);
 			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		const activeSessionAllChangesObs = derived(reader => {
-			const diffChanges = this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
-			const firstCheckpointRef = this.activeSessionFirstCheckpointRefObs.read(undefined);
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
-
-			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, firstCheckpointRef);
 		});
 
 		// Last turn changes
 		this._activeSessionLastTurnChangesPromiseObs = derived(reader => {
+			const sessionType = this.activeSessionTypeObs.read(reader);
+
+			if (sessionType === COPILOT_CLOUD_SESSION_TYPE) {
+				// Cloud session
+				const metadata = this._activeSessionMetadataObs.read(reader);
+				const lastCheckpointRef = metadata?.headRefOid as string | undefined;
+
+				if (!lastCheckpointRef) {
+					return constObservable([]);
+				}
+
+				const diffPromise = this._getPullRequestChanges(`${lastCheckpointRef}^`, lastCheckpointRef);
+				return new ObservablePromise(diffPromise).resolvedValue;
+			}
+
+			// Local session
 			const repository = this.activeSessionRepositoryObs.read(reader);
 			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(reader);
 
@@ -271,15 +300,8 @@ export class ChangesViewModel extends Disposable {
 				return constObservable([]);
 			}
 
-			const diffPromise = repository.diffBetweenWithStats(`${lastCheckpointRef}^`, lastCheckpointRef);
+			const diffPromise = this._getRepositoryChanges(repository, `${lastCheckpointRef}^`, lastCheckpointRef);
 			return new ObservablePromise(diffPromise).resolvedValue;
-		});
-
-		const activeSessionLastTurnChangesObs = derived(reader => {
-			const diffChanges = this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader) ?? [];
-			const lastCheckpointRef = this.activeSessionLastCheckpointRefObs.read(undefined);
-
-			return toIChatSessionFileChange2(diffChanges, lastCheckpointRef, lastCheckpointRef ? `${lastCheckpointRef}^` : undefined);
 		});
 
 		return derivedOpts({
@@ -294,9 +316,9 @@ export class ChangesViewModel extends Disposable {
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return activeSessionChangesObs.read(reader);
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
-				return activeSessionAllChangesObs.read(reader);
+				return this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
-				return activeSessionLastTurnChangesObs.read(reader);
+				return this._activeSessionLastTurnChangesPromiseObs.read(reader).read(reader) ?? [];
 			}
 
 			return [];
@@ -348,7 +370,7 @@ export class ChangesViewModel extends Disposable {
 			const workspaceRepository = workspace?.repositories[0];
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
 			const branchName = (sessionMetadata?.branchName ?? sessionMetadata?.branch) as string | undefined;
-			const baseBranchName = sessionMetadata?.baseBranchName as string | undefined;
+			const baseBranchName = (sessionMetadata?.baseBranchName ?? sessionMetadata?.baseBranch) as string | undefined;
 			const isMergeBaseBranchProtected = workspaceRepository?.baseBranchProtected;
 			const isolationMode = workspaceRepository?.workingDirectory === undefined
 				? IsolationMode.Workspace
@@ -453,6 +475,56 @@ export class ChangesViewModel extends Disposable {
 				}
 			}
 			return result;
+		});
+	}
+
+	private async _getRepositoryChanges(repository: IGitRepository, firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined> {
+		const changes = await repository.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef);
+		return toIChatSessionFileChange2(changes, firstCheckpointRef, lastCheckpointRef);
+	}
+
+	private async _getPullRequestChanges(firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined> {
+		const gitHubInfo = this.sessionManagementService.activeSession.get()?.gitHubInfo.get();
+		if (!gitHubInfo?.owner || !gitHubInfo?.repo || !gitHubInfo?.pullRequest?.number) {
+			return [];
+		}
+
+		const params = {
+			owner: gitHubInfo.owner,
+			repo: gitHubInfo.repo,
+			prNumber: gitHubInfo.pullRequest.number,
+		} as const;
+
+		const changes = await this.gitHubService.getChangedFiles(params.owner, params.repo, firstCheckpointRef, lastCheckpointRef);
+		return changes.map(change => {
+			const uri = toPRContentUri(change.filename, {
+				...params,
+				commitSha: lastCheckpointRef,
+				status: change.status,
+				isBase: false
+			});
+
+			const originalUri = change.status !== 'added'
+				? toPRContentUri(change.previous_filename || change.filename, {
+					...params,
+					commitSha: firstCheckpointRef,
+					previousFileName: change.previous_filename,
+					status: change.status,
+					isBase: true
+				})
+				: undefined;
+
+			const modifiedUri = change.status !== 'removed'
+				? uri
+				: undefined;
+
+			return {
+				uri,
+				originalUri,
+				modifiedUri,
+				insertions: change.additions,
+				deletions: change.deletions
+			} satisfies IChatSessionFileChange2;
 		});
 	}
 }

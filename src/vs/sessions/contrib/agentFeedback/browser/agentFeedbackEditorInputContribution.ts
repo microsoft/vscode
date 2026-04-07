@@ -16,7 +16,7 @@ import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '..
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';

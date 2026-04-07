@@ -28,6 +28,14 @@ export interface IGitHubRepository {
 	readonly description: string;
 }
 
+export interface IGitHubChangedFile {
+	readonly filename: string;
+	readonly previous_filename: string | undefined;
+	readonly status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+	readonly additions: number;
+	readonly deletions: number;
+}
+
 //#endregion
 
 //#region Pull Request

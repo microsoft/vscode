@@ -43,7 +43,7 @@ This design allows new compute environments (remote agent hosts, cloud backends,
 
 ### `ISessionData` — Universal Session Facade
 
-**File:** `src/vs/sessions/contrib/sessions/common/sessionData.ts`
+**File:** `src/vs/sessions/services/sessions/common/session.ts`
 
 The common session interface exposed by all providers. It is a self-contained facade — consumers should not reach back to underlying services to resolve additional data. All mutable properties are **observables** for reactive UI binding.
 

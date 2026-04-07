@@ -9273,6 +9273,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
+[`cshake`]: ./cshake
 [`fsb`]: ./fsb
 [`gost94`]: ./gost94
 [`groestl`]: ./groestl
@@ -9292,6 +9293,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
+[`turbo-shake`]: ./turbo-shake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
@@ -9317,6 +9319,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
+[cSHAKE]: https://csrc.nist.gov/pubs/sp/800/185/final
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
 [GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
@@ -9337,6 +9340,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Streebog]: https://en.wikipedia.org/wiki/Streebog
 [Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
 [Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
+[TurboSHAKE]: https://keccak.team/turboshake.html
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -9369,6 +9373,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
+[`cshake`]: ./cshake
 [`fsb`]: ./fsb
 [`gost94`]: ./gost94
 [`groestl`]: ./groestl
@@ -9388,6 +9393,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
+[`turbo-shake`]: ./turbo-shake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
@@ -9413,6 +9419,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
+[cSHAKE]: https://csrc.nist.gov/pubs/sp/800/185/final
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
 [GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
@@ -9433,6 +9440,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Streebog]: https://en.wikipedia.org/wiki/Streebog
 [Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
 [Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
+[TurboSHAKE]: https://keccak.team/turboshake.html
 ---------------------------------------------------------
 
 ---------------------------------------------------------

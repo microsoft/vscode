@@ -1,0 +1,12 @@
+[
+    {
+        "question": "/new create a Typescript app which uses #selection and allows users to perform calculations. Create a seperate file for each calculation and add in files for any arithmetic operations not included.",
+        "description": "/new with #selection variable",
+        "stateFile": "./workspaceState.9.state.json",
+        "keywords": {
+            "allOf": [
+                "add.ts", "subtract.ts", "multiply.ts", "divide.ts"
+            ]
+        }
+    }
+]

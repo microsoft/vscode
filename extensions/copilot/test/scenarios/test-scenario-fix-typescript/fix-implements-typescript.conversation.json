@@ -1,0 +1,6 @@
+[ {
+    "question": "/fix",
+    "stateFile": "implements.state.json",
+    "contentInOutput": "name: string;"
+  }
+]

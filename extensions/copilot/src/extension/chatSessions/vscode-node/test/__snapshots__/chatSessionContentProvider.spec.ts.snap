@@ -1,0 +1,101 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ChatSessionContentProvider > loads real fixture file with tool invocation flow and converts to correct chat history 1`] = `
+[
+  {
+    "prompt": "Add a small comment to ClaudeAgentManager",
+    "type": "request",
+  },
+  {
+    "parts": [
+      {
+        "content": "I'll add a small comment to ClaudeAgentManager. Let me first find this file in the codebase.",
+        "type": "markdown",
+      },
+    ],
+    "type": "response",
+  },
+  {
+    "parts": [
+      {
+        "invocationMessage": "Searched for files matching \`**/ClaudeAgentManager*\`",
+        "isError": undefined,
+        "toolCallId": "toolu_01Nss2ugwQN7c4sj6hTxYc6F",
+        "toolName": "Glob",
+        "type": "tool",
+      },
+    ],
+    "type": "response",
+  },
+  {
+    "parts": [
+      {
+        "invocationMessage": "Searched text for \`ClaudeAgentManager\`",
+        "isError": undefined,
+        "toolCallId": "toolu_01FqdrDGdxXUWRRLziM7gS2R",
+        "toolName": "Grep",
+        "type": "tool",
+      },
+    ],
+    "type": "response",
+  },
+  {
+    "parts": [
+      {
+        "content": "Let me check the claudeCodeAgent.ts file which likely contains the ClaudeAgentManager:",
+        "type": "markdown",
+      },
+    ],
+    "type": "response",
+  },
+  {
+    "parts": [
+      {
+        "invocationMessage": "Read [](file:///Users/roblou/code/vscode-copilot-chat/src/extension/agents/claude/vscode-node/claudeCodeAgent.ts)",
+        "isError": undefined,
+        "toolCallId": "toolu_0152sKfmLJ5pTuNyeESooT25",
+        "toolName": "Read",
+        "type": "tool",
+      },
+    ],
+    "type": "response",
+  },
+  {
+    "parts": [
+      {
+        "content": "I'll add a small comment to the ClaudeAgentManager class:",
+        "type": "markdown",
+      },
+    ],
+    "type": "response",
+  },
+  {
+    "parts": [
+      {
+        "invocationMessage": "Edited [](file:///Users/roblou/code/vscode-copilot-chat/src/extension/agents/claude/vscode-node/claudeCodeAgent.ts)",
+        "isError": undefined,
+        "toolCallId": "toolu_01NXDY5nya4UzHwUxPnhmQDX",
+        "toolName": "Edit",
+        "type": "tool",
+      },
+    ],
+    "type": "response",
+  },
+  {
+    "prompt": "now run ls pac* in my terminal",
+    "type": "request",
+  },
+  {
+    "parts": [
+      {
+        "invocationMessage": undefined,
+        "isError": false,
+        "toolCallId": "toolu_01XiMYfYgoXgkxjDCvc8NZWD",
+        "toolName": "Bash",
+        "type": "tool",
+      },
+    ],
+    "type": "response",
+  },
+]
+`;

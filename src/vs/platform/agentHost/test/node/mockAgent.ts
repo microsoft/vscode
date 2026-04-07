@@ -9,7 +9,6 @@ import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/c
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
-import { IProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { CustomizationStatus, ToolResultContentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -49,12 +48,12 @@ export class MockAgent implements IAgent {
 	constructor(readonly id: AgentProvider = 'mock') { }
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent` };
+		return { provider: this.id, displayName: `Agent ${this.id}`, description: `Test ${this.id} agent`, requiresAuth: this.id === 'copilot' };
 	}
 
-	getProtectedResources(): IProtectedResourceMetadata[] {
+	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
 		if (this.id === 'copilot') {
-			return [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'], required: true }];
+			return [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }];
 		}
 		return [];
 	}
@@ -180,7 +179,7 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
+		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent', requiresAuth: false };
 	}
 
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {

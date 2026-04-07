@@ -1,0 +1,15 @@
+{
+	"extends": "../../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker.ImportScripts"],
+		"jsx": "react",
+		"rootDir": "../../../",
+		"experimentalDecorators": true
+	},
+	"include": [
+		"**/*",
+		"../../../src/extension/vscode.d.ts",
+		"../../../src/util/vs/*.d.ts"
+	],
+	"exclude": ["../fixtures/**/*", "../shims/vscodeTypesShim.ts"]
+}

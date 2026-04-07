@@ -331,11 +331,16 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		};
 
 		try {
+			const systemExtensions = await this.getInstalled(ExtensionType.System);
 			// Start installing extensions
 			for (const { manifest, extension, options } of extensions) {
-				const isApplicationScoped = options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
+				const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+				const isSystemExtension = systemExtensions.some(e => areSameExtensions(e.identifier, { id: extensionId }));
+				const isBuiltin = options.isBuiltin || isSystemExtension;
+				const isApplicationScoped = options.isApplicationScoped || isBuiltin || isApplicationScopedExtension(manifest);
 				const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 					...options,
+					isBuiltin,
 					isApplicationScoped,
 					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation(),
 					productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }

@@ -443,7 +443,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
 			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				await this.openInCarousel(attachment.name, imageData, resource);
+				await this.openInCarousel(attachment.id, attachment.name, imageData, resource);
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
@@ -471,8 +471,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private async openInCarousel(name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
-		const resource = referenceUri ?? URI.from({ scheme: 'data', path: name });
+	private async openInCarousel(id: string, name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
+		const resource = referenceUri ?? URI.from({ scheme: 'data', path: `${id}/${encodeURIComponent(name)}` });
 		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
 	}
 }
