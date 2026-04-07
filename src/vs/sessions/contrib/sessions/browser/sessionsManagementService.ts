@@ -386,7 +386,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const setActiveChatToLast = () => {
 			const activeSession = this._activeSession.get();
-			if (this._activeChatObservable && activeSession) {
+			if (this._activeChatObservable && activeSession?.sessionId === session.sessionId && this.uriIdentityService.extUri.isEqual(activeSession.activeChat.get().resource, (<IActiveSession>session).activeChat?.get().resource)) {
 				const chats = activeSession.chats.get();
 				const lastChat = chats[chats.length - 1];
 				if (lastChat) {
@@ -403,8 +403,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		try {
 			const updatedSession = await this.sessionsProvidersService.sendAndCreateChat(session.sessionId, options);
-			this.setActiveSession(updatedSession);
-			setActiveChatToLast();
+			if (updatedSession.sessionId !== session.sessionId && this._activeSession.get()?.sessionId === session.sessionId) {
+				this.logService.info(`[SessionsManagement] sendAndCreateChat: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
+				this.setActiveSession(updatedSession);
+				setActiveChatToLast();
+			}
 		} finally {
 			chatsListener.dispose();
 		}
