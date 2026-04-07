@@ -954,9 +954,10 @@ describe('AutomodeService', () => {
 				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
 			]);
 
-			// Only one CAPI request for the token (not two)
+			// Only one CAPI token request for auto models should be made (not two)
 			const capiCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls;
-			expect(capiCalls.length).toBe(1);
+			const autoModelsCalls = capiCalls.filter(([, requestType]: [unknown, { type?: RequestType }]) => requestType?.type === RequestType.AutoModels);
+			expect(autoModelsCalls.length).toBe(1);
 		});
 
 		it('should allow a new resolution after the first one completes', async () => {
