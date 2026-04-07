@@ -285,6 +285,7 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+		const editorService = accessor.get(IEditorService);
 
 		const uri = extractURI(context);
 		const storage = extractStorage(context);
@@ -385,6 +386,13 @@ registerAction2(class extends Action2 {
 				if (projectRoot) {
 					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);
 				}
+			}
+
+			// Refresh the list to remove the deleted item immediately
+			// (provider's onDidChange may not fire if it doesn't watch the filesystem)
+			const activeEditor = editorService.activeEditorPane;
+			if (activeEditor instanceof AICustomizationManagementEditor) {
+				activeEditor.refreshList();
 			}
 		}
 	}

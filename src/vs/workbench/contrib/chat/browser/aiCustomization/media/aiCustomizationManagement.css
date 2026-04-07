@@ -228,7 +228,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	padding: 6px 0;
+	padding: 6px 2px;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -907,6 +907,8 @@
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
+	/* Reserve space so focused button outlines do not clip against the widget's overflow:hidden */
+	padding: 1px;
 }
 
 .mcp-list-widget .list-button-group .monaco-button:focus-visible {
