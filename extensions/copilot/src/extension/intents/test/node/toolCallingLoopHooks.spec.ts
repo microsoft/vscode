@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CancellationToken, ChatHookResult, ChatHookType, ChatRequest, LanguageModelToolInformation } from 'vscode';
 import { IChatHookService, SessionStartHookInput, StopHookInput, SubagentStartHookInput, SubagentStopHookInput } from '../../../../platform/chat/common/chatHookService';
+import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
@@ -101,16 +102,16 @@ class TestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions> {
 	public lastBuildPromptContext: IBuildPromptContext | undefined;
 	public additionalContextValue: string | undefined;
 
-	protected override async buildPrompt(buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
+	protected override async buildPrompt(_endpoint: IChatEndpoint, buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
 		this.lastBuildPromptContext = buildPromptContext;
 		return nullRenderPromptResult();
 	}
 
-	protected override async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
+	protected override async getAvailableTools(_endpoint: IChatEndpoint): Promise<LanguageModelToolInformation[]> {
 		return [];
 	}
 
-	protected override async fetch(): Promise<never> {
+	protected override async fetch(_endpoint: IChatEndpoint): Promise<never> {
 		throw new Error('fetch should not be called in these tests');
 	}
 

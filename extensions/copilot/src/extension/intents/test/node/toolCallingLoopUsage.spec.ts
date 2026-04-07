@@ -7,6 +7,7 @@ import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ChatRequest, LanguageModelChat, LanguageModelToolInformation } from 'vscode';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
+import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { toTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
@@ -44,18 +45,18 @@ class UsageCapturingStream extends ChatResponseStreamImpl {
 }
 
 class UsageTestToolCallingLoop extends ToolCallingLoop<IToolCallingLoopOptions> {
-	protected override async buildPrompt(_buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
+	protected override async buildPrompt(_endpoint: IChatEndpoint, _buildPromptContext: IBuildPromptContext): Promise<IBuildPromptResult> {
 		return {
 			...nullRenderPromptResult(),
 			messages: [{ role: Raw.ChatRole.User, content: [toTextPart('hello world')] }],
 		};
 	}
 
-	protected override async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
+	protected override async getAvailableTools(_endpoint: IChatEndpoint): Promise<LanguageModelToolInformation[]> {
 		return [];
 	}
 
-	protected override async fetch(): Promise<ChatResponse> {
+	protected override async fetch(_endpoint: IChatEndpoint): Promise<ChatResponse> {
 		return {
 			type: ChatFetchResponseType.Success,
 			value: 'test-response',
