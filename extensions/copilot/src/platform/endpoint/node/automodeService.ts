@@ -117,6 +117,7 @@ export interface IAutomodeService {
 export class AutomodeService extends Disposable implements IAutomodeService {
 	readonly _serviceBrand: undefined;
 	private readonly _autoModelCache: Map<string, AutoModelCacheEntry> = new Map();
+	private readonly _pendingResolutions: Map<string, Promise<IChatEndpoint>> = new Map();
 	private _reserveTokens: DisposableMap<ChatLocation, AutoModeTokenBank> = new DisposableMap();
 	private readonly _routerDecisionFetcher: RouterDecisionFetcher;
 
@@ -137,6 +138,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				entry.tokenBank.dispose();
 			}
 			this._autoModelCache.clear();
+			this._pendingResolutions.clear();
 			const keys = Array.from(this._reserveTokens.keys());
 			this._reserveTokens.clearAndDisposeAll();
 			for (const location of keys) {
@@ -152,6 +154,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			entry.tokenBank.dispose();
 		}
 		this._autoModelCache.clear();
+		this._pendingResolutions.clear();
 		this._reserveTokens.dispose();
 		super.dispose();
 	}
@@ -175,6 +178,20 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		}
 
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
+
+		// Coalesce concurrent calls for the same conversation to avoid duplicate
+		// router calls and telemetry emissions.
+		const pending = this._pendingResolutions.get(conversationId);
+		if (pending) {
+			return pending;
+		}
+
+		const promise = this._resolveAutoModeEndpointCore(chatRequest, conversationId, knownEndpoints);
+		this._pendingResolutions.set(conversationId, promise);
+		return promise.finally(() => this._pendingResolutions.delete(conversationId));
+	}
+
+	private async _resolveAutoModeEndpointCore(chatRequest: ChatRequest | undefined, conversationId: string, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
 		const entry = this._autoModelCache.get(conversationId);
 		const tokenBank = this._acquireTokenBank(entry, chatRequest?.location, conversationId);
 		const token = await tokenBank.getToken();

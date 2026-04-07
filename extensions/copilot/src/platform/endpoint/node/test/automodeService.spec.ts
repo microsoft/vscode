@@ -916,4 +916,101 @@ describe('AutomodeService', () => {
 			);
 		});
 	});
+
+	describe('concurrent resolution coalescing', () => {
+		it('should return the same endpoint for concurrent calls with the same conversationId', async () => {
+			mockApiResponse(['gpt-4o', 'gpt-4o-mini']);
+			automodeService = createService();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'hello',
+				sessionId: 'session-concurrent'
+			};
+
+			const [result1, result2, result3] = await Promise.all([
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
+			]);
+
+			expect(result1).toBe(result2);
+			expect(result2).toBe(result3);
+		});
+
+		it('should make only one CAPI token request for concurrent calls', async () => {
+			mockApiResponse(['gpt-4o', 'gpt-4o-mini']);
+			automodeService = createService();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'hello',
+				sessionId: 'session-concurrent-token'
+			};
+
+			await Promise.all([
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
+			]);
+
+			// Only one CAPI request for the token (not two)
+			const capiCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls;
+			expect(capiCalls.length).toBe(1);
+		});
+
+		it('should allow a new resolution after the first one completes', async () => {
+			mockApiResponse(['gpt-4o', 'gpt-4o-mini']);
+			automodeService = createService();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'hello',
+				sessionId: 'session-sequential'
+			};
+
+			const result1 = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+
+			// Second call after first completes should succeed (hits cache, not pending map)
+			const result2 = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+			expect(result1.model).toBe(result2.model);
+		});
+
+		it('should propagate errors to all concurrent callers', async () => {
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('token fetch failed'));
+			automodeService = createService();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'hello',
+				sessionId: 'session-error'
+			};
+
+			const results = await Promise.allSettled([
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]),
+			]);
+
+			expect(results[0].status).toBe('rejected');
+			expect(results[1].status).toBe('rejected');
+		});
+
+		it('should allow retry after a failed concurrent resolution', async () => {
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('transient failure'));
+			automodeService = createService();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'hello',
+				sessionId: 'session-retry'
+			};
+
+			// First call fails
+			await expect(automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint])).rejects.toThrow();
+
+			// Pending promise should be cleared; retry should work
+			mockApiResponse(['gpt-4o', 'gpt-4o-mini']);
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint]);
+			expect(result.model).toBeDefined();
+		});
+	});
 });
