@@ -137,16 +137,16 @@ export class TscodeWelcomePage extends GettingStartedPage {
 
 	// test-workbench_change start - Opening animation
 	private showOpeningAnimation(parent: HTMLElement): void {
-		if (this.animationShown) {
-			return;
-		}
-		this.animationShown = true;
-
 		// test-workbench_change start - Check if animation has been shown before
 		if (this.tscodeMementoData.hasShownAnimation) {
 			// Skip animation if it has been shown before
 			return;
 		}
+
+		if (this.animationShown) {
+			return;
+		}
+		this.animationShown = true;
 		// test-workbench_change end
 
 		// Create animation overlay
