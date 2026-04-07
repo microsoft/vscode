@@ -232,6 +232,11 @@ registerActiveXtermAction({
 		const widget = contr?.findWidget;
 		if (widget) {
 			widget.show();
+			// widget.find(false); // To make search direciton consistent with the editor's findWidget.
+
+			// Why search backwards by default? Shouldn't the traversal direction be consistent with the editor's findWidget?
+			// Or is this is an intentional special case for the terminal?
+			// Since after a command, the output text from the command is above the prompt, so searching backwards is more intuitive.
 			widget.find(true);
 		}
 	}

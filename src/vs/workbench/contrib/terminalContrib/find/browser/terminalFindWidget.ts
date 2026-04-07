@@ -27,6 +27,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findInputFocused: IContextKey<boolean>;
 	private _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
+	private _nthMatchInputFocused: IContextKey<boolean>;
 
 	private _overrideCopyOnSelectionDisposable: IDisposable | undefined;
 
@@ -52,6 +53,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			appendWholeWordsActionId: TerminalFindCommandId.ToggleFindWholeWord,
 			previousMatchActionId: TerminalFindCommandId.FindPrevious,
 			nextMatchActionId: TerminalFindCommandId.FindNext,
+			nthMatchActionId: TerminalFindCommandId.FindNth,
 			closeWidgetActionId: TerminalFindCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
@@ -63,6 +65,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(contextKeyService);
+		this._nthMatchInputFocused = TerminalContextKeys.nthMatchInputFocus.bindTo(contextKeyService);
 		const innerDom = this.getDomNode().firstChild;
 		if (innerDom) {
 			this._register(dom.addDisposableListener(innerDom, 'mousedown', (event) => {
@@ -175,6 +178,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected _onFindInputFocusTrackerBlur() {
 		this._findInputFocused.reset();
+	}
+
+	protected _onNthMatchInputFocusTrackerBlur() {
+		this._nthMatchInputFocused.reset();
+	}
+
+	protected _onNthMatchInputFocusTrackerFocus() {
+		this._nthMatchInputFocused.set(true);
 	}
 
 	findFirst() {

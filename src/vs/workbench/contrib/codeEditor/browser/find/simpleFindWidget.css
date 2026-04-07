@@ -62,6 +62,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
 	width: 73px;
 	max-width: 73px;
 	min-width: 73px;

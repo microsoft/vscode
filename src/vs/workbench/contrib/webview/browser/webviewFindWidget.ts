@@ -60,7 +60,8 @@ export class WebviewFindWidget extends SimpleFindWidget {
 	}
 
 	public override findNth(nthMatchPosition: number): void {
-
+		// TODO: Implement
+		throw new Error('Method not implemented: webviewFindWidget.ts ---> findNth(nthMatchPosition: number)');
 	}
 
 	public override hide(animated = true) {
@@ -90,6 +91,10 @@ export class WebviewFindWidget extends SimpleFindWidget {
 	protected _onFindInputFocusTrackerFocus() { }
 
 	protected _onFindInputFocusTrackerBlur() { }
+
+	protected _onNthMatchInputFocusTrackerFocus() { }
+
+	protected _onNthMatchInputFocusTrackerBlur() { }
 
 	findFirst() { }
 }
