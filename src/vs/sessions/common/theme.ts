@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { getColorRegistry, registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
+import { registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder } from '../../platform/theme/common/colorRegistry.js';
 import { editorWidgetBorder, editorBackground } from '../../platform/theme/common/colors/editorColors.js';
 import { buttonBackground } from '../../platform/theme/common/colors/inputColors.js';
