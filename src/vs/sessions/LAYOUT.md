@@ -173,6 +173,8 @@ This structure places the sidebar at the root level spanning the full window hei
 | Panel | 300px height |
 | Titlebar | Determined by `minimumHeight` (~30px) |
 
+The sessions sidebar can be resized down to a minimum width of 170px.
+
 ### 4.3 Editor Modal
 
 The main editor part is created but hidden (`display:none`). It exists for future use but is not currently visible. All editors are forced to open in the `ModalEditorPart` overlay via the standard `createModalEditorPart()` mechanism.
@@ -645,6 +647,7 @@ interface IPartVisibilityState {
 | Date | Change |
 |------|--------|
 | 2026-04-03 | Updated `SessionsTitleBarWidget` to format active session titles as `{Title} · {repo name} ({git branch/worktree name})` when repository detail metadata is available, falling back to the worktree folder name when needed. |
+| 2026-04-03 | Reduced the sessions left sidebar minimum resizable width from 270px to 170px so it can shrink significantly more while keeping the default 300px width unchanged |
 | 2026-03-30 | Adjusted `.agent-sessions-titlebar-container` padding so it sits flush when the sidebar is visible and restores 16px left padding when the sidebar is hidden |
 | 2026-03-26 | Updated the sessions sidebar appear animation so only the body content (`.part.sidebar > .content`) slides/fades in during reveal while the sidebar title/header and footer remain fixed |
 | 2026-03-24 | Polished the sessions task configuration quick input modal to use stronger modal-style header chrome, increased horizontal padding in the quick input/form content, and added an explicit close action in the modal header |

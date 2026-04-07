@@ -3,6 +3,7 @@
 **/extensions/**/*.d.ts
 **/extensions/**/build/**
 **/extensions/**/colorize-fixtures/**
+**/extensions/copilot/**
 **/extensions/css-language-features/server/test/pathCompletionFixtures/**
 **/extensions/html-language-features/server/lib/jquery.d.ts
 **/extensions/html-language-features/server/src/test/pathCompletionFixtures/**

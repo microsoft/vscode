@@ -7,7 +7,9 @@ import '../../../browser/media/sidebarActionButton.css';
 import './media/accountWidget.css';
 import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
+import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -32,13 +34,21 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
-import { ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountTitleBarBadgeKey, getAccountTitleBarState } from './accountTitleBarState.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
+import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { resetSessionsWelcome } from '../../welcome/browser/welcome.contribution.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
@@ -124,7 +134,7 @@ async function runSessionsUpdateAction(
 				scheme: productService.urlProtocol,
 				query: 'windowId=_blank',
 			}), { openExternal: true });
-			await hostService.close();
+			await hostService.shutdown();
 		}
 
 		return;
@@ -143,6 +153,22 @@ async function runSessionsUpdateAction(
 	if (state.type === StateType.Downloaded) {
 		await updateService.applyUpdate();
 	}
+}
+
+export async function showSessionsWelcomeAfterSignOut(
+	chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'>,
+	resetWelcome: () => void,
+): Promise<void> {
+	const waitForUnknownEntitlement = Event.toPromise(Event.filter(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.entitlement === ChatEntitlement.Unknown));
+	try {
+		if (chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
+			await waitForUnknownEntitlement;
+		}
+	} finally {
+		waitForUnknownEntitlement.cancel();
+	}
+
+	resetWelcome();
 }
 
 // Sign In (shown when signed out)
@@ -181,7 +207,41 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const defaultAccountService = accessor.get(IDefaultAccountService);
-		await defaultAccountService.signOut();
+		const dialogService = accessor.get(IDialogService);
+		const authenticationService = accessor.get(IAuthenticationService);
+		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
+		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
+		const storageService = accessor.get(IStorageService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+		const logService = accessor.get(ILogService);
+		const defaultAccount = await defaultAccountService.getDefaultAccount();
+		if (!defaultAccount) {
+			return;
+		}
+
+		const providerId = defaultAccount.authenticationProvider.id;
+		const accountLabel = defaultAccount.accountName;
+		const { confirmed } = await dialogService.confirm({
+			type: Severity.Info,
+			message: localize('agenticSignOutMessage', "Sign out of the Agents app?"),
+			detail: localize('agenticSignOutDetail', "This will sign out '{0}' from the Agents app.", accountLabel),
+			primaryButton: localize({ key: 'agenticSignOutButton', comment: ['&& denotes a mnemonic'] }, "&&Sign Out")
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		const allSessions = await authenticationService.getSessions(providerId);
+		const sessions = allSessions.filter(session => session.account.label === accountLabel);
+		await Promise.all(sessions.map(session => authenticationService.removeSession(providerId, session.id)));
+		authenticationUsageService.removeAccountUsage(providerId, accountLabel);
+		authenticationAccessService.removeAllowedExtensions(providerId, accountLabel);
+		await showSessionsWelcomeAfterSignOut(chatEntitlementService, () => resetSessionsWelcome(storageService, instantiationService, layoutService, chatEntitlementService, contextKeyService, environmentService, logService));
 	}
 });
 

@@ -130,7 +130,7 @@ suite('ChatRequestParser', () => {
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined, lastInstructionsCollectionEvent: undefined });
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
@@ -147,7 +147,7 @@ suite('ChatRequestParser', () => {
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined, lastInstructionsCollectionEvent: undefined });
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
@@ -164,7 +164,7 @@ suite('ChatRequestParser', () => {
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined, lastInstructionsCollectionEvent: undefined });
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 
@@ -182,7 +182,7 @@ suite('ChatRequestParser', () => {
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined, lastInstructionsCollectionEvent: undefined });
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
@@ -336,7 +336,7 @@ suite('ChatRequestParser', () => {
 		slashCommandService.getCommands.returns([]);
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined, lastInstructionsCollectionEvent: undefined });
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
@@ -358,7 +358,7 @@ suite('ChatRequestParser', () => {
 		slashCommandService.getCommands.returns([]);
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined, lastInstructionsCollectionEvent: undefined });
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
@@ -380,7 +380,7 @@ suite('ChatRequestParser', () => {
 		slashCommandService.getCommands.returns([]);
 		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined, lastInstructionsCollectionEvent: undefined });
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});

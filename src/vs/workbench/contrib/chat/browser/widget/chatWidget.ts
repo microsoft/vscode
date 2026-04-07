@@ -283,6 +283,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
+	private hasActiveRequest: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
 
 	private _visible = false;
@@ -446,6 +447,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+		this.hasActiveRequest = ChatContextKeys.hasActiveRequest.bindTo(contextKeyService);
 
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
@@ -2023,6 +2025,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.requestInProgress.set(this.viewModel.model.requestInProgress.get());
+			this.hasActiveRequest.set(this.viewModel.model.hasActiveRequest.get());
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
@@ -2328,6 +2331,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
 		if (isEditing) {
+			// Clear the carousel since the existing request is being replaced
+			this.inputPart?.clearToolConfirmationCarousel();
+
 			const editingPendingRequest = this.viewModel.editing!.pendingKind;
 			if (editingPendingRequest !== undefined) {
 				const editingRequestId = this.viewModel.editing!.id;
@@ -2414,7 +2420,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const requests = this.viewModel.model.getRequests();
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
-				if (request.shouldBeBlocked) {
+				if (request.shouldBeBlocked.get() || request === this.viewModel.model.checkpoint) {
 					this.chatService.removeRequest(this.viewModel.sessionResource, request.id);
 				}
 			}

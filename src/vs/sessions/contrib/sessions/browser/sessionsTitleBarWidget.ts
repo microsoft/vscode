@@ -21,19 +21,19 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
 import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { SessionStatus } from '../common/sessionData.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { basename } from '../../../../base/common/resources.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title

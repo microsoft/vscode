@@ -51,6 +51,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeInstructions = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
 			if (type === PromptsType.instructions) {
@@ -60,6 +61,15 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
 		override async getCustomAgents() { return []; }
+		override async getInstructionFiles() {
+			return instructionFiles.map(f => ({
+				uri: f.promptPath.uri,
+				name: f.name ?? '',
+				description: f.description,
+				storage: f.promptPath.storage,
+				pattern: f.applyTo,
+			}));
+		}
 		override async parseNew(uri: URI): Promise<ParsedPromptFile> {
 			const file = instructionFiles.find(f => isEqual(f.promptPath.uri, uri));
 			const headerLines = [];

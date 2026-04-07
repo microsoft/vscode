@@ -277,6 +277,12 @@ export interface IChatResponseModel {
 	readonly isCanceled: boolean;
 	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
 	readonly isInProgress: IObservable<boolean>;
+	/**
+	 * True whenever this response has not reached a terminal state yet.
+	 * Unlike {@link isInProgress}, this remains true during tool confirmations,
+	 * elicitations, and any other intermediate state.
+	 */
+	readonly isIncomplete: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly isCompleteAddedRequest: boolean;
@@ -659,6 +665,12 @@ class AbstractResponse implements IResponse {
 	}
 
 	private getToolInvocationText(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { text: string; isBlock?: boolean } {
+		const getTerminalDisplayInput = (terminalData: ReturnType<typeof migrateLegacyTerminalToolSpecificData>) => terminalData.presentationOverrides?.commandLine
+			?? terminalData.commandLine.forDisplay
+			?? terminalData.commandLine.userEdited
+			?? terminalData.commandLine.toolEdited
+			?? terminalData.commandLine.original;
+
 		// Extract the message and input details
 		let message = '';
 		let input = '';
@@ -678,7 +690,7 @@ class AbstractResponse implements IResponse {
 			if (toolInvocation.toolSpecificData.kind === 'terminal') {
 				message = 'Ran terminal command';
 				const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
-				input = terminalData.presentationOverrides?.commandLine ?? terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+				input = getTerminalDisplayInput(terminalData);
 			}
 		}
 
@@ -693,7 +705,10 @@ class AbstractResponse implements IResponse {
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 			if (resultDetails && 'input' in resultDetails) {
 				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || IChatToolInvocation.isComplete(toolInvocation) ? 'Completed' : 'Errored';
-				text += `\n${resultPrefix} with input: ${resultDetails.input}`;
+				const resultInput = toolInvocation.toolSpecificData?.kind === 'terminal'
+					? getTerminalDisplayInput(migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData))
+					: resultDetails.input;
+				text += `\n${resultPrefix} with input: ${resultInput}`;
 			}
 		}
 
@@ -1168,6 +1183,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	readonly isInProgress: IObservable<boolean>;
 
+	/**
+	 * True whenever this response has not reached a terminal state yet.
+	 * Unlike {@link isInProgress}, this remains true during tool confirmations,
+	 * elicitations, and any other intermediate state. It only becomes false when
+	 * the response completes, is cancelled, or fails.
+	 */
+	readonly isIncomplete: IObservable<boolean>;
+
 	private _responseView?: ResponseView;
 	public get response(): IResponse {
 		const undoStop = this._shouldBeRemovedOnSend?.afterUndoStop;
@@ -1253,6 +1276,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			return !_pendingInfo.read(r)
 				&& !this.shouldBeRemovedOnSend
 				&& (this._modelState.read(r).value === ResponseModelState.Pending || this._modelState.read(r).value === ResponseModelState.NeedsInput);
+		});
+
+		this.isIncomplete = this._modelState.map(state => {
+			return state.value === ResponseModelState.Pending || state.value === ResponseModelState.NeedsInput;
 		});
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
@@ -1449,6 +1476,8 @@ export interface IChatModel extends IDisposable {
 	readonly responderUsername: string;
 	/** True whenever a request is currently running */
 	readonly requestInProgress: IObservable<boolean>;
+	/** True whenever the last request has not reached a terminal state, regardless of intermediate states like tool calls or elicitations */
+	readonly hasActiveRequest: IObservable<boolean>;
 	/** Provides session information when a request needs user interaction to continue */
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly inputPlaceholder?: string;
@@ -1645,10 +1674,7 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
-	/**
-	 * Whether the session had pending edits when it was stored.
-	 * todo@connor4312 This will be cleaned up with the globalization of edits.
-	 */
+	/** Whether the session had pending edits when it was stored. */
 	hasPendingEdits?: boolean;
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
@@ -2106,6 +2132,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	readonly requestInProgress: IObservable<boolean>;
+	readonly hasActiveRequest: IObservable<boolean>;
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 
 	/** Input model for managing input state */
@@ -2280,6 +2307,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this.requestInProgress = this.lastRequestObs.map((request, r) => {
 			return request?.response?.isInProgress.read(r) ?? false;
+		});
+
+		this.hasActiveRequest = this.lastRequestObs.map((request, r) => {
+			return request?.response?.isIncomplete.read(r) ?? false;
 		});
 
 		this.requestNeedsInput = this.lastRequestObs.map((request, r) => {

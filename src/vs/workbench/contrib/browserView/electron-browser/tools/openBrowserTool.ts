@@ -10,7 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { alreadyOpenResult, createBrowserPageLink, findExistingPageByHost } from './browserToolHelpers.js';
+import { createBrowserPageLink, getExistingPagesResult } from './browserToolHelpers.js';
 
 export const OpenPageToolId = 'open_browser_page';
 
@@ -75,9 +75,9 @@ export class OpenBrowserTool implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
 		if (!params.forceNew) {
-			const existing = await findExistingPageByHost(this.editorService, this.playwrightService, params.url);
-			if (existing) {
-				return alreadyOpenResult(existing);
+			const existingResult = await getExistingPagesResult(this.editorService, this.playwrightService, params.url);
+			if (existingResult) {
+				return existingResult;
 			}
 		}
 

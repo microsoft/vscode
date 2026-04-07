@@ -43,6 +43,7 @@ export {
 	type ISessionState,
 	type ISessionSummary,
 	type ISnapshot,
+	type ITerminalState,
 	type IToolAnnotations,
 	type IToolCallCancelledState,
 	type IToolCallCompletedState,

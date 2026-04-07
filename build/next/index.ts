@@ -712,7 +712,22 @@ async function transpileFile(srcPath: string, destPath: string): Promise<void> {
 	});
 
 	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-	await fs.promises.writeFile(destPath, result.code);
+
+	const adjustedCode = adjustEsmUrl(result.code);
+	await fs.promises.writeFile(destPath, adjustedCode);
+}
+
+/*
+ * This enables https://github.com/microsoft/esm-url-bundler-plugins to work on both original and transpiled sources.
+ * Usees regex to only replace `.ts?esm` inside quoted URL strings, avoiding false positives.
+ *
+ * E.g.:
+ * -  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.ts?esm", import.meta.url)
+ * +  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.js?esm", import.meta.url)
+ */
+function adjustEsmUrl(code: string): string {
+	const fixedCode = code.replace(/\.ts(\?esm['"])/g, '.js$1');
+	return fixedCode;
 }
 
 async function transpile(outDir: string, excludeTests: boolean): Promise<void> {

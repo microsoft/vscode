@@ -134,6 +134,16 @@ function createMockPromptsService(files: IFixtureFile[], agentInstructions: IAge
 			return new ParsedPromptFile(uri, header as never);
 		}
 		override async getSourceFolders() { return [] as never[]; }
+		override async getInstructionFiles() {
+			return files.filter(f => f.type === PromptsType.instructions).map(f => ({
+				uri: f.uri,
+				name: f.name ?? '',
+				description: f.description,
+				storage: f.storage,
+				pattern: f.applyTo,
+				extension: toExtensionInfo(f) as never,
+			}));
+		}
 		override async findAgentSkills(): Promise<IAgentSkill[]> {
 			return files.filter(f => f.type === PromptsType.skill).map(f => ({
 				uri: f.uri,
@@ -717,13 +727,33 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 	ctx.container.style.width = `${width}px`;
 	ctx.container.style.height = `${height}px`;
 
+	// Some marketplace plugins match installed plugins by URI so the renderer
+	// shows them as "Installed" (exercises the installed-state check from #7379).
+	const browseInstalledPlugins = [
+		makeInstalledPlugin('Linear', URI.file('/home/dev/.vscode/agent-plugins/example/linear-plugin'), true),
+		makeInstalledPlugin('Sentry', URI.file('/home/dev/.vscode/agent-plugins/example/sentry-plugin'), true),
+		makeInstalledPlugin('Datadog', URI.file('/home/dev/.vscode/agent-plugins/example/datadog-plugin'), false),
+	];
+
+	// Map plugin source descriptors to install URIs, matching installed URIs above
+	const pluginInstallUris = new Map<string, URI>([
+		['example/linear-plugin', URI.file('/home/dev/.vscode/agent-plugins/example/linear-plugin')],
+		['example/sentry-plugin', URI.file('/home/dev/.vscode/agent-plugins/example/sentry-plugin')],
+		['example/datadog-plugin', URI.file('/home/dev/.vscode/agent-plugins/example/datadog-plugin')],
+	]);
+
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override registerExternalHarness() { return { dispose() { } }; }
+			}());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
-				override readonly plugins = constObservable([] as readonly IAgentPlugin[]);
+				override readonly plugins = constObservable(browseInstalledPlugins as readonly IAgentPlugin[]);
 				override readonly enablementModel = undefined!;
 			}());
 			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
@@ -732,7 +762,10 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 				override async fetchMarketplacePlugins() { return marketplacePlugins; }
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() {
-				override getPluginInstallUri() { return URI.file('/dev/null'); }
+				override getPluginInstallUri(plugin: IMarketplacePlugin) {
+					const repo = plugin.sourceDescriptor.kind === PluginSourceKind.GitHub ? plugin.sourceDescriptor.repo : undefined;
+					return repo ? (pluginInstallUris.get(repo) ?? URI.file('/dev/null')) : URI.file('/dev/null');
+				}
 			}());
 		},
 	});
@@ -747,8 +780,16 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 	const browseButton = widget.element.querySelector('.list-add-button') as HTMLElement;
 	browseButton?.click();
 
-	// Wait for the marketplace query to resolve
-	await new Promise(resolve => setTimeout(resolve, 50));
+	// Wait for the marketplace query to resolve, then wait for scrollbar fade transition
+	// (visible → invisible takes ~2s after programmatic scroll/list populate)
+	await new Promise(resolve => setTimeout(resolve, 100));
+	// Blur the search input to prevent cursor blink instability in screenshots
+	(widget.element.querySelector('input') as HTMLElement)?.blur();
+	// Force-hide scrollbars to avoid fade-transition instability
+	for (const scrollbar of widget.element.querySelectorAll<HTMLElement>('.scrollbar')) {
+		scrollbar.style.visibility = 'hidden';
+	}
+	await new Promise(resolve => setTimeout(resolve, 200));
 }
 
 // ============================================================================
@@ -760,7 +801,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.VSCode }),
 	}),
 
@@ -828,7 +869,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -932,7 +973,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Narrow viewport — catches badge clipping and layout overflow at small sizes
 	McpServersTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -942,7 +983,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	AgentsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.Agents,

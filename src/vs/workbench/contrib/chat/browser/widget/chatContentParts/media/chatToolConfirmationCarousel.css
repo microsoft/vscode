@@ -1,0 +1,229 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-session .interactive-input-part > .chat-tool-confirmation-carousel-container,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-tool-confirmation-carousel-container {
+	width: 100%;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+
+	&:empty {
+		display: none;
+	}
+
+	&:not(:empty) {
+		margin-top: 8px;
+	}
+}
+
+.chat-tool-confirmation-carousel {
+	color: var(--vscode-foreground);
+	display: flex;
+	flex-direction: column;
+	max-height: min(420px, 45vh);
+
+	a {
+		color: var(--vscode-foreground);
+
+		&:hover,
+		&:active {
+			color: var(--vscode-textLink-activeForeground);
+		}
+	}
+
+	/* --- Header (tabs + bulk actions) — only visible when multiple items --- */
+
+	.chat-tool-carousel-header {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		min-height: 0;
+		background-color: var(--vscode-panel-background);
+		border: 1px solid var(--vscode-input-border, transparent);
+		border-bottom: none;
+		border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	}
+
+	.chat-tool-carousel-tabs {
+		position: relative;
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		overflow-x: auto;
+		gap: 0;
+		mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+
+		&::-webkit-scrollbar {
+			height: 3px;
+		}
+
+		/* When scrolled to the start, no left fade */
+		&.scroll-start {
+			mask-image: linear-gradient(to right, black, black calc(100% - 12px), transparent);
+		}
+
+		/* When scrolled to the end, no right fade */
+		&.scroll-end {
+			mask-image: linear-gradient(to right, transparent, black 12px, black);
+		}
+
+		/* When at both start and end (no overflow), no fades */
+		&.scroll-start.scroll-end {
+			mask-image: none;
+		}
+	}
+
+	.chat-tool-carousel-tab {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 14px;
+		cursor: pointer;
+		font-size: 12px;
+		border: none;
+		border-right: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+		background: transparent;
+		color: var(--vscode-descriptionForeground);
+		max-width: 200px;
+		flex-shrink: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		transition: background-color 0.1s;
+
+		&:last-child {
+			border-right: none;
+		}
+
+		&:hover {
+			background-color: var(--vscode-list-hoverBackground);
+			color: var(--vscode-foreground);
+		}
+
+		&.active {
+			background-color: var(--vscode-panel-background);
+			color: var(--vscode-foreground);
+			position: relative;
+
+			&::after {
+				content: '';
+				position: absolute;
+				bottom: -1px;
+				left: 0;
+				right: 0;
+				height: 2px;
+				background-color: var(--vscode-focusBorder);
+				border-radius: 1px;
+				z-index: 1;
+			}
+		}
+
+		.chat-tool-carousel-tab-label {
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+
+	.chat-tool-carousel-bulk-actions {
+		display: flex;
+		gap: 4px;
+		flex-shrink: 0;
+		padding: 4px 8px;
+		white-space: nowrap;
+	}
+
+	/* --- Content area — always styled the same regardless of single/multi --- */
+
+	.chat-tool-carousel-content {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		overflow: hidden;
+		flex: 1;
+		border: 1px solid var(--vscode-input-border, transparent);
+		border-radius: var(--vscode-cornerRadius-large);
+		background-color: var(--vscode-panel-background);
+
+		.chat-tool-invocation-part {
+			margin: 0;
+		}
+
+		.chat-confirmation-widget-container {
+			margin: 0;
+			border: none;
+		}
+
+		.chat-confirmation-widget,
+		.chat-confirmation-widget2 {
+			border: none;
+			border-radius: 0;
+			margin: 0;
+		}
+
+		.chat-confirmation-widget-message-container {
+			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+			border-radius: var(--vscode-cornerRadius-medium);
+			overflow: hidden;
+		}
+
+		.interactive-result-editor {
+			background-color: var(--vscode-sideBar-background);
+		}
+
+		.interactive-result-code-block {
+			border: none;
+			border-radius: 0;
+		}
+
+		.message .see-more {
+			display: none !important;
+		}
+
+		.message.can-see-more .message-wrapper {
+			max-height: none !important;
+			mask-image: none !important;
+			pointer-events: auto !important;
+		}
+
+		.chat-confirmation-widget-buttons .chat-buttons .monaco-button:not(.monaco-dropdown-button) {
+			min-width: 60px;
+		}
+
+		.chat-confirmation-widget2 {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+		}
+
+		.chat-confirmation-widget2 .chat-confirmation-widget-buttons {
+			margin-top: auto;
+		}
+
+		.chat-confirmation-widget2 .chat-confirmation-widget-title {
+			align-items: center;
+		}
+
+		.chat-confirmation-widget-title p {
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 0 4px;
+		}
+
+		.chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {
+			margin: 4px 0px !important;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+		}
+	}
+
+	/* When header is visible (multi-item), connect content to header visually */
+	&:not(.single-item) .chat-tool-carousel-content {
+		border-top: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+		border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
+	}
+}
