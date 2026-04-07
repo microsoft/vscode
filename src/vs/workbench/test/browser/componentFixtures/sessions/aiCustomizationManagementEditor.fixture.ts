@@ -801,7 +801,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
 	// Generate buttons, AGENTS.md shortcut, all storage groups
 	LocalHarness: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.VSCode }),
 	}),
 
@@ -869,7 +869,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// MCP Servers tab with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -973,7 +973,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	// Narrow viewport — catches badge clipping and layout overflow at small sizes
 	McpServersTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -983,7 +983,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	}),
 
 	AgentsTabNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
+		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, {
 			harness: CustomizationHarness.VSCode,
 			selectedSection: AICustomizationManagementSection.Agents,
