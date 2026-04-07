@@ -18,6 +18,7 @@ import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart, ChatResponseReferencePart } from '../../../vscodeTypes';
 import { IToolCallingLoopOptions, ToolCallingLoop, ToolCallingLoopFetchOptions } from '../../intents/node/toolCallingLoop';
@@ -56,7 +57,7 @@ export class CodebaseToolCallingLoop extends ToolCallingLoop<ICodebaseToolCallin
 		super(options, instantiationService, endpointProvider, logService, requestLogger, authenticationChatUpgradeService, telemetryService, configurationService, experimentationService, chatHookService, sessionTranscriptService, fileSystemService, otelService, gitService);
 	}
 
-	private async getEndpoint(request: ChatRequest) {
+	protected override async resolveEndpoint(): Promise<IChatEndpoint> {
 		let endpoint = await this.endpointProvider.getChatEndpoint(this.options.request);
 		if (!endpoint.supportsToolCalls) {
 			endpoint = await this.endpointProvider.getChatEndpoint('copilot-base');
@@ -64,8 +65,7 @@ export class CodebaseToolCallingLoop extends ToolCallingLoop<ICodebaseToolCallin
 		return endpoint;
 	}
 
-	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
-		const endpoint = await this.getEndpoint(this.options.request);
+	protected async buildPrompt(endpoint: IChatEndpoint, buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
 			endpoint,
@@ -77,13 +77,11 @@ export class CodebaseToolCallingLoop extends ToolCallingLoop<ICodebaseToolCallin
 		return await renderer.render(progress, token);
 	}
 
-	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
-		const endpoint = await this.getEndpoint(this.options.request);
+	protected async getAvailableTools(endpoint: IChatEndpoint): Promise<LanguageModelToolInformation[]> {
 		return this.toolsService.getEnabledTools(this.options.request, endpoint, tool => tool.tags.includes('vscode_codesearch'));
 	}
 
-	protected async fetch({ messages, finishedCb, requestOptions }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
-		const endpoint = await this.getEndpoint(this.options.request);
+	protected async fetch(endpoint: IChatEndpoint, { messages, finishedCb, requestOptions }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		return endpoint.makeChatRequest(
 			CodebaseToolCallingLoop.ID,
 			messages,
