@@ -12,7 +12,6 @@ use lazy_static::lazy_static;
 use crate::options::Quality;
 
 pub const CONTROL_PORT: u16 = 31545;
-pub const AGENT_HOST_PORT: u16 = 31546;
 
 /// Protocol version sent to clients. This can be used to indicate new or
 /// changed capabilities that clients may wish to leverage.
@@ -21,8 +20,7 @@ pub const AGENT_HOST_PORT: u16 = 31546;
 ///      are compressed bidirectionally.
 ///  3 - The server's connection token is set to a SHA256 hash of the tunnel ID
 ///  4 - The server's msgpack messages are no longer length-prefixed
-///  5 - The server now exposes an agent host connection
-pub const PROTOCOL_VERSION: u32 = 5;
+pub const PROTOCOL_VERSION: u32 = 4;
 
 /// Prefix for the tunnel tag that includes the version.
 pub const PROTOCOL_VERSION_TAG_PREFIX: &str = "protocolv";

@@ -23,12 +23,12 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
-import { IActiveSession, ISessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { Menus } from '../../../../browser/menus.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 // ============================================================================
 // One-time menu item registration (module-level).

@@ -22,10 +22,10 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo } from '../../sessions/common/sessionData.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ISessionType, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionsBrowseAction, ISessionChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -38,7 +38,6 @@ import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/c
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
-import { CopilotCLISessionType, CopilotCloudSessionType } from '../../sessions/browser/sessionTypes.js';
 import { SessionsGroupModel } from '../../sessions/browser/sessionsGroupModel.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -1044,7 +1043,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Group model tracking which chats belong to which session. */
 	private readonly _groupModel: SessionsGroupModel;
 
-	readonly browseActions: readonly ISessionsBrowseAction[];
+	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
@@ -1068,13 +1067,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				label: localize('folders', "Folders"),
 				icon: Codicon.folderOpened,
 				providerId: this.id,
-				execute: () => this._browseForFolder(),
+				run: () => this._browseForFolder(),
 			},
 			{
 				label: localize('repositories', "Repositories"),
 				icon: Codicon.repo,
 				providerId: this.id,
-				execute: () => this._browseForRepo(),
+				run: () => this._browseForRepo(),
 			},
 		];
 
@@ -1641,16 +1640,28 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				// to the safety timeout to give it a chance to arrive.
 			}
 
-			const result = await raceTimeout(commitPromise, 5_000);
-			if (!result) {
-				// Timed out — check whether this was a cancellation
-				const response = responseCreatedPromise ? await responseCreatedPromise : undefined;
-				if (response?.isCanceled) {
-					throw new CancellationError();
-				}
-				throw new Error('Timed out waiting for session commit');
+			// Race commit against a safety timeout. If a response-created
+			// promise is available, also race it so we can detect
+			// cancellation immediately instead of waiting for the timeout.
+			const candidates: Promise<{ kind: 'commit'; uri: URI } | { kind: 'timeout' } | { kind: 'cancelled' }>[] = [
+				raceTimeout(commitPromise, 5_000).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
+			];
+			if (responseCreatedPromise) {
+				candidates.push(responseCreatedPromise.then(r => r?.isCanceled ? { kind: 'cancelled' as const } : new Promise<never>(() => { /* never resolves */ })));
 			}
-			return result;
+			const outcome = await Promise.race(candidates);
+			if (outcome.kind === 'commit') {
+				return outcome.uri;
+			}
+			if (outcome.kind === 'cancelled') {
+				throw new CancellationError();
+			}
+			// Timed out — last-resort check for cancellation
+			const response = responseCreatedPromise ? await responseCreatedPromise : undefined;
+			if (response?.isCanceled) {
+				throw new CancellationError();
+			}
+			throw new Error('Timed out waiting for session commit');
 		} finally {
 			disposables.dispose();
 		}

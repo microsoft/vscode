@@ -16,8 +16,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ICustomizationRef, type IProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ActionType, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, isSessionAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -149,8 +149,6 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly connection: IAgentConnection;
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
-	/** Shared client state manager that tracks both root and session state. */
-	readonly clientState: SessionClientState;
 	/** Extension identifier for the registered agent. Defaults to 'vscode.agent-host'. */
 	readonly extensionId?: string;
 	/** Extension display name for the registered agent. Defaults to 'Agent Host'. */
@@ -164,11 +162,8 @@ export interface IAgentHostSessionHandlerConfig {
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
 	 * and return true if the user authenticated successfully.
-	 *
-	 * @param protectedResources The protected resources from the agent's root
-	 *   state that require authentication.
 	 */
-	readonly resolveAuthentication?: (protectedResources: IProtectedResourceMetadata[]) => Promise<boolean>;
+	readonly resolveAuthentication?: () => Promise<boolean>;
 
 	/**
 	 * Observable set of agent-level customizations to include in the active
@@ -192,7 +187,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _clientDispatchedTurnIds = new Set<string>();
 	private readonly _config: IAgentHostSessionHandlerConfig;
 
-	/** Client state manager shared with the parent contribution. */
+	/** Client state manager shared across all sessions for this handler. */
 	private readonly _clientState: SessionClientState;
 
 	constructor(
@@ -207,7 +202,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	) {
 		super();
 		this._config = config;
-		this._clientState = config.clientState;
+
+		// Create shared client state manager for this handler instance
+		this._clientState = this._register(new SessionClientState(config.connection.clientId, this._logService, () => config.connection.nextClientSeq()));
 
 		// Register an editing session provider for this handler's session type
 		this._register(this._chatEditingService.registerEditingSessionProvider(
@@ -222,6 +219,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 			},
 		));
+
+		// Forward action envelopes from IPC to client state
+		this._register(config.connection.onDidAction(envelope => {
+			if (isSessionAction(envelope.action)) {
+				this._clientState.receiveEnvelope(envelope);
+			}
+		}));
 
 		// When the customizations observable changes, re-dispatch
 		// activeClientChanged for sessions where this client is already
@@ -1359,19 +1363,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
-		// Eagerly authenticate before creating the session if the agent
-		// declares required protected resources. This avoids a wasted
-		// round-trip where createSession fails with AuthRequired.
-		const agentInfo = this._clientState.rootState?.agents.find(a => a.provider === this._config.provider);
-		const protectedResources = agentInfo?.protectedResources ?? [];
-		const hasRequiredAuth = protectedResources.some(r => r.required !== false);
-		if (hasRequiredAuth && this._config.resolveAuthentication) {
-			const authenticated = await this._config.resolveAuthentication(protectedResources);
-			if (!authenticated) {
-				throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
-			}
-		}
-
 		let session: URI;
 		try {
 			session = await this._config.connection.createSession({
@@ -1381,10 +1372,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				fork,
 			});
 		} catch (err) {
-			// If authentication is required (e.g. token expired), try interactive auth and retry once
+			// If authentication is required, try to resolve it and retry once
 			if (this._isAuthRequiredError(err) && this._config.resolveAuthentication) {
 				this._logService.info('[AgentHost] Authentication required, prompting user...');
-				const authenticated = await this._config.resolveAuthentication(protectedResources);
+				const authenticated = await this._config.resolveAuthentication();
 				if (authenticated) {
 					session = await this._config.connection.createSession({
 						model: rawModelId,

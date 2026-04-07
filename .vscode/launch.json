@@ -290,7 +290,7 @@
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch VS Sessions Internal",
+			"name": "Launch VS Code Agents Internal",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -318,7 +318,7 @@
 				"--disable-extension=vscode.vscode-api-tests",
 				"--agents"
 			],
-			"userDataDir": "${userHome}/.vscode-oss-sessions-dev",
+			"userDataDir": "${userHome}/.vscode-oss-agents-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
@@ -734,10 +734,10 @@
 			}
 		},
 		{
-			"name": "VS Sessions",
+			"name": "VS Code Agents",
 			"stopAll": true,
 			"configurations": [
-				"Launch VS Sessions Internal",
+				"Launch VS Code Agents Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",

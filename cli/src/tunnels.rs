@@ -13,7 +13,6 @@ pub mod shutdown_signal;
 pub mod singleton_client;
 pub mod singleton_server;
 
-pub mod agent_host;
 mod challenge;
 mod control_server;
 mod nosleep;

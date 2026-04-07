@@ -15,11 +15,8 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
-// TODO: we should move the sessions management service to a more core location so that we don't have to depend on the entire sessions contrib in this common/browser component
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsManagementService } from '../../contrib/sessions/browser/sessionsManagementService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChat } from '../../contrib/sessions/common/sessionData.js';
+import { IChat } from '../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
 interface ISessionTab {
 	readonly chat: IChat;

@@ -128,7 +128,7 @@ async function runSessionsUpdateAction(
 				scheme: productService.urlProtocol,
 				query: 'windowId=_blank',
 			}), { openExternal: true });
-			await hostService.close();
+			await hostService.shutdown();
 		}
 
 		return;

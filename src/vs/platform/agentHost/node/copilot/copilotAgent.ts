@@ -9,6 +9,7 @@ import { SequencerByKey } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
+import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -24,7 +25,6 @@ import { CopilotAgentSession, SessionWrapperFactory } from './copilotAgentSessio
 import { parsedPluginsEqual, toSdkCustomAgents, toSdkHooks, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { forkCopilotSessionOnDisk, getCopilotDataDir, truncateCopilotSessionOnDisk } from './copilotAgentForking.js';
-import { IProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
@@ -59,16 +59,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			provider: 'copilot',
 			displayName: 'Agent Host - Copilot',
 			description: 'Copilot SDK agent running in a dedicated process',
+			requiresAuth: true,
 		};
 	}
 
-	getProtectedResources(): IProtectedResourceMetadata[] {
+	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
 		return [{
 			resource: 'https://api.github.com',
 			resource_name: 'GitHub Copilot',
 			authorization_servers: ['https://github.com/login/oauth'],
 			scopes_supported: ['read:user', 'user:email'],
-			required: true,
 		}];
 	}
 

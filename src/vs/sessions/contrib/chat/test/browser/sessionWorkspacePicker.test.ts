@@ -21,11 +21,11 @@ import { IPreferencesService } from '../../../../../workbench/services/preferenc
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
-import { ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { ISessionChangeEvent, ISessionsProvider } from '../../../sessions/browser/sessionsProvider.js';
-import { ISessionWorkspace } from '../../../sessions/common/sessionData.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -68,25 +68,28 @@ function createMockProvider(id: string, opts?: {
 class MockSessionsProvidersService extends Disposable {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
-	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = Event.None;
-	readonly onDidReplaceSession = Event.None;
+	private readonly _onDidChangeProviders = this._register(new Emitter<ISessionsProvidersChangeEvent>());
+	readonly onDidChangeProviders: Event<ISessionsProvidersChangeEvent> = this._onDidChangeProviders.event;
 
 	private _providers: ISessionsProvider[] = [];
 
 	setProviders(providers: ISessionsProvider[]): void {
+		const oldProviders = this._providers;
 		this._providers = providers;
-		this._onDidChangeProviders.fire();
+		const oldIds = new Set(oldProviders.map(p => p.id));
+		const newIds = new Set(providers.map(p => p.id));
+		this._onDidChangeProviders.fire({
+			added: providers.filter(p => !oldIds.has(p.id)),
+			removed: oldProviders.filter(p => !newIds.has(p.id)),
+		});
 	}
 
 	getProviders(): ISessionsProvider[] {
 		return this._providers;
 	}
 
-	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined {
-		const provider = this._providers.find(p => p.id === providerId);
-		return provider?.resolveWorkspace(repositoryUri);
+	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+		return this._providers.find(p => p.id === providerId) as T | undefined;
 	}
 }
 
