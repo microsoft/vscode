@@ -329,6 +329,7 @@
 	"github.copilot.config.implementAgent.model": "Override the language model used when starting implementation from the Plan agent's handoff. Use the format `Model Name (vendor)` (e.g., `GPT-5 (copilot)`). Leave empty to use the default model.",
 	"github.copilot.config.askAgent.additionalTools": "Additional tools to enable for the Ask agent, on top of built-in read-only tools. Use fully-qualified tool names (e.g., `github/issue_read`, `mcp_server/tool_name`).",
 	"github.copilot.config.askAgent.model": "Override the language model used by the Ask agent. Leave empty to use the default model.",
+	"github.copilot.config.exploreAgent.enabled": "Enable the Explore (Code Research) subagent.",
 	"github.copilot.config.exploreAgent.model": "Override the language model used by the Explore subagent. Defaults to a fast, small model. Leave empty to use the built-in fallback list.",
 	"copilot.toolSet.editing.description": "Edit files in your workspace",
 	"copilot.toolSet.read.description": "Read files in your workspace",

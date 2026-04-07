@@ -3970,6 +3970,15 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.exploreAgent.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.exploreAgent.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.exploreAgent.model": {
 						"type": "string",
 						"default": "",
