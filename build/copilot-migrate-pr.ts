@@ -71,17 +71,38 @@ interface Logger {
 	success(message: string): void;
 }
 
+function supportsColor(): boolean {
+	return Boolean(output.isTTY) && process.env.NO_COLOR === undefined && process.env.TERM !== 'dumb';
+}
+
+function color(text: string, code: number, enabled: boolean): string {
+	if (!enabled) {
+		return text;
+	}
+
+	return `\u001b[${code}m${text}\u001b[0m`;
+}
+
 function createLogger(verbose: boolean): Logger {
+	const useColor = supportsColor();
+	const label = {
+		info: color('[INFO]', 36, useColor),
+		detail: color('[DETAIL]', 90, useColor),
+		step: color('[STEP]', 34, useColor),
+		warn: color('[WARN]', 33, useColor),
+		success: color('[DONE]', 32, useColor),
+	};
+
 	return {
-		info: message => console.log(message),
+		info: message => console.log(`${label.info} ${message}`),
 		detail: message => {
 			if (verbose) {
-				console.log(`  ${message}`);
+				console.log(`${label.detail} ${message}`);
 			}
 		},
-		step: message => console.log(`\n- ${message}`),
-		warn: message => console.log(`! ${message}`),
-		success: message => console.log(`\nDone: ${message}`),
+		step: message => console.log(`\n${label.step} ${message}`),
+		warn: message => console.log(`${label.warn} ${message}`),
+		success: message => console.log(`\n${label.success} ${message}`),
 	};
 }
 
@@ -134,6 +155,24 @@ function checkoutRef(ref: string, repoRoot: string): void {
 	git(['checkout', ref], repoRoot);
 }
 
+function getMigrationBranchName(prNumber: number): string {
+	return `vscode-copilot-chat/migrate-${prNumber}`;
+}
+
+function remoteBranchExists(remote: string, branchName: string, repoRoot: string): boolean {
+	try {
+		git(['ls-remote', '--exit-code', '--heads', remote, branchName], repoRoot);
+		return true;
+	} catch (error) {
+		const status = (error as { status?: number }).status;
+		if (status === 2) {
+			return false;
+		}
+
+		throw error;
+	}
+}
+
 // ---------------------------------------------------------------------------
 // PR metadata
 // ---------------------------------------------------------------------------
@@ -143,6 +182,8 @@ interface PrMetadata {
 	body: string;
 	baseRefName: string;
 	headRefName: string;
+	state: string;
+	mergedAt: string | null;
 	isDraft: boolean;
 	number: number;
 	author: { login: string };
@@ -154,7 +195,7 @@ function fetchPrMetadata(prNumber: number): PrMetadata {
 	const json = gh([
 		'pr', 'view', String(prNumber),
 		'--repo', SOURCE_REPO,
-		'--json', 'title,body,baseRefName,headRefName,isDraft,number,author,labels,assignees',
+		'--json', 'title,body,baseRefName,headRefName,state,mergedAt,isDraft,number,author,labels,assignees',
 	]);
 	return JSON.parse(json);
 }
@@ -164,6 +205,34 @@ function fetchPrDiff(prNumber: number): string {
 		'pr', 'diff', String(prNumber),
 		'--repo', SOURCE_REPO,
 	]);
+}
+
+interface DiffStats {
+	filesChanged: number;
+	insertions: number;
+	deletions: number;
+}
+
+function getDiffStats(diff: string): DiffStats {
+	let filesChanged = 0;
+	let insertions = 0;
+	let deletions = 0;
+
+	for (const line of diff.split('\n')) {
+		if (line.startsWith('diff --git ')) {
+			filesChanged++;
+		} else if (line.startsWith('+') && !line.startsWith('+++')) {
+			insertions++;
+		} else if (line.startsWith('-') && !line.startsWith('---')) {
+			deletions++;
+		}
+	}
+
+	return {
+		filesChanged,
+		insertions,
+		deletions,
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +315,7 @@ async function createBranchAndApplyDiff(
 	rewrittenDiff: string,
 	repoRoot: string,
 ): Promise<string> {
-	const branchName = `vscode-copilot-chat/migrate-${prNumber}`;
+	const branchName = getMigrationBranchName(prNumber);
 
 	// Ensure we're on a clean state based on main
 	git(['checkout', 'main'], repoRoot);
@@ -356,16 +425,32 @@ async function main() {
 	const logger = createLogger(verbose);
 	const repoRoot = path.dirname(import.meta.dirname);
 	const originalRef = getCurrentRef(repoRoot);
+	const targetBranchName = getMigrationBranchName(prNumber);
 	let shouldRestoreRef = false;
 
 	try {
 		logger.info(`Migrating PR #${prNumber} from ${SOURCE_REPO} to ${TARGET_REPO}`);
 		logger.detail(`Starting ref: ${originalRef}`);
+
+		if (!dryRun) {
+			logger.step('Checking whether target branch already exists on origin');
+			if (remoteBranchExists('origin', targetBranchName, repoRoot)) {
+				throw new Error(`Remote branch already exists: origin/${targetBranchName}. Delete it before rerunning.`);
+			}
+			logger.detail(`Target branch is available: origin/${targetBranchName}`);
+		}
+
 		logger.step('Fetching source PR metadata');
 		const meta = fetchPrMetadata(prNumber);
+		if (meta.state !== 'OPEN') {
+			const status = meta.mergedAt ? 'merged' : 'closed';
+			throw new Error(`Source PR #${prNumber} is ${status}. Only open PRs can be migrated.`);
+		}
+
 		logger.info(`Title: ${meta.title}`);
 		logger.detail(`Author: @${meta.author.login}`);
 		logger.detail(`Base: ${meta.baseRefName} -> Head: ${meta.headRefName}`);
+		logger.detail(`State: ${meta.state}`);
 		logger.detail(`Draft: ${meta.isDraft}`);
 		logger.detail(`Labels: ${meta.labels.map(l => l.name).join(', ') || '(none)'}`);
 		logger.detail(`Assignees: ${meta.assignees.map(a => a.login).join(', ') || '(none)'}`);
@@ -373,12 +458,12 @@ async function main() {
 		logger.step('Fetching and rewriting diff');
 		const diff = fetchPrDiff(prNumber);
 		const rewrittenDiff = rewriteDiff(diff);
+		const diffStats = getDiffStats(diff);
 		logger.detail(`Diff size: ${diff.length} bytes (rewritten: ${rewrittenDiff.length} bytes)`);
+		logger.info(`Diff stats: ${diffStats.filesChanged} files changed, ${diffStats.insertions} insertions(+), ${diffStats.deletions} deletions(-)`);
 
 		if (dryRun) {
-			logger.info('\n=== DRY RUN — Rewritten diff ===\n');
-			console.log(rewrittenDiff);
-			logger.info('\n=== DRY RUN — No changes were made ===');
+			logger.info('Dry run: no changes were made.');
 			return;
 		}
 
