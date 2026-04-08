@@ -5,7 +5,6 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
-import { ILogService } from '../../../../platform/log/common/logService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -38,14 +37,6 @@ class TestPrDetectionService extends mock<IPullRequestDetectionService>() {
 	declare readonly _serviceBrand: undefined;
 	override onDidDetectPullRequest = Event.None;
 	override handlePullRequestCreated = vi.fn();
-}
-
-class TestLogService extends mock<ILogService>() {
-	declare readonly _serviceBrand: undefined;
-	override trace = vi.fn();
-	override debug = vi.fn();
-	override info = vi.fn();
-	override error = vi.fn();
 }
 
 function makeRequest(id: string = 'req-1'): vscode.ChatRequest {
