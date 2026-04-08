@@ -1015,4 +1015,170 @@ describe('AutomodeService', () => {
 			expect(result.model).toBeDefined();
 		});
 	});
+
+	/**
+	 * These tests demonstrate the duplicate telemetry bug fixed by this PR.
+	 *
+	 * Background:
+	 * In a single tool-calling round, `runOne()` in toolCallingLoop.ts calls
+	 * `getChatEndpoint(request)` up to 5 times concurrently (for getAvailableTools,
+	 * buildPrompt, buildPrompt2, tokenizer, and fetch). On the first turn of a
+	 * conversation, the cache is empty, so all 5 calls enter
+	 * `resolveAutoModeEndpoint` simultaneously and each independently performs
+	 * routing — emitting telemetry events for each redundant resolution.
+	 *
+	 * To reproduce: simulate 5 concurrent `resolveAutoModeEndpoint` calls to the
+	 * same conversation and count telemetry emissions via a spy on the telemetry
+	 * service. Without the _singleFlight fix, each concurrent call emits its own
+	 * events (5× instead of 1×). With the fix, the first caller does the work
+	 * and subsequent callers share its promise.
+	 *
+	 * Run these tests on the `main` branch to see the bug (5× emissions), then
+	 * on this branch to see the fix (1× emission).
+	 */
+	describe('telemetry duplication from concurrent resolution', () => {
+		// Helper: create an AutomodeService with a spy on sendMSFTTelemetryEvent
+		// so we can count exactly how many telemetry events are emitted.
+		function createServiceWithTelemetrySpy() {
+			const telemetryService = new NullTelemetryService();
+			const telemetrySpy = vi.spyOn(telemetryService, 'sendMSFTTelemetryEvent');
+			const service = new AutomodeService(
+				mockCAPIClientService,
+				mockAuthService,
+				mockLogService,
+				mockInstantiationService,
+				mockExpService,
+				configurationService,
+				envService,
+				telemetryService,
+				new NullRequestLogger()
+			);
+			return { service, telemetrySpy };
+		}
+
+		it('should emit automode.routerFallback exactly once for 5 concurrent calls (router fails)', async () => {
+			// When the router API is not mocked, getRouterDecision throws,
+			// causing _tryRouterSelection to return a fallbackReason.
+			// The caller in resolveAutoModeEndpoint then emits routerFallback.
+			// Without coalescing: 5 concurrent calls → 5 routerFallback events.
+			// With coalescing: only the first caller runs → 1 routerFallback event.
+			enableRouter();
+
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const claudeEndpoint = createEndpoint('claude-sonnet', 'Anthropic');
+			mockApiResponse(['gpt-4o', 'claude-sonnet']);
+
+			const { service, telemetrySpy } = createServiceWithTelemetrySpy();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-fallback-dup',
+			};
+
+			// Fire 5 concurrent calls, simulating what runOne() does
+			const results = await Promise.all(Array.from({ length: 5 }, () =>
+				service.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint])
+			));
+
+			// All calls should resolve to the same model
+			expect(new Set(results.map(r => r.model)).size).toBe(1);
+
+			// Exactly 1 routerFallback event (not 5)
+			const fallbackCalls = telemetrySpy.mock.calls.filter(c => c[0] === 'automode.routerFallback');
+			expect(fallbackCalls).toHaveLength(1);
+		});
+
+		it('should emit automode.routerDecision exactly once for 5 concurrent calls (router succeeds)', async () => {
+			// When the router API succeeds, RouterDecisionFetcher.getRouterDecision
+			// emits routerDecision with the predicted label and confidence.
+			// Without coalescing: 5 concurrent calls → 5 router API calls → 5 events.
+			// With coalescing: 1 resolution → 1 router API call → 1 event.
+			enableRouter();
+
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const claudeEndpoint = createEndpoint('claude-sonnet', 'Anthropic');
+
+			(mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mockImplementation((_body: any, opts: any) => {
+				if (opts?.type === RequestType.ModelRouter) {
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						headers: createMockHeaders(),
+						text: vi.fn().mockResolvedValue(JSON.stringify({
+							predicted_label: 'needs_reasoning',
+							confidence: 0.9,
+							latency_ms: 30,
+							chosen_model: 'gpt-4o',
+							candidate_models: ['gpt-4o', 'claude-sonnet'],
+							scores: { needs_reasoning: 0.9, no_reasoning: 0.1 },
+							sticky_override: false
+						}))
+					});
+				}
+				return Promise.resolve(makeMockTokenResponse({
+					available_models: ['gpt-4o', 'claude-sonnet'],
+					expires_at: Math.floor(Date.now() / 1000) + 3600,
+					session_token: 'test-token',
+				}));
+			});
+
+			const { service, telemetrySpy } = createServiceWithTelemetrySpy();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-decision-dup',
+			};
+
+			const results = await Promise.all(Array.from({ length: 5 }, () =>
+				service.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, claudeEndpoint])
+			));
+
+			// Router should have picked gpt-4o for all concurrent callers
+			expect(results.every(r => r.model === 'gpt-4o')).toBe(true);
+
+			// Exactly 1 routerDecision event (not 5)
+			const decisionCalls = telemetrySpy.mock.calls.filter(c => c[0] === 'automode.routerDecision');
+			expect(decisionCalls).toHaveLength(1);
+
+			// No fallback events since the router succeeded
+			const fallbackCalls = telemetrySpy.mock.calls.filter(c => c[0] === 'automode.routerFallback');
+			expect(fallbackCalls).toHaveLength(0);
+		});
+
+		it('should emit automode.routerFallback(hasImage) exactly once for 5 concurrent image calls', async () => {
+			// When the request contains an image, _tryRouterSelection returns
+			// early with fallbackReason='hasImage'. The race condition causes
+			// each concurrent caller to independently hit this early return and
+			// emit its own routerFallback event.
+			// Without coalescing: 5 concurrent calls → 5 hasImage fallback events.
+			// With coalescing: 1 resolution → 1 hasImage fallback event.
+			enableRouter();
+
+			const visionEndpoint = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: true });
+			mockApiResponse(['gpt-4o']);
+
+			const { service, telemetrySpy } = createServiceWithTelemetrySpy();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'fix this',
+				sessionId: 'session-image-dup',
+				references: [{ id: 'img', value: { mimeType: 'image/png', data: new Uint8Array() } }] as any,
+			};
+
+			const results = await Promise.all(Array.from({ length: 5 }, () =>
+				service.resolveAutoModeEndpoint(chatRequest as ChatRequest, [visionEndpoint])
+			));
+
+			expect(new Set(results.map(r => r.model)).size).toBe(1);
+
+			// Exactly 1 hasImage fallback event (not 5)
+			const hasImageCalls = telemetrySpy.mock.calls.filter(
+				c => c[0] === 'automode.routerFallback' && (c[1] as Record<string, string>)?.reason === 'hasImage'
+			);
+			expect(hasImageCalls).toHaveLength(1);
+		});
+	});
 });
