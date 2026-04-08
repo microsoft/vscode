@@ -403,7 +403,6 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				this.markdownRendererService,
 				undefined,
 				this._context.currentWidth.get(),
-				this._context.codeBlockModelCollection,
 				{
 					allowInlineDiffs: true,
 					horizontalPadding: 6,

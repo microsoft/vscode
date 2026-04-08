@@ -68,6 +68,8 @@ function createMockSessionDataService(): ISessionDataService {
 		storeFileEdit: async () => { },
 		getFileEdits: async () => [],
 		readFileEditContent: async () => undefined,
+		getMetadata: async () => undefined,
+		setMetadata: async () => { },
 		close: async () => { },
 		dispose: () => { },
 	};
@@ -76,6 +78,7 @@ function createMockSessionDataService(): ISessionDataService {
 		getSessionDataDir: () => URI.from({ scheme: 'test', path: '/data' }),
 		getSessionDataDirById: () => URI.from({ scheme: 'test', path: '/data' }),
 		openDatabase: () => ({ object: mockDb, dispose: () => { } }),
+		tryOpenDatabase: async () => ({ object: mockDb, dispose: () => { } }),
 		deleteSessionData: async () => { },
 		cleanupOrphanedData: async () => { },
 	};
@@ -204,6 +207,32 @@ suite('CopilotAgentSession', () => {
 		test('respondToPermissionRequest returns false for unknown id', async () => {
 			const { session } = await createAgentSession(disposables);
 			assert.strictEqual(session.respondToPermissionRequest('unknown-id', true), false);
+		});
+	});
+
+	// ---- sendSteering ----
+
+	suite('sendSteering', () => {
+
+		test('fires steering_consumed after send resolves', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
+
+			await session.sendSteering({ id: 'steer-1', userMessage: { text: 'focus on tests' } });
+
+			const consumed = progressEvents.find(e => e.type === 'steering_consumed');
+			assert.ok(consumed, 'should fire steering_consumed event');
+			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
+		});
+
+		test('does not fire steering_consumed when send fails', async () => {
+			const { session, mockSession, progressEvents } = await createAgentSession(disposables);
+
+			mockSession.send = async () => { throw new Error('send failed'); };
+
+			await session.sendSteering({ id: 'steer-fail', userMessage: { text: 'will fail' } });
+
+			const consumed = progressEvents.find(e => e.type === 'steering_consumed');
+			assert.strictEqual(consumed, undefined, 'should not fire steering_consumed on failure');
 		});
 	});
 

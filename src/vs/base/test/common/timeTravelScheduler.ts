@@ -97,6 +97,7 @@ export class AsyncSchedulerProcessor extends Disposable {
 	public readonly onTaskQueueEmpty = this.queueEmptyEmitter.event;
 
 	private lastError: Error | undefined;
+	private _virtualDeadline = Number.MAX_SAFE_INTEGER;
 
 	constructor(private readonly scheduler: TimeTravelScheduler, options?: { useSetImmediate?: boolean; maxTaskCount?: number }) {
 		super();
@@ -109,40 +110,47 @@ export class AsyncSchedulerProcessor extends Disposable {
 				return;
 			} else {
 				this.isProcessing = true;
-				this.schedule();
+				this._schedule();
 			}
 		}));
 	}
 
-	private schedule() {
+	private _schedule() {
 		// This allows promises created by a previous task to settle and schedule tasks before the next task is run.
 		// Tasks scheduled in those promises might have to run before the current next task.
 		Promise.resolve().then(() => {
 			if (this.useSetImmediate) {
-				originalGlobalValues.setImmediate(() => this.process());
+				originalGlobalValues.setImmediate(() => this._process());
 			} else if (setTimeout0IsFaster) {
-				setTimeout0(() => this.process());
+				setTimeout0(() => this._process());
 			} else {
-				originalGlobalValues.setTimeout(() => this.process());
+				originalGlobalValues.setTimeout(() => this._process());
 			}
 		});
 	}
 
-	private process() {
+	private _process() {
 		const executedTask = this.scheduler.runNext();
 		if (executedTask) {
 			this._history.push(executedTask);
 
 			if (this.history.length >= this.maxTaskCount && this.scheduler.hasScheduledTasks) {
 				const lastTasks = this._history.slice(Math.max(0, this.history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
-				const e = new Error(`Queue did not get empty after processing ${this.history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
-				this.lastError = e;
-				throw e;
+				this.lastError = new Error(`Queue did not get empty after processing ${this.history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
+				this.isProcessing = false;
+				this.queueEmptyEmitter.fire();
+				return;
+			}
+
+			if (this.scheduler.now >= this._virtualDeadline && this.scheduler.hasScheduledTasks) {
+				this.isProcessing = false;
+				this.queueEmptyEmitter.fire();
+				return;
 			}
 		}
 
 		if (this.scheduler.hasScheduledTasks) {
-			this.schedule();
+			this._schedule();
 		} else {
 			this.isProcessing = false;
 			this.queueEmptyEmitter.fire();
@@ -160,10 +168,19 @@ export class AsyncSchedulerProcessor extends Disposable {
 		} else {
 			return Event.toPromise(this.onTaskQueueEmpty).then(() => {
 				if (this.lastError) {
-					throw this.lastError;
+					const error = this.lastError;
+					this.lastError = undefined;
+					throw error;
 				}
 			});
 		}
+	}
+
+	waitFor(virtualTimeMs: number): Promise<void> {
+		this._virtualDeadline = this.scheduler.now + virtualTimeMs;
+		return this.waitForEmptyQueue().finally(() => {
+			this._virtualDeadline = Number.MAX_SAFE_INTEGER;
+		});
 	}
 }
 

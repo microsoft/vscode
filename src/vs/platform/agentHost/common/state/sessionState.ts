@@ -43,6 +43,7 @@ export {
 	type ISessionState,
 	type ISessionSummary,
 	type ISnapshot,
+	type ITerminalState,
 	type IToolAnnotations,
 	type IToolCallCancelledState,
 	type IToolCallCompletedState,
@@ -54,7 +55,9 @@ export {
 	type IToolCallState,
 	type IToolCallStreamingState,
 	type IToolDefinition,
-	type IToolResultBinaryContent,
+	type ICustomizationRef,
+	type ISessionCustomization,
+	type IToolResultEmbeddedResourceContent as IToolResultBinaryContent,
 	type IToolResultContent,
 	type IToolResultFileEditContent,
 	type IToolResultTextContent,
@@ -65,6 +68,7 @@ export {
 	type StringOrMarkdown,
 	type URI,
 	AttachmentType,
+	CustomizationStatus,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
@@ -76,6 +80,23 @@ export {
 	ToolResultContentType,
 	TurnState,
 } from './protocol/state.js';
+
+// ---- File edit kind ---------------------------------------------------------
+
+/**
+ * The kind of file edit operation. Derived from the presence/absence of
+ * `before`/`after` in {@link IToolResultFileEditContent}.
+ */
+export const enum FileEditKind {
+	/** Content edit (same file URI, different content). */
+	Edit = 'edit',
+	/** File creation (no before state). */
+	Create = 'create',
+	/** File deletion (no after state). */
+	Delete = 'delete',
+	/** File rename/move (different before and after URIs). */
+	Rename = 'rename',
+}
 
 // ---- Well-known URIs --------------------------------------------------------
 

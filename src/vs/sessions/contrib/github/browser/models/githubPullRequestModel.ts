@@ -11,7 +11,7 @@ import { IGitHubPRComment, IGitHubPRReviewThread, IGitHubPullRequest, IGitHubPul
 import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';
-const DEFAULT_POLL_INTERVAL_MS = 30_000;
+const DEFAULT_POLL_INTERVAL_MS = 60_000;
 
 /**
  * Reactive model for a GitHub pull request. Wraps fetcher data in

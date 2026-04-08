@@ -7,6 +7,7 @@ import { extUri, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../../../nls.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { PROMPT_DOCUMENTATION_URL, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -28,6 +29,7 @@ export async function askForPromptSourceFolder(
 	existingFolder?: URI | undefined,
 	isMove: boolean = false,
 ): Promise<IPromptPath | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const promptsService = accessor.get(IPromptsService);
 	const labelService = accessor.get(ILabelService);
@@ -40,7 +42,7 @@ export async function askForPromptSourceFolder(
 	// note! this is a temporary solution and must be replaced with a dialog to select
 	//       a custom folder path, or switch to a different prompt type
 	if (folders.length === 0) {
-		await showNoFoldersDialog(accessor, type);
+		await instantiationService.invokeFunction(accessor => showNoFoldersDialog(accessor, type));
 		return;
 	}
 

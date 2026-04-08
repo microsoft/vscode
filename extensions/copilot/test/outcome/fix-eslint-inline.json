@@ -1,0 +1,201 @@
+[
+	{
+		"name": "fix (eslint) [inline] [typescript] - (AML-10-1) do not access hasOwnProperty",
+		"requests": [
+			"4b112df66c4d941c0101edf1d872ba8e4b6d777c07395ac1725bc8973bfae778"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - (AML-10-52) expected conditional expression",
+		"requests": [
+			"82c1af47e003b029a964ae44901ba2c42b2292996ec61e1f03594417e18b15a3"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - (AML-17-10) unexpected constant condition 1",
+		"requests": [
+			"8c655bb4a87b63ec76868d7a45d7a75df2b4acef7ee56757fbb51beb0dce8070"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - (AML-17-152) unreachable code",
+		"requests": [
+			"90522f6c35ae95738a7f92339ba6cec9cf42be653dfc5b22d8f4b6d7bb55ae76"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - (AML-17-166) unexpected control character",
+		"requests": [
+			"44e874b7a6459da12427c04beaddbd2df4c1d007c077ce7dc97d05ad0b99213e"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - (AML-17-243) unexpected constant condition 2",
+		"requests": [
+			"dc287fa68ebb1bb06c67787581e51401d429a3c7d928ef34b8a695bf6494a0c2"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - class-methods-use-this with cookbook",
+		"requests": [
+			"ffdac72caccfae07094c319bbf10df36b81251b3450a346b8f332a732f21f3a7"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - comma expected",
+		"requests": [
+			"14c882410fb3018ff5c2a36b16a8848c509bf714ebaa5a5daf5684591155954f"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - consistent-this with cookbook",
+		"requests": [
+			"f3ab729461a4ebf1f918bc5ae6e894946753daa64c946aa8c33ff05719c6c74f"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - constructor-super with cookbook",
+		"requests": [
+			"d5fe5349d2d4eba913196823e66b6b68b828ba5b867e15bfcf3c3c523f22a550"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - func-names with cookbook",
+		"requests": [
+			"9576260533f7fd4fe8ba5dbc1b4ef7694a77b22a66bb397ac765492888b0385a"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - func-style with cookbook",
+		"requests": [
+			"0ed05b84c82f44743b0ededc08eb558d6f8f40f2add6b1256de5fd1394e3e2fb"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - Issue #7544",
+		"requests": [
+			"a6c3c7da2efade466dfb546b3658e59d8240c89714846da20d6423ced165c113",
+			"a7a6de2e401317f1bf5e73f894f5297d335a14e84ea59ada63bc339ded4959fe"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - max-lines-per-function with cookbook",
+		"requests": [
+			"f1ee665ff5f87ca82ef393518a16f097dab760e0a1f7f46b73399fae9a264c5f"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - max-params with cookbook",
+		"requests": [
+			"73a235c753530ea58154cdc09035a24c5af8e035abaaf49471269cd4fd03c766"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - max-statements with cookbook",
+		"requests": [
+			"17d9fdd5be73a94c22fb4d65278960ab650babafe0dfd60b17d51adc2d896191"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-case-declarations with cookbook",
+		"requests": [
+			"452a1a13bcefb98a78097b12dea25ff070b3499518465a626ef3c1e52c7937ca"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-dupe-else-if with cookbook",
+		"requests": [
+			"12ac3f552c51e19fcc44e07030c8f7874176797af1e944e7b506605df209f8cc"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-duplicate-case with cookbook",
+		"requests": [
+			"97b08da1d88e8919b91a06cb56295fd0b5b282b71b4d1ed5551b6f699a7e97f5"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-duplicate-imports with cookbook",
+		"requests": [
+			"7b4269123c8b750d199fd0d193f60934d9dbd9f1fd4a328f6ef6cc3ad7dd375f"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-fallthrough with cookbook",
+		"requests": [
+			"2e602963dc8e85e4965c76dd50cf35b9924557b25358f1cb5589bc30e8bbcfe8"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-inner-declarations with cookbook",
+		"requests": [
+			"8a183bc65f50a1672ce012b1217d94591ecc0a029a50d370c2864433490ec64f"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-multi-assign with cookbook",
+		"requests": [
+			"86a7a3e27b37a64739006def063b6eb828f9774edd4ca4abcf67736a56ae89c1"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-negated-condition 2 with cookbook",
+		"requests": [
+			"79a247e59cf0ae4d49f25c889c06de907f856d8e769783c1828a1d6223f93992"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-negated-condition with cookbook",
+		"requests": [
+			"f7005fb7e28febaab4728ed573c940d0192556fa1f9f08f8e028aded95b9c0df"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-new with cookbook",
+		"requests": [
+			"848590e39c849513943e7c619a9028e7a8a4623ab033825439b1244894f2c0dc"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-sequences with cookbook",
+		"requests": [
+			"4224140a9dbda3da6048c47df5bdaaec491cfe2137a96a5844cac84527bde826"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-sparse-arrays 2 with cookbook",
+		"requests": [
+			"ac4dc1feb81c5b6d3c010d2a96b204871fd2e2e4f52dbf052b0407cf82f0718d"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-sparse-arrays 3 with cookbook",
+		"requests": [
+			"41bb5f87fa52be9bc30b543694d349cd9aad24e62d2557a88abe37f169f117ba"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - no-sparse-arrays with cookbook",
+		"requests": [
+			"ca5d90c9a3b8103e9a41c61b3d308fe6c509795e69f518cb847f3b7459b83c84"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - require-await with cookbook",
+		"requests": [
+			"987bfbbff1470364c15b9cf676e1d1d3297ec72c2b603d7c914a63d18d9b0ca0"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - sort-keys with cookbook",
+		"requests": [
+			"9f1f744468c3761a346fe4644769ef56e9bffea1ac72109781ba85a8c1109652"
+		]
+	},
+	{
+		"name": "fix (eslint) [inline] [typescript] - unexpected token",
+		"requests": [
+			"a1bb07b84cd16f2f3c4a2c624bea573895ddf8b46fa1896b2b335e875b9bb020"
+		]
+	}
+]

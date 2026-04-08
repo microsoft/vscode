@@ -20,7 +20,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActionEnvelope, INotification, ISessionAction, isRootAction, isSessionAction, IStateAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
-import { IRootState, ISessionState, ROOT_STATE_URI } from './sessionState.js';
+import { IRootState, ISessionState, ITerminalState, ROOT_STATE_URI } from './sessionState.js';
 import { ILogService } from '../../../log/common/log.js';
 
 // ---- Pending action tracking ------------------------------------------------
@@ -51,7 +51,7 @@ export class SessionClientState extends Disposable {
 
 	private readonly _clientId: string;
 	private readonly _log: (msg: string) => void;
-	private _nextClientSeq = 1;
+	private readonly _seqAllocator: () => number;
 	private _lastSeenServerSeq = 0;
 
 	// Confirmed state — reflects only what the server has acknowledged
@@ -74,10 +74,11 @@ export class SessionClientState extends Disposable {
 	private readonly _onDidReceiveNotification = this._register(new Emitter<INotification>());
 	readonly onDidReceiveNotification: Event<INotification> = this._onDidReceiveNotification.event;
 
-	constructor(clientId: string, logService: ILogService) {
+	constructor(clientId: string, logService: ILogService, seqAllocator: () => number) {
 		super();
 		this._clientId = clientId;
 		this._log = msg => logService.warn(`[SessionClientState] ${msg}`);
+		this._seqAllocator = seqAllocator;
 	}
 
 	get clientId(): string {
@@ -109,7 +110,7 @@ export class SessionClientState extends Disposable {
 	 * Apply a state snapshot received from the server (from handshake,
 	 * subscribe response, or reconnection).
 	 */
-	handleSnapshot(resource: string, state: IRootState | ISessionState, fromSeq: number): void {
+	handleSnapshot(resource: string, state: IRootState | ISessionState | ITerminalState, fromSeq: number): void {
 		this._lastSeenServerSeq = Math.max(this._lastSeenServerSeq, fromSeq);
 
 		if (resource === ROOT_STATE_URI) {
@@ -160,7 +161,7 @@ export class SessionClientState extends Disposable {
 	 * Only session actions can be write-ahead (root actions are server-only).
 	 */
 	applyOptimistic(action: ISessionAction): number {
-		const clientSeq = this._nextClientSeq++;
+		const clientSeq = this._seqAllocator();
 		this._pendingActions.push({ clientSeq, action });
 		this._applySessionToOptimistic(action);
 		return clientSeq;

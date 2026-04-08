@@ -25,7 +25,6 @@ import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatConte
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ToolDataSource, type ToolDataSource as ToolDataSourceType } from '../../../../common/tools/languageModelToolsService.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 
 suite('ChatToolProgressSubPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,7 +36,6 @@ suite('ChatToolProgressSubPart', () => {
 	let mockHoverService: IHoverService;
 	let mockConfigurationService: TestConfigurationService;
 	let mockEditorPool: EditorPool;
-	let mockCodeBlockModelCollection: CodeBlockModelCollection;
 
 	function createRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
 		const mockElement: Partial<IChatResponseViewModel> = {
@@ -59,7 +57,6 @@ suite('ChatToolProgressSubPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: mockCodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
@@ -155,7 +152,6 @@ suite('ChatToolProgressSubPart', () => {
 		instantiationService.stub(IHoverService, mockHoverService);
 
 		mockEditorPool = {} as EditorPool;
-		mockCodeBlockModelCollection = {} as CodeBlockModelCollection;
 	});
 
 	teardown(() => {

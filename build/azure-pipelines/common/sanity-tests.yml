@@ -117,23 +117,39 @@ jobs:
         workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests
 
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "sanity-tests-account,sanity-tests-password"
+
       # Windows
       - ${{ if eq(parameters.os, 'windows') }}:
         - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
         - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
 
       # Native Linux host
       - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
         - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
 
       # Linux Docker container
       - ${{ if ne(parameters.container, '') }}:
@@ -164,6 +180,9 @@ jobs:
               ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
+          env:
+            GITHUB_ACCOUNT: $(sanity-tests-account)
+            GITHUB_PASSWORD: $(sanity-tests-password)
 
         - bash: |
             mkdir -p "$(DOCKER_CACHE_DIR)"

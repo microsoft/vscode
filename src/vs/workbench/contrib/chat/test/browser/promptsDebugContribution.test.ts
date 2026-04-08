@@ -11,8 +11,10 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { IChatAgentService, IChatAgentInvocationEvent } from '../../common/participants/chatAgents.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { PromptsDebugContribution } from '../../browser/promptsDebugContribution.js';
-import { ILocalPromptPath, IPromptDiscoveryLogEntry, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ILocalPromptPath, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 
 function createLocalPromptPath(path: string, name: string): ILocalPromptPath {
@@ -24,12 +26,22 @@ function createLocalPromptPath(path: string, name: string): ILocalPromptPath {
 	};
 }
 
+function isGenericEvent(event: IChatDebugEvent): event is IChatDebugGenericEvent {
+	return event.kind === 'generic';
+}
+
+async function flushAsyncLogging(): Promise<void> {
+	await new Promise<void>(resolve => setTimeout(resolve, 0));
+}
+
 suite('PromptsDebugContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let chatDebugService: ChatDebugServiceImpl;
-	let promptsOnDidLogDiscovery: Emitter<IPromptDiscoveryLogEntry>;
+	let willInvokeAgentEmitter: Emitter<IChatAgentInvocationEvent>;
 	let instaService: TestInstantiationService;
+	let promptsService: Partial<IPromptsService>;
+	const emptyDiscoveryInfo = (type: PromptsType): IPromptDiscoveryInfo => ({ type, files: [], durationInMillis: 0 });
 
 	setup(() => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -37,29 +49,40 @@ suite('PromptsDebugContribution', () => {
 		chatDebugService = disposables.add(new ChatDebugServiceImpl());
 		instaService.stub(IChatDebugService, chatDebugService);
 
-		promptsOnDidLogDiscovery = disposables.add(new Emitter<IPromptDiscoveryLogEntry>());
-		instaService.stub(IPromptsService, { onDidLogDiscovery: promptsOnDidLogDiscovery.event } as Partial<IPromptsService>);
+		willInvokeAgentEmitter = disposables.add(new Emitter<IChatAgentInvocationEvent>());
+		instaService.stub(IChatAgentService, { onWillInvokeAgent: willInvokeAgentEmitter.event } as Partial<IChatAgentService>);
+		instaService.stub(IChatService, { onDidDisposeSession: disposables.add(new Emitter()).event } as Partial<IChatService>);
+		promptsService = {
+			getDiscoveryInfo: async type => emptyDiscoveryInfo(type),
+		};
+		instaService.stub(IPromptsService, promptsService);
 	});
 
-	test('should forward discovery events to chat debug service', () => {
+	test('should forward discovery events to chat debug service', async () => {
 		disposables.add(instaService.createInstance(PromptsDebugContribution));
 
 		const firedEvents: IChatDebugEvent[] = [];
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Load Instructions',
-			details: 'Resolved 3 instructions in 12.5ms',
-			category: 'discovery',
+		promptsService.getDiscoveryInfo = async type => ({
+			type,
+			durationInMillis: 7,
+			files: type === PromptsType.instructions ? [{
+				status: 'loaded' as const,
+				promptPath: createLocalPromptPath('/workspace/.github/instructions/test.instructions.md', 'test.instructions.md'),
+			}] : [],
 		});
 
-		assert.strictEqual(firedEvents.length, 1);
-		const event = firedEvents[0] as IChatDebugGenericEvent;
+		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
+		await flushAsyncLogging();
+
+		assert.strictEqual(firedEvents.length, 5);
+		const event = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery');
+		assert.ok(event);
 		assert.strictEqual(event.kind, 'generic');
 		assert.ok(event.sessionResource);
-		assert.strictEqual(event.name, 'Load Instructions');
-		assert.strictEqual(event.details, 'Resolved 3 instructions in 12.5ms');
+		assert.strictEqual(event.name, 'Instructions Discovery');
+		assert.ok(event.details?.includes('Resolved 1 instruction'));
 		assert.strictEqual(event.category, 'discovery');
 	});
 
@@ -71,6 +94,7 @@ suite('PromptsDebugContribution', () => {
 
 		const discoveryInfo: IPromptDiscoveryInfo = {
 			type: PromptsType.instructions,
+			durationInMillis: 11,
 			files: [{
 				status: 'loaded' as const,
 				promptPath: createLocalPromptPath('/workspace/.github/instructions/test.instructions.md', 'test.instructions.md'),
@@ -81,16 +105,13 @@ suite('PromptsDebugContribution', () => {
 			}],
 		};
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Discovery End',
-			details: '1 loaded, 0 skipped',
-			category: 'discovery',
-			discoveryInfo,
-		});
+		promptsService.getDiscoveryInfo = async type => type === PromptsType.instructions ? discoveryInfo : emptyDiscoveryInfo(type);
+		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
+		await flushAsyncLogging();
 
-		assert.strictEqual(firedEvents.length, 1);
-		const eventId = firedEvents[0].id;
+		const instructionsEvent = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery');
+		assert.ok(instructionsEvent);
+		const eventId = instructionsEvent.id;
 		assert.ok(eventId, 'Event should have an ID for resolution');
 
 		const resolved = await chatDebugService.resolveEvent(eventId);
@@ -98,6 +119,7 @@ suite('PromptsDebugContribution', () => {
 		assert.strictEqual(resolved.kind, 'fileList');
 		if (resolved.kind === 'fileList') {
 			assert.strictEqual(resolved.discoveryType, 'instructions');
+			assert.strictEqual(resolved.durationInMillis, 11);
 			assert.strictEqual(resolved.files.length, 1);
 			assert.strictEqual(resolved.files[0].name, 'test.instructions.md');
 			assert.strictEqual(resolved.files[0].status, 'loaded');
@@ -112,20 +134,18 @@ suite('PromptsDebugContribution', () => {
 		assert.strictEqual(resolved, undefined);
 	});
 
-	test('should not assign event id when no discoveryInfo', () => {
+	test('should assign event id when discoveryInfo is empty', async () => {
 		disposables.add(instaService.createInstance(PromptsDebugContribution));
 
 		const firedEvents: IChatDebugEvent[] = [];
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Discovery Start',
-			category: 'discovery',
-		});
+		promptsService.getDiscoveryInfo = async type => emptyDiscoveryInfo(type);
+		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
+		await flushAsyncLogging();
 
-		assert.strictEqual(firedEvents.length, 1);
-		assert.strictEqual(firedEvents[0].id, undefined, 'Event without discoveryInfo should have no id');
+		assert.strictEqual(firedEvents.length, 5);
+		assert.ok(firedEvents.every(e => e.id !== undefined), 'Events with discovery info should have an id');
 	});
 
 	test('should handle discoveryInfo with skipped files', async () => {
@@ -136,6 +156,7 @@ suite('PromptsDebugContribution', () => {
 
 		const discoveryInfo: IPromptDiscoveryInfo = {
 			type: PromptsType.instructions,
+			durationInMillis: 5,
 			files: [
 				{
 					status: 'loaded' as const,
@@ -149,13 +170,11 @@ suite('PromptsDebugContribution', () => {
 			],
 		};
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Discovery End',
-			discoveryInfo,
-		});
+		promptsService.getDiscoveryInfo = async type => type === PromptsType.instructions ? discoveryInfo : emptyDiscoveryInfo(type);
+		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
+		await flushAsyncLogging();
 
-		const eventId = firedEvents[0].id!;
+		const eventId = firedEvents.find((e): e is IChatDebugGenericEvent => isGenericEvent(e) && e.name === 'Instructions Discovery')!.id!;
 		const resolved = await chatDebugService.resolveEvent(eventId);
 		assert.ok(resolved);
 		if (resolved.kind === 'fileList') {
@@ -166,16 +185,15 @@ suite('PromptsDebugContribution', () => {
 		}
 	});
 
-	test('should handle level as undefined (defaults to Info)', () => {
+	test('should handle level as undefined (defaults to Info)', async () => {
 		disposables.add(instaService.createInstance(PromptsDebugContribution));
 
 		const firedEvents: IChatDebugEvent[] = [];
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
 
-		promptsOnDidLogDiscovery.fire({
-			sessionResource: LocalChatSessionUri.forSession('session-1'),
-			name: 'Test',
-		});
+		promptsService.getDiscoveryInfo = async type => emptyDiscoveryInfo(type);
+		willInvokeAgentEmitter.fire({ agentId: 'test-agent', request: { sessionResource: LocalChatSessionUri.forSession('session-1') } as IChatAgentInvocationEvent['request'] });
+		await flushAsyncLogging();
 
 		const event = firedEvents[0] as IChatDebugGenericEvent;
 		assert.strictEqual(event.level, ChatDebugLogLevel.Info, 'Default level should be Info');

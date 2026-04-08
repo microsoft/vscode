@@ -43,6 +43,8 @@ docker run \
 	--rm \
 	--platform "linux/$ARCH" \
 	--volume "$ROOT_DIR:/root" \
+	${GITHUB_ACCOUNT:+--env GITHUB_ACCOUNT} \
+	${GITHUB_PASSWORD:+--env GITHUB_PASSWORD} \
 	--entrypoint sh \
 	"$CONTAINER" \
 	/root/containers/entrypoint.sh $ARGS

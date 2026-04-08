@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { ToolResultContentType, type IToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { FileEditKind, ToolResultContentType, type IToolResultFileEditContent } from '../../common/state/sessionState.js';
 
 const SESSION_DB_SCHEME = 'session-db';
 
@@ -144,6 +144,7 @@ export class FileEditTracker {
 			turnId,
 			toolCallId,
 			filePath,
+			kind: FileEditKind.Edit,
 			beforeContent: beforeBytes,
 			afterContent: afterBytes,
 			addedLines: undefined,
@@ -152,8 +153,14 @@ export class FileEditTracker {
 
 		return {
 			type: ToolResultContentType.FileEdit,
-			beforeURI: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before'),
-			afterURI: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after'),
+			before: {
+				uri: URI.file(filePath).toString(),
+				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
+			},
+			after: {
+				uri: URI.file(filePath).toString(),
+				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
+			},
 		};
 	}
 

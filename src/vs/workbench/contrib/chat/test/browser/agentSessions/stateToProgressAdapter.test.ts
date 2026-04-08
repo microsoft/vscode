@@ -276,15 +276,21 @@ suite('stateToProgressAdapter', () => {
 				toolInput: JSON.stringify({ path: '/home/user/file.ts' }),
 				content: [{
 					type: ToolResultContentType.FileEdit,
-					beforeURI: 'agenthost-content:///session/snap/before',
-					afterURI: 'agenthost-content:///session/snap/after',
+					before: {
+						uri: URI.file('/home/user/file.ts').toString(),
+						content: { uri: 'agenthost-content:///session/snap/before' },
+					},
+					after: {
+						uri: URI.file('/home/user/file.ts').toString(),
+						content: { uri: 'agenthost-content:///session/snap/after' },
+					},
 				}],
 			});
 
 			assert.strictEqual(fileEdits.length, 1);
 			assert.strictEqual(fileEdits[0].resource.fsPath.replace(/\\/g, '/'), '/home/user/file.ts');
-			assert.strictEqual(fileEdits[0].beforeContentUri.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
-			assert.strictEqual(fileEdits[0].afterContentUri.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
+			assert.strictEqual(fileEdits[0].beforeContentUri?.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
+			assert.strictEqual(fileEdits[0].afterContentUri?.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
 			assert.ok(fileEdits[0].undoStopId);
 		});
 
@@ -324,7 +330,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits.length, 0);
 		});
 
-		test('returns empty file edits when toolInput has no path', () => {
+		test('returns empty file edits when FileEdit has no before or after', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
 			const invocation = toolCallStateToInvocation(tc);
 
@@ -340,36 +346,39 @@ suite('stateToProgressAdapter', () => {
 				toolInput: JSON.stringify({ content: 'no path field' }),
 				content: [{
 					type: ToolResultContentType.FileEdit,
-					beforeURI: 'agenthost-content:///before',
-					afterURI: 'agenthost-content:///after',
 				}],
 			});
 
 			assert.strictEqual(fileEdits.length, 0);
 		});
 
-		test('returns empty file edits when toolInput is invalid JSON', () => {
+		test('returns file edit for create (only after present)', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
 			const invocation = toolCallStateToInvocation(tc);
 
 			const fileEdits = finalizeToolInvocation(invocation, {
 				status: ToolCallStatus.Completed,
 				toolCallId: 'tc-1',
-				toolName: 'edit_file',
-				displayName: 'Edit File',
-				invocationMessage: 'Editing file...',
+				toolName: 'create_file',
+				displayName: 'Create File',
+				invocationMessage: 'Creating file...',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				success: true,
-				pastTenseMessage: 'Edited',
-				toolInput: 'not json',
+				pastTenseMessage: 'Created file',
 				content: [{
 					type: ToolResultContentType.FileEdit,
-					beforeURI: 'agenthost-content:///before',
-					afterURI: 'agenthost-content:///after',
+					after: {
+						uri: URI.file('/home/user/new-file.ts').toString(),
+						content: { uri: 'agenthost-content:///snap/after' },
+					},
 				}],
 			});
 
-			assert.strictEqual(fileEdits.length, 0);
+			assert.strictEqual(fileEdits.length, 1);
+			assert.strictEqual(fileEdits[0].kind, 'create');
+			assert.strictEqual(fileEdits[0].resource.fsPath.replace(/\\/g, '/'), '/home/user/new-file.ts');
+			assert.strictEqual(fileEdits[0].beforeContentUri, undefined);
+			assert.ok(fileEdits[0].afterContentUri);
 		});
 	});
 
