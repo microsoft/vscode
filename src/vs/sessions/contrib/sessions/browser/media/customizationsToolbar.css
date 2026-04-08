@@ -9,7 +9,7 @@
 	flex-shrink: 0;
 	border-top: 1px solid var(--vscode-panel-border, transparent);
 	margin: 0 10px;
-	padding: 6px 0;
+	padding: 6px 0 10px 0;
 }
 
 /* Make the toolbar, action bar, and items fill full width and stack vertically */

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
+import { FileEditKind } from '../../common/state/sessionState.js';
 import type { Database } from '@vscode/sqlite3';
 
 suite('SessionDatabase', () => {
@@ -125,6 +126,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -136,7 +138,9 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual(edits, [{
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
+				originalPath: undefined,
 				addedLines: 5,
 				removedLines: 2,
 			}]);
@@ -149,6 +153,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('a-before'),
 				afterContent: new TextEncoder().encode('a-after'),
@@ -158,6 +163,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new TextEncoder().encode('b-before'),
 				afterContent: new TextEncoder().encode('b-after'),
@@ -178,6 +184,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('hello'),
@@ -187,6 +194,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('world'),
@@ -222,6 +230,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v1'),
 				afterContent: new TextEncoder().encode('v1-after'),
@@ -231,6 +240,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v2'),
 				afterContent: new TextEncoder().encode('v2-after'),
@@ -254,6 +264,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -281,6 +292,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-bin',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/image.png',
 				beforeContent: new Uint8Array(0),
 				afterContent: binary,
@@ -300,6 +312,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'auto-turn',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/x',
 				beforeContent: new Uint8Array(0),
 				afterContent: new Uint8Array(0),
@@ -330,6 +343,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -353,6 +367,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('a'),
@@ -362,6 +377,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-2',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('b'),
@@ -433,6 +449,44 @@ suite('SessionDatabase', () => {
 			db = new SessionDatabase(':memory:');
 			await db.close();
 			await assert.rejects(() => db!.createTurn('turn-1'), /disposed/);
+		});
+	});
+
+	// ---- Session metadata -----------------------------------------------
+
+	suite('session metadata', () => {
+
+		test('getMetadata returns undefined for missing key', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			assert.strictEqual(await db.getMetadata('nonexistent'), undefined);
+		});
+
+		test('setMetadata and getMetadata round-trip', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'My Session');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'My Session');
+		});
+
+		test('setMetadata overwrites existing value', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'First');
+			await db.setMetadata('customTitle', 'Second');
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
+		});
+
+		test('metadata persists across reopen', async () => {
+			const db1 = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await db1.setMetadata('customTitle', 'Persistent Title');
+			const rawDb = await db1.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDb));
+			assert.strictEqual(await db.getMetadata('customTitle'), 'Persistent Title');
+		});
+
+		test('migration v2 creates session_metadata table', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const tables = await db.getAllTables();
+			assert.ok(tables.includes('session_metadata'));
 		});
 	});
 });

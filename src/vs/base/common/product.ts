@@ -76,7 +76,9 @@ export interface IProductConfiguration {
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
 	readonly win32RegValueName?: string;
+	readonly win32NameVersion?: string;
 	readonly win32VersionedUpdate?: boolean;
+	readonly win32SiblingExeBasename?: string;
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
 	readonly telemetryAppName?: string;
@@ -207,6 +209,7 @@ export interface IProductConfiguration {
 		readonly excludeVersionRange?: string;
 	}>;
 	readonly extensionsForceVersionByQuality?: readonly string[];
+	readonly builtInExtensionsEnabledWithAutoUpdates?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -231,7 +234,24 @@ export interface IProductConfiguration {
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
 
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
+
+	readonly embedded?: IEmbeddedProductConfiguration;
 }
+
+export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
+	'nameShort' |
+	'nameLong' |
+	'applicationName' |
+	'dataFolderName' |
+	'darwinBundleIdentifier' |
+	'urlProtocol' |
+	'win32AppUserModelId' |
+	'win32MutexName' |
+	'win32RegValueName' |
+	'win32NameVersion' |
+	'win32VersionedUpdate' |
+	'win32SiblingExeBasename'
+>;
 
 export interface ITunnelApplicationConfig {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;

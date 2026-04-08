@@ -64,7 +64,7 @@
 	content: '';
 	width: 1px;
 	height: 16px;
-	margin: 0 4px;
+	margin: 0 8px;
 	background-color: var(--vscode-disabledForeground);
 }
 
@@ -102,8 +102,8 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .codicon {
-	color: inherit;
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item:not(.disabled) .codicon {
+	color: var(--vscode-icon-foreground);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {

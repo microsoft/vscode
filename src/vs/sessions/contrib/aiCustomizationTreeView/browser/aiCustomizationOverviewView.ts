@@ -19,6 +19,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -171,6 +172,17 @@ export class AICustomizationOverviewView extends ViewPane {
 			} else {
 				const allItems = await this.promptsService.listPromptFiles(type, CancellationToken.None);
 				count = allItems.length;
+
+				// For instructions, also count agent instructions (AGENTS.md, copilot-instructions.md, CLAUDE.md, etc.)
+				if (type === PromptsType.instructions) {
+					const existingUris = new ResourceSet(allItems.map(item => item.uri));
+					const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None);
+					for (const file of agentInstructions) {
+						if (!existingUris.has(file.uri)) {
+							count++;
+						}
+					}
+				}
 			}
 
 			const sectionData = this.sections.find(s => s.id === section);

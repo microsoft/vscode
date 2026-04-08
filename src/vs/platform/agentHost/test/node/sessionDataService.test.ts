@@ -4,21 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { SessionDataService } from '../../node/sessionDataService.js';
-import { join } from '../../../../base/common/path.js';
 
 suite('SessionDataService', () => {
 
@@ -89,21 +84,17 @@ suite('SessionDataService', () => {
 suite('SessionDataService — openDatabase ref-counting', () => {
 
 	const disposables = new DisposableStore();
+	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
 	let service: SessionDataService;
-	let testDir: string;
 
 	setup(() => {
-		testDir = join(tmpdir(), `vscode-session-data-test-${randomUUID()}`);
-		mkdirSync(testDir, { recursive: true });
-
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(new NullLogService()))));
-		service = new SessionDataService(URI.file(testDir), fileService, new NullLogService());
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		service = new SessionDataService(basePath, fileService, new NullLogService(), () => ':memory:');
 	});
 
 	teardown(() => {
 		disposables.clear();
-		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 

@@ -86,6 +86,10 @@
 		text-align: left;
 	}
 
+	.agent-sessions-new-button-container .monaco-button:focus {
+		outline-offset: -1px !important;
+	}
+
 	.agent-sessions-new-button-container .monaco-button .new-session-button-label {
 		display: inline-flex;
 		align-items: center;

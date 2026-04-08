@@ -25,7 +25,7 @@ import { IUserDataProfileService } from '../../../../workbench/services/userData
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
-/** URI root for built-in skills bundled with the Sessions app. */
+/** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
 
 export class AgenticPromptsService extends PromptsService {
@@ -122,8 +122,8 @@ export class AgenticPromptsService extends PromptsService {
 	 * Override to include built-in skills, appending them with lowest priority.
 	 * Skills from any other source (workspace, user, extension, internal) take precedence.
 	 */
-	public override async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
-		const baseResult = await super.findAgentSkills(token, sessionResource);
+	public override async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
+		const baseResult = await super.findAgentSkills(token);
 		if (baseResult === undefined) {
 			return undefined;
 		}

@@ -122,9 +122,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 	}
 
 	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		if (this._isSessionsWindow && sessionTypeItem.type === AgentSessionProviders.Cloud && !this._hasGitRepository()) {
-			return localize('chat.cloudRequiresGit', "Requires a Git repository");
-		}
 		return undefined;
 	}
 

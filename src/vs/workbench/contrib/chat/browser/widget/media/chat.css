@@ -391,6 +391,10 @@
 	overflow-wrap: anywhere;
 }
 
+.chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
+	padding-bottom: 37px;
+}
+
 .interactive-item-container .value > :last-child,
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child,
 .interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
@@ -2633,6 +2637,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		animation: chat-thinking-shimmer 2s linear infinite;
+		will-change: background-position;
 	}
 }
 
@@ -3065,6 +3070,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.codicon-check {
 			display: inline;
 		}
+	}
+
+	/* System-initiated requests render as compact progress-style messages, not bubbles */
+	.interactive-item-container.interactive-request.system-initiated-request {
+		align-items: flex-start;
+	}
+
+	.interactive-item-container.interactive-request.system-initiated-request .value .rendered-markdown {
+		background-color: transparent;
+		border-radius: 0;
+		padding: 0;
+		max-width: 100%;
+		margin-left: 0;
+		width: auto;
 	}
 
 

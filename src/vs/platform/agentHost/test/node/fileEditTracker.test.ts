@@ -51,14 +51,14 @@ suite('FileEditTracker', () => {
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
 
 		// URIs are parseable session-db: URIs
-		const beforeFields = parseSessionDbUri(fileEdit.beforeURI);
+		const beforeFields = parseSessionDbUri(fileEdit.before!.content.uri);
 		assert.ok(beforeFields);
 		assert.strictEqual(beforeFields.sessionUri, 'copilot:/test-session');
 		assert.strictEqual(beforeFields.toolCallId, 'tc-1');
 		assert.strictEqual(beforeFields.filePath, '/workspace/test.txt');
 		assert.strictEqual(beforeFields.part, 'before');
 
-		const afterFields = parseSessionDbUri(fileEdit.afterURI);
+		const afterFields = parseSessionDbUri(fileEdit.after!.content.uri);
 		assert.ok(afterFields);
 		assert.strictEqual(afterFields.part, 'after');
 

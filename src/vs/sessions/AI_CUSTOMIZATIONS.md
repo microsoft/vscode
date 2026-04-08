@@ -32,7 +32,7 @@ src/vs/workbench/contrib/chat/common/
 └── customizationHarnessService.ts              # ICustomizationHarnessService + ISectionOverride + helpers
 ```
 
-The tree view and overview live in `vs/sessions` (sessions window only):
+The tree view and overview live in `vs/sessions` (agent sessions window only):
 
 ```
 src/vs/sessions/contrib/aiCustomizationTreeView/browser/
@@ -61,7 +61,7 @@ src/vs/sessions/contrib/sessions/browser/
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 
-| Property / Method | Core VS Code | Sessions Window |
+| Property / Method | Core VS Code | Agent Sessions Window |
 |----------|-------------|----------|
 | `managementSections` | All sections except Models | All sections except Models |
 | `getStorageSourceFilter(type)` | Delegates to `ICustomizationHarnessService` | Delegates to `ICustomizationHarnessService` |
@@ -227,13 +227,12 @@ Browser compatibility is required — no Node.js APIs.
 
 ## Feature Gating
 
-All commands and UI respect `ChatContextKeys.enabled` and the `chat.customizationsMenu.enabled` setting.
+All commands and UI respect `ChatContextKeys.enabled`.
 
 ## Settings
 
-Settings use the `chat.customizationsMenu.` and `chat.customizations.` namespaces:
+User-facing settings use the `chat.customizations.` namespace:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `chat.customizationsMenu.enabled` | `true` | Show the Chat Customizations editor in the Command Palette |
 | `chat.customizations.harnessSelector.enabled` | `true` | Show the harness selector dropdown in the sidebar |
