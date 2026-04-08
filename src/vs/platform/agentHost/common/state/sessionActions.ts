@@ -42,9 +42,13 @@ export {
 	type ISessionServerToolsChangedAction,
 	type ISessionActiveClientChangedAction,
 	type ISessionActiveClientToolsChangedAction,
+	type ISessionCustomizationsChangedAction,
+	type ISessionCustomizationToggledAction,
 	type ISessionPendingMessageSetAction,
 	type ISessionPendingMessageRemovedAction,
 	type ISessionQueuedMessagesReorderedAction,
+	type ISessionIsReadChangedAction,
+	type ISessionIsDoneChangedAction,
 	type IStateAction,
 } from './protocol/actions.js';
 
@@ -83,6 +87,8 @@ import type {
 	ISessionPendingMessageSetAction,
 	ISessionPendingMessageRemovedAction,
 	ISessionQueuedMessagesReorderedAction,
+	ISessionIsReadChangedAction,
+	ISessionIsDoneChangedAction,
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
@@ -115,10 +121,14 @@ export type ITitleChangedAction = ISessionTitleChangedAction;
 export type IUsageAction = ISessionUsageAction;
 export type IReasoningAction = ISessionReasoningAction;
 export type IModelChangedAction = ISessionModelChangedAction;
+export type ICustomizationsChangedAction = import('./protocol/actions.js').ISessionCustomizationsChangedAction;
+export type ICustomizationToggledAction = import('./protocol/actions.js').ISessionCustomizationToggledAction;
 
 export type IPendingMessageSetAction = ISessionPendingMessageSetAction;
 export type IPendingMessageRemovedAction = ISessionPendingMessageRemovedAction;
 export type IQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedAction;
+export type IIsReadChangedAction = ISessionIsReadChangedAction;
+export type IIsDoneChangedAction = ISessionIsDoneChangedAction;
 
 // Notifications
 export type INotification = IProtocolNotification;

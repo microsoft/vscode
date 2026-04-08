@@ -813,6 +813,17 @@ impl ConnectionManager {
 			cmd.arg("--connection-token-file");
 			cmd.arg(ct);
 		}
+		if let Some(a) = &args.args.default_folder {
+			cmd.arg("--default-folder");
+			cmd.arg(a);
+		}
+		if let Some(a) = &args.args.default_workspace {
+			cmd.arg("--default-workspace");
+			cmd.arg(a);
+		}
+		if args.args.disable_telemetry {
+			cmd.arg("--disable-telemetry");
+		}
 
 		// removed, otherwise the workbench will not be usable when running the CLI from sources.
 		cmd.env_remove("VSCODE_DEV");

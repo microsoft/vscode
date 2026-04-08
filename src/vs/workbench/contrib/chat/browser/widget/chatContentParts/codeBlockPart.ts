@@ -144,6 +144,8 @@ export class CodeBlockPart extends Disposable {
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 	private lastLayoutWidth: number | undefined;
+	private _isHovered = false;
+	private _toolbarElement!: HTMLElement;
 
 	private isDisposed = false;
 
@@ -236,9 +238,31 @@ export class CodeBlockPart extends Disposable {
 			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
+		let isDropdownVisible = false;
 		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
-			toolbarElement.classList.toggle('force-visibility', e);
+			isDropdownVisible = e;
+			toolbarElement.classList.toggle('force-visibility', e || this._isHovered);
 		}));
+
+		// Track hover state via JS so the toolbar remains visible and clickable
+		// even when the code block DOM element is briefly detached and reattached
+		// during streaming re-renders. CSS :hover is lost when an element leaves
+		// the DOM, which causes the toolbar to flicker and become unclickable
+		// because of the pointer-events:none rule. By tracking hover state with a
+		// persistent boolean and the force-visibility class, the toolbar survives
+		// DOM reattachment.
+		this._isHovered = false;
+		this._register(dom.addDisposableListener(this.element, 'mouseenter', () => {
+			this._isHovered = true;
+			toolbarElement.classList.add('force-visibility');
+		}));
+		this._register(dom.addDisposableListener(this.element, 'mouseleave', () => {
+			this._isHovered = false;
+			if (!isDropdownVisible) {
+				toolbarElement.classList.remove('force-visibility');
+			}
+		}));
+		this._toolbarElement = toolbarElement;
 
 		this._configureForScreenReader();
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
@@ -440,6 +464,14 @@ export class CodeBlockPart extends Disposable {
 			this.vulnsButton.label = this.getVulnerabilitiesLabel();
 		} else {
 			this.element.classList.add('no-vulns');
+		}
+
+		// Restore toolbar visibility if the element was hovered before re-render.
+		// During streaming, code block elements are briefly detached from and
+		// reattached to the DOM, which causes the browser to lose CSS :hover state.
+		// The force-visibility class ensures the toolbar remains interactive.
+		if (this._isHovered) {
+			this._toolbarElement.classList.add('force-visibility');
 		}
 
 		this.layout();

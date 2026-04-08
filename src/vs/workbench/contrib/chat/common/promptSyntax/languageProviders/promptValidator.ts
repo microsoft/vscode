@@ -8,7 +8,7 @@ import { Iterable } from '../../../../../../base/common/iterator.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IMarkerData, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
+import { IMarkerData, MarkerSeverity, MarkerTag } from '../../../../../../platform/markers/common/markers.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
@@ -164,7 +164,7 @@ export class PromptValidator {
 							}
 						}
 					} else {
-						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 					}
 				} else if (headerToolsMap) {
 					const tool = this.languageModelToolsService.getToolByFullReferenceName(variable.name);
@@ -252,30 +252,30 @@ export class PromptValidator {
 				});
 				switch (promptType) {
 					case PromptsType.prompt:
-						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 						break;
 					case PromptsType.agent:
 						if (target === Target.GitHubCopilot) {
-							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom GitHub Copilot agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom GitHub Copilot agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 						} else if (target === Target.Claude) {
 							// ignore for now as we don't have a full list of supported attributes for claude target
 						} else {
 							if (validGithubCopilotAttributeNames.value.has(attribute.key)) {
-								report(toMarker(localize('promptValidator.ignoredAttribute.vscode-agent', "Attribute '{0}' is ignored when running locally in VS Code.", attribute.key), attribute.range, MarkerSeverity.Info));
+								report(toMarker(localize('promptValidator.ignoredAttribute.vscode-agent', "Attribute '{0}' is ignored when running locally in VS Code.", attribute.key), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 							} else {
-								report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+								report(toMarker(localize('promptValidator.unknownAttribute.vscode-agent', "Attribute '{0}' is not supported in VS Code agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 							}
 						}
 						break;
 					case PromptsType.instructions:
 						if (target === Target.Claude) {
-							report(toMarker(localize('promptValidator.unknownAttribute.rules', "Attribute '{0}' is not supported in rules files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.unknownAttribute.rules', "Attribute '{0}' is not supported in rules files by VS Code agents. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 						} else {
-							report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 						}
 						break;
 					case PromptsType.skill:
-						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported in skill files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported by VS Code agents. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 						break;
 				}
 			}
@@ -324,7 +324,7 @@ export class PromptValidator {
 			return;
 		}
 		if (argumentHintAttribute.value.value.trim().length === 0) {
-			report(toMarker(localize('promptValidator.argumentHintShouldNotBeEmpty', "The 'argument-hint' attribute should not be empty."), argumentHintAttribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.argumentHintShouldNotBeEmpty', "The 'argument-hint' attribute should not be empty."), argumentHintAttribute.value.range, MarkerSeverity.Warning));
 			return;
 		}
 	}
@@ -375,7 +375,7 @@ export class PromptValidator {
 		for (const [modelName, range] of modelNames) {
 			const modelMetadata = this.findModelByName(modelName);
 			if (!modelMetadata) {
-				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), range, MarkerSeverity.Warning));
+				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}' will be ignored.", modelName), range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
 				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), range, MarkerSeverity.Warning));
 			}
@@ -419,9 +419,9 @@ export class PromptValidator {
 		const modeAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.mode);
 		if (modeAttribute) {
 			if (agentAttribute) {
-				report(toMarker(localize('promptValidator.modeDeprecated', "The 'mode' attribute has been deprecated. The 'agent' attribute is used instead."), modeAttribute.range, MarkerSeverity.Warning));
+				report(toMarker(localize('promptValidator.modeDeprecated', "The 'mode' attribute has been deprecated. The 'agent' attribute is used instead."), modeAttribute.range, MarkerSeverity.Warning, [MarkerTag.Deprecated]));
 			} else {
-				report(toMarker(localize('promptValidator.modeDeprecated.useAgent', "The 'mode' attribute has been deprecated. Please rename it to 'agent'."), modeAttribute.range, MarkerSeverity.Error));
+				report(toMarker(localize('promptValidator.modeDeprecated.useAgent', "The 'mode' attribute has been deprecated. Please rename it to 'agent'."), modeAttribute.range, MarkerSeverity.Warning, [MarkerTag.Deprecated]));
 			}
 		}
 
@@ -494,13 +494,13 @@ export class PromptValidator {
 						if (currentNames) {
 							if (currentNames?.size === 1) {
 								const newName = Array.from(currentNames)[0];
-								report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", item.value, newName), item.range, MarkerSeverity.Info));
+								report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", item.value, newName), item.range, MarkerSeverity.Info, [MarkerTag.Deprecated]));
 							} else {
 								const newNames = Array.from(currentNames).sort((a, b) => a.localeCompare(b)).join(', ');
-								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", item.value, newNames), item.range, MarkerSeverity.Info));
+								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", item.value, newNames), item.range, MarkerSeverity.Info, [MarkerTag.Deprecated]));
 							}
 						} else {
-							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}' will be ignored.", item.value), item.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 						}
 					}
 				}
@@ -848,7 +848,7 @@ export class PromptValidator {
 			} else if (item.value) {
 				agentNames.push(item.value);
 				if (item.value !== '*' && !availableAgentNames.has(item.value)) {
-					report(toMarker(localize('promptValidator.agentInAgentsNotFound', "Unknown agent '{0}'. Available agents: {1}.", item.value, Array.from(availableAgentNames).join(', ')), item.range, MarkerSeverity.Warning));
+					report(toMarker(localize('promptValidator.agentInAgentsNotFound', "Unknown agent '{0}' will be ignored. Available agents: {1}.", item.value, Array.from(availableAgentNames).join(', ')), item.range, MarkerSeverity.Hint, [MarkerTag.Unnecessary]));
 				}
 			}
 		}
@@ -1211,6 +1211,6 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 	return Target.Undefined;
 }
 
-function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {
-	return { severity, message, ...range };
+function toMarker(message: string, range: Range, severity = MarkerSeverity.Error, tags?: MarkerTag[]): IMarkerData {
+	return { severity, message, ...(tags ? { tags } : {}), ...range };
 }

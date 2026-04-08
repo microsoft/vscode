@@ -22,7 +22,7 @@ import { MockPromptsService } from '../../promptSyntax/service/mockPromptsServic
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IToolInvocation, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatConfiguration, GeneralPurposeAgentName } from '../../../../common/constants.js';
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -50,7 +50,6 @@ suite('RunSubagentTool', () => {
 	suite('prepareToolInvocation', () => {
 		test('returns correct toolSpecificData', async () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
 
 			const promptsService = new MockPromptsService();
 			const customMode: ICustomAgent = {
@@ -71,8 +70,7 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
-				mockToolsService,
-				configService,
+				new TestConfigurationService(),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
@@ -101,12 +99,124 @@ suite('RunSubagentTool', () => {
 				modelName: undefined,
 			});
 		});
+
+		function createToolWithGP(opts?: { customAgents?: ICustomAgent[] }) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const promptsService = new MockPromptsService();
+			if (opts?.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				{} as IChatAgentService,
+				{} as IChatService,
+				mockToolsService,
+				{} as ILanguageModelsService,
+				new NullLogService(),
+				new TestConfigurationService({ [ChatConfiguration.GeneralPurposeAgentEnabled]: true }),
+				promptsService,
+				{} as IInstantiationService,
+				{} as IProductService,
+			));
+			return tool;
+		}
+
+		async function createToolWithGPReady(opts?: { customAgents?: ICustomAgent[] }) {
+			return createToolWithGP(opts);
+		}
+
+		test('treats undefined agentName as General Purpose when experiment is enabled', async () => {
+			const tool = await createToolWithGPReady();
+
+			const result = await tool.prepareToolInvocation(
+				{
+					parameters: { prompt: 'Test prompt', description: 'Test task', agentName: undefined },
+					toolCallId: 'test-call-undef',
+					chatSessionResource: URI.parse('test://session'),
+				},
+				CancellationToken.None
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Test task',
+				agentName: GeneralPurposeAgentName,
+				prompt: 'Test prompt',
+				modelName: undefined,
+			});
+		});
+
+		test('treats empty string agentName as General Purpose when experiment is enabled', async () => {
+			const tool = await createToolWithGPReady();
+
+			const result = await tool.prepareToolInvocation(
+				{
+					parameters: { prompt: 'Test prompt', description: 'Test task', agentName: '' },
+					toolCallId: 'test-call-empty',
+					chatSessionResource: URI.parse('test://session'),
+				},
+				CancellationToken.None
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Test task',
+				agentName: GeneralPurposeAgentName,
+				prompt: 'Test prompt',
+				modelName: undefined,
+			});
+		});
+
+		test('treats explicit General Purpose agentName as GP path', async () => {
+			const tool = await createToolWithGPReady();
+
+			const result = await tool.prepareToolInvocation(
+				{
+					parameters: { prompt: 'Test prompt', description: 'Test task', agentName: GeneralPurposeAgentName },
+					toolCallId: 'test-call-gp',
+					chatSessionResource: URI.parse('test://session'),
+				},
+				CancellationToken.None
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Test task',
+				agentName: GeneralPurposeAgentName,
+				prompt: 'Test prompt',
+				modelName: undefined,
+			});
+		});
+
+		test('passes through unknown agentName when experiment is enabled', async () => {
+			const tool = await createToolWithGPReady();
+
+			const result = await tool.prepareToolInvocation(
+				{
+					parameters: { prompt: 'Test prompt', description: 'Test task', agentName: 'NonExistentAgent' },
+					toolCallId: 'test-call-unknown',
+					chatSessionResource: URI.parse('test://session'),
+				},
+				CancellationToken.None
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Test task',
+				agentName: 'NonExistentAgent',
+				prompt: 'Test prompt',
+				modelName: undefined,
+			});
+		});
 	});
 
 	suite('getToolData', () => {
 		test('returns basic tool data', () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
 			const promptsService = new MockPromptsService();
 
 			const tool = testDisposables.add(new RunSubagentTool(
@@ -115,8 +225,7 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
-				mockToolsService,
-				configService,
+				new TestConfigurationService(),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
@@ -128,14 +237,12 @@ suite('RunSubagentTool', () => {
 			assert.ok(toolData.inputSchema);
 			assert.ok(toolData.inputSchema.properties?.prompt);
 			assert.ok(toolData.inputSchema.properties?.description);
+			assert.strictEqual(toolData.inputSchema.properties?.agentName, undefined, 'agentName should not be in schema when neither GP nor custom agents is enabled');
 			assert.deepStrictEqual(toolData.inputSchema.required, ['prompt', 'description']);
 		});
 
-		test('includes agentName property when SubagentToolCustomAgents is enabled', () => {
+		test('marks agentName as required when GP experiment is enabled', async () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService({
-				'chat.customAgentInSubagent.enabled': true,
-			});
 			const promptsService = new MockPromptsService();
 
 			const tool = testDisposables.add(new RunSubagentTool(
@@ -144,16 +251,15 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
-				mockToolsService,
-				configService,
+				new TestConfigurationService({ [ChatConfiguration.GeneralPurposeAgentEnabled]: true }),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
 			));
 
 			const toolData = tool.getToolData();
-
-			assert.ok(toolData.inputSchema?.properties?.agentName, 'agentName should be in schema when custom agents enabled');
+			assert.ok(toolData.inputSchema?.properties?.agentName);
+			assert.deepStrictEqual(toolData.inputSchema.required, ['prompt', 'description', 'agentName']);
 		});
 	});
 
@@ -244,7 +350,6 @@ suite('RunSubagentTool', () => {
 			customAgents?: ICustomAgent[];
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
 			const promptsService = new MockPromptsService();
 			if (opts.customAgents) {
 				promptsService.setCustomModes(opts.customAgents);
@@ -265,8 +370,7 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				mockLanguageModelsService as ILanguageModelsService,
 				new NullLogService(),
-				mockToolsService,
-				configService,
+				new TestConfigurationService({ [ChatConfiguration.SubagentToolCustomAgents]: true }),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
@@ -542,7 +646,6 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
-				mockToolsService,
 				configService,
 				promptsService,
 				mockInstantiationService as IInstantiationService,

@@ -220,6 +220,15 @@ pub struct ServeWebArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
+	/// The workspace folder to open when no input is specified in the browser URL.
+	#[clap(long)]
+	pub default_folder: Option<String>,
+	/// The workspace to open when no input is specified in the browser URL.
+	#[clap(long)]
+	pub default_workspace: Option<String>,
+	/// Disables telemetry.
+	#[clap(long)]
+	pub disable_telemetry: bool,
 	/// Use a specific commit SHA for the client.
 	#[clap(long)]
 	pub commit_id: Option<String>,

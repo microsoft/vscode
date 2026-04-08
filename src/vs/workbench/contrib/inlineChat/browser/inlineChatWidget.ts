@@ -306,7 +306,7 @@ export class InlineChatWidget {
 			const anonymous = this._chatEntitlementService.anonymousObs.read(reader);
 			const requestInProgress = this._chatService.requestInProgressObs.read(reader);
 
-			const showDisclaimer = !sentiment.installed && anonymous && !requestInProgress;
+			const showDisclaimer = !sentiment.completed && anonymous && !requestInProgress;
 			this._elements.disclaimerLabel.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {

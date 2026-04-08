@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,7 +13,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentService } from '../../node/agentService.js';
@@ -32,6 +33,7 @@ suite('AgentService (node dispatcher)', () => {
 			getSessionDataDir: () => URI.parse('inmemory:/session-data'),
 			getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
 			openDatabase: () => { throw new Error('not implemented'); },
+			tryOpenDatabase: async () => undefined,
 			deleteSessionData: async () => { },
 			cleanupOrphanedData: async () => { },
 		};
@@ -81,24 +83,6 @@ suite('AgentService (node dispatcher)', () => {
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
 			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
-		});
-	});
-
-	// ---- listAgents -----------------------------------------------------
-
-	suite('listAgents', () => {
-
-		test('returns descriptors from all registered providers', async () => {
-			service.registerProvider(copilotAgent);
-
-			const agents = await service.listAgents();
-			assert.strictEqual(agents.length, 1);
-			assert.ok(agents.some(a => a.provider === 'copilot'));
-		});
-
-		test('returns empty array when no providers are registered', async () => {
-			const agents = await service.listAgents();
-			assert.strictEqual(agents.length, 0);
 		});
 	});
 
@@ -160,44 +144,54 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
-		test('refreshModels publishes models in root state via agentsChanged', async () => {
-			service.registerProvider(copilotAgent);
+		test('listSessions overlays custom title from session database', async () => {
+			// Pre-seed a custom title in an in-memory database
+			const db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'My Custom Title');
 
-			const envelopes: IActionEnvelope[] = [];
-			disposables.add(service.onDidAction(e => envelopes.push(e)));
+			const sessionId = 'test-session-abc';
+			const sessionUri = AgentSession.uri('copilot', sessionId);
 
-			service.refreshModels();
+			const sessionDataService: ISessionDataService = {
+				_serviceBrand: undefined,
+				getSessionDataDir: () => URI.parse('inmemory:/session-data'),
+				getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
+				openDatabase: (): IReference<ISessionDatabase> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				deleteSessionData: async () => { },
+				cleanupOrphanedData: async () => { },
+			};
 
-			// Model fetch is async inside AgentSideEffects — wait for it
-			await new Promise(r => setTimeout(r, 50));
+			// Create a mock that returns a session with that ID
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.sessionMetadataOverrides = { summary: 'SDK Title' };
+			// Manually add the session to the mock
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
-			const agentsChanged = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
-			assert.ok(agentsChanged);
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
+			svc.registerProvider(agent);
+
+			const sessions = await svc.listSessions();
+			assert.strictEqual(sessions.length, 1);
+			assert.strictEqual(sessions[0].summary, 'My Custom Title');
 		});
-	});
 
-	// ---- getResourceMetadata --------------------------------------------
-
-	suite('getResourceMetadata', () => {
-
-		test('aggregates protected resources from all providers', async () => {
+		test('listSessions uses SDK title when no custom title exists', async () => {
 			service.registerProvider(copilotAgent);
+			copilotAgent.sessionMetadataOverrides = { summary: 'Auto-generated Title' };
 
-			const mockAgent = new MockAgent('other');
-			disposables.add(toDisposable(() => mockAgent.dispose()));
-			service.registerProvider(mockAgent);
+			await service.createSession({ provider: 'copilot' });
 
-			const metadata = await service.getResourceMetadata();
-			// copilot agent returns one resource (https://api.github.com),
-			// generic MockAgent('other') returns empty
-			assert.deepStrictEqual(metadata, {
-				resources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }],
-			});
-		});
-
-		test('returns empty resources when no providers registered', async () => {
-			const metadata = await service.getResourceMetadata();
-			assert.deepStrictEqual(metadata, { resources: [] });
+			const sessions = await service.listSessions();
+			assert.strictEqual(sessions.length, 1);
+			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
 		});
 	});
 
@@ -324,20 +318,20 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- browseDirectory ------------------------------------------------
+	// ---- resourceList ------------------------------------------------
 
-	suite('browseDirectory', () => {
+	suite('resourceList', () => {
 
 		test('throws when the directory does not exist', async () => {
 			await assert.rejects(
-				() => service.browseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
+				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
 				/Directory not found/,
 			);
 		});
 
 		test('throws when the target is not a directory', async () => {
 			await assert.rejects(
-				() => service.browseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
+				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
 				/Not a directory/,
 			);
 		});

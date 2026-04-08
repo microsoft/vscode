@@ -9,7 +9,7 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { IExternalCustomizationItemProvider } from '../../common/customizationHarnessService.js';
+import { IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
 
 /**
  * Maps section ID to prompt type. Duplicated from aiCustomizationListWidget
@@ -35,7 +35,7 @@ function sectionToPromptType(section: AICustomizationManagementSection): Prompts
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly storage?: PromptsStorage }[];
+	readonly allItems: readonly { readonly name?: string; readonly storage?: PromptsStorage; readonly groupKey?: string }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -48,8 +48,9 @@ export async function generateCustomizationDebugReport(
 	promptsService: IPromptsService,
 	workspaceService: IAICustomizationWorkspaceService,
 	widgetState: IDebugWidgetState,
-	externalProvider?: IExternalCustomizationItemProvider,
+	activeDescriptor?: IHarnessDescriptor,
 ): Promise<string> {
+	const externalProvider = activeDescriptor?.itemProvider;
 	const promptType = sectionToPromptType(section);
 	const filter = workspaceService.getStorageSourceFilter(promptType);
 	const lines: string[] = [];
@@ -59,6 +60,22 @@ export async function generateCustomizationDebugReport(
 	lines.push(`Active root: ${workspaceService.getActiveProjectRoot()?.fsPath ?? '(none)'}`);
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
 	lines.push(`Filter sources: [${filter.sources.join(', ')}]`);
+
+	// Dump active harness descriptor
+	if (activeDescriptor) {
+		lines.push('');
+		lines.push('--- Active Harness ---');
+		lines.push(`  id: ${activeDescriptor.id}`);
+		lines.push(`  label: ${activeDescriptor.label}`);
+		lines.push(`  hasItemProvider: ${!!activeDescriptor.itemProvider}`);
+		lines.push(`  hasSyncProvider: ${!!activeDescriptor.syncProvider}`);
+		lines.push(`  hiddenSections: ${activeDescriptor.hiddenSections ? `[${activeDescriptor.hiddenSections.join(', ')}]` : '(none)'}`);
+		lines.push(`  workspaceSubpaths: ${activeDescriptor.workspaceSubpaths ? `[${activeDescriptor.workspaceSubpaths.join(', ')}]` : '(none)'}`);
+		lines.push(`  hideGenerateButton: ${activeDescriptor.hideGenerateButton ?? false}`);
+		lines.push(`  requiredAgentId: ${activeDescriptor.requiredAgentId ?? '(none)'}`);
+		lines.push(`  instructionFileFilter: ${activeDescriptor.instructionFileFilter ? `[${activeDescriptor.instructionFileFilter.join(', ')}]` : '(none)'}`);
+	}
+	lines.push('');
 	if (filter.includedUserFileRoots) {
 		lines.push(`Filter includedUserFileRoots:`);
 		for (const r of filter.includedUserFileRoots) {
@@ -109,6 +126,19 @@ async function appendExternalProviderData(lines: string[], provider: IExternalCu
 			if (item.description) {
 				lines.push(`      desc: ${item.description}`);
 			}
+			if (item.groupKey) {
+				lines.push(`      groupKey: ${item.groupKey}`);
+			}
+			if (item.badge) {
+				lines.push(`      badge: ${item.badge}`);
+			}
+			if (item.status) {
+				lines.push(`      status: ${item.status}${item.statusMessage ? ` (${item.statusMessage})` : ''}`);
+			}
+			if (item.enabled === false) {
+				lines.push(`      enabled: false`);
+			}
+			lines.push(`      scheme: ${item.uri.scheme}`);
 		}
 	}
 
@@ -165,7 +195,7 @@ async function appendRawServiceData(lines: string[], promptsService: IPromptsSer
 		const commands = await promptsService.getPromptSlashCommands(CancellationToken.None);
 		lines.push(`  getPromptSlashCommands:            ${commands.length} commands`);
 		for (const c of commands) {
-			lines.push(`    /${c.name} [${c.promptPath.storage}] ${c.promptPath.uri.fsPath} (type=${c.promptPath.type})`);
+			lines.push(`    /${c.name} [${c.storage}] ${c.uri.fsPath} (type=${c.type})`);
 		}
 	}
 
@@ -208,6 +238,11 @@ function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push(`    user:      ${state.allItems.filter(i => i.storage === PromptsStorage.user).length}`);
 	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
 	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
+
+	// Show each item with its groupKey and storage
+	for (const item of state.allItems) {
+		lines.push(`    - ${item.name} [storage=${item.storage ?? '?'}, groupKey=${item.groupKey ?? '(none)'}]`);
+	}
 
 	lines.push(`  displayEntries (after filterItems): ${state.displayEntries.length}`);
 	const fileEntries = state.displayEntries.filter(e => e.type === 'file-item');

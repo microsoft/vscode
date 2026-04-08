@@ -20,10 +20,10 @@ import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenu
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
-import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalTool.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
+import { SendToTerminalTool, SendToTerminalToolData } from './tools/sendToTerminalTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
 import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTerminalTool.js';
@@ -97,13 +97,13 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._register(_toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 		this._register(_toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
 
-		const awaitTerminalTool = _instantiationService.createInstance(AwaitTerminalTool);
-		this._register(_toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
-		this._register(_toolsService.executeToolSet.addTool(AwaitTerminalToolData));
-
 		const killTerminalTool = _instantiationService.createInstance(KillTerminalTool);
 		this._register(_toolsService.registerTool(KillTerminalToolData, killTerminalTool));
 		this._register(_toolsService.executeToolSet.addTool(KillTerminalToolData));
+
+		const sendToTerminalTool = _instantiationService.createInstance(SendToTerminalTool);
+		this._register(_toolsService.registerTool(SendToTerminalToolData, sendToTerminalTool));
+		this._register(_toolsService.executeToolSet.addTool(SendToTerminalToolData));
 
 		this._registerRunInTerminalTool();
 
@@ -140,11 +140,15 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkAllowedDomains) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkAllowedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxNetworkDeniedDomains)
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkDeniedDomains) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem)
 			) {
 				this._registerRunInTerminalTool();
 			}
