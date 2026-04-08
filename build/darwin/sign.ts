@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fs from 'fs';
-import path from 'path';
 import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
+import fs from 'fs';
+import path from 'path';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const baseDir = path.dirname(import.meta.dirname);
@@ -122,6 +122,36 @@ async function main(buildDir?: string): Promise<void> {
 			'NSAudioCaptureUsageDescription',
 			'-string',
 			'An application in Visual Studio Code wants to use Audio Capture.',
+			`${infoPlistPath}`
+		]);
+
+		// macOS Finder "Open with {app}" service — declared in Info.plist so macOS
+		// shows it in Finder's context menu automatically when the app is installed.
+		// The service callback is handled by a native module that registers as
+		// NSApp.servicesProvider at startup (see finderService/).
+		const nsServicesXml = `
+			<array>
+				<dict>
+					<key>NSMenuItem</key>
+					<dict>
+						<key>default</key>
+						<string>Open with ${product.nameShort}</string>
+					</dict>
+					<key>NSMessage</key>
+					<string>openFiles</string>
+					<key>NSSendFileTypes</key>
+					<array>
+						<string>public.item</string>
+						<string>public.folder</string>
+					</array>
+				</dict>
+			</array>`;
+
+		await spawn('plutil', [
+			'-insert',
+			'NSServices',
+			'-xml',
+			nsServicesXml,
 			`${infoPlistPath}`
 		]);
 	}

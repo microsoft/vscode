@@ -1,0 +1,13 @@
+{
+  "name": "@vscode/finder-service",
+  "version": "1.0.0",
+  "description": "Native macOS Services provider for VS Code — adds 'Open with Code' to Finder's context menu",
+  "main": "build/Release/vscode_finder_service.node",
+  "private": true,
+  "scripts": {
+    "install": "node-gyp rebuild"
+  },
+  "dependencies": {
+    "node-addon-api": "^7.0.0"
+  }
+}
