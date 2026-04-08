@@ -2,7 +2,7 @@
 name: create-prompt
 description: 'Create a reusable prompt file (.prompt.md) for a common task.'
 argument-hint: What task should this prompt help with?
-agent: agent
+disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **prompts.md** for template and principles.
 

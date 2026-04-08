@@ -58,10 +58,8 @@ describe('NextEditProvider Caching', () => {
 	afterAll(() => {
 		disposableStore.dispose();
 	});
-	it('caches a response with multiple edits and reuses them correctly with rebasing', async () => {
-		const obsWorkspace = new MutableObservableWorkspace();
-		const obsGit = new ObservableGit(gitExtensionService);
-		const statelessNextEditProvider: IStatelessNextEditProvider = {
+	function createStatelessNextEditProvider(): IStatelessNextEditProvider {
+		return {
 			ID: 'TestNextEditProvider',
 			provideNextEdit: async function* (request: StatelessNextEditRequest, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken) {
 				const telemetryBuilder = new StatelessNextEditTelemetryBuilder(request.headerRequestId);
@@ -92,6 +90,12 @@ describe('NextEditProvider Caching', () => {
 				return new WithStatelessProviderTelemetry(noSuggestions, telemetryBuilder.build(Result.error(noSuggestions)));
 			}
 		};
+	}
+
+	it('caches a response with multiple edits and reuses them correctly with rebasing', async () => {
+		const obsWorkspace = new MutableObservableWorkspace();
+		const obsGit = new ObservableGit(gitExtensionService);
+		const statelessNextEditProvider = createStatelessNextEditProvider();
 
 		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
 
@@ -191,5 +195,85 @@ describe('NextEditProvider Caching', () => {
 
 			const myPoint = new Point3D(0, 1, 2);"
 		`);
+	});
+
+	it('caches a response with multiple edits correctly when document uses CRLF line endings', async () => {
+		const obsWorkspace = new MutableObservableWorkspace();
+		const obsGit = new ObservableGit(gitExtensionService);
+		const statelessNextEditProvider = createStatelessNextEditProvider();
+
+		const nextEditProvider: NextEditProvider = new NextEditProvider(obsWorkspace, statelessNextEditProvider, new NesHistoryContextProvider(obsWorkspace, obsGit), new NesXtabHistoryTracker(obsWorkspace, undefined, configService, expService), undefined, configService, snippyService, logService, expService, requestLogger);
+
+		// Use \r\n line endings to simulate a Windows document
+		const initialValue = [
+			'class Point {',
+			'\tconstructor(',
+			'\t\tprivate readonly x: number,',
+			'\t\tprivate readonly y: number,',
+			'\t) { }',
+			'\tgetDistance() {',
+			'\t\treturn Math.sqrt(this.x ** 2 + this.y ** 2);',
+			'\t}',
+			'}',
+			'',
+			'const myPoint = new Point(0, 1);',
+		].join('\r\n');
+
+		const doc = obsWorkspace.addDocument({
+			id: DocumentId.create(URI.file('/test/test.ts').toString()),
+			initialValue,
+		});
+		doc.setSelection([new OffsetRange(1, 1)], undefined);
+
+		// Insert "3D" after "Point" at offset 11 (same offset, within first line before any line ending)
+		doc.applyEdit(StringEdit.insert(11, '3D'));
+
+		const context: NESInlineCompletionContext = { triggerKind: 1, selectedCompletionInfo: undefined, requestUuid: generateUuid(), requestIssuedDateTime: Date.now(), earliestShownDateTime: Date.now() + 200, enforceCacheDelay: false };
+		const logContext = new InlineEditRequestLogContext(doc.id.toString(), 1, context);
+		const cancellationToken = CancellationToken.None;
+		const tb1 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+
+		// First edit: should add z parameter
+		let result = await nextEditProvider.getNextEdit(doc.id, context, logContext, cancellationToken, tb1.nesBuilder);
+		tb1.dispose();
+		assert(result.result?.edit);
+		doc.applyEdit(result.result.edit.toEdit());
+
+		// Verify CRLF line endings are preserved
+		expect(doc.value.get().value).toContain('\r\n');
+		expect(doc.value.get().value).not.toMatch(/[^\r]\n/);
+
+		// Second edit: should update getDistance method — this uses a cached edit
+		const tb2 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+		result = await nextEditProvider.getNextEdit(doc.id, context, logContext, cancellationToken, tb2.nesBuilder);
+		tb2.dispose();
+		assert(result.result?.edit, 'second cached edit should be found');
+		doc.applyEdit(result.result.edit.toEdit());
+
+		expect(doc.value.get().value).not.toMatch(/[^\r]\n/);
+
+		// Third edit: should update the variable — also from cache
+		const tb3 = new NextEditProviderTelemetryBuilder(gitExtensionService, mockNotebookService, workspaceService, nextEditProvider.ID, doc);
+		result = await nextEditProvider.getNextEdit(doc.id, context, logContext, cancellationToken, tb3.nesBuilder);
+		tb3.dispose();
+		assert(result.result?.edit, 'third cached edit should be found');
+		doc.applyEdit(result.result.edit.toEdit());
+
+		// Final state should match expected content with CRLF throughout
+		const expectedLines = [
+			'class Point3D {',
+			'\tconstructor(',
+			'\t\tprivate readonly x: number,',
+			'\t\tprivate readonly y: number,',
+			'\t\tprivate readonly z: number,',
+			'\t) { }',
+			'\tgetDistance() {',
+			'\t\treturn Math.sqrt(this.x ** 2 + this.y ** 2 + this.z ** 2);',
+			'\t}',
+			'}',
+			'',
+			'const myPoint = new Point3D(0, 1, 2);',
+		].join('\r\n');
+		expect(doc.value.get().value).toBe(expectedLines);
 	});
 });

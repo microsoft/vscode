@@ -798,7 +798,7 @@ export class TestingGitService implements IGitService {
 		return;
 	}
 
-	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string }): Promise<string | undefined> {
+	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string | undefined> {
 		return undefined;
 	}
 

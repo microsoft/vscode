@@ -5,18 +5,18 @@
 
 
 // Import to register the inline completions contribution
-import { constObservable, IObservableWithChange } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ComponentFixtureContext, createEditorServices, defineThemedFixtureGroup, defineComponentFixture, createTextModel } from '../fixtureUtils.js';
-import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
-import { ICodeEditorWidgetOptions, CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import '../../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
-import { InlineCompletionsSource, InlineCompletionsState } from '../../../../../editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.js';
-import { InlineEditItem } from '../../../../../editor/contrib/inlineCompletions/browser/model/inlineSuggestionItem.js';
-import { TextModelValueReference } from '../../../../../editor/contrib/inlineCompletions/browser/model/textModelValueReference.js';
+import { constObservable, IObservableWithChange } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { ComponentFixtureContext, createEditorServices, defineThemedFixtureGroup, defineComponentFixture, createTextModel } from '../../fixtureUtils.js';
+import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorWidgetOptions, CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import '../../../../../../editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.js';
+import { InlineCompletionsSource, InlineCompletionsState } from '../../../../../../editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.js';
+import { InlineEditItem } from '../../../../../../editor/contrib/inlineCompletions/browser/model/inlineSuggestionItem.js';
+import { TextModelValueReference } from '../../../../../../editor/contrib/inlineCompletions/browser/model/textModelValueReference.js';
 
 
 // ============================================================================
@@ -107,18 +107,35 @@ function renderInlineEdit(options: InlineEditOptions): void {
 // Fixtures
 // ============================================================================
 
-export default defineThemedFixtureGroup({ path: 'editor/' }, {
-	// Side-by-side view: Multi-line replacement
-	SideBySideView: defineComponentFixture({
+export default defineThemedFixtureGroup({ path: 'editor/inlineCompletions/' }, {
+	// Side-by-side view: Narrow editor with multi-line replacement
+	SideBySideViewSmall: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (context) => renderInlineEdit({
 			...context,
-			code: `function greet(name) {
-	console.log("Hello, " + name);
+			code: `function calculate(a, b) {
+	const sum = a + b;
+	return sum;
 }`,
 			cursorLine: 2,
-			range: { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 100 },
-			newText: '\tconsole.log(`Hello, ${name}!`);',
+			range: { startLineNumber: 2, startColumn: 1, endLineNumber: 3, endColumn: 100 },
+			newText: '\tconst result = a * b + a + b;\n\tconsole.log(result);\n\treturn result;',
+		}),
+	}),
+
+	// Side-by-side view: Wide editor with multi-line replacement
+	SideBySideViewWide: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderInlineEdit({
+			...context,
+			code: `function calculate(a, b) {
+	const sum = a + b;
+	return sum;
+}`,
+			cursorLine: 2,
+			range: { startLineNumber: 2, startColumn: 1, endLineNumber: 3, endColumn: 100 },
+			newText: '\tconst result = a * b + a + b;\n\tconsole.log(result);\n\treturn result;',
+			width: '800px',
 		}),
 	}),
 
@@ -158,6 +175,39 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 					edits: { allowCodeShifting: 'always' }
 				}
 			}
+		}),
+	}),
+
+	// Deletion view: Removing code
+	DeletionView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderInlineEdit({
+			...context,
+			code: `function process(data: string[]) {
+	console.log("processing:", data);
+	const result = data.map(d => d.trim());
+	return result;
+}`,
+			cursorLine: 2,
+			range: { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 100 },
+			newText: '',
+			height: '200px',
+		}),
+	}),
+
+	// Line replacement view: Single-line with multiple changes
+	LineReplacementView: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderInlineEdit({
+			...context,
+			code: `function calculate(width: number, height: number): number {
+	const area = width * height;
+	return area;
+}`,
+			cursorLine: 2,
+			range: { startLineNumber: 2, startColumn: 1, endLineNumber: 2, endColumn: 100 },
+			newText: '\tconst volume = width * height * depth;',
+			height: '200px',
 		}),
 	}),
 });

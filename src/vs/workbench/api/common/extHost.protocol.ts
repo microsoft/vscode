@@ -1695,6 +1695,8 @@ export interface IChatResourceDto {
 
 export interface ICustomAgentDto extends IChatResourceDto {
 	readonly argumentHint?: string;
+	readonly tools?: readonly string[];
+	readonly model?: readonly string[];
 	readonly userInvocable: boolean;
 	readonly disableModelInvocation: boolean;
 }

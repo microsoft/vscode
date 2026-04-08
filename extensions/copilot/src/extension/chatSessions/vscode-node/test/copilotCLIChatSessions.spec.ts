@@ -10,31 +10,26 @@ import * as vscodeShim from 'vscode';
 import { IRunCommandExecutionService } from '../../../../platform/commands/common/runCommandExecutionService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
-import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { IGitService, RepoContext } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { MockExtensionContext } from '../../../../platform/test/node/extensionContext';
-import { IWorkspaceService, NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
-import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
-import { IAgentSessionsWorkspace } from '../../common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
-import { IFolderRepositoryManager } from '../../common/folderRepositoryManager';
+import { IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
 import { emptyWorkspaceInfo } from '../../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../../copilotcli/common/customSessionTitleService';
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
-import { ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
+import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
-import { CopilotCLIChatSessionContentProvider } from '../copilotCLIChatSessions';
-import { ICopilotCLIFolderMruService } from '../copilotCLIFolderMru';
-import { ICopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
+import { CopilotCLIChatSessionContentProvider, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { PullRequestDetectionService } from '../pullRequestDetectionService';
+import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
 vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
 
 beforeAll(() => {
@@ -53,6 +48,12 @@ beforeAll(() => {
 			dispose: () => { },
 		}),
 	};
+	(vscodeShim as Record<string, unknown>).workspace = {
+		...((vscodeShim as Record<string, unknown>).workspace as object),
+		workspaceFolders: [],
+		isAgentSessionsWorkspace: false,
+		isResourceTrusted: async () => true,
+	};
 });
 
 class TestSessionService extends mock<ICopilotCLISessionService>() {
@@ -63,7 +64,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override onDidCreateSession = Event.None;
 	override getSessionWorkingDirectory = vi.fn(() => undefined);
 	override getSessionItem = vi.fn(async () => undefined);
-	override getAllSessions = vi.fn(async () => []);
+	override getAllSessions = vi.fn(async () => [] as ICopilotCLISessionItem[]);
 	override createNewSessionId = vi.fn(() => 'new-session');
 	override isNewSessionId = vi.fn(() => false);
 	override deleteSession = vi.fn(async () => { });
@@ -138,19 +139,6 @@ class TestOctoKitService extends mock<IOctoKitService>() {
 	override findPullRequestByHeadBranch = vi.fn(async (): Promise<PullRequestSearchItem | undefined> => undefined);
 }
 
-class TestSessionTracker extends mock<ICopilotCLISessionTracker>() {
-	declare readonly _serviceBrand: undefined;
-	override getSessionIds = vi.fn(() => []);
-	override getTerminal = vi.fn(async () => undefined);
-}
-
-class TestTerminalIntegration extends Disposable implements ICopilotCLITerminalIntegration {
-	declare readonly _serviceBrand: undefined;
-	openTerminal = vi.fn(async () => undefined);
-	setTerminalSessionDir = vi.fn();
-	setSessionDirResolver = vi.fn();
-}
-
 class TestRunCommandExecutionService extends mock<IRunCommandExecutionService>() {
 	declare readonly _serviceBrand: undefined;
 	override executeCommand = vi.fn(async () => undefined);
@@ -166,15 +154,14 @@ class TestCustomSessionTitleService extends mock<ICustomSessionTitleService>() {
 function createProvider() {
 	const sessionService = new TestSessionService();
 	const worktreeService = new TestWorktreeService();
-	const workspaceService = new NullWorkspaceService([URI.file('/workspace')]);
-	const metadataStore = new class extends mock<IChatSessionMetadataStore>() { };
+	const metadataStore = new class extends mock<IChatSessionMetadataStore>() {
+		override getRequestDetails = vi.fn(async () => []);
+		override getRepositoryProperties = vi.fn(async () => undefined);
+	};
 	const gitService = new TestGitService();
 	const folderRepositoryManager = new TestFolderRepositoryManager();
 	const configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 	const customSessionTitleService = new TestCustomSessionTitleService();
-	const context = new MockExtensionContext() as unknown as IVSCodeExtensionContext;
-	const sessionTracker = new TestSessionTracker();
-	const terminalIntegration = new TestTerminalIntegration();
 	const commandExecutionService = new TestRunCommandExecutionService();
 	const workspaceFolderService = new TestWorkspaceFolderService();
 	const octoKitService = new TestOctoKitService();
@@ -185,28 +172,40 @@ function createProvider() {
 		override error = vi.fn();
 	}();
 
+	const prDetectionService = new PullRequestDetectionService(
+		worktreeService,
+		gitService,
+		octoKitService,
+		logService,
+	);
+	const optionGroupBuilder = new class extends mock<ISessionOptionGroupBuilder>() {
+		declare readonly _serviceBrand: undefined;
+		override provideChatSessionProviderOptionGroups = vi.fn(async () => []);
+		override buildBranchOptionGroup = vi.fn(() => undefined);
+		override handleInputStateChange = vi.fn(async () => { });
+		override buildExistingSessionInputStateGroups = vi.fn(async () => []);
+		override getBranchOptionItemsForRepository = vi.fn(async () => []);
+		override getRepositoryOptionItems = vi.fn(() => []);
+		override updateInputStateAfterFolderSelection = vi.fn(async () => { });
+	}();
 	const provider = new CopilotCLIChatSessionContentProvider(
 		sessionService,
-		metadataStore,
 		worktreeService,
-		workspaceService as IWorkspaceService,
-		gitService,
 		folderRepositoryManager,
 		configurationService,
 		customSessionTitleService,
-		context,
-		sessionTracker,
-		terminalIntegration,
 		commandExecutionService,
-		workspaceFolderService,
-		octoKitService,
 		logService,
-		new class extends mock<IAgentSessionsWorkspace>() { override get isAgentSessionsWorkspace() { return false; } },
-		new (mock<ICopilotCLIFolderMruService>())(),
+		prDetectionService,
+		optionGroupBuilder,
+		gitService,
+		workspaceFolderService,
+		metadataStore,
 	);
 
 	return {
 		provider,
+		prDetectionService,
 		sessionService,
 		worktreeService,
 		gitService,
@@ -220,8 +219,8 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 	});
 
 	it('triggers pull request detection when opening an existing session', async () => {
-		const { provider } = createProvider();
-		const detectSpy = vi.spyOn(provider, 'detectPullRequestOnSessionOpen').mockResolvedValue();
+		const { provider, prDetectionService } = createProvider();
+		const detectSpy = vi.spyOn(prDetectionService, 'detectPullRequest');
 
 		await provider.provideChatSessionContentForExistingSession(
 			URI.from({ scheme: 'copilotcli', path: '/session-1' }),
@@ -232,8 +231,7 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 	});
 
 	it('persists detected pull request url and state on session open', async () => {
-		const { provider, worktreeService, gitService, octoKitService } = createProvider();
-		const refreshSpy = vi.spyOn(provider, 'refreshSession').mockResolvedValue();
+		const { prDetectionService, worktreeService, gitService, octoKitService } = createProvider();
 		const worktreeProperties: ChatSessionWorktreeProperties = {
 			version: 2,
 			baseCommit: 'abc123',
@@ -271,20 +269,19 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 			body: '',
 		});
 
-		await provider.detectPullRequestOnSessionOpen('session-1');
+		prDetectionService.detectPullRequest('session-1');
 
-		expect(worktreeService.setWorktreeProperties).toHaveBeenCalledWith(
+		await vi.waitFor(() => expect(worktreeService.setWorktreeProperties).toHaveBeenCalledWith(
 			'session-1',
 			expect.objectContaining({
 				pullRequestUrl: 'https://github.com/testowner/testrepo/pull/42',
 				pullRequestState: 'open',
 			}),
-		);
-		expect(refreshSpy).toHaveBeenCalledWith({ reason: 'update', sessionId: 'session-1' });
+		));
 	});
 
 	it('skips session-open detection for merged pull requests', async () => {
-		const { provider, worktreeService, octoKitService } = createProvider();
+		const { prDetectionService, worktreeService, octoKitService } = createProvider();
 		const mergedProperties: ChatSessionWorktreeProperties = {
 			version: 2,
 			baseCommit: 'abc123',
@@ -297,9 +294,111 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 
 		worktreeService.getWorktreeProperties.mockResolvedValue(mergedProperties);
 
-		await provider.detectPullRequestOnSessionOpen('session-1');
+		prDetectionService.detectPullRequest('session-1');
 
+		await vi.waitFor(() => expect(worktreeService.getWorktreeProperties).toHaveBeenCalled());
 		expect(octoKitService.findPullRequestByHeadBranch).not.toHaveBeenCalled();
 		expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
+	});
+});
+
+// ─── Re-exported helper function smoke tests ────────────────────
+// Full test coverage lives in sessionOptionGroupBuilder.spec.ts;
+// these just verify the re-exports are wired up correctly.
+
+describe('re-exported dropdown helpers', () => {
+	it('resolveBranchSelection is callable', () => {
+		const branches = [{ id: 'main', name: 'main' }];
+		expect(resolveBranchSelection(branches, 'main', undefined)?.id).toBe('main');
+	});
+
+	it('resolveBranchLockState is callable', () => {
+		const result = resolveBranchLockState(false, undefined);
+		expect(result.locked).toBe(true);
+	});
+
+	it('resolveIsolationSelection is callable', () => {
+		expect(resolveIsolationSelection(IsolationMode.Workspace, undefined)).toBe(IsolationMode.Workspace);
+	});
+});
+
+// ─── resolveSessionDirsForTerminal ──────────────────────────────
+
+describe('resolveSessionDirsForTerminal', () => {
+	it('returns matching terminal sessions before non-matching ones', async () => {
+		const terminal = {} as vscode.Terminal;
+		const otherTerminal = {} as vscode.Terminal;
+		const tracker: ICopilotCLISessionTracker = {
+			_serviceBrand: undefined,
+			getSessionIds: () => ['session-a', 'session-b'],
+			getTerminal: vi.fn(async (id: string) => id === 'session-a' ? terminal : otherTerminal),
+		} as unknown as ICopilotCLISessionTracker;
+
+		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
+		expect(dirs).toHaveLength(2);
+		// First dir should be for the matching session
+		expect(dirs[0].fsPath).toContain('session-a');
+	});
+
+	it('returns empty array when no sessions exist', async () => {
+		const terminal = {} as vscode.Terminal;
+		const tracker: ICopilotCLISessionTracker = {
+			_serviceBrand: undefined,
+			getSessionIds: () => [],
+			getTerminal: vi.fn(async () => undefined),
+		} as unknown as ICopilotCLISessionTracker;
+
+		const dirs = await resolveSessionDirsForTerminal(tracker, terminal);
+		expect(dirs).toHaveLength(0);
+	});
+});
+
+// ─── Additional CopilotCLIChatSessionContentProvider tests ──────
+
+describe('CopilotCLIChatSessionContentProvider (additional)', () => {
+	beforeEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('provides chat session items from session service', async () => {
+		const { provider, sessionService } = createProvider();
+		const sessionItem: ICopilotCLISessionItem = {
+			id: 'session-1',
+			label: 'Test Session',
+			status: undefined,
+			workingDirectory: undefined,
+		} as unknown as ICopilotCLISessionItem;
+		sessionService.getAllSessions.mockResolvedValue([sessionItem]);
+
+		const items = await provider.provideChatSessionItems(CancellationToken.None);
+		expect(items).toHaveLength(1);
+		expect(items[0].label).toBe('Test Session');
+	});
+
+	it('returns empty array when no sessions', async () => {
+		const { provider, sessionService } = createProvider();
+		sessionService.getAllSessions.mockResolvedValue([]);
+
+		const items = await provider.provideChatSessionItems(CancellationToken.None);
+		expect(items).toHaveLength(0);
+	});
+
+	it('delegates updateInputStateAfterFolderSelection to option group builder', async () => {
+		const { provider } = createProvider();
+		const state = { groups: [] } as any;
+		// Should not throw
+		await provider.updateInputStateAfterFolderSelection(state, URI.file('/folder') as any);
+	});
+
+	it('does not call refreshSession when PR detection finds no update', async () => {
+		const { provider, prDetectionService, worktreeService } = createProvider();
+		const refreshSpy = vi.spyOn(provider, 'refreshSession').mockResolvedValue();
+
+		// No worktree properties means no PR detection
+		worktreeService.getWorktreeProperties.mockResolvedValue(undefined);
+
+		prDetectionService.detectPullRequest('session-1');
+		await vi.waitFor(() => expect(worktreeService.getWorktreeProperties).toHaveBeenCalled());
+		expect(refreshSpy).not.toHaveBeenCalled();
 	});
 });

@@ -4,11 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ILogService } from '../../../platform/log/common/logService';
-import { IPromptsService, ParsedPromptFile } from '../../../platform/promptFiles/common/promptsService';
-import { coalesce } from '../../../util/vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
-import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IChatCustomAgentsService } from '../common/chatCustomAgentsService';
@@ -19,12 +15,10 @@ export class ChatCustomAgentsService extends Disposable implements IChatCustomAg
 	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
 
-	private customAgents: ParsedPromptFile[] = [];
+	private customAgents: readonly vscode.ChatCustomAgent[] = [];
 	private refreshCts: CancellationTokenSource | undefined;
 
 	constructor(
-		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -35,8 +29,8 @@ export class ChatCustomAgentsService extends Disposable implements IChatCustomAg
 		this.triggerRefreshCustomAgents();
 	}
 
-	getCustomAgents(): ParsedPromptFile[] {
-		return [...this.customAgents];
+	getCustomAgents(): readonly vscode.ChatCustomAgent[] {
+		return this.customAgents;
 	}
 
 	override dispose(): void {
@@ -59,23 +53,21 @@ export class ChatCustomAgentsService extends Disposable implements IChatCustomAg
 	}
 
 	private async refreshCustomAgents(token: CancellationToken): Promise<void> {
-		const parsedAgents = coalesce(await Promise.all(vscode.chat.customAgents.map(async resource => {
-			try {
-				return await this.promptsService.parseFile(resource.uri, token);
-			} catch (error) {
-				if (isCancellationError(error) || token.isCancellationRequested) {
-					return undefined;
-				}
-				this.logService.error(`[ChatCustomAgentsService] Failed to parse custom agent ${resource.uri.toString()}`, error);
-				return undefined;
+		try {
+			const customAgents = await vscode.chat.getCustomAgents(token);
+
+			if (token.isCancellationRequested) {
+				return;
 			}
-		})));
 
-		if (token.isCancellationRequested) {
-			return;
+			this.customAgents = customAgents;
+			this._onDidChangeCustomAgents.fire();
+		} catch (error) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			console.error('Failed to refresh custom agents', error);
 		}
-
-		this.customAgents = parsedAgents;
-		this._onDidChangeCustomAgents.fire();
 	}
 }

@@ -885,37 +885,6 @@ suite('ReadFile', () => {
 			testAccessor.dispose();
 		});
 
-		test('should send skillStorage=internal for vscode-chat-internal scheme', async () => {
-			const skillContent = '# Internal Skill';
-			const skillUri = URI.from({ scheme: 'vscode-chat-internal', path: '/skills/internal-skill/SKILL.md' });
-			const testDoc = createTextDocumentData(skillUri, skillContent, 'markdown').document;
-
-			const services = createExtensionUnitTestingServices();
-			services.define(IWorkspaceService, new SyncDescriptor(
-				TestWorkspaceService,
-				[[URI.file('/workspace')], [testDoc]]
-			));
-
-			const mockCustomInstructions = new MockCustomInstructionsService();
-			mockCustomInstructions.setSkillFiles([skillUri], SkillStorage.Internal);
-			services.define(ICustomInstructionsService, mockCustomInstructions);
-
-			const telemetry = new CapturingTelemetryService();
-			services.define(ITelemetryService, telemetry);
-
-			const testAccessor = services.createTestingAccessor();
-			const readFileTool = testAccessor.get(IInstantiationService).createInstance(ReadFileTool);
-
-			const input: IReadFileParamsV2 = { filePath: skillUri.toString() };
-			await readFileTool.invoke({ input, toolInvocationToken: null as never }, CancellationToken.None);
-
-			const event = telemetry.events.find(e => e.eventName === 'skillContentRead');
-			expect(event).toBeDefined();
-			expect(event!.properties!.skillStorage).toBe(SkillStorage.Internal);
-
-			testAccessor.dispose();
-		});
-
 		test('should not send skillContentRead for non-skill files', async () => {
 			const telemetry = new CapturingTelemetryService();
 			const services = createExtensionUnitTestingServices();

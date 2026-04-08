@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -62,6 +62,7 @@ export interface ISectionOverride {
 export enum CustomizationHarness {
 	VSCode = 'vscode',
 	CLI = 'cli',
+	Claude = 'claude',
 }
 
 /**
@@ -274,6 +275,13 @@ export function getCliUserRoots(userHome: URI): readonly URI[] {
 	];
 }
 
+/**
+ * Returns the user-home directories accessible to the Claude harness.
+ */
+export function getClaudeUserRoots(userHome: URI): readonly URI[] {
+	return [joinPath(userHome, '.claude')];
+}
+
 // #endregion
 
 // #region Harness descriptor factories
@@ -311,7 +319,7 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 /**
  * Creates a harness descriptor that restricts user-file roots for most
  * types (agents, skills, instructions) while leaving hooks and prompts
- * unrestricted. Used for restricted harnesses like CLI.
+ * unrestricted. Used for CLI and Claude harnesses.
  */
 interface IRestrictedHarnessOptions {
 	readonly hiddenSections?: readonly string[];
@@ -378,6 +386,41 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 	);
 }
 
+/**
+ * Creates a "Claude" harness descriptor.
+ * Claude does not support prompt files (.prompt.md), AGENTS.md, or extension-contributed plugins.
+ * It supports agents (.claude/agents/), instructions (CLAUDE.md, .claude/rules/),
+ * skills (.claude/skills/), and hooks (.claude/settings.json).
+ */
+export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
+	return createRestrictedHarnessDescriptor(
+		CustomizationHarness.Claude,
+		localize('harness.claude', "Claude"),
+		ThemeIcon.fromId(Codicon.claude.id),
+		claudeRoots,
+		extras,
+		{
+			hiddenSections: [AICustomizationManagementSection.Prompts, AICustomizationManagementSection.Plugins],
+			workspaceSubpaths: ['.claude'],
+			hideGenerateButton: true,
+			requiredAgentId: 'claude-code',
+			sectionOverrides: new Map([
+				[AICustomizationManagementSection.Hooks, {
+					label: localize('claudeHooks', "Configure Claude Hooks"),
+					commandId: 'copilot.claude.hooks',
+				}],
+				[AICustomizationManagementSection.Instructions, {
+					label: localize('addClaudeMd', "Add CLAUDE.md"),
+					rootFile: 'CLAUDE.md',
+					typeLabel: localize('rule', "Rule"),
+					fileExtension: '.md',
+				}],
+			]),
+			instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md'],
+		},
+	);
+}
+
 // #endregion
 
 // #region Helpers
@@ -417,7 +460,7 @@ export function matchesInstructionFileFilter(filePath: string, filters: readonly
  * Concrete registrations only need to supply the list of harness
  * descriptors and a default harness id.
  */
-export class CustomizationHarnessServiceBase extends Disposable implements ICustomizationHarnessService {
+export class CustomizationHarnessServiceBase implements ICustomizationHarnessService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _activeHarness: ISettableObservable<string>;
@@ -432,7 +475,6 @@ export class CustomizationHarnessServiceBase extends Disposable implements ICust
 		staticHarnesses: readonly IHarnessDescriptor[],
 		defaultHarness: string,
 	) {
-		super();
 		this._staticHarnesses = staticHarnesses;
 		this._activeHarness = observableValue<string>(this, defaultHarness);
 		this.activeHarness = this._activeHarness;

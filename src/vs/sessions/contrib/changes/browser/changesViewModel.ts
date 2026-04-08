@@ -195,8 +195,13 @@ export class ChangesViewModel extends Disposable {
 				return constObservable(undefined);
 			}
 
+			const metadata = this._activeSessionMetadataObs.read(reader);
 			const activeSessionRepository = activeSessionRepositoryObs.read(reader);
-			const workingDirectory = activeSessionRepository?.workingDirectory ?? activeSessionRepository?.uri;
+
+			const repositoryPath = metadata?.repositoryPath as string | undefined;
+			const workingDirectory = repositoryPath
+				? URI.file(repositoryPath)
+				: activeSessionRepository?.workingDirectory ?? activeSessionRepository?.uri;
 			if (!workingDirectory) {
 				return constObservable(undefined);
 			}

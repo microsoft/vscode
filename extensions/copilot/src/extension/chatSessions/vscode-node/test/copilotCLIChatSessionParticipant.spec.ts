@@ -55,7 +55,7 @@ import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../../copilotc
 import { CustomSessionTitleService } from '../../copilotcli/vscode-node/customSessionTitleServiceImpl';
 import { MockChatPromptFileService } from '../../copilotcli/vscode-node/test/testHelpers';
 import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionItemProvider, CopilotCLIChatSessionParticipant } from '../copilotCLIChatSessionsContribution';
-import { ICopilotCLIFolderMruService } from '../copilotCLIFolderMru';
+import { IChatFolderMruService } from '../../common/folderRepositoryManager';
 import { CopilotCloudSessionsProvider } from '../copilotCloudSessionsProvider';
 import { CopilotCLIFolderRepositoryManager } from '../folderRepositoryManagerImpl';
 
@@ -751,7 +751,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			customSessionTitleService,
 			new MockExtensionContext() as unknown as IVSCodeExtensionContext,
 			logService,
-			new (mock<ICopilotCLIFolderMruService>())(),
+			new (mock<IChatFolderMruService>())(),
 		);
 		const invalidParticipant = new CopilotCLIChatSessionParticipant(
 			invalidContentProvider,

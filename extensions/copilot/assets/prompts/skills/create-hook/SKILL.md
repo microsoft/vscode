@@ -2,7 +2,7 @@
 name: create-hook
 description: 'Create a hook (.json) to enforce policy or automate agent lifecycle events.'
 argument-hint: What should be enforced or automated?
-agent: agent
+disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **hooks.md** for template and principles.
 
