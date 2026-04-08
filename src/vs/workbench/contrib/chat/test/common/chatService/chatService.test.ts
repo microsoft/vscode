@@ -852,6 +852,7 @@ suite('ChatService', () => {
 		testService.processPendingRequests(target.sessionResource);
 		const result = await resent.deferred;
 		assert.ok(ChatSendResult.isSent(result));
+		await result.data.responseCompletePromise;
 
 		// The agent should have been invoked twice: first request + re-sent queued request
 		assert.strictEqual(invokedMessages.length, 2);
@@ -952,6 +953,7 @@ suite('ChatService', () => {
 
 		const result3 = await resent3.deferred;
 		assert.ok(ChatSendResult.isSent(result3));
+		await result3.data.responseCompletePromise;
 
 		// Verify the agent received all 3 queued messages on the target session
 		const queuedInvocations = invocationOrder.filter(m => m.includes('queued-'));

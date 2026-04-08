@@ -42,30 +42,6 @@ export class NotificationLoggingHook implements HookCallbackMatcher {
 registerClaudeHook('Notification', NotificationLoggingHook);
 
 /**
- * Logging hook for UserPromptSubmit events.
- */
-export class UserPromptSubmitLoggingHook implements HookCallbackMatcher {
-	public readonly hooks: HookCallback[];
-
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IOTelService private readonly otelService: IOTelService,
-	) {
-		this.hooks = [this._handle.bind(this)];
-	}
-
-	private async _handle(input: HookInput): Promise<HookJSONOutput> {
-		const hookInput = input as { prompt?: string; session_id: string };
-		return withHookOTelSpan(this.otelService, 'UserPromptSubmit', 'UserPromptSubmit', hookInput.session_id,
-			{ prompt: hookInput.prompt }, async () => {
-				this.logService.trace(`[ClaudeCodeSession] UserPromptSubmit Hook: prompt=${hookInput.prompt}`);
-				return { continue: true };
-			});
-	}
-}
-registerClaudeHook('UserPromptSubmit', UserPromptSubmitLoggingHook);
-
-/**
  * Logging hook for Stop events.
  */
 export class StopLoggingHook implements HookCallbackMatcher {

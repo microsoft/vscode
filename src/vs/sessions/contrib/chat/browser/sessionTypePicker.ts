@@ -118,6 +118,12 @@ export class SessionTypePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 
+		if (this._sessionTypes.length === 0) {
+			this._triggerElement.classList.add('hidden');
+			return;
+		}
+
+		this._triggerElement.classList.remove('hidden');
 		const currentType = this._sessionTypes.find(t => t.id === this._sessionType);
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
 		const modeLabel = currentType?.label ?? this._sessionType ?? '';

@@ -77,8 +77,8 @@ interface IWorkspacePickerItem {
  */
 export class WorkspacePicker extends Disposable {
 
-	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection>());
-	readonly onDidSelectWorkspace: Event<IWorkspaceSelection> = this._onDidSelectWorkspace.event;
+	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection | undefined>());
+	readonly onDidSelectWorkspace: Event<IWorkspaceSelection | undefined> = this._onDidSelectWorkspace.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 
@@ -595,6 +595,10 @@ export class WorkspacePicker extends Disposable {
 		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
 		const icon = workspace ? workspace.icon : Codicon.project;
 
+		this._triggerElement.setAttribute('aria-label', workspace
+			? localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
+			: localize('workspacePicker.pickAriaLabel', "Start by picking a workspace"));
+
 		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
@@ -827,7 +831,7 @@ export class WorkspacePicker extends Disposable {
 			this.actionWidgetService.hide();
 			this._selectedWorkspace = undefined;
 			this._updateTriggerLabel();
-			this._onDidChangeSelection.fire();
+			this._onDidSelectWorkspace.fire(undefined);
 		}
 	}
 

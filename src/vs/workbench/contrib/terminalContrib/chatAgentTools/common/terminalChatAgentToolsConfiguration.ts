@@ -661,6 +661,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
 		markdownDescription: localize('backgroundNotifications.description', "Whether to automatically notify the agent when a background terminal command completes or needs input. When enabled, a steering message is sent to the chat session with the exit code and terminal output, and the output monitor continues running to detect prompts for input."),
 	}
 };

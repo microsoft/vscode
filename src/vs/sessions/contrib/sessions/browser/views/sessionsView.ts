@@ -51,6 +51,7 @@ export class SessionsView extends ViewPane {
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: SessionsList | undefined;
+	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private groupingContextKey: IContextKey | undefined;
@@ -236,7 +237,7 @@ export class SessionsView extends ViewPane {
 		}));
 
 		// AI Customization toolbar (bottom, fixed height)
-		this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
+		this._customizationsWidget = this._register(this.instantiationService.createInstance(AICustomizationShortcutsWidget, sessionsContainer, {
 			onDidChangeLayout: () => {
 				if (this.viewPaneContainer) {
 					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
@@ -244,6 +245,10 @@ export class SessionsView extends ViewPane {
 				}
 			},
 		}));
+	}
+
+	focusCustomizations(): void {
+		this._customizationsWidget?.focus();
 	}
 
 	private restoreLastSelectedSession(): void {

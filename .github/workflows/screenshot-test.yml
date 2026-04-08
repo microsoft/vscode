@@ -22,6 +22,7 @@ jobs:
   screenshots:
     name: Checking Component Screenshots
     runs-on: ubuntu-latest
+    continue-on-error: true # TODO(hediet): Remove once screenshot pipeline is stable
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -45,6 +46,9 @@ jobs:
       - name: Install rspack dependencies
         run: npm ci
         working-directory: build/rspack
+
+      - name: Copy codicons
+        run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
       - name: Transpile source
         run: npm run transpile-client

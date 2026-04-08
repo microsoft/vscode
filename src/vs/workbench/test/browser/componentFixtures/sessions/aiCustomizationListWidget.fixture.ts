@@ -52,6 +52,7 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
 		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
 			if (type === PromptsType.instructions) {
@@ -100,6 +101,10 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 	const activeProjectRoot = observableValue<URI | undefined>('mockActiveProjectRoot', URI.file('/workspace'));
 	return new class extends mock<IAICustomizationWorkspaceService>() {
 		override readonly isSessionsWindow = false;
+		override readonly welcomePageFeatures = {
+			showGettingStartedBanner: true,
+			showGenerateActions: true,
+		};
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }

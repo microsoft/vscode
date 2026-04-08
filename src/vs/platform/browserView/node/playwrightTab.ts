@@ -7,7 +7,7 @@
 import type * as playwright from 'playwright-core';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { createCancelablePromise, raceCancellablePromises } from '../../../base/common/async.js';
+import { createCancelablePromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 
 type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
@@ -199,7 +199,7 @@ export class PlaywrightTab {
 				`Recent events:`,
 				...logs.map(log => `- [${new Date(log.time).toISOString()}] (${log.type}) ${log.description}`)
 			] : []),
-			`Snapshot: ${snapshotFromPage ? snapshot ? `\n${snapshot}` : '<unchanged>' : '<unavailable>'}`,
+			`Snapshot: ${snapshotFromPage !== undefined ? snapshot ? `\n${snapshot}` : '<unchanged>' : '<unavailable>'}`,
 		].join('\n');
 	}
 
@@ -238,8 +238,10 @@ export class PlaywrightTab {
 			if (['document', 'stylesheet', 'script', 'xhr', 'fetch'].includes(request.resourceType())) { promises.push(request.response().then(r => r?.finished()).catch(() => { })); }
 			else { promises.push(request.response().catch(() => { })); }
 		}
-		const timeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
-		await Promise.race([Promise.all(promises), timeout]);
+		await raceCancellablePromises<unknown>([
+			Promise.all(promises),
+			timeout(5000) // Don't wait indefinitely for requests to finish
+		]);
 
 		return result;
 	}

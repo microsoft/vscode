@@ -5,6 +5,7 @@
 
 import '../../../workbench/browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 import './media/auxiliaryBarPart.css';
+import { localize } from '../../../nls.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -134,6 +135,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
+	}
+
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+		parent.setAttribute('role', 'complementary');
+		parent.setAttribute('aria-label', localize('auxiliaryBarAriaLabel', "Session Details"));
 	}
 
 	override updateStyles(): void {

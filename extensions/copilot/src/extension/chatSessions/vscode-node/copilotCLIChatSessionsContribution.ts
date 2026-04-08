@@ -2567,34 +2567,6 @@ export function registerCLIChatCommands(
 		});
 	}));
 
-	disposableStore.add(vscode.commands.registerCommand('github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
-		const resource = sessionItemOrResource instanceof vscode.Uri
-			? sessionItemOrResource
-			: sessionItemOrResource?.resource;
-
-		if (!resource) {
-			return;
-		}
-
-		try {
-			const sessionId = SessionIdForCLI.parse(resource);
-			const worktreeProperties = await copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
-			if (!worktreeProperties || worktreeProperties.version !== 2) {
-				throw new Error('Open pull request is only supported for v2 worktree sessions');
-			}
-
-			if (!worktreeProperties.pullRequestUrl) {
-				vscode.window.showInformationMessage(l10n.t('No pull request has been created for this session yet. Use "Create Pull Request" first.'));
-				return;
-			}
-
-			await vscode.env.openExternal(vscode.Uri.parse(worktreeProperties.pullRequestUrl));
-		} catch (error) {
-			logService.error(`Failed to open pull request: ${error instanceof Error ? error.message : String(error)}`);
-			vscode.window.showErrorMessage(l10n.t('Failed to open pull request: {0}', error instanceof Error ? error.message : String(error)), { modal: true });
-		}
-	}));
-
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.commitToWorktree', async (args?: { worktreeUri?: vscode.Uri; fileUri?: vscode.Uri }) => {
 		logService.trace(`[commitToWorktree] Command invoked, args: ${JSON.stringify(args, null, 2)}`);
 		if (!args?.worktreeUri || !args?.fileUri) {

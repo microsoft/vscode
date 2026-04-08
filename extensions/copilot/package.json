@@ -2822,13 +2822,6 @@
 				"category": "GitHub Copilot"
 			},
 			{
-				"command": "github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR",
-				"title": "%github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(git-pull-request)",
-				"category": "GitHub Copilot"
-			},
-			{
 				"command": "github.copilot.chat.copilotCLI.addFileReference",
 				"title": "%github.copilot.command.chat.copilotCLI.addFileReference%",
 				"enablement": "github.copilot.chat.copilotCLI.hasSession",
@@ -3977,6 +3970,15 @@
 							"experimental"
 						]
 					},
+					"github.copilot.chat.exploreAgent.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.exploreAgent.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.exploreAgent.model": {
 						"type": "string",
 						"default": "",
@@ -4010,6 +4012,18 @@
 							"onExp"
 						],
 						"description": "%github.copilot.config.projectSetupInfoSkill.enabled%"
+					},
+					"github.copilot.chat.debug.promptOverrideString": {
+						"type": [
+							"string",
+							"null"
+						],
+						"default": null,
+						"markdownDescription": "YAML string that overrides the system prompt and/or tool descriptions sent to the model. When both this setting and `github.copilot.chat.debug.promptOverrideFile` are configured, this setting takes precedence.\n\n**Note**: This is an advanced debugging setting.",
+						"tags": [
+							"advanced",
+							"experimental"
+						]
 					},
 					"github.copilot.chat.debug.promptOverrideFile": {
 						"type": [
@@ -4850,11 +4864,6 @@
 					"command": "github.copilot.chat.checkoutPullRequestReroute",
 					"when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
 					"group": "navigation@0"
-				},
-				{
-					"command": "github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasPullRequest",
-					"group": "navigation@9"
 				}
 			],
 			"chat/input/editing/sessionApplyActions": [
@@ -5216,10 +5225,6 @@
 				},
 				{
 					"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-					"when": "false"
-				},
-				{
-					"command": "github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR",
 					"when": "false"
 				},
 				{

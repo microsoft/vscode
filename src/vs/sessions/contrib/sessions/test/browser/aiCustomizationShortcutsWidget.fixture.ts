@@ -6,6 +6,7 @@
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -142,6 +143,12 @@ function createMockPromptsServiceWithCounts(counts?: ICustomizationCounts): IPro
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
+		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeHooks = Event.None;
+		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
+		override async getInstructionFiles() { return instructions as never[]; }
+		override getPromptLocationLabel() { return ''; }
 		override async getCustomAgents() { return agents as never[]; }
 		override async findAgentSkills() { return skills as never[]; }
 		override async getPromptSlashCommands() { return prompts as never[]; }

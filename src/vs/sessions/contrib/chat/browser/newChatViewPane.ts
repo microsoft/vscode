@@ -25,6 +25,8 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -131,6 +133,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
@@ -262,6 +265,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	// --- Editor ---
 
+	private _getAriaLabel(): string {
+		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.SessionsChat);
+		if (verbose) {
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			return kbLabel
+				? localize('chatInput.accessibilityHelp', "Chat input. Press Enter to send out the request. Use {0} for Chat Accessibility Help.", kbLabel)
+				: localize('chatInput.accessibilityHelpNoKb', "Chat input. Press Enter to send out the request. Use the Chat Accessibility Help command for more information.");
+		}
+		return localize('chatInput', "Chat input");
+	}
+
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 		editorContainer.style.height = `${MIN_EDITOR_HEIGHT}px`;
@@ -281,7 +295,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this.configurationService),
 			readOnly: false,
-			ariaLabel: localize('chatInput', "Chat input"),
+			ariaLabel: this._getAriaLabel(),
 			placeholder: localize('chatPlaceholder', "Run tasks in the background, type '#' for adding context"),
 			fontFamily: 'system-ui, -apple-system, sans-serif',
 			fontSize: 13,
@@ -317,6 +331,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Ensure suggest widget renders above the input (not clipped by container)
 		SuggestController.get(this._editor)?.forceRenderingAbove();
+
+		// Update aria label when accessibility verbosity setting changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.SessionsChat)) {
+				this._editor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+		}));
 
 		this._register(this._editor.onDidFocusEditorWidget(() => this._onDidFocus.fire()));
 		this._register(this._editor.onDidBlurEditorWidget(() => this._onDidBlur.fire()));
@@ -656,7 +677,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Handles a workspace selection from the workspace picker.
 	 * Requests folder trust if needed and creates a new session.
 	 */
-	private async _onWorkspaceSelected(selection: IWorkspaceSelection): Promise<void> {
+	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined): Promise<void> {
+		if (!selection) {
+			this.sessionsManagementService.unsetNewSession();
+			return;
+		}
+
 		if (selection.workspace.requiresWorkspaceTrust) {
 			const workspaceUri = selection.workspace.repositories[0]?.uri;
 			if (workspaceUri && !await this._requestFolderTrust(workspaceUri)) {

@@ -626,7 +626,9 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			requestOptions: options,
 			userInitiatedRequest: !!extensionId,
 			telemetryProperties,
-			reasoningEffort: typeof _options.modelConfiguration?.reasoningEffort === 'string' ? _options.modelConfiguration.reasoningEffort : undefined,
+			modelCapabilities: {
+				reasoningEffort: typeof _options.modelConfiguration?.reasoningEffort === 'string' ? _options.modelConfiguration.reasoningEffort : undefined,
+			},
 		}, token);
 
 		// Run request within the parent OTel context (no extra span) so chat spans in chatMLFetcher inherit the agent trace
