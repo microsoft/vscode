@@ -23,7 +23,6 @@ import { ITokenizer, TokenizerType } from '../../../../util/common/tokenizer';
 import { AsyncIterableObject } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Disposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
-import { tryParseClaudeModelId } from './claudeModelId';
 import { SSEParser } from '../../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -157,19 +156,8 @@ export class ClaudeLanguageModelServer extends Disposable {
 		try {
 			const requestBody: AnthropicMessagesRequest = JSON.parse(bodyString);
 
-			const endpoints = await this.claudeCodeModels.getEndpoints();
-			if (endpoints.length === 0) {
-				this.error('No Claude models with Messages API available');
-				this.sendErrorResponse(res, 404, 'not_found_error', 'No Claude models with Messages API available');
-				return;
-			}
-
-			let selectedEndpoint = this.selectEndpoint(endpoints, requestBody.model);
-			if (!selectedEndpoint) {
-				// Fall back to session state model if the SDK's requested model doesn't match any endpoint
-				const parsedModelId = sessionId ? this.sessionStateService.getModelIdForSession(sessionId) : undefined;
-				selectedEndpoint = parsedModelId ? endpoints.find(e => e.model === parsedModelId.toEndpointModelId()) : undefined;
-			}
+			const fallbackModelId = sessionId ? this.sessionStateService.getModelIdForSession(sessionId) : undefined;
+			const selectedEndpoint = await this.claudeCodeModels.resolveEndpoint(requestBody.model, fallbackModelId);
 			if (!selectedEndpoint) {
 				this.error('No model found matching criteria');
 				this.sendErrorResponse(res, 404, 'not_found_error', 'No model found matching criteria');
@@ -251,30 +239,6 @@ export class ClaudeLanguageModelServer extends Disposable {
 		} finally {
 			tokenSource.dispose();
 		}
-	}
-
-	private selectEndpoint(endpoints: readonly IChatEndpoint[], requestedModel?: string): IChatEndpoint | undefined {
-		if (requestedModel) {
-			const mappedModel = tryParseClaudeModelId(requestedModel)?.toEndpointModelId() ?? requestedModel;
-
-			// Try to find exact match first by family or model
-			let selectedEndpoint = endpoints.find(e => e.family === mappedModel || e.model === mappedModel);
-
-			// If not found, try partial match for common Claude model patterns
-			if (!selectedEndpoint && requestedModel.startsWith('claude-sonnet-4')) {
-				selectedEndpoint = endpoints.find(e => e.model.includes('claude-sonnet-4')) ?? endpoints.find(e => e.model.includes('claude'));
-			} else if (!selectedEndpoint && requestedModel.startsWith('claude-3-5-haiku')) {
-				selectedEndpoint = endpoints.find(e => e.model.includes('gpt-4o-mini')) ?? endpoints.find(e => e.model.includes('mini'));
-			} else if (!selectedEndpoint && requestedModel.startsWith('claude-')) {
-				// Generic Claude fallback
-				selectedEndpoint = endpoints.find(e => e.model.includes('claude') || e.family?.includes('claude'));
-			}
-
-			return selectedEndpoint;
-		}
-
-		// Use first available model if no criteria specified
-		return endpoints[0];
 	}
 
 	private sendErrorResponse(

@@ -10,13 +10,17 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
+import { ParsedClaudeModelId, tryParseClaudeModelId } from './claudeModelId';
 
 export interface IClaudeCodeModels {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Gets the filtered list of Claude chat endpoints that support the Messages API.
+	 * Resolves a Claude endpoint for the given requested model ID.
+	 * Falls back to the fallback model ID if the requested model doesn't match,
+	 * then to the newest Sonnet, newest Haiku, or any Claude endpoint.
+	 * Returns `undefined` if no Claude endpoint can be found.
 	 */
-	getEndpoints(): Promise<IChatEndpoint[]>;
+	resolveEndpoint(requestedModel: string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined>;
 	/**
 	 * Registers a LanguageModelChatProvider so that Claude models appear in
 	 * VS Code's built-in model picker for the claude-code session type.
@@ -92,8 +96,40 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 		});
 	}
 
-	public async getEndpoints(): Promise<IChatEndpoint[]> {
-		return this._getEndpoints();
+	public async resolveEndpoint(requestedModel: string | undefined, fallbackModelId: ParsedClaudeModelId | undefined): Promise<IChatEndpoint | undefined> {
+		const endpoints = await this._getEndpoints();
+
+		// 1. Exact match for the requested model
+		if (requestedModel) {
+			const mappedModel = tryParseClaudeModelId(requestedModel)?.toEndpointModelId() ?? requestedModel;
+			const exact = endpoints.find(e => e.family === mappedModel || e.model === mappedModel);
+			if (exact) {
+				return exact;
+			}
+		}
+
+		// 2. Exact match for the fallback model from session state
+		if (fallbackModelId) {
+			const fallback = endpoints.find(e => e.model === fallbackModelId.toEndpointModelId());
+			if (fallback) {
+				return fallback;
+			}
+		}
+
+		// 3. Newest Sonnet (endpoints are sorted by name descending)
+		const sonnet = endpoints.find(e => e.family?.includes('sonnet') || e.model.includes('sonnet'));
+		if (sonnet) {
+			return sonnet;
+		}
+
+		// 4. Newest Haiku
+		const haiku = endpoints.find(e => e.family?.includes('haiku') || e.model.includes('haiku'));
+		if (haiku) {
+			return haiku;
+		}
+
+		// 5. Any Claude model
+		return endpoints.find(e => e.family?.includes('claude') || e.model.includes('claude'));
 	}
 
 	private async _fetchAvailableEndpoints(): Promise<IChatEndpoint[]> {
