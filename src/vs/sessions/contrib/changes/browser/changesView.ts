@@ -5,17 +5,18 @@
 
 import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IObjectTreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, derived, derivedOpts, IObservable } from '../../../../base/common/observable.js';
-import { basename } from '../../../../base/common/path.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -40,7 +41,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { fillEditorsDragData } from '../../../../workbench/browser/dnd.js';
 import { ResourceLabels } from '../../../../workbench/browser/labels.js';
@@ -54,10 +55,10 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../sessions/common/sessionData.js';
+import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -70,6 +71,7 @@ import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFil
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 
 const $ = dom.$;
 
@@ -294,8 +296,7 @@ export class ChangesViewPane extends ViewPane {
 		// can use it in their `when` clauses. Update reactively when the active session
 		// changes.
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.sessionType ?? '';
+			return this.viewModel.activeSessionTypeObs.read(reader) ?? '';
 		}));
 
 		// Title actions
@@ -570,52 +571,6 @@ export class ChangesViewPane extends ViewPane {
 			// Re-layout when collapse state changes so the card height adjusts
 			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutSplitView()));
 
-			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean) => {
-				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
-				const currentIndex = items.indexOf(item);
-
-				const sidebar = includeSidebar ? {
-					render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
-						return this.renderSidebarList(container as HTMLElement, onDidLayout, items, openFileItem);
-					}
-				} : undefined;
-
-				const navigation = {
-					total: items.length,
-					current: currentIndex,
-					navigate: (index: number) => {
-						const target = items[index];
-						if (target) {
-							openFileItem(target, items, false, false, false, includeSidebar);
-						}
-					}
-				};
-
-				const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
-
-				if (isDeletion && originalUri) {
-					this.editorService.openEditor({
-						resource: originalUri,
-						options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-					}, group);
-					return;
-				}
-
-				if (originalUri) {
-					this.editorService.openEditor({
-						original: { resource: originalUri },
-						modified: { resource: modifiedFileUri },
-						options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-					}, group);
-					return;
-				}
-
-				this.editorService.openEditor({
-					resource: modifiedFileUri,
-					options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-				}, group);
-			};
-
 			this.renderDisposables.add(tree.onDidOpen((e) => {
 				if (!e.element || !isChangesFileItem(e.element)) {
 					return;
@@ -624,7 +579,7 @@ export class ChangesViewPane extends ViewPane {
 				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
 
 				const items = changesObs.get();
-				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
+				this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
 			}));
 		}
 
@@ -750,29 +705,29 @@ export class ChangesViewPane extends ViewPane {
 			return undefined;
 		}
 
-		const sampleUri = items[0].uri;
+		let name: string = '';
 		let resourceTreeRootUri = workspaceFolderUri;
 
-		if (sampleUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-			const parts = sampleUri.path.split('/').filter(Boolean);
-			if (parts.length >= 3) {
-				resourceTreeRootUri = sampleUri.with({ path: '/' + parts.slice(0, 3).join('/'), query: '', fragment: '' });
-			}
-		} else if (sampleUri.scheme !== workspaceFolderUri.scheme || sampleUri.authority !== workspaceFolderUri.authority) {
-			resourceTreeRootUri = sampleUri.with({ path: workspaceFolderUri.path, authority: workspaceFolderUri.authority, query: '', fragment: '' });
+		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			// Cloud session
+			resourceTreeRootUri = URI.from({ scheme: Schemas.copilotPr, path: '/' });
+			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
+			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
+		} else {
+			// Local session
+			const branchName = this.viewModel.activeSessionStateObs.get()?.branchName;
+			name = repository.workingDirectory
+				? `${basename(repository.uri)} (${branchName})`
+				: basename(repository.uri);
 		}
-
-		const branchName = this.viewModel.activeSessionStateObs.get()?.branchName;
 
 		return {
 			root: {
 				type: 'root',
 				uri: workspaceFolderUri,
-				name: repository.workingDirectory
-					? `${basename(repository.uri.fsPath)} (${branchName})`
-					: basename(repository.uri.fsPath),
+				name
 			},
-			resourceTreeRootUri,
+			resourceTreeRootUri
 		};
 	}
 
@@ -797,7 +752,10 @@ export class ChangesViewPane extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		this.tree?.domFocus();
+
+		if (this.tree && this.tree.getNode(null).visibleChildrenCount > 0) {
+			this.tree.domFocus();
+		}
 	}
 
 	private renderSidebarList(
@@ -812,6 +770,13 @@ export class ChangesViewPane extends ViewPane {
 
 		const viewMode = this.viewModel.viewModeObs.get();
 		container.classList.toggle('list-mode', viewMode === ChangesViewMode.List);
+
+		// "Changes" header
+		const headerNode = dom.append(container, $('.changes-sidebar-header'));
+		const headerLabel = dom.append(headerNode, $('span'));
+		headerLabel.textContent = localize('changes', "Changes");
+		const countBadge = disposables.add(new CountBadge(headerNode, { count: items.length }, defaultCountBadgeStyles));
+		countBadge.setCount(items.length);
 
 		const tree = this.createChangesTree(container, Event.None, disposables, () => tree.getSelection().filter(item => !!item && isChangesFileItem(item)));
 
@@ -856,8 +821,11 @@ export class ChangesViewPane extends ViewPane {
 			}
 		}));
 
-		// Layout on resize
-		disposables.add(onDidLayout(e => tree.layout(e.height, e.width)));
+		// Layout on resize, accounting for the header height
+		disposables.add(onDidLayout(e => {
+			const headerHeight = headerNode.offsetHeight;
+			tree.layout(Math.max(0, e.height - headerHeight), e.width);
+		}));
 
 		return disposables;
 	}
@@ -884,12 +852,14 @@ export class ChangesViewPane extends ViewPane {
 					// Pass in the tree root to be used to compute the label description
 					const activeSession = this.sessionManagementService.activeSession.get();
 					const repository = activeSession?.workspace.get()?.repositories[0];
-					return repository?.workingDirectory ?? repository?.uri;
+					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
+						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
+						: repository?.workingDirectory ?? repository?.uri;
 				})],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
-					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri.path) : element.name,
+					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri) : element.name,
 					getWidgetAriaLabel: () => localize('changesViewTree', "Changes Tree")
 				},
 				dnd: {
@@ -919,6 +889,7 @@ export class ChangesViewPane extends ViewPane {
 				},
 				indent: this.viewModel.viewModeObs.get() === ChangesViewMode.List ? 0 : 8,
 				compressionEnabled: true,
+				sorter: new ChangesTreeSorter(() => this.viewModel.viewModeObs.get()),
 				twistieAdditionalCssClass: (e: unknown) => {
 					return this.viewModel.viewModeObs.get() === ChangesViewMode.List
 						? 'force-no-twistie'
@@ -926,6 +897,62 @@ export class ChangesViewPane extends ViewPane {
 				},
 			}
 		));
+	}
+
+	async openChanges(): Promise<void> {
+		const items = this.viewModel.activeSessionChangesObs.get();
+		if (items.length === 0) {
+			return;
+		}
+
+		const changes = toIChangesFileItem(items);
+		await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+	}
+
+	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
+		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
+		const currentIndex = items.indexOf(item);
+
+		const sidebar = includeSidebar ? {
+			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
+				return this.renderSidebarList(container as HTMLElement, onDidLayout, items, this._openFileItem.bind(this));
+			}
+		} : undefined;
+
+		const navigation = {
+			total: items.length,
+			current: currentIndex,
+			navigate: (index: number) => {
+				const target = items[index];
+				if (target) {
+					this._openFileItem(target, items, false, false, false, includeSidebar);
+				}
+			}
+		};
+
+		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+
+		if (isDeletion && originalUri) {
+			this.editorService.openEditor({
+				resource: originalUri,
+				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+			}, group);
+			return;
+		}
+
+		if (originalUri) {
+			this.editorService.openEditor({
+				original: { resource: originalUri },
+				modified: { resource: modifiedFileUri },
+				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+			}, group);
+			return;
+		}
+
+		this.editorService.openEditor({
+			resource: modifiedFileUri,
+			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+		}, group);
 	}
 
 	override dispose(): void {
@@ -991,7 +1018,7 @@ class ChangesViewActionRunner extends ActionRunner {
 	}
 }
 
-// --- Tree Delegate
+// --- Tree Delegate and Sorter
 
 class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
 	static readonly ROW_HEIGHT = 22;
@@ -1002,6 +1029,37 @@ class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
 
 	getTemplateId(_element: ChangesTreeElement): string {
 		return ChangesTreeRenderer.TEMPLATE_ID;
+	}
+}
+
+class ChangesTreeSorter implements ITreeSorter<ChangesTreeElement> {
+	constructor(private readonly viewMode: () => ChangesViewMode) { }
+
+	compare(a: ChangesTreeElement, b: ChangesTreeElement): number {
+		if (this.viewMode() === ChangesViewMode.List) {
+			// List
+			const aPath = (a as IChangesFileItem).uri.fsPath;
+			const bPath = (b as IChangesFileItem).uri.fsPath;
+
+			return comparePaths(aPath, bPath);
+		}
+
+		// Tree
+		const aIsDirectory = ResourceTree.isResourceNode(a);
+		const bIsDirectory = ResourceTree.isResourceNode(b);
+
+		if (aIsDirectory !== bIsDirectory) {
+			return aIsDirectory ? -1 : 1;
+		}
+
+		const aName = ResourceTree.isResourceNode(a)
+			? a.name
+			: basename((a as IChangesFileItem).uri);
+		const bName = ResourceTree.isResourceNode(b)
+			? b.name
+			: basename((b as IChangesFileItem).uri);
+
+		return compareFileNames(aName, bName);
 	}
 }
 
@@ -1121,8 +1179,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						category: { label: 'checkpoints', order: 2, showHeader: false },
-						enabled: viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
-							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
+						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
+								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.AllChanges);
@@ -1138,8 +1197,9 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						description: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
 						category: { label: 'checkpoints', order: 3, showHeader: false },
-						enabled: viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
-							viewModel.activeSessionLastCheckpointRefObs.get() !== undefined,
+						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
+							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
+								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
 						run: async () => {
 							viewModel.setVersionMode(ChangesVersionMode.LastTurn);
 							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.LastTurn);

@@ -25,6 +25,8 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -35,8 +37,8 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -48,6 +50,7 @@ import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.j
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { SlashCommandHandler } from './slashCommands.js';
+import { VariableCompletionHandler } from './variableCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -130,6 +133,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
@@ -261,6 +265,17 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	// --- Editor ---
 
+	private _getAriaLabel(): string {
+		const verbose = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.SessionsChat);
+		if (verbose) {
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			return kbLabel
+				? localize('chatInput.accessibilityHelp', "Chat input. Press Enter to send out the request. Use {0} for Chat Accessibility Help.", kbLabel)
+				: localize('chatInput.accessibilityHelpNoKb', "Chat input. Press Enter to send out the request. Use the Chat Accessibility Help command for more information.");
+		}
+		return localize('chatInput', "Chat input");
+	}
+
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 		editorContainer.style.height = `${MIN_EDITOR_HEIGHT}px`;
@@ -280,7 +295,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(this.configurationService),
 			readOnly: false,
-			ariaLabel: localize('chatInput', "Chat input"),
+			ariaLabel: this._getAriaLabel(),
 			placeholder: localize('chatPlaceholder', "Run tasks in the background, type '#' for adding context"),
 			fontFamily: 'system-ui, -apple-system, sans-serif',
 			fontSize: 13,
@@ -292,7 +307,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			renderWhitespace: 'none',
 			overflowWidgetsDomNode,
 			suggest: {
-				showIcons: false,
+				showIcons: true,
 				showSnippets: false,
 				showWords: true,
 				showStatusBar: false,
@@ -316,6 +331,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Ensure suggest widget renders above the input (not clipped by container)
 		SuggestController.get(this._editor)?.forceRenderingAbove();
+
+		// Update aria label when accessibility verbosity setting changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.SessionsChat)) {
+				this._editor.updateOptions({ ariaLabel: this._getAriaLabel() });
+			}
+		}));
 
 		this._register(this._editor.onDidFocusEditorWidget(() => this._onDidFocus.fire()));
 		this._register(this._editor.onDidBlurEditorWidget(() => this._onDidBlur.fire()));
@@ -367,6 +389,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Slash commands
 		this._slashCommandHandler = this._register(this.instantiationService.createInstance(SlashCommandHandler, this._editor));
+
+		// Variable completions (#file, #folder)
+		this._register(this.instantiationService.createInstance(
+			VariableCompletionHandler, this._editor, this._contextAttachments, () => this._getContextFolderUri(),
+		));
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateDraftState();
@@ -650,7 +677,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Handles a workspace selection from the workspace picker.
 	 * Requests folder trust if needed and creates a new session.
 	 */
-	private async _onWorkspaceSelected(selection: IWorkspaceSelection): Promise<void> {
+	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined): Promise<void> {
+		if (!selection) {
+			this.sessionsManagementService.unsetNewSession();
+			return;
+		}
+
 		if (selection.workspace.requiresWorkspaceTrust) {
 			const workspaceUri = selection.workspace.repositories[0]?.uri;
 			if (workspaceUri && !await this._requestFolderTrust(workspaceUri)) {

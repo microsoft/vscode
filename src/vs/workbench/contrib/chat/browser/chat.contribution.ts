@@ -68,6 +68,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../.
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
+import './telemetry/chatModelCountTelemetry.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { RenameToolContribution } from './tools/renameTool.js';
 import { UsagesToolContribution } from './tools/usagesTool.js';
@@ -542,6 +543,22 @@ configurationRegistry.registerConfiguration({
 			},
 			tags: ['experimental']
 		},
+		[ChatConfiguration.ArtifactsRulesByMemoryFilePath]: {
+			default: {
+				'**/*plan*.md': { groupName: 'Plans' }
+			},
+			description: nls.localize('chat.artifacts.rules.byMemoryFilePath', "Rules for extracting artifacts from memory tool calls by memory file path pattern. Maps glob patterns to group configuration."),
+			type: 'object',
+			additionalProperties: {
+				type: 'object',
+				properties: {
+					groupName: { type: 'string', description: nls.localize('chat.artifacts.rules.byMemoryFilePath.groupName', "Display name for the artifact group.") },
+					onlyShowGroup: { type: 'boolean', description: nls.localize('chat.artifacts.rules.byMemoryFilePath.onlyShowGroup', "When true, show only the group header instead of individual items.") }
+				},
+				required: ['groupName']
+			},
+			tags: ['experimental']
+		},
 		'chat.undoRequests.restoreInput': {
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),
@@ -724,6 +741,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.plugins.enabled', "Enable agent plugin integration in chat."),
 			default: true,
 			tags: ['preview'],
+			policy: {
+				name: 'ChatPluginsEnabled',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.116',
+				localization: {
+					description: {
+						key: 'chat.plugins.enabled',
+						value: nls.localize('chat.plugins.enabled', "Enable agent plugin integration in chat."),
+					}
+				},
+			},
 		},
 		[ChatConfiguration.PluginLocations]: {
 			type: 'object',
@@ -1381,12 +1409,7 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
-			type: 'boolean',
-			tags: ['preview'],
-			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is enabled. When enabled, the gear icon in the Chat view opens the Customizations editor directly and additional actions are moved to the overflow menu. When disabled, the gear icon shows the legacy configuration dropdown."),
-			default: true,
-		},
+
 		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
@@ -1396,8 +1419,8 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.CustomizationsProviderApi]: {
 			type: 'boolean',
 			description: nls.localize('chat.customizations.providerApi.enabled', "When enabled, the Customizations management UI reads items from the session type's customizations provider instead of built-in discovery."),
-			default: false,
-			tags: ['experimental'],
+			default: true,
+			tags: ['preview'],
 		},
 	}
 });
@@ -1724,64 +1747,6 @@ class ChatForegroundSessionCountContribution extends Disposable implements IWork
 	}
 }
 
-type ChatModelsAtStartupEvent = {
-	totalModels: number;
-	modelsOpenInWidgets: number;
-	backgroundModels: number;
-	modelsKeptAliveOnlyForEdits: number;
-};
-
-type ChatModelsAtStartupClassification = {
-	totalModels: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of live chat models after startup revival.' };
-	modelsOpenInWidgets: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models that are open in a chat widget or editor.' };
-	backgroundModels: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models kept alive in the background without a widget.' };
-	modelsKeptAliveOnlyForEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat models kept alive solely because they have unaccepted edits.' };
-	owner: 'roblourens';
-	comment: 'Tracks chat model counts at startup after reviving sessions with pending edits.';
-};
-
-class ChatModelsAtStartupTelemetry extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.chatModelsAtStartupTelemetry';
-
-	constructor(
-		@IChatService private readonly chatService: IChatService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-	) {
-		super();
-		void this.logTelemetry();
-	}
-
-	private async logTelemetry(): Promise<void> {
-		await this.chatService.whenSessionsRevived;
-
-		const snapshot = this.chatService.getChatModelReferenceDebugInfo();
-
-		let modelsOpenInWidgets = 0;
-		let backgroundModels = 0;
-		let modelsKeptAliveOnlyForEdits = 0;
-
-		for (const model of snapshot.models) {
-			if (this.chatWidgetService.getWidgetBySessionResource(model.sessionResource)) {
-				modelsOpenInWidgets++;
-			} else {
-				backgroundModels++;
-				if (model.hasPendingEdits && model.referenceCount === 1) {
-					modelsKeptAliveOnlyForEdits++;
-				}
-			}
-		}
-
-		this.telemetryService.publicLog2<ChatModelsAtStartupEvent, ChatModelsAtStartupClassification>('chat.modelsAtStartup', {
-			totalModels: snapshot.totalModels,
-			modelsOpenInWidgets,
-			backgroundModels,
-			modelsKeptAliveOnlyForEdits,
-		});
-	}
-}
-
 
 /**
  * Given builtin and custom modes, returns only the custom mode IDs that should have actions registered.
@@ -1989,7 +1954,6 @@ registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution
 registerWorkbenchContribution2(RenameToolContribution.ID, RenameToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatForegroundSessionCountContribution.ID, ChatForegroundSessionCountContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatModelsAtStartupTelemetry.ID, ChatModelsAtStartupTelemetry, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(HookSchemaAssociationContribution.ID, HookSchemaAssociationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);

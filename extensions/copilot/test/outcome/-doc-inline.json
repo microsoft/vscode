@@ -1,0 +1,118 @@
+[
+	{
+		"name": "/doc [inline] [cpp] - doc comment for C++",
+		"requests": [
+			"439257c65e5e89e25b95966abdf416352ffd73daf0112b08c27efd42345998a0"
+		]
+	},
+	{
+		"name": "/doc [inline] [cpp] - doc comment for macro",
+		"requests": [
+			"cb9af182878f0f4244ee64b1f3344983023cae2d4e2b75ab431a27675b913924"
+		]
+	},
+	{
+		"name": "/doc [inline] [cpp] - doc comment for template",
+		"requests": [
+			"697cb3e63ef8dadff28b02e8010dc15d379a18f5e36135fcd93f21ae1a610f95"
+		]
+	},
+	{
+		"name": "/doc [inline] [java] - class",
+		"requests": [
+			"4c66fc1516c151d27cb974372d78d53a9180a473d0addab6c784393ae1fa9856"
+		]
+	},
+	{
+		"name": "/doc [inline] [java] - method",
+		"requests": [
+			"dc1d66ec9cad4f630fa3e1e063c971309c6936b3b01085c5303e59f70ff0fdcf"
+		]
+	},
+	{
+		"name": "/doc [inline] [ruby] - long method",
+		"requests": [
+			"abf9fef7e58487f11f16facd239a74ada5817234a0ca038cd416869501dd0ed8"
+		]
+	},
+	{
+		"name": "/doc [inline] [ruby] - method",
+		"requests": [
+			"d00c80ce644229911610dd4a85d12cdea41e271d3910f061554fe3231ce6f9a3"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - able to document whole class, which is larger than context length",
+		"requests": [
+			"09d746c464d91e3850be5232f6572d1cba76223339dea239ab6ba474f30beb7b"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - class",
+		"requests": [
+			"5d9f7812f4790e5a2c6a1815cc5467062233bb44dff28b29c5f7670fb7bffc14"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - doc explain ts code",
+		"requests": [
+			"27cf63dd3f26ebadd14db7b2a8dd89d579db289863f9f3af52370d6a34d8ac26",
+			"5454ec9fdc3d6ae3bac306ff979b156d57ce549e4210df18f0df73c2e44a11de",
+			"573d76cf53b16efb551e6012460eed7e01b189f7095626a93aec5100ebee0ad8",
+			"6986ca9577091076d616804d400055568dfbb59f95de7bc5992fb6de993af3b0",
+			"af282c783dbf9c5a89b34d89bebfaef85f875398de3c26118a8d4ca1df9614a3",
+			"c676c5d4af9b82709dc19dbe2a0729ebf634f4e8b79bd54d0b7341772e5c5a4b",
+			"e753338eb60c95d6dd2ee3a19ab8c7464fecb70379c52fd40fe6bcf0c46733dd"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - does not include types in the documentation comment - function",
+		"requests": [
+			"7a062a823189c341de22d2eebc5746ff7c7ac61b113891e205ceb841da1284b0"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - interface",
+		"requests": [
+			"149276ffc63f6ae5b909c34da71383f86626e803fc490d1f80d51ed5b7d93c0c"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - issue #3692: add jsdoc comment - colors.ts",
+		"requests": [
+			"2137b8033afb4a7fb557f4713856e76f580f2202b380567a967061f1b1237fe0",
+			"6c59d686d0fd07289c6711f49b5bf990d5fd870fb00b19099fd6b5f2327dc42f"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - issue #3692: add jsdoc comment using /doc - colors.ts",
+		"requests": [
+			"b31b8791ce075f2a665ee3cd215068588efe15a7c4d3521db710ce686c47ebf8"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - issue #3763: doc everywhere",
+		"requests": [
+			"34c6feac98ec95dd6f1603183b274d8127b14533b182eb822eede24deae6750f",
+			"8f7bc68446f782b3430375d0494054b77237d57e9d4b044ebd7525a47936f1c5"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - issue #6406",
+		"requests": [
+			"3598e9c02ecc433193ace6571b29edf8bbcd2568a28be81f2e6d8c94adaf0de6"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - large function",
+		"requests": [
+			"40bd8c2b3d07c47b8c56aab7d7a3ee55fe9bde7ae800307027b12f92490b7888"
+		]
+	},
+	{
+		"name": "/doc [inline] [typescript] - supports chat variables",
+		"requests": [
+			"2c7eaaa330d710106d2cacb58b7fcb5e01598d15f75c5f2af08089b543f1b2b1"
+		]
+	}
+]

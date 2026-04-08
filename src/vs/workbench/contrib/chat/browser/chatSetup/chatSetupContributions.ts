@@ -113,7 +113,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			// Agent + Tools
 			{
-				if (!context.state.hidden && !context.state.disabled) {
+				if (!context.state.hidden) {
 
 					// Default Agents (always, even if installed to allow for speedy requests right on startup)
 					if (!defaultAgentDisposables.value) {
@@ -154,14 +154,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					vscodeAgentDisposables.clear();
 				}
 
-				if (context.state.completed && !context.state.disabled) {
+				if (context.state.completed) {
 					vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 				}
 			}
 
 			// Rename Provider
 			{
-				if (!context.state.completed && !context.state.hidden && !context.state.disabled) {
+				if (!context.state.completed && !context.state.hidden) {
 					if (!renameProviderDisposables.value) {
 						renameProviderDisposables.value = AINewSymbolNamesProvider.registerProvider(this.instantiationService, context, controller);
 					}
@@ -172,7 +172,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			// Code Actions Provider
 			{
-				if (!context.state.completed && !context.state.hidden && !context.state.disabled) {
+				if (!context.state.completed && !context.state.hidden) {
 					if (!codeActionsProviderDisposables.value) {
 						codeActionsProviderDisposables.value = ChatCodeActionsProvider.registerProvider(this.instantiationService);
 					}
@@ -232,7 +232,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: true,
 					precondition: ContextKeyExpr.or(
 						ChatContextKeys.Setup.hidden,
-						ChatContextKeys.Setup.disabled,
 						ChatContextKeys.Setup.untrusted,
 						ChatContextKeys.Setup.completed.negate(),
 						ChatContextKeys.Entitlement.canSignUp
@@ -559,7 +558,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate(),
 			ChatContextKeys.Setup.completed.negate(),
 		);
 

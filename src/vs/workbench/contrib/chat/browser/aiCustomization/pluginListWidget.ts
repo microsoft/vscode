@@ -24,7 +24,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -207,6 +207,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 
 	constructor(
 		private readonly pluginInstallService: IPluginInstallService,
+		private readonly agentPluginService: IAgentPluginService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IPluginMarketplaceItemTemplateData {
@@ -216,10 +217,9 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const header = DOM.append(headerContainer, $('.header'));
 		const name = DOM.append(header, $('span.name'));
 		const description = DOM.append(details, $('.description.ellipsis'));
-		const footer = DOM.append(details, $('.footer'));
-		const publisherContainer = DOM.append(footer, $('.publisher-container'));
-		const publisher = DOM.append(publisherContainer, $('span.publisher-name'));
-		const actionContainer = DOM.append(footer, $('.mcp-gallery-action'));
+		const publisherContainer = DOM.append(details, $('.publisher-container'));
+		const publisher = DOM.append(publisherContainer, $('span.publisher-name.mcp-gallery-publisher'));
+		const actionContainer = DOM.append(container, $('.mcp-gallery-action'));
 		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
 		installButton.element.classList.add('mcp-gallery-install-button');
 
@@ -235,6 +235,25 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		templateData.name.textContent = element.item.name;
 		templateData.publisher.textContent = element.item.marketplace ? localize('byPublisher', "by {0}", element.item.marketplace) : '';
 		templateData.description.textContent = element.item.description || '';
+
+		// Check if the plugin is already installed by comparing install URIs
+		const installUri = this.pluginInstallService.getPluginInstallUri({
+			name: element.item.name,
+			description: element.item.description,
+			version: '',
+			sourceDescriptor: element.item.sourceDescriptor,
+			source: element.item.source,
+			marketplace: element.item.marketplace,
+			marketplaceReference: element.item.marketplaceReference,
+			marketplaceType: element.item.marketplaceType,
+		});
+		const isAlreadyInstalled = this.agentPluginService.plugins.get().some(p => isEqual(p.uri, installUri));
+
+		if (isAlreadyInstalled) {
+			templateData.installButton.label = localize('installed', "Installed");
+			templateData.installButton.enabled = false;
+			return;
+		}
 
 		templateData.installButton.label = localize('install', "Install");
 		templateData.installButton.enabled = true;
@@ -398,7 +417,7 @@ export class PluginListWidget extends Disposable {
 		}));
 
 		const createPluginButton = this._register(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		createPluginButton.label = `$(${Codicon.save.id})`;
+		createPluginButton.label = `$(${Codicon.newFile.id})`;
 		createPluginButton.setTitle(localize('createPlugin', "Create Plugin"));
 		createPluginButton.element.classList.add('list-icon-button');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), createPluginButton.element, localize('createPluginTooltip', "Create Plugin")));
@@ -456,7 +475,7 @@ export class PluginListWidget extends Disposable {
 		const delegate = new PluginItemDelegate();
 		const groupHeaderRenderer = new CustomizationGroupHeaderRenderer<IPluginGroupHeaderEntry>('pluginGroupHeader', this.hoverService);
 		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService);
-		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService);
+		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService);
 
 		this.list = this._register(this.instantiationService.createInstance(
 			WorkbenchList<IPluginListEntry>,

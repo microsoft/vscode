@@ -22,14 +22,13 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
-import { ISession } from '../../sessions/common/sessionData.js';
+import { COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-import { COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE } from '../../sessions/browser/sessionTypes.js';
-import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext } from '../../../common/contextkeys.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { ModePicker } from './modePicker.js';
@@ -57,7 +56,6 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(
-					IsNewChatSessionContext,
 					IsActiveSessionCopilotChatCLI,
 					ContextKeyExpr.equals('config.github.copilot.chat.cli.isolationOption.enabled', true),
 				),
@@ -78,10 +76,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionRepositoryConfig,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(
-					IsNewChatSessionContext,
-					IsActiveSessionCopilotChatCLI,
-				),
+				when: IsActiveSessionCopilotChatCLI,
 			}],
 		});
 	}
@@ -308,9 +303,13 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
-			const isLoading = providerSession?.loading.read(reader);
-			hasRepositoryKey.set(!isLoading && !!providerSession?.gitRepository);
+			if (session?.providerId === COPILOT_PROVIDER_ID) {
+				const providerSession = sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId);
+				const isLoading = providerSession?.loading.read(reader);
+				hasRepositoryKey.set(!isLoading && !!providerSession?.gitRepository);
+			} else {
+				hasRepositoryKey.set(false);
+			}
 		}));
 	}
 }

@@ -163,6 +163,21 @@
             "included": true
         },
         {
+            "key": "chat.plugins.enabled",
+            "name": "ChatPluginsEnabled",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.enabled",
+                    "value": "Enable agent plugin integration in chat."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
             "key": "chat.agent.enabled",
             "name": "ChatAgentMode",
             "category": "InteractiveSession",

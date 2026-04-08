@@ -24,7 +24,7 @@ import { IWorkspaceSymbol } from '../../../search/common/search.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
-import { ChatAgentLocation } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
@@ -1420,7 +1420,16 @@ export interface IChatSendRequestOptions {
 	 */
 	systemInitiatedLabel?: string;
 
-
+	/**
+	 * When set, the chat service will collect automatic instructions
+	 * (for example `.instructions.md` files and skills) asynchronously after showing
+	 * the request in the UI, rather than blocking the UI on collection.
+	 */
+	instructionContext?: {
+		modeKind: ChatModeKind;
+		enabledTools?: UserSelectedTools;
+		enabledSubAgents?: readonly string[];
+	};
 }
 
 export type IChatModelReference = IReference<IChatModel>;
@@ -1430,11 +1439,6 @@ export const IChatService = createDecorator<IChatService>('IChatService');
 export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
-
-	/**
-	 * Promise that resolves when sessions with pending edits have been revived at startup.
-	 */
-	readonly whenSessionsRevived: Promise<void>;
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 

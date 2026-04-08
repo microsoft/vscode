@@ -57,7 +57,7 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	SignInTitleBarEnabled = 'chat.signInTitleBar.enabled',
-	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
+
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
@@ -65,6 +65,7 @@ export enum ChatConfiguration {
 	ArtifactsMode = 'chat.artifacts.mode',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
+	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
 	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
 	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',

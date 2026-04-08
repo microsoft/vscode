@@ -44,8 +44,6 @@
 	cursor: default;
 	user-select: text;
 	-webkit-user-select: text;
-
-	contain: layout style;
 }
 
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
@@ -391,6 +389,10 @@
 .interactive-item-container .value {
 	white-space: normal;
 	overflow-wrap: anywhere;
+}
+
+.chat-list-at-bottom .chat-progress-reservable > .value:has(> .rendered-markdown:last-child) {
+	padding-bottom: 37px;
 }
 
 .interactive-item-container .value > :last-child,
@@ -2571,8 +2573,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	margin: 0 0 14px 0;
 	font-size: 13px;
-
-	contain: layout style;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
 	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */

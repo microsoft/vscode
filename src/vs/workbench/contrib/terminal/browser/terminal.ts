@@ -111,6 +111,8 @@ export interface IChatTerminalToolProgressPart {
 	readonly contentIndex: number;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
+	toggleOutputFromAction(): Promise<void>;
+	continueInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }

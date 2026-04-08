@@ -18,7 +18,11 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -74,6 +78,9 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super(editor);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
@@ -161,6 +168,50 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			: localize('browser.shareWithAgent', "Share with Agent"));
 	}
 
+	private static readonly SHARING_CONTENT_WARNING_DONT_ASK_KEY = 'browserView.agentSharingContentWarning.dontAskAgain';
+
+	/**
+	 * Confirm with the user that they understand the risks of sharing content on untrusted pages.
+	 *
+	 * @returns true if the user confirms (or the page is local / trusted), false if they cancel.
+	 */
+	private async _confirmContentAttachmentRisk(url: string): Promise<boolean> {
+		// If the user previously chose "Don't show again", skip the dialog
+		if (this.storageService.getBoolean(BrowserEditorChatIntegration.SHARING_CONTENT_WARNING_DONT_ASK_KEY, StorageScope.PROFILE)) {
+			return true;
+		}
+
+		try {
+			const parsedUrl = new URL(url);
+			if (parsedUrl.protocol === 'file:') {
+				// Query the workspace trust service for file URLs
+				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(URI.file(parsedUrl.pathname));
+				if (trustInfo.trusted) {
+					return true;
+				}
+			} else if (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1' || parsedUrl.hostname === '::1') {
+				// Consider localhost URLs trusted
+				return true;
+			}
+		} catch {
+			// Invalid URL - fall through to the warning
+		}
+
+		const result = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('browser.agentSharingContentWarning.message', "Use caution when attaching content from untrusted sources."),
+			detail: localize('browser.agentSharingContentWarning.detail', "Pages may contain hidden prompts that can influence agent behavior. Double-check the attached contents before sending."),
+			primaryButton: localize('browser.agentSharingContentWarning.ok', "&&OK"),
+			checkbox: { label: localize('browser.agentSharingContentWarning.dontShowAgain', "Don't show again"), checked: false },
+		});
+
+		if (result.confirmed && result.checkboxChecked) {
+			this.storageService.store(BrowserEditorChatIntegration.SHARING_CONTENT_WARNING_DONT_ASK_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		}
+
+		return result.confirmed;
+	}
+
 	// -- Element Selection ----------------------------------------------
 
 	/**
@@ -170,8 +221,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		// If selection is already active, cancel it
 		if (this._elementSelectionCts) {
 			this._elementSelectionCts.dispose(true);
-			this._elementSelectionCts = undefined;
-			this._elementSelectionActiveContext.set(false);
 			return;
 		}
 
@@ -179,6 +228,12 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const cts = new CancellationTokenSource();
 		this._elementSelectionCts = cts;
 		this._elementSelectionActiveContext.set(true);
+		cts.token.onCancellationRequested(() => {
+			if (this._elementSelectionCts === cts) {
+				this._elementSelectionCts = undefined;
+				this._elementSelectionActiveContext.set(false);
+			}
+		});
 
 		type IntegratedBrowserAddElementToChatStartEvent = {};
 
@@ -204,24 +259,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				throw new Error('Element data not found');
 			}
 
-			const { attachCss, attachImages } = await this._attachElementDataToChat(elementData);
-
-			type IntegratedBrowserAddElementToChatAddedEvent = {
-				attachCss: boolean;
-				attachImages: boolean;
-			};
-
-			type IntegratedBrowserAddElementToChatAddedClassification = {
-				attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
-				attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
-				owner: 'jruales';
-				comment: 'An element was successfully added to chat from Integrated Browser.';
-			};
-
-			this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
-				attachCss,
-				attachImages
-			});
+			await this._attachElementDataToChat(elementData, model);
 
 		} catch (error) {
 			if (!cts.token.isCancellationRequested) {
@@ -229,10 +267,6 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			}
 		} finally {
 			cts.dispose(true);
-			if (this._elementSelectionCts === cts) {
-				this._elementSelectionCts = undefined;
-				this._elementSelectionActiveContext.set(false);
-			}
 		}
 	}
 
@@ -250,20 +284,19 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
-		const elementData = await model.getFocusedElementData();
-		if (!elementData) {
-			return;
-		}
+		try {
+			const elementData = await model.getFocusedElementData();
+			if (!elementData) {
+				return;
+			}
 
-		await this._attachElementDataToChat(elementData);
-		cts.dispose(true);
-		if (this._elementSelectionCts === cts) {
-			this._elementSelectionCts = undefined;
-			this._elementSelectionActiveContext.set(false);
+			await this._attachElementDataToChat(elementData, model);
+		} finally {
+			cts.dispose(true);
 		}
 	}
 
-	private async _attachElementDataToChat(elementData: IElementData): Promise<{ attachCss: boolean; attachImages: boolean }> {
+	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel) {
 		const bounds = elementData.bounds;
 		const toAttach: IChatRequestVariableEntry[] = [];
 
@@ -306,8 +339,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		});
 
 		const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
-		const model = this.editor.model;
-		if (attachImages && model) {
+		if (attachImages) {
 			const screenshotBuffer = await model.captureScreenshot({
 				quality: 90,
 				pageRect: bounds
@@ -322,10 +354,29 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			});
 		}
 
+		if (!await this._confirmContentAttachmentRisk(elementData.url ?? model.url)) {
+			return;
+		}
+
 		const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
 		widget?.attachmentModel?.addContext(...toAttach);
 
-		return { attachCss, attachImages };
+		type IntegratedBrowserAddElementToChatAddedEvent = {
+			attachCss: boolean;
+			attachImages: boolean;
+		};
+
+		type IntegratedBrowserAddElementToChatAddedClassification = {
+			attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
+			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+			owner: 'jruales';
+			comment: 'An element was successfully added to chat from Integrated Browser.';
+		};
+
+		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
+			attachCss,
+			attachImages
+		});
 	}
 
 	// -- Console Logs ---------------------------------------------------
@@ -342,6 +393,10 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		try {
 			const logs = await model.getConsoleLogs();
 			if (!logs) {
+				return;
+			}
+
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
 				return;
 			}
 

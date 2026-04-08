@@ -71,7 +71,7 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 		});
 
 		// Chat is not available in web mode
-		if (quality !== Quality.Dev && quality !== Quality.OSS && !opts.web) {
+		if (!opts.web) {
 			describe('Chat', function () {
 
 				it('chat panel has no accessibility violations', async function () {
@@ -85,7 +85,10 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 						selector: 'div[id="workbench.panel.chat"]',
 						excludeRules: {
 							// Links in chat welcome view show underline on hover/focus which axe-core static analysis cannot detect
-							'link-in-text-block': ['command:workbench.action.chat.generateAgentInstructions']
+							'link-in-text-block': ['command:workbench.action.chat.generateAgentInstructions'],
+							// Monaco lists use aria-multiselectable on role="list" and aria-selected on role="listitem"
+							// These are used intentionally for selection semantics even though technically not spec-compliant
+							'aria-allowed-attr': ['monaco-list', 'monaco-list-row'],
 						}
 					});
 				});
@@ -133,7 +136,7 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 					});
 				});
 
-				it('chat terminal tool response has no accessibility violations', async function () {
+				(quality === Quality.Dev || quality === Quality.OSS ? it.skip : it)('chat terminal tool response has no accessibility violations', async function () {
 					// Disable retries for this test
 					this.retries(0);
 					// Extend timeout for this test since AI responses can take a while

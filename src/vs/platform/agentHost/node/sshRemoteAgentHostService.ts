@@ -51,6 +51,8 @@ interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
 	on(event: 'error', listener: (err: Error) => void): SSHClient;
 	on(event: 'close', listener: () => void): SSHClient;
+	removeListener(event: 'close', listener: () => void): SSHClient;
+	removeListener(event: 'error', listener: (err: Error) => void): SSHClient;
 	connect(config: Record<string, unknown>): void;
 	exec(command: string, callback: (err: Error | undefined, stream: SSHChannel) => void): SSHClient;
 	forwardOut(srcIP: string, srcPort: number, dstIP: string, dstPort: number, callback: (err: Error | undefined, channel: SSHChannel) => void): SSHClient;
@@ -256,12 +258,21 @@ function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitiz
 	return sanitized;
 }
 
+/**
+ * State for a single active SSH relay connection.
+ * Immutable and dispose-once — follows the same pattern as TunnelConnection.
+ * On reconnect, the old SSHConnection is disposed and a fresh one is created;
+ * the SSH client can be detached first so only the WebSocket relay is torn down.
+ */
 class SSHConnection extends Disposable {
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose = this._onDidClose.event;
 
 	readonly config: ISSHAgentHostConfigSanitized;
 	private _closed = false;
+	private _sshClientDetached = false;
+	private readonly _sshCloseListener = () => { this.dispose(); };
+	private readonly _sshErrorListener = () => { this.dispose(); };
 
 	constructor(
 		fullConfig: ISSHAgentHostConfig,
@@ -269,9 +280,10 @@ class SSHConnection extends Disposable {
 		readonly address: string,
 		readonly name: string,
 		readonly connectionToken: string | undefined,
-		sshClient: SSHClient,
+		readonly remotePort: number,
+		readonly sshClient: SSHClient,
 		private readonly _relay: { send: (data: string) => void; close: () => void },
-		remoteStream: SSHChannel | undefined,
+		private readonly _remoteStream: SSHChannel | undefined,
 	) {
 		super();
 
@@ -284,20 +296,29 @@ class SSHConnection extends Disposable {
 			}
 			this._closed = true;
 			this._relay.close();
-			remoteStream?.close();
-			sshClient.end();
+			if (!this._sshClientDetached) {
+				this._remoteStream?.close();
+				sshClient.end();
+			}
 			this._onDidClose.fire();
 		}));
 
 		this._register(this._onDidClose);
 
-		sshClient.on('close', () => {
-			this.dispose();
-		});
+		sshClient.on('close', this._sshCloseListener);
+		sshClient.on('error', this._sshErrorListener);
+	}
 
-		sshClient.on('error', () => {
-			this.dispose();
-		});
+	/**
+	 * Detach the SSH client from this connection so that `dispose()`
+	 * only closes the WebSocket relay without ending the SSH session.
+	 * Also removes event listeners from the SSH client so the old
+	 * connection object is not retained by the shared client.
+	 */
+	detachSshClient(): void {
+		this._sshClientDetached = true;
+		this.sshClient.removeListener('close', this._sshCloseListener);
+		this.sshClient.removeListener('error', this._sshErrorListener);
 	}
 
 	relaySend(data: string): void {
@@ -350,13 +371,70 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return this._nativeRequire;
 	}
 
-	async connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult> {
+	async connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult> {
 		const connectionKey = config.sshConfigHost
 			? `ssh:${config.sshConfigHost}`
 			: `${config.username}@${config.host}:${config.port ?? 22}`;
 
 		const existing = this._connections.get(connectionKey);
 		if (existing) {
+			if (replaceRelay) {
+				// Tear down the old relay and create a fresh one, following
+				// the same dispose-and-recreate pattern as TunnelAgentHostMainService.
+				// The SSH client is detached so only the WebSocket relay is closed.
+				this._logService.info(`${LOG_PREFIX} Reconnecting relay for existing SSH tunnel ${connectionKey}`);
+				const { sshClient, remotePort, connectionToken } = existing;
+
+				// Remove from map and detach SSH client before disposing so
+				// the old relay's close handler (conn?.dispose()) is a no-op.
+				this._connections.deleteAndLeak(connectionKey);
+				existing.detachSshClient();
+				existing.dispose();
+
+				// Create fresh relay and connection. If relay creation fails,
+				// clean up the detached SSH client so it doesn't leak.
+				const connectionId = connectionKey;
+				try {
+					let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
+					const relay = await this._createWebSocketRelay(
+						sshClient, '127.0.0.1', remotePort, connectionToken,
+						(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
+						() => { conn?.dispose(); },
+					);
+
+					conn = new SSHConnection(
+						config, connectionId, connectionKey, config.name,
+						connectionToken, remotePort, sshClient, relay, undefined,
+					);
+
+					Event.once(conn.onDidClose)(() => {
+						if (this._connections.get(connectionKey) === conn) {
+							this._connections.deleteAndDispose(connectionKey);
+							this._onDidRelayClose.fire(connectionId);
+							this._onDidCloseConnection.fire(connectionId);
+							this._onDidChangeConnections.fire();
+						}
+					});
+
+					this._connections.set(connectionKey, conn);
+
+					return {
+						connectionId: conn.connectionId,
+						address: conn.address,
+						name: conn.name,
+						connectionToken: conn.connectionToken,
+						config: conn.config,
+						sshConfigHost: config.sshConfigHost,
+					};
+				} catch (err) {
+					sshClient.end();
+					this._onDidRelayClose.fire(connectionId);
+					this._onDidCloseConnection.fire(connectionId);
+					this._onDidChangeConnections.fire();
+					throw err;
+				}
+			}
+
 			return {
 				connectionId: existing.connectionId,
 				address: existing.address,
@@ -428,12 +506,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// 6. Connect to remote agent host via WebSocket relay (no local TCP port)
 			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
 			const connectionId = connectionKey;
+			let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
 			let relay: { send: (data: string) => void; close: () => void };
 			try {
 				relay = await this._createWebSocketRelay(
 					sshClient, '127.0.0.1', remotePort, connectionToken,
 					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-					() => this._onDidRelayClose.fire(connectionId),
+					() => { conn?.dispose(); },
 				);
 			} catch (relayErr) {
 				if (!existingAH) {
@@ -455,27 +534,31 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				relay = await this._createWebSocketRelay(
 					sshClient, '127.0.0.1', remotePort, connectionToken,
 					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-					() => this._onDidRelayClose.fire(connectionId),
+					() => { conn?.dispose(); },
 				);
 			}
 
 			// 7. Create connection object
 			const address = connectionKey;
-			const conn = new SSHConnection(
+			conn = new SSHConnection(
 				config,
 				connectionId,
 				address,
 				config.name,
 				connectionToken,
+				remotePort,
 				sshClient,
 				relay,
 				agentStream,
 			);
 
 			Event.once(conn.onDidClose)(() => {
-				this._connections.deleteAndDispose(connectionKey);
-				this._onDidCloseConnection.fire(connectionId);
-				this._onDidChangeConnections.fire();
+				if (this._connections.get(connectionKey) === conn) {
+					this._connections.deleteAndDispose(connectionKey);
+					this._onDidRelayClose.fire(connectionId);
+					this._onDidCloseConnection.fire(connectionId);
+					this._onDidChangeConnections.fire();
+				}
 			});
 
 			this._connections.set(connectionKey, conn);
@@ -522,8 +605,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		let authMethod: SSHAuthMethod = SSHAuthMethod.Agent;
 		let privateKeyPath: string | undefined;
-		const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
-		if (resolved.identityFile.length > 0 && !defaultKeys.includes(resolved.identityFile[0])) {
+		if (resolved.identityFile.length > 0 && !SSHRemoteAgentHostMainService._defaultKeyPaths.includes(resolved.identityFile[0])) {
 			authMethod = SSHAuthMethod.KeyFile;
 			privateKeyPath = resolved.identityFile[0];
 		}
@@ -537,7 +619,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
-		});
+		}, /* replaceRelay */ true);
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
@@ -655,6 +737,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				const agentSock = process.env['SSH_AUTH_SOCK'];
 				this._logService.info(`${LOG_PREFIX} Using SSH agent: ${agentSock ?? '(not set)'}`);
 				connectConfig.agent = agentSock;
+				// Also provide a default key file as fallback so ssh2 can try
+				// publickey auth if the agent doesn't have the key loaded.
+				const fallbackKey = await this._findDefaultKeyFile();
+				if (fallbackKey) {
+					this._logService.info(`${LOG_PREFIX} Also using fallback key: ${fallbackKey.path}`);
+					connectConfig.privateKey = fallbackKey.contents;
+				}
 				break;
 			}
 			case SSHAuthMethod.KeyFile:
@@ -683,6 +772,31 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			client.connect(connectConfig);
 		});
+	}
+
+	private static readonly _defaultKeyPaths = [
+		'~/.ssh/id_ed25519',
+		'~/.ssh/id_rsa',
+		'~/.ssh/id_ecdsa',
+		'~/.ssh/id_dsa',
+		'~/.ssh/id_xmss',
+	];
+
+	protected async _findDefaultKeyFile(): Promise<{ path: string; contents: Buffer } | undefined> {
+		for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
+			const resolved = keyPath.replace(/^~/, os.homedir());
+			try {
+				const contents = await fsp.readFile(resolved);
+				return { path: keyPath, contents };
+			} catch (error) {
+				const errorCode = (error as NodeJS.ErrnoException).code;
+				if (errorCode === 'ENOENT' || errorCode === 'ENOTDIR') {
+					continue;
+				}
+				this._logService.warn(`${LOG_PREFIX} Failed to read default SSH key file ${resolved}`, error);
+			}
+		}
+		return undefined;
 	}
 
 	private get _quality(): string {

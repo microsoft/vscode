@@ -737,6 +737,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
+		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse);
 
 		// Toggle show-checkmarks class at the container level for the accessibility setting,
 		// so child content parts can use CSS descendant selectors instead of each subscribing individually.
@@ -1772,15 +1773,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isResponseElement = isResponseVM(context.element);
 			const shouldPin = this.shouldPinPart(content, isResponseElement ? context.element : undefined);
 
-			// sometimes content is rendered out of order on re-renders so instead of looking at the current chat content part's
-			// context and templateData, we have to look globally to find the active thinking part.
+			// Finalize the active thinking part for this element when the response is complete.
+			// Scoped to the current element's templateData to avoid finalizing thinking parts
+			// belonging to other (still-streaming) responses during scroll re-renders.
 			if (context.element.isComplete && !shouldPin) {
-				for (const templateData of this.templateDataByRequestId.values()) {
-					if (templateData.renderedParts) {
-						const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-						if (lastThinking?.getIsActive()) {
-							this.finalizeCurrentThinkingPart(context, templateData);
-						}
+				const elementTemplateData = this.getTemplateDataForRequestId(context.element.id);
+				if (elementTemplateData?.renderedParts) {
+					const lastThinking = this.getLastThinkingPart(elementTemplateData.renderedParts);
+					if (lastThinking?.getIsActive()) {
+						this.finalizeCurrentThinkingPart(context, elementTemplateData);
 					}
 				}
 			}
@@ -1789,11 +1790,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const isSubagentContent = (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized')
 				&& isSubagentToolInvocation(content);
 
-			// Finalize all subagent parts when element is complete
-			// Note: We don't finalize when non-subagent content arrives because parallel subagents may still be running
+			// Finalize subagent parts for this element when the response is complete.
+			// Note: We don't finalize when non-subagent content arrives because parallel subagents may still be running.
+			// Scoped to the current element to avoid finalizing subagent parts on other responses during scroll re-renders.
 			if (context.element.isComplete && !isSubagentContent) {
-				for (const templateData of this.templateDataByRequestId.values()) {
-					this.finalizeAllSubagentParts(templateData);
+				const elementTemplateData = this.getTemplateDataForRequestId(context.element.id);
+				if (elementTemplateData) {
+					this.finalizeAllSubagentParts(elementTemplateData);
 				}
 			}
 
