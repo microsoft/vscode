@@ -7,18 +7,18 @@ import './simpleFindWidget.css';
 import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { FindInput } from '../../../../../base/browser/ui/findinput/findInput.js';
+import { NthMatchInput } from '../../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { Widget } from '../../../../../base/browser/ui/widget.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { FindReplaceState, INewFindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
 import { IMessage as InputBoxMessage } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from '../../../../../editor/contrib/find/browser/findWidget.js';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS } from '../../../../../editor/contrib/find/browser/findWidget.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextScopedFindInput } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { widgetClose } from '../../../../../platform/theme/common/iconRegistry.js';
 import { registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
-import * as strings from '../../../../../base/common/strings.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { showHistoryKeybindingHint } from '../../../../../platform/history/browser/historyWidgetKeybindingHint.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -29,6 +29,7 @@ import type { IHoverService } from '../../../../../platform/hover/browser/hover.
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
+const NLS_NTH_MATCH_INPUT_LABEL = nls.localize('label.nthMatchEdit', "Enter Nth Match");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
@@ -42,6 +43,7 @@ interface IFindOptions {
 	appendWholeWordsActionId?: string;
 	previousMatchActionId?: string;
 	nextMatchActionId?: string;
+	nthMatchActionId?: string;
 	closeWidgetActionId?: string;
 	matchesLimit?: number;
 	type?: 'Terminal' | 'Webview';
@@ -54,10 +56,12 @@ const MATCHES_COUNT_WIDTH = 73;
 
 export abstract class SimpleFindWidget extends Widget implements IVerticalSashLayoutProvider {
 	private readonly _findInput: FindInput;
+	private readonly _nthMatchInput: NthMatchInput;
 	private readonly _domNode: HTMLElement;
 	private readonly _innerDomNode: HTMLElement;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
+	private readonly _nthMatchInputFocusTracker: dom.IFocusTracker;
 	private readonly _updateHistoryDelayer: Delayer<void>;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
@@ -105,6 +109,9 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService));
+
+		this._nthMatchInput = this.getNthMatchInput(contextViewService);
+
 		// Find History with update delayer
 		this._updateHistoryDelayer = this._register(new Delayer<void>(500));
 
@@ -191,6 +198,10 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		this._register(this._findInputFocusTracker.onDidFocus(this._onFindInputFocusTrackerFocus.bind(this)));
 		this._register(this._findInputFocusTracker.onDidBlur(this._onFindInputFocusTrackerBlur.bind(this)));
 
+		this._nthMatchInputFocusTracker = this._register(dom.trackFocus(this._nthMatchInput.domNode));
+		this._register(this._nthMatchInputFocusTracker.onDidFocus(this._onNthMatchInputFocusTrackerFocus.bind(this)));
+		this._register(this._nthMatchInputFocusTracker.onDidBlur(this._onNthMatchInputFocusTrackerBlur.bind(this)));
+
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();
 		}));
@@ -252,11 +263,14 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 	public abstract find(previous: boolean): void;
 	public abstract findFirst(): void;
+	public abstract findNth(nthMatchPosition: number): void;
 	protected abstract _onInputChanged(): boolean;
 	protected abstract _onFocusTrackerFocus(): void;
 	protected abstract _onFocusTrackerBlur(): void;
 	protected abstract _onFindInputFocusTrackerFocus(): void;
 	protected abstract _onFindInputFocusTrackerBlur(): void;
+	protected abstract _onNthMatchInputFocusTrackerFocus(): void;
+	protected abstract _onNthMatchInputFocusTrackerBlur(): void;
 	protected abstract _getResultCount(): Promise<{ resultIndex: number; resultCount: number } | undefined>;
 
 	protected get inputValue() {
@@ -406,7 +420,22 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		}
 
 		const count = await this._getResultCount();
-		this._matchesCount.innerText = '';
+
+		// Only destroy this._matchesCount if there are no results, or there are no blurable input controls within.
+		// Needless blur events cause focus-retention issues later, so we want to avoid them if we can.
+		// See dom.ts ---> class FocusTracker {...} for more.
+		if (
+			this._matchesCount.firstChild?.nodeValue === NLS_NO_RESULTS
+			&& (
+				!this._matchesCount.querySelector('input') &&
+				!this._matchesCount.querySelector('textarea')
+			)
+		) {
+			this._matchesCount.innerText = '';
+		}
+
+		// Otherwise, just query the children of this._matchesCount, and update them.
+
 		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
 		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
@@ -419,12 +448,29 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			if (matchesPosition === '0') {
 				matchesPosition = '?';
 			}
-			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+
+			this._nthMatchInput.setValue(`${matchesPosition}`);
+			this._nthMatchInput.min = +matchesCount >= 1 ? 1 : 0;
+			this._nthMatchInput.max = +matchesCount;
+
+			if (([...this._matchesCount.childNodes].length === 0)) {
+				this._matchesCount.appendChild(this._nthMatchInput.domNode);
+				this._matchesCount.appendChild(document.createTextNode(' of '));
+				this._matchesCount.appendChild(document.createTextNode(`${matchesCount}`));
+			}
+			else {
+				(this._matchesCount.lastChild as Node).nodeValue = `${matchesCount}`;
+			}
+
 		} else {
 			label = NLS_NO_RESULTS;
+			// It's okay to destroy contents here,
+			// since there are no matches and therefore no blurable input controls.
+			this._matchesCount.innerText = '';
+			this._matchesCount.appendChild(document.createTextNode(label));
 		}
 		status(this._announceSearchResults(label, this.inputValue));
-		this._matchesCount.appendChild(document.createTextNode(label));
+		// this._matchesCount.appendChild(document.createTextNode(label));
 		this._foundMatch = !!count && count.resultCount > 0;
 		this.updateButtons(this._foundMatch);
 	}
@@ -444,6 +490,54 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		}
 
 		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
+	}
+
+	private getNthMatchInput(contextViewService: IContextViewService): NthMatchInput {
+		const matchPositionAndCountArr = this._matchesCount?.innerText?.split(' of ') ?? [];
+
+		const input = new NthMatchInput(this._domNode, contextViewService, {
+			placeholder: '',
+			width: 20,
+			validation: undefined,
+			label: NLS_NTH_MATCH_INPUT_LABEL,
+			type: 'text',
+			min: parseInt(matchPositionAndCountArr[1]?.trim() || '0') >= 1 ? 1 : 0,
+			max: parseInt(matchPositionAndCountArr[1]?.trim()) || 0,
+			flexibleHeight: undefined,
+			flexibleWidth: undefined,
+			flexibleMaxHeight: undefined,
+			toggleStyles: defaultToggleStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+		});
+
+		this._register(input.onStep((e) => {
+			if (e.direction === 'up') {
+				this.find(false);
+			}
+			else {
+				this.find(true);
+			}
+		}));
+
+		this._register(input.onJump((e) => {
+			this.findNth(e.targetMatchPos || input.min);
+		}));
+
+		this._register(input.onInput((e) => {
+			const currentValueAsInt = parseInt(input.getValue());
+			// Enforce the numerical input and min/max constraints here.
+			input.setValue(
+				isNaN(currentValueAsInt) ?
+					`${input.min}` : currentValueAsInt > input.max ?
+						`${input.max}` : currentValueAsInt < input.min ?
+							`${input.min}` : `${currentValueAsInt}`
+			);
+		}));
+
+		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
+		input.setValue(`${matchPositionAndCountArr[0]}`.trim());
+
+		return input;
 	}
 }
 

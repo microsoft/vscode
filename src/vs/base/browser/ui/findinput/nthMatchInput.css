@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* ---------- Match Location input ---------- */
 
-/* Editable numerical input for match location */
+/* ---------- Nth Match Editor Input Box ---------- */
+
+
 .monaco-editor .find-widget .matchesCount .editable-nth-match {
 	display: block !important;
 	width: 45px;
@@ -24,13 +25,14 @@
 }
 
 
-/*
-Hide spin-box stepper controls (up and down arrows) to keep
-the UI consistent with the rest of the widget.
-(For now, Chromium support ONLY)
- */
-.monaco-editor .find-widget .matchesCount .editable-nth-match input[type="number"]::-webkit-inner-spin-button,
-.monaco-editor .find-widget .matchesCount .editable-nth-match input[type="number"]::-webkit-outer-spin-button {
-	-webkit-appearance: none;
-	margin: 0;
+/* ---------- Nth Match Terminal Input Box ---------- */
+.monaco-findInput.monaco-inputbox.editable-nth-match {
+	width: 45px;
+	margin-right: 0.5em;
+}
+
+.monaco-findInput.monaco-inputbox.editable-nth-match input {
+	text-align: center;
+	overflow-x: hidden;
+	text-overflow: clip;
 }

@@ -58,6 +58,12 @@
 }
 
 .monaco-workbench .simple-find-part .matchesCount {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
 	width: 73px;
 	max-width: 73px;
 	min-width: 73px;
@@ -107,7 +113,7 @@ div.simple-find-part-wrapper div.button:hover:not(.disabled) {
 	border-bottom-left-radius: 4px;
 }
 
-.monaco-workbench .simple-find-part .monaco-sash.vertical:before{
+.monaco-workbench .simple-find-part .monaco-sash.vertical:before {
 	width: 2px;
 	left: calc(50% - (var(--vscode-sash-hover-size) / 4));
 }

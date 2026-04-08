@@ -37,7 +37,7 @@ export interface IStepEvent {
 }
 
 export interface IJumpEvent {
-	toMatchLocation: number;
+	targetMatchPos: number;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -104,7 +104,7 @@ export class NthMatchInput extends Widget {
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			const currentValueAsInt = parseInt(this.inputBox.value);
 
-			// Arrow-Key support to step the matched location up or down
+			// Arrow-Key support to step the match position up or down
 			if (event.equals(KeyCode.UpArrow)) {
 				this._onStep.fire({ direction: 'down' });
 			}
@@ -112,7 +112,7 @@ export class NthMatchInput extends Widget {
 				this._onStep.fire({ direction: 'up' });
 			}
 			else if (event.equals(KeyCode.Enter)) {
-				this._onJump.fire({ toMatchLocation: currentValueAsInt });
+				this._onJump.fire({ targetMatchPos: currentValueAsInt });
 			}
 
 		});
