@@ -4349,7 +4349,8 @@
 						"markdownDescription": "%github.copilot.config.executionSubagent.enabled%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.executionSubagent.model": {
@@ -4358,7 +4359,8 @@
 						"markdownDescription": "%github.copilot.config.executionSubagent.model%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.executionSubagent.toolCallLimit": {
@@ -4367,7 +4369,8 @@
 						"markdownDescription": "%github.copilot.config.executionSubagent.toolCallLimit%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.summarizeAgentConversationHistoryThreshold": {
