@@ -11,14 +11,16 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAction, isSessionAction } from '../common/state/sessionActions.js';
+import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IResponsePart, type ISessionSummary, type IToolCallCompletedState, type ITurn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IResponsePart, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type ITurn } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
+import { AgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -37,10 +39,10 @@ export class AgentService extends Disposable implements IAgentService {
 	readonly onDidNotification = this._onDidNotification.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
-	private readonly _stateManager: SessionStateManager;
+	private readonly _stateManager: AgentHostStateManager;
 
 	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
-	get stateManager(): SessionStateManager { return this._stateManager; }
+	get stateManager(): AgentHostStateManager { return this._stateManager; }
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
@@ -54,6 +56,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
+	/** Manages PTY-backed terminals for the agent host protocol. */
+	private readonly _terminalManager: AgentHostTerminalManager;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -62,7 +66,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._stateManager = this._register(new SessionStateManager(_logService));
+		this._stateManager = this._register(new AgentHostStateManager(_logService));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
@@ -70,6 +74,10 @@ export class AgentService extends Disposable implements IAgentService {
 			sessionDataService: this._sessionDataService,
 			agents: this._agents,
 		}, this._logService));
+
+		// Terminal management — the terminal manager listens to the state
+		// manager's action stream and dispatches PTY output back through it.
+		this._terminalManager = this._register(new AgentHostTerminalManager(this._stateManager, this._logService));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -90,20 +98,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	// ---- auth ---------------------------------------------------------------
-
-	async listAgents(): Promise<IAgentDescriptor[]> {
-		return [...this._providers.values()].map(p => p.getDescriptor());
-	}
-
-	async getResourceMetadata(): Promise<IResourceMetadata> {
-		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
-		return { resources };
-	}
-
-	getResourceMetadataSync(): IResourceMetadata {
-		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
-		return { resources };
-	}
 
 	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
@@ -136,30 +130,32 @@ export class AgentService extends Disposable implements IAgentService {
 					return s;
 				}
 				try {
-					const customTitle = await ref.object.getMetadata('customTitle');
-					if (customTitle) {
-						return { ...s, summary: customTitle };
+					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true });
+					let updated = s;
+					if (m.customTitle) {
+						updated = { ...updated, summary: m.customTitle };
 					}
+					if (m.isRead !== undefined) {
+						updated = { ...updated, isRead: m.isRead === 'true' };
+					}
+					if (m.isDone !== undefined) {
+						updated = { ...updated, isDone: m.isDone === 'true' };
+					}
+					if (m.diffs) {
+						try { updated = { ...updated, diffs: JSON.parse(m.diffs) }; } catch { /* ignore malformed */ }
+					}
+					return updated;
 				} finally {
 					ref.dispose();
 				}
-			} catch {
-				// ignore — title overlay is best-effort
+			} catch (e) {
+				this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${s.session}`, e);
 			}
 			return s;
 		}));
 
 		this._logService.trace(`[AgentService] listSessions returned ${result.length} sessions`);
 		return result;
-	}
-
-	/**
-	 * Refreshes the model list from all providers and publishes the updated
-	 * agents (with their models) to root state via `root/agentsChanged`.
-	 */
-	async refreshModels(): Promise<void> {
-		this._logService.trace('[AgentService] refreshModels called');
-		this._updateAgents();
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -235,15 +231,31 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- Protocol methods ---------------------------------------------------
 
+	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+		await this._terminalManager.createTerminal(params);
+	}
+
+	async disposeTerminal(terminal: URI): Promise<void> {
+		this._terminalManager.disposeTerminal(terminal.toString());
+	}
+
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
-		let snapshot = this._stateManager.getSnapshot(resource.toString());
+		const resourceStr = resource.toString();
+
+		// Check for terminal state
+		const terminalState = this._terminalManager.getTerminalState(resourceStr);
+		if (terminalState) {
+			return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
+		}
+
+		let snapshot = this._stateManager.getSnapshot(resourceStr);
 		if (!snapshot) {
 			await this.restoreSession(resource);
-			snapshot = this._stateManager.getSnapshot(resource.toString());
+			snapshot = this._stateManager.getSnapshot(resourceStr);
 		}
 		if (!snapshot) {
-			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
+			throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
 		}
 		return snapshot;
 	}
@@ -254,14 +266,17 @@ export class AgentService extends Disposable implements IAgentService {
 		// in Phase 4 (multi-client). For now this is a no-op.
 	}
 
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const origin = { clientId, clientSeq };
-		const state = this._stateManager.dispatchClientAction(action, origin);
-		this._logService.trace(`[AgentService] resulting state:`, state);
 
-		this._sideEffects.handleAction(action);
+		if (isSessionAction(action)) {
+			this._stateManager.dispatchClientAction(action, origin);
+			this._sideEffects.handleAction(action);
+		} else {
+			this._stateManager.dispatchClientAction(action, origin);
+		}
 	}
 
 	async resourceList(uri: URI): Promise<IResourceListResult> {
@@ -325,24 +340,36 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const turns = this._buildTurnsFromMessages(messages);
 
-		// Check for a persisted custom title in the session database
+		// Check for persisted metadata in the session database
 		let title = meta.summary ?? 'Session';
+		let isRead: boolean | undefined;
+		let isDone: boolean | undefined;
+		let diffs: ISessionFileDiff[] | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
 				const db = await ref;
 				if (db) {
 					try {
-						const customTitle = await db.object.getMetadata('customTitle');
-						if (customTitle) {
-							title = customTitle;
+						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true });
+						if (m.customTitle) {
+							title = m.customTitle;
+						}
+						if (m.isRead !== undefined) {
+							isRead = m.isRead === 'true';
+						}
+						if (m.isDone !== undefined) {
+							isDone = m.isDone === 'true';
+						}
+						if (m.diffs) {
+							try { diffs = JSON.parse(m.diffs); } catch { /* ignore malformed */ }
 						}
 					} finally {
 						db.dispose();
 					}
 				}
 			} catch {
-				// Best-effort: fall back to agent-provided title
+				// Best-effort: fall back to agent-provided metadata
 			}
 		}
 
@@ -354,6 +381,9 @@ export class AgentService extends Disposable implements IAgentService {
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
 			workingDirectory: meta.workingDirectory?.toString(),
+			isRead,
+			isDone,
+			diffs,
 		};
 
 		this._stateManager.restoreSession(summary, turns);

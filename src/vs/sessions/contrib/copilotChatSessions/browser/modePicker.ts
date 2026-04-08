@@ -16,10 +16,11 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -43,7 +44,6 @@ export class ModePicker extends Disposable {
 	readonly onDidChange: Event<IChatMode> = this._onDidChange.event;
 
 	private _triggerElement: HTMLElement | undefined;
-	private _slotElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	private _selectedMode: IChatMode = ChatMode.Agent;
@@ -85,7 +85,6 @@ export class ModePicker extends Disposable {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		this._slotElement = slot;
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -150,7 +149,7 @@ export class ModePicker extends Disposable {
 				if (item.kind === 'mode') {
 					this._selectMode(item.mode);
 				} else {
-					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor);
+					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
 				}
 			},
 			onHide: () => { triggerElement.focus(); },
@@ -237,8 +236,5 @@ export class ModePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = this._selectedMode.label.get();
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
-
-		const modes = this._getAvailableModes();
-		this._slotElement?.classList.toggle('disabled', modes.length <= 1);
 	}
 }

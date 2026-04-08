@@ -29,9 +29,9 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { ISession } from '../../sessions/common/sessionData.js';
+import { ISession } from '../../../services/sessions/common/session.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -242,6 +242,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
+					logSessionsInteraction(that._telemetryService, 'addTask', 'menu');
 					const task = await that._showConfigureQuickPick(session);
 					if (task) {
 						await that._sessionsConfigService.runTask(task, session);
@@ -265,6 +266,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				}
 
 				async run(): Promise<void> {
+					logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
 					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 				}
 			}));
@@ -681,7 +683,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: tasksCategory,
 			run: async () => {
-				logSessionsInteraction(this._telemetryService, 'addTask');
+				logSessionsInteraction(this._telemetryService, 'addTask', 'actionWidget');
 				const task = await this._showConfigureQuickPick(session);
 				if (task) {
 					await this._sessionsConfigService.runTask(task, session);
@@ -703,7 +705,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			class: undefined,
 			category: tasksCategory,
 			run: async () => {
-				logSessionsInteraction(this._telemetryService, 'generateNewTask');
+				logSessionsInteraction(this._telemetryService, 'generateNewTask', 'actionWidget');
 				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
 			},
 		});

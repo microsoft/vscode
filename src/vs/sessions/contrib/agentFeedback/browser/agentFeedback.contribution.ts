@@ -22,8 +22,8 @@ import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the

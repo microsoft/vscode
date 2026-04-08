@@ -259,8 +259,8 @@ export class SessionDatabase implements ISessionDatabase {
 	async storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
 		return this._fileEditSequencer.queue(edit.filePath, async () => {
 			const db = await this._ensureDb();
-			// Ensure the turn exists — the onTurnStart event that calls
-			// createTurn() is fire-and-forget and may not have completed yet.
+			// Ensure the turn exists — lazily insert since the turn record
+			// may not have been created by an explicit createTurn() call.
 			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
 			await dbRun(
 				db,
@@ -307,6 +307,47 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
+	async getAllFileEdits(): Promise<IFileEditRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
+				FROM file_edits
+				ORDER BY rowid`,
+			[],
+		);
+		return rows.map(row => ({
+			turnId: row.turn_id as string,
+			toolCallId: row.tool_call_id as string,
+			filePath: row.file_path as string,
+			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
+			originalPath: row.original_path as string | undefined ?? undefined,
+			addedLines: row.added_lines as number | undefined ?? undefined,
+			removedLines: row.removed_lines as number | undefined ?? undefined,
+		}));
+	}
+
+	async getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]> {
+		const db = await this._ensureDb();
+		const rows = await dbAll(
+			db,
+			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
+				FROM file_edits
+				WHERE turn_id = ?
+				ORDER BY rowid`,
+			[turnId],
+		);
+		return rows.map(row => ({
+			turnId: row.turn_id as string,
+			toolCallId: row.tool_call_id as string,
+			filePath: row.file_path as string,
+			kind: (row.edit_type as IFileEditRecord['kind']) ?? 'edit',
+			originalPath: row.original_path as string | undefined ?? undefined,
+			addedLines: row.added_lines as number | undefined ?? undefined,
+			removedLines: row.removed_lines as number | undefined ?? undefined,
+		}));
+	}
+
 	async readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
 		return this._fileEditSequencer.queue(filePath, async () => {
 			const db = await this._ensureDb();
@@ -333,6 +374,25 @@ export class SessionDatabase implements ISessionDatabase {
 		const db = await this._ensureDb();
 		const row = await dbGet(db, 'SELECT value FROM session_metadata WHERE key = ?', [key]);
 		return row?.value as string | undefined;
+	}
+
+	async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
+		const keys = Object.keys(obj) as (keyof T & string)[];
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		const result = {} as { [K in keyof T]: string | undefined };
+		if (keys.length === 0) {
+			return result;
+		}
+		const db = await this._ensureDb();
+		const placeholders = keys.map(() => '?').join(',');
+		const rows = await dbAll(db, `SELECT key, value FROM session_metadata WHERE key IN (${placeholders})`, keys);
+		for (const key of keys) {
+			result[key] = undefined;
+		}
+		for (const row of rows) {
+			result[row.key as keyof T] = row.value as string;
+		}
+		return result;
 	}
 
 	async setMetadata(key: string, value: string): Promise<void> {
