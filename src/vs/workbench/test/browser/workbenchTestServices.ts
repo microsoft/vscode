@@ -583,11 +583,11 @@ export class TestMenuService implements IMenuService {
 	}
 
 	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	getMenuContexts(id: MenuId): ReadonlySet<string> {
-		throw new Error('Method not implemented.');
+		return new Set<string>();
 	}
 
 	resetHiddenStates(): void {
@@ -1360,6 +1360,7 @@ export class TestHostService implements IHostService {
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
+	async shutdown(): Promise<void> { }
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
 		return await expectedShutdownTask();
 	}

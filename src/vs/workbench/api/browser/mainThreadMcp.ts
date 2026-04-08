@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as nls from '../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -401,8 +401,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._telemetryService.publicLog2<IAuthMetadataSource, McpAuthSetupClassification>('mcp/authSetup', data);
 	}
 
-	async $startMcpGateway(): Promise<{ servers: { label: string; address: URI }[]; gatewayId: string } | undefined> {
-		const result = await this._mcpGatewayService.createGateway(this._extHostContext.extensionHostKind === ExtensionHostKind.Remote);
+	async $startMcpGateway(chatSessionResource?: UriComponents): Promise<{ servers: { label: string; address: URI }[]; gatewayId: string } | undefined> {
+		const result = await this._mcpGatewayService.createGateway(
+			this._extHostContext.extensionHostKind === ExtensionHostKind.Remote,
+			chatSessionResource ? URI.revive(chatSessionResource) : undefined,
+		);
 		if (!result) {
 			return undefined;
 		}

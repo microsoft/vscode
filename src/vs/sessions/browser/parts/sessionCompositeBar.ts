@@ -9,17 +9,15 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableListener, EventType, getWindow, reset } from '../../../base/browser/dom.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND } from '../../../workbench/common/theme.js';
+import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
 import { Action } from '../../../base/common/actions.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
-// TODO: we should move the sessions management service to a more core location so that we don't have to depend on the entire sessions contrib in this common/browser component
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsManagementService } from '../../contrib/sessions/browser/sessionsManagementService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChat } from '../../contrib/sessions/common/sessionData.js';
+import { sessionsChatBarBackground } from '../../common/theme.js';
+import { IChat } from '../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
 interface ISessionTab {
 	readonly chat: IChat;
@@ -188,7 +186,7 @@ export class SessionCompositeBar extends Disposable {
 	private _updateStyles(): void {
 		const theme = this._themeService.getColorTheme();
 
-		const bg = theme.getColor(SIDE_BAR_BACKGROUND);
+		const bg = theme.getColor(sessionsChatBarBackground);
 		const activeFg = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
 		const inactiveFg = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
 		const activeBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);

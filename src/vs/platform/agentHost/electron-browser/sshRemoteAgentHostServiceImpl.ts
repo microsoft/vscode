@@ -9,7 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ISharedProcessService } from '../../ipc/electron-browser/services.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
 import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
@@ -92,10 +92,13 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 			this._logService.trace('[SSHRemoteAgentHost] Protocol handshake completed');
 
 			await this._remoteAgentHostService.addSSHConnection({
-				address: result.address,
 				name: result.name,
 				connectionToken: result.connectionToken,
-				sshConfigHost: result.sshConfigHost,
+				connection: {
+					type: RemoteAgentHostEntryType.SSH,
+					address: result.address,
+					sshConfigHost: result.sshConfigHost,
+				},
 			}, protocolClient);
 		} catch (err) {
 			this._logService.error('[SSHRemoteAgentHost] Connection setup failed', err);
@@ -141,10 +144,13 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 		await protocolClient.connect();
 
 		await this._remoteAgentHostService.addSSHConnection({
-			address: result.address,
 			name: result.name,
 			connectionToken: result.connectionToken,
-			sshConfigHost: result.sshConfigHost,
+			connection: {
+				type: RemoteAgentHostEntryType.SSH,
+				address: result.address,
+				sshConfigHost: result.sshConfigHost,
+			},
 		}, protocolClient);
 
 		const handle = new SSHAgentHostConnectionHandle(

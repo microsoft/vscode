@@ -8,16 +8,10 @@
 	height: 100%;
 	min-height: 0;
 
-	.pane-body & .monaco-scrollable-element {
-		padding: 0 10px;
-	}
-
-	.pane-body & .monaco-tree-sticky-container {
-		padding: 0 10px;
-	}
-
-	.monaco-list-row {
+	.monaco-list-row:has(.session-item) {
 		border-radius: 6px;
+		margin: 0 10px;
+		width: calc(100% - 20px);
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -228,7 +222,6 @@
 
 	.session-approval-row {
 		display: none;
-		align-items: flex-end;
 		gap: 8px;
 		margin-top: 4px;
 		padding: 4px 8px;
@@ -237,6 +230,7 @@
 		border-radius: 4px;
 		background-color: var(--vscode-editor-background);
 		color: var(--vscode-editor-foreground);
+		align-items: center;
 
 		&.visible {
 			display: flex;
@@ -281,7 +275,7 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	padding: 0 6px;
+	padding: 0 10px;
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
@@ -316,8 +310,8 @@
 	font-weight: 500;
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
-	/* align with session item padding */
-	padding: 0 6px;
+	/* align with session item margin */
+	padding: 0 10px;
 
 	.session-section-label {
 		flex: 0 1 auto;
