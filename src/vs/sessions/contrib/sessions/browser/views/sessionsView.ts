@@ -204,18 +204,17 @@ export class SessionsView extends ViewPane {
 			keybindingLabelBottomBorder: undefined,
 			keybindingLabelShadow: undefined,
 		}));
-		newSessionButton.label = localize('newCompact', "New");
-		DOM.append(buttonLabel, ...Array.from(newSessionButton.element.childNodes));
+		DOM.reset(buttonLabel, localize('newCompact', "New"));
 		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION);
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION, this.scopedContextKeyService, true);
 			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 
-		let lastRenderedKeybindingLabel: string | undefined;
-		let lastRenderedKeybindingAriaLabel: string | undefined;
+		let lastRenderedKeybindingLabel: string | undefined | null = null;
+		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
 		const updateNewSessionButton = () => {
 			const keybinding = getNewSessionKeybinding();
 			const keybindingLabel = keybinding?.getLabel() ?? undefined;
