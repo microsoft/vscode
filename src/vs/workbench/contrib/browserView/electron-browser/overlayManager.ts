@@ -260,7 +260,9 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			if (overlapCenter) {
 				// z-index check. If the overlay isn't the topmost element, ignore it
 				// (the overlay either doesn't cover the element, or is also covered by another overlay).
-				const elementAtPoint = this.targetWindow.document.elementFromPoint(overlapCenter.x, overlapCenter.y);
+				const clientX = overlapCenter.x - this.targetWindow.scrollX;
+				const clientY = overlapCenter.y - this.targetWindow.scrollY;
+				const elementAtPoint = this.targetWindow.document.elementFromPoint(clientX, clientY);
 				if (elementAtPoint && overlay.element.contains(elementAtPoint)) {
 					overlappingOverlays.push({
 						type: overlay.type,
