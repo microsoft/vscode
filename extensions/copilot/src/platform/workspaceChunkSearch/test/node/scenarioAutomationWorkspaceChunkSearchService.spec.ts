@@ -91,18 +91,18 @@ class TestFetcherService extends mock<IFetcherService>() implements IFetcherServ
 }
 
 class TestGitService extends mock<IGitService>() implements IGitService {
-	readonly repositories = [];
+	override readonly repositories = [];
 }
 
 class TestLogService extends mock<ILogService>() implements ILogService {
 	readonly errors: string[] = [];
 	readonly traces: string[] = [];
 
-	trace(message: string): void {
+	override trace(message: string): void {
 		this.traces.push(message);
 	}
 
-	error(message: string): void {
+	override error(message: string): void {
 		this.errors.push(message);
 	}
 }
