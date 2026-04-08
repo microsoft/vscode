@@ -72,6 +72,7 @@ import '../platform/extensionResourceLoader/browser/extensionResourceLoaderServi
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import './services/browserElements/browser/webBrowserElementsService.js';
 import './services/power/browser/powerService.js';
+import '../platform/sandbox/browser/sandboxHelperService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -173,5 +174,8 @@ import './contrib/remote/browser/remoteStartEntry.contribution.js';
 
 // Process Explorer
 import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
+
+// Browser View
+import './contrib/browserView/browser/browserView.contribution.js';
 
 //#endregion

@@ -40,6 +40,7 @@
 		flex: 1;
 		overflow: hidden;
 		min-height: 0;
+		margin-bottom: 6px;
 	}
 
 	.agent-sessions-header {
@@ -73,30 +74,115 @@
 	}
 
 	.agent-sessions-new-button-container {
-		padding: 6px 12px 8px 12px;
+		padding: 0 10px 10px 10px;
 	}
 
 	.agent-sessions-new-button-container .monaco-button {
-		position: relative;
 		display: flex;
 		align-items: center;
-		justify-content: center;
+		justify-content: space-between;
+		column-gap: 12px;
+		padding-right: 5px;
+		text-align: left;
+	}
+
+	.agent-sessions-new-button-container .monaco-button:focus {
+		outline-offset: -1px !important;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-button-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-button-label > .codicon {
+		margin: 0;
+		font-size: 14px;
+		line-height: 14px;
+		transform: translateY(1px);
 	}
 
 	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint {
-		position: absolute;
-		right: 10px;
+		display: inline-block;
+		flex-shrink: 0;
+		font-family: var(--monaco-monospace-font);
 		font-size: 11px;
-		opacity: 0.5;
+		line-height: 1;
+		padding: 2px 4px;
+		border: 1px solid transparent;
+		border-radius: 2px;
+		background-color: var(--vscode-keybindingLabel-background);
+		color: var(--vscode-keybindingLabel-foreground);
+		box-shadow: none;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding {
+		line-height: 1;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
+		margin: 0 1px;
+		padding: 0;
+		min-width: auto;
+		border: 0;
+		background-color: transparent;
+		box-shadow: none;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:first-child {
+		margin-left: 0;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
+		margin-right: 0;
 	}
 
 	.agent-sessions-control-container {
 		flex: 1;
 		overflow: hidden;
+	}
+}
 
-		/* Override section header padding to align with dot indicators */
-		.agent-session-section {
-			padding-left: 12px;
+/* Sessions-app-specific overrides for the agent sessions viewer.
+ * These styles only apply within the agent-sessions-workbench context. */
+
+.agent-sessions-workbench {
+
+	/*
+	 * Show-more / show-less: content always rendered, list row height
+	 * controls visibility (1px = clipped, 26px = visible).
+	 * Height animation is driven by JS (requestAnimationFrame) since
+	 * the virtualized list uses absolute positioning.
+	 */
+	.agent-session-show-more {
+		justify-content: center;
+		align-items: center;
+		padding: 0 6px;
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		min-height: 26px;
+
+		.agent-session-show-more-label {
+			padding: 0 6px;
+			flex-shrink: 0;
+			white-space: nowrap;
 		}
+
+		/* Lines on both sides of the text as flex items */
+		&::before,
+		&::after {
+			content: '';
+			flex: 1;
+			height: 1px;
+			background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+		}
+	}
+
+	/* Brighter text on direct hover */
+	.monaco-list-row:hover .agent-session-show-more:hover {
+		color: var(--vscode-foreground);
 	}
 }

@@ -11,13 +11,14 @@ import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { relativePath } from '../../../../../base/common/resources.js';
+import { isEqual, relativePath } from '../../../../../base/common/resources.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Location, LocationLink } from '../../../../../editor/common/languages.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from '../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -50,6 +51,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ISearchService private readonly _searchService: ISearchService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -64,17 +66,23 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		)((() => this._onDidUpdateToolData.fire())));
 	}
 
-	getToolData(): IToolData {
+	getToolData(): IToolData | undefined {
 		const languageIds = this._languageFeaturesService.referenceProvider.registeredLanguageIds;
 
+		if (languageIds.size === 0) {
+			return undefined;
+		}
+
 		let modelDescription = BaseModelDescription;
+		let userDescription: string;
 		if (languageIds.has('*')) {
 			modelDescription += '\n\nSupported for all languages.';
-		} else if (languageIds.size > 0) {
+			userDescription = localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol');
+		} else {
 			const sorted = [...languageIds].sort();
 			modelDescription += `\n\nCurrently supported for: ${sorted.join(', ')}.`;
-		} else {
-			modelDescription += '\n\nNo languages currently have reference providers registered.';
+			const niceNames = sorted.map(id => this._languageService.getLanguageName(id) ?? id);
+			userDescription = localize('tool.usages.userDescriptionWithLanguages', 'Find references, definitions, and implementations of a symbol ({0})', niceNames.join(', '));
 		}
 
 		return {
@@ -83,7 +91,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 			canBeReferencedInPrompt: false,
 			icon: ThemeIcon.fromId(Codicon.references.id),
 			displayName: localize('tool.usages.displayName', 'List Code Usages'),
-			userDescription: localize('tool.usages.userDescription', 'Find references, definitions, and implementations of a symbol'),
+			userDescription,
 			modelDescription,
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.has('config.chat.tools.usagesTool.enabled'),
@@ -297,7 +305,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 	}
 
 	private _overlaps(a: LocationLink, b: LocationLink): boolean {
-		if (a.uri.toString() !== b.uri.toString()) {
+		if (!isEqual(a.uri, b.uri)) {
 			return false;
 		}
 		return Range.areIntersectingOrTouching(a.range, b.range);
@@ -320,9 +328,12 @@ export class UsagesToolContribution extends Disposable implements IWorkbenchCont
 		let registration: IDisposable | undefined;
 		const registerUsagesTool = () => {
 			registration?.dispose();
+			registration = undefined;
 			toolsService.flushToolUpdates();
 			const toolData = usagesTool.getToolData();
-			registration = toolsService.registerTool(toolData, usagesTool);
+			if (toolData) {
+				registration = toolsService.registerTool(toolData, usagesTool);
+			}
 		};
 		registerUsagesTool();
 		this._store.add(usagesTool.onDidUpdateToolData(registerUsagesTool));

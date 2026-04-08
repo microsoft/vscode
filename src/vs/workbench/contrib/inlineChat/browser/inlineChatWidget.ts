@@ -17,14 +17,15 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
-import { createActionViewItem, IMenuEntryActionViewItemOptions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -39,9 +40,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
-import { ChatVoteDownButton } from '../../chat/browser/widget/chatListRenderer.js';
 import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/widget/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -49,7 +48,6 @@ import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService/chatService.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
-import * as marked from '../../../../base/common/marked/marked.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import './media/inlineChat.css';
 
@@ -120,6 +118,7 @@ export class InlineChatWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
 		@IChatService private readonly _chatService: IChatService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -251,9 +250,6 @@ export class InlineChatWidget {
 			telemetrySource: _options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true, shouldForwardArgs: true },
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-				if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
-					return scopedInstaService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
-				}
 				return createActionViewItem(scopedInstaService, action, options);
 			}
 		});
@@ -310,7 +306,7 @@ export class InlineChatWidget {
 			const anonymous = this._chatEntitlementService.anonymousObs.read(reader);
 			const requestInProgress = this._chatService.requestInProgressObs.read(reader);
 
-			const showDisclaimer = !sentiment.installed && anonymous && !requestInProgress;
+			const showDisclaimer = !sentiment.completed && anonymous && !requestInProgress;
 			this._elements.disclaimerLabel.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {
@@ -446,40 +442,39 @@ export class InlineChatWidget {
 			return;
 		}
 
-		// Try to get the existing code block from the collection
-		const existingEntry = viewModel.codeBlockModelCollection.get(viewModel.sessionResource, item, codeBlockIndex);
-		if (existingEntry) {
-			return existingEntry.model;
+		// Look for the code block in the rendered response
+		const codeBlocks = this._chatWidget.getCodeBlockInfosForResponse(item);
+		const info = codeBlocks[codeBlockIndex];
+		if (info?.uri) {
+			return this._modelService.getModel(info.uri) ?? undefined;
 		}
 
-		// If not found, the rendering may not have completed yet.
-		// Parse the markdown and create the code block model synchronously.
+		// Fallback: if the code block hasn't been rendered yet (e.g. due to
+		// timing between response completion and list rendering), parse the
+		// markdown directly and create a transient model.
 		const markdown = item.response.getMarkdown();
 		let currentCodeBlockIndex = 0;
-		let foundCodeBlock: { text: string; lang: string } | undefined;
+		let foundText: string | undefined;
 
-		marked.walkTokens(marked.lexer(markdown), token => {
-			if (token.type === 'code') {
+		for (const line of markdown.split('\n')) {
+			if (line.startsWith('```') && foundText === undefined) {
+				foundText = '';
+			} else if (line.startsWith('```') && foundText !== undefined) {
 				if (currentCodeBlockIndex === codeBlockIndex) {
-					foundCodeBlock = { text: token.text, lang: token.lang || '' };
+					break;
 				}
 				currentCodeBlockIndex++;
+				foundText = undefined;
+			} else if (foundText !== undefined) {
+				foundText += (foundText ? '\n' : '') + line;
 			}
-		});
-
-		if (!foundCodeBlock) {
-			return undefined;
 		}
 
-		// Create the code block model synchronously
-		const entry = viewModel.codeBlockModelCollection.updateSync(
-			viewModel.sessionResource,
-			item,
-			codeBlockIndex,
-			{ text: foundCodeBlock.text, languageId: foundCodeBlock.lang, isComplete: true }
-		);
+		if (foundText !== undefined && currentCodeBlockIndex === codeBlockIndex) {
+			return this._modelService.createModel(foundText, null, undefined, true);
+		}
 
-		return entry.model;
+		return undefined;
 	}
 
 	get responseContent(): string | undefined {
@@ -571,6 +566,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService textModelResolverService: ITextModelService,
+		@IModelService modelService: IModelService,
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 		@ILayoutService layoutService: ILayoutService,
@@ -584,7 +580,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 				...options.chatWidgetViewOptions,
 				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
-		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService, markdownRendererService);
+		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, modelService, chatService, hoverService, chatEntitlementService, markdownRendererService);
 
 		this._store.add(toDisposable(() => {
 			overflowWidgetsNode.remove();

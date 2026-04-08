@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../.
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -41,6 +42,11 @@ export interface IChatQuestionCarouselOptions {
 	shouldAutoFocus?: boolean;
 }
 
+type IOrderedQuestionOption = {
+	option: NonNullable<IChatQuestion['options']>[number];
+	originalIndex: number;
+};
+
 export class ChatQuestionCarouselPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
@@ -49,13 +55,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	private _currentIndex = 0;
 	private readonly _answers = new Map<string, IChatQuestionAnswerValue>();
+	private _isCollapsed = false;
 
 	private _questionContainer: HTMLElement | undefined;
+	private _headerActionsContainer: HTMLElement | undefined;
 	private _closeButtonContainer: HTMLElement | undefined;
 	private _footerRow: HTMLElement | undefined;
 	private _stepIndicator: HTMLElement | undefined;
 	private _submitHint: HTMLElement | undefined;
 	private _submitButton: Button | undefined;
+	private _collapseButton: Button | undefined;
 	private _prevButton: Button | undefined;
 	private _nextButton: Button | undefined;
 	private _skipAllButton: Button | undefined;
@@ -63,8 +72,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private _isSkipped = false;
 
 	private readonly _textInputBoxes: Map<string, InputBox> = new Map();
-	private readonly _singleSelectItems: Map<string, { items: HTMLElement[]; selectedIndex: number }> = new Map();
-	private readonly _multiSelectCheckboxes: Map<string, Checkbox[]> = new Map();
+	private readonly _singleSelectItems: Map<string, { items: HTMLElement[]; selectedIndex: number; optionIndices: number[] }> = new Map();
+	private readonly _multiSelectCheckboxes: Map<string, { checkboxes: Checkbox[]; optionIndices: number[] }> = new Map();
 	private readonly _freeformTextareas: Map<string, HTMLTextAreaElement> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 	private readonly _questionRenderStore = this._register(new MutableDisposable<DisposableStore>());
@@ -92,6 +101,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		super();
 
 		this.domNode = dom.$('.chat-question-carousel-container');
+		this.domNode.id = generateUuid();
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this._inChatQuestionCarouselContextKey.set(true)));
@@ -108,6 +118,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (carousel instanceof ChatQuestionCarouselData) {
 			if (typeof carousel.draftCurrentIndex === 'number') {
 				this._currentIndex = Math.max(0, Math.min(carousel.draftCurrentIndex, carousel.questions.length - 1));
+			}
+
+			if (typeof carousel.draftCollapsed === 'boolean') {
+				this._isCollapsed = carousel.draftCollapsed;
 			}
 
 			if (carousel.draftAnswers) {
@@ -141,6 +155,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Question container
 		this._questionContainer = dom.$('.chat-question-carousel-content');
 		this.domNode.append(this._questionContainer);
+		this._headerActionsContainer = dom.$('.chat-question-header-actions');
+
+		const collapseToggleTitle = localize('chat.questionCarousel.collapseTitle', 'Collapse Questions');
+		const collapseButton = interactiveStore.add(new Button(this._headerActionsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		collapseButton.element.classList.add('chat-question-collapse-toggle');
+		collapseButton.element.setAttribute('aria-label', collapseToggleTitle);
+		this._collapseButton = collapseButton;
 
 		// Close/skip button (X) - placed in header row, only shown when allowSkip is true
 		if (carousel.allowSkip) {
@@ -155,6 +176,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		// Register event listeners
+		interactiveStore.add(collapseButton.onDidClick(() => this.toggleCollapsed()));
+
 		if (this._skipAllButton) {
 			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
 		}
@@ -224,6 +247,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this.carousel.draftAnswers = Object.fromEntries(this._answers.entries());
 		this.carousel.draftCurrentIndex = this._currentIndex;
+		this.carousel.draftCollapsed = this._isCollapsed;
+	}
+
+	private toggleCollapsed(): void {
+		this._isCollapsed = !this._isCollapsed;
+		this.persistDraftState();
+		this.updateCollapsedPresentation();
+		this._onDidChangeHeight.fire();
+	}
+
+	private updateCollapsedPresentation(): void {
+		this.domNode.classList.toggle('chat-question-carousel-collapsed', this._isCollapsed);
+
+		if (this._collapseButton) {
+			const collapsed = this._isCollapsed;
+			const buttonTitle = collapsed
+				? localize('chat.questionCarousel.expandTitle', 'Expand Questions')
+				: localize('chat.questionCarousel.collapseTitle', 'Collapse Questions');
+			const contentId = this.domNode.id;
+			this._collapseButton.label = collapsed ? `$(${Codicon.chevronUp.id})` : `$(${Codicon.chevronDown.id})`;
+			this._collapseButton.element.setAttribute('aria-label', buttonTitle);
+			this._collapseButton.element.setAttribute('aria-expanded', String(!collapsed));
+			this._collapseButton.element.setAttribute('aria-controls', contentId);
+			this._collapseButton.setTitle(buttonTitle);
+		}
 	}
 
 	/**
@@ -335,7 +383,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._submitButton = undefined;
 		this._skipAllButton = undefined;
 		this._questionContainer = undefined;
+		this._headerActionsContainer = undefined;
 		this._closeButtonContainer = undefined;
+		this._collapseButton = undefined;
 		this._footerRow = undefined;
 		this._stepIndicator = undefined;
 		this._submitHint = undefined;
@@ -609,9 +659,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		headerRow.appendChild(titleRow);
 
-		// Always keep the close button in the title row so it does not overlap content.
-		if (this._closeButtonContainer) {
-			titleRow.appendChild(this._closeButtonContainer);
+		if (this._headerActionsContainer) {
+			dom.clearNode(this._headerActionsContainer);
+			if (this._closeButtonContainer) {
+				this._headerActionsContainer.appendChild(this._closeButtonContainer);
+			}
+			if (this._collapseButton) {
+				this._headerActionsContainer.appendChild(this._collapseButton.element);
+			}
+			titleRow.appendChild(this._headerActionsContainer);
 		}
 
 		this._questionContainer.appendChild(headerRow);
@@ -669,6 +725,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver(() => scheduleLayoutInputScrollable()));
 		questionRenderStore.add(inputResizeObserver.observe(inputScrollableNode));
 		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
+		questionRenderStore.add(dom.addDisposableListener(dom.getWindow(this.domNode), dom.EventType.RESIZE, () => scheduleLayoutInputScrollable()));
 		scheduleLayoutInputScrollable();
 		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
 			inputContainer.scrollTop = 0;
@@ -679,6 +736,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Update aria-label to reflect the current question
 		this._updateAriaLabel();
+		this.updateCollapsedPresentation();
 
 		// In screen reader mode, focus the container and announce the question
 		// This must happen after all render calls to avoid focus being stolen
@@ -902,7 +960,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
-		const options = question.options || [];
+		const orderedOptions = this.getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-label', question.title);
@@ -920,7 +978,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Determine initially selected index
 		let selectedIndex = -1;
-		options.forEach((option, index) => {
+		orderedOptions.forEach(({ option }, index) => {
 			if (previousSelectedValue !== undefined && option.value === previousSelectedValue) {
 				selectedIndex = index;
 			} else if (selectedIndex === -1 && !previousFreeform && defaultOptionId !== undefined && option.id === defaultOptionId) {
@@ -953,7 +1011,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this.saveCurrentAnswer();
 		};
 
-		options.forEach((option, index) => {
+		orderedOptions.forEach(({ option }, index) => {
 			const isSelected = index === selectedIndex;
 			const listItem = dom.$('.chat-question-list-item');
 			listItem.setAttribute('role', 'option');
@@ -1017,7 +1075,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			listItems.push(listItem);
 		});
 
-		this._singleSelectItems.set(question.id, { items: listItems, selectedIndex });
+		this._singleSelectItems.set(question.id, { items: listItems, selectedIndex, optionIndices: orderedOptions.map(o => o.originalIndex) });
 
 		// Set initial aria-activedescendant if there's a selected item
 		if (selectedIndex >= 0 && selectedIndex < listItems.length) {
@@ -1030,7 +1088,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const freeformContainer = dom.$('.chat-question-freeform');
 
 			const freeformNumber = dom.$('.chat-question-freeform-number');
-			freeformNumber.textContent = `${options.length + 1}`;
+			freeformNumber.textContent = `${orderedOptions.length + 1}`;
 			freeformContainer.appendChild(freeformNumber);
 
 			freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
@@ -1125,7 +1183,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderMultiSelect(container: HTMLElement, question: IChatQuestion): void {
-		const options = question.options || [];
+		const orderedOptions = this.getOptionsWithDefaultsFirst(question);
 		const selectContainer = dom.$('.chat-question-list');
 		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-multiselectable', 'true');
@@ -1149,7 +1207,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		let focusedIndex = 0;
 		let firstCheckedIndex = -1;
 
-		options.forEach((option, index) => {
+		orderedOptions.forEach(({ option }, index) => {
 			// Determine initial checked state
 			let isChecked = false;
 			if (previousSelectedValues && previousSelectedValues.length > 0) {
@@ -1229,7 +1287,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			listItems.push(listItem);
 		});
 
-		this._multiSelectCheckboxes.set(question.id, checkboxes);
+		this._multiSelectCheckboxes.set(question.id, { checkboxes, optionIndices: orderedOptions.map(o => o.originalIndex) });
 
 		// Show freeform input only when explicitly allowed
 		let freeformTextarea: HTMLTextAreaElement | undefined;
@@ -1238,7 +1296,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			// Number indicator for freeform (comes after all options)
 			const freeformNumber = dom.$('.chat-question-freeform-number');
-			freeformNumber.textContent = `${options.length + 1}`;
+			freeformNumber.textContent = `${orderedOptions.length + 1}`;
 			freeformContainer.appendChild(freeformNumber);
 
 			freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
@@ -1336,7 +1394,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				const data = this._singleSelectItems.get(question.id);
 				let selectedValue: string | undefined = undefined;
 				if (data && data.selectedIndex >= 0) {
-					selectedValue = question.options?.[data.selectedIndex]?.value;
+					const originalIndex = data.optionIndices[data.selectedIndex];
+					selectedValue = originalIndex !== undefined ? question.options?.[originalIndex]?.value : undefined;
 				}
 				// Find default option if nothing selected (defaultValue is the option id)
 				if (selectedValue === undefined && typeof question.defaultValue === 'string') {
@@ -1358,12 +1417,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 
 			case 'multiSelect': {
-				const checkboxes = this._multiSelectCheckboxes.get(question.id);
+				const data = this._multiSelectCheckboxes.get(question.id);
 				const selectedValues: string[] = [];
-				if (checkboxes) {
-					checkboxes.forEach((checkbox, index) => {
+				if (data) {
+					data.checkboxes.forEach((checkbox, index) => {
 						if (checkbox.checked) {
-							const value = question.options?.[index]?.value;
+							const originalIndex = data.optionIndices[index];
+							const value = originalIndex !== undefined ? question.options?.[originalIndex]?.value : undefined;
 							if (value !== undefined) {
 								selectedValues.push(value);
 							}
@@ -1386,6 +1446,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			default:
 				return typeof question.defaultValue === 'string' ? question.defaultValue : Array.isArray(question.defaultValue) ? { selectedValues: question.defaultValue } : undefined;
 		}
+	}
+
+	private getOptionsWithDefaultsFirst(question: IChatQuestion): IOrderedQuestionOption[] {
+		const options = question.options ?? [];
+		const orderedOptions = options.map((option, index) => ({ option, originalIndex: index }));
+		const defaultOptionIds = Array.isArray(question.defaultValue)
+			? question.defaultValue
+			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
+
+		if (defaultOptionIds.length === 0) {
+			return orderedOptions;
+		}
+
+		const defaultIds = new Set(defaultOptionIds);
+		const defaults: IOrderedQuestionOption[] = [];
+		const nonDefaults: IOrderedQuestionOption[] = [];
+		for (const item of orderedOptions) {
+			if (defaultIds.has(item.option.id)) {
+				defaults.push(item);
+			} else {
+				nonDefaults.push(item);
+			}
+		}
+
+		return [...defaults, ...nonDefaults];
 	}
 
 	/**

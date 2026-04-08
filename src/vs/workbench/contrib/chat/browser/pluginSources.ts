@@ -5,10 +5,11 @@
 
 import { Action } from '../../../../base/common/actions.js';
 import { CancelablePromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -22,6 +23,7 @@ import { ITerminalInstance, ITerminalService } from '../../terminal/browser/term
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, IPluginSourceDescriptor, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -39,12 +41,6 @@ function gitRevisionCacheSuffix(ref?: string, sha?: string): string[] {
 		return [`ref_${sanitizeCacheSegment(ref)}`];
 	}
 	return [];
-}
-
-function showGitOutputAction(commandService: ICommandService): Action {
-	return new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-		commandService.executeCommand('git.showOutput');
-	});
 }
 
 function shellEscapeArg(value: string): string {
@@ -70,6 +66,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		@IFileService protected readonly _fileService: IFileService,
 		@ILogService protected readonly _logService: ILogService,
 		@INotificationService protected readonly _notificationService: INotificationService,
+		@IPluginGitService protected readonly _pluginGit: IPluginGitService,
 		@IProgressService protected readonly _progressService: IProgressService,
 	) { }
 
@@ -79,18 +76,27 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 	protected abstract _displayLabel(descriptor: IPluginSourceDescriptor): string;
 
 	getCleanupTarget(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI | undefined {
+		return this._getRepoDir(cacheRoot, descriptor);
+	}
+
+	/**
+	 * Returns the on-disk directory of the cloned repository. Subclasses that
+	 * support a sub-path within a repository should override this to return the
+	 * repository root, while {@link getInstallUri} returns root + sub-path.
+	 */
+	protected _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		return this.getInstallUri(cacheRoot, descriptor);
 	}
 
 	async ensure(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI> {
 		const descriptor = plugin.sourceDescriptor;
-		const repoDir = this.getInstallUri(cacheRoot, descriptor);
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
 		const repoExists = await this._fileService.exists(repoDir);
 		const label = this._displayLabel(descriptor);
 
 		if (repoExists) {
 			await this._checkoutRevision(repoDir, descriptor, options?.failureLabel ?? label);
-			return repoDir;
+			return this.getInstallUri(cacheRoot, descriptor);
 		}
 
 		const progressTitle = options?.progressTitle ?? localize('cloningPluginSource', "Cloning plugin source '{0}'...", label);
@@ -99,12 +105,12 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		await this._cloneRepository(repoDir, this._cloneUrl(descriptor), progressTitle, failureLabel, ref);
 		await this._checkoutRevision(repoDir, descriptor, failureLabel);
-		return repoDir;
+		return this.getInstallUri(cacheRoot, descriptor);
 	}
 
 	async update(cacheRoot: URI, plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean> {
 		const descriptor = plugin.sourceDescriptor;
-		const repoDir = this.getInstallUri(cacheRoot, descriptor);
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
 		const repoExists = await this._fileService.exists(repoDir);
 		if (!repoExists) {
 			this._logService.warn(`[${this.kind}] Cannot update plugin '${options?.pluginName ?? plugin.name}': source repository not cloned`);
@@ -115,19 +121,18 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		const failureLabel = options?.failureLabel ?? updateLabel;
 
 		try {
-			const doUpdate = async () => {
-				await this._commandService.executeCommand('git.openRepository', repoDir.fsPath);
+			const doUpdate = async (cts?: CancellationTokenSource) => {
 				const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 				let changed: boolean;
 				if (git.sha) {
-					const headBefore = await this._commandService.executeCommand<string>('_git.revParse', repoDir.fsPath, 'HEAD').catch(() => undefined);
-					await this._commandService.executeCommand('git.fetch', repoDir.fsPath);
-					await this._checkoutRevision(repoDir, descriptor, failureLabel);
-					const headAfter = await this._commandService.executeCommand<string>('_git.revParse', repoDir.fsPath, 'HEAD').catch(() => undefined);
+					const headBefore = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
+					await this._pluginGit.fetch(repoDir, cts?.token);
+					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
+					const headAfter = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
 					changed = headBefore !== headAfter;
 				} else {
-					changed = !!(await this._commandService.executeCommand<boolean>('_git.pull', repoDir.fsPath));
-					await this._checkoutRevision(repoDir, descriptor, failureLabel);
+					changed = await this._pluginGit.pull(repoDir, cts?.token);
+					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
 				}
 				return changed;
 			};
@@ -136,21 +141,26 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				return await doUpdate();
 			}
 
-			return await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
-					cancellable: false,
-				},
-				doUpdate,
-			);
+			const cts = new CancellationTokenSource();
+			try {
+				return await this._progressService.withProgress(
+					{
+						location: ProgressLocation.Notification,
+						title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
+						cancellable: true,
+					},
+					() => doUpdate(cts),
+					() => cts.dispose(true),
+				);
+			} finally {
+				cts.dispose();
+			}
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to update plugin source '${updateLabel}':`, err);
 			if (!options?.silent) {
 				this._notificationService.notify({
 					severity: Severity.Error,
 					message: localize('pullPluginSourceFailed', "Failed to update plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-					actions: { primary: [showGitOutputAction(this._commandService)] },
 				});
 			}
 			throw err;
@@ -160,30 +170,33 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 	// -- internal helpers ---
 
 	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string): Promise<void> {
+		const cts = new CancellationTokenSource();
 		try {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
 					title: progressTitle,
-					cancellable: false,
+					cancellable: true,
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, repoDir.fsPath, ref);
-				}
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token);
+				},
+				() => cts.dispose(true),
 			);
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to clone ${cloneUrl}:`, err);
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: localize('cloneFailed', "Failed to install plugin '{0}': {1}", failureLabel, err?.message ?? String(err)),
-				actions: { primary: [showGitOutputAction(this._commandService)] },
 			});
 			throw err;
+		} finally {
+			cts.dispose();
 		}
 	}
 
-	private async _checkoutRevision(repoDir: URI, descriptor: IPluginSourceDescriptor, failureLabel: string): Promise<void> {
+	private async _checkoutRevision(repoDir: URI, descriptor: IPluginSourceDescriptor, failureLabel: string, token?: CancellationToken): Promise<void> {
 		const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 		if (!git.sha && !git.ref) {
 			return;
@@ -191,16 +204,16 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			if (git.sha) {
-				await this._commandService.executeCommand('_git.checkout', repoDir.fsPath, git.sha, true);
+				await this._pluginGit.checkout(repoDir, git.sha, true, token);
 				return;
 			}
-			await this._commandService.executeCommand('_git.checkout', repoDir.fsPath, git.ref);
+			// git.ref is guaranteed non-nullish by the guard above
+			await this._pluginGit.checkout(repoDir, git.ref!, undefined, token);
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to checkout revision for '${failureLabel}':`, err);
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: localize('checkoutPluginSourceFailed', "Failed to checkout plugin '{0}' to requested revision: {1}", failureLabel, err?.message ?? String(err)),
-				actions: { primary: [showGitOutputAction(this._commandService)] },
 			});
 			throw err;
 		}
@@ -242,14 +255,32 @@ export class RelativePathPluginSource implements IPluginSource {
 export class GitHubPluginSource extends AbstractGitPluginSource {
 	readonly kind = PluginSourceKind.GitHub;
 
+	/** Returns the URI where the plugin content lives (repo root + optional sub-path). */
 	getInstallUri(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
+		const repoDir = this._getRepoDir(cacheRoot, descriptor);
+		const gh = descriptor as IGitHubPluginSource;
+		if (gh.path) {
+			const normalizedPath = gh.path.trim().replace(/^\.?\/+|\/+$/g, '');
+			if (normalizedPath) {
+				const target = joinPath(repoDir, normalizedPath);
+				if (isEqualOrParent(target, repoDir)) {
+					return target;
+				}
+			}
+		}
+		return repoDir;
+	}
+
+	/** Returns the cloned repository root (without sub-path). */
+	protected override _getRepoDir(cacheRoot: URI, descriptor: IPluginSourceDescriptor): URI {
 		const gh = descriptor as IGitHubPluginSource;
 		const [owner, repo] = gh.repo.split('/');
 		return joinPath(cacheRoot, 'github.com', owner, repo, ...gitRevisionCacheSuffix(gh.ref, gh.sha));
 	}
 
 	getLabel(descriptor: IPluginSourceDescriptor): string {
-		return (descriptor as IGitHubPluginSource).repo;
+		const gh = descriptor as IGitHubPluginSource;
+		return gh.path ? `${gh.repo}/${gh.path}` : gh.repo;
 	}
 
 	protected _cloneUrl(descriptor: IPluginSourceDescriptor): string {

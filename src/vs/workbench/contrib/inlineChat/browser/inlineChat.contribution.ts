@@ -17,6 +17,7 @@ import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
+import { IInlineChatHistoryService, InlineChatHistoryService } from './inlineChatHistoryService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
 import { localize } from '../../../../nls.js';
@@ -36,6 +37,7 @@ registerAction2(InlineChatActions.RephraseInlineChatSessionAction);
 // --- browser
 
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
+registerSingleton(IInlineChatHistoryService, InlineChatHistoryService, InstantiationType.Delayed);
 
 // --- MENU special ---
 

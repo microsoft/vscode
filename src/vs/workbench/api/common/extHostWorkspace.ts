@@ -524,6 +524,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 				maxResults: options.maxResults,
 				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
+				ignoreGlobCase: options.caseInsensitive,
 				_reason: 'startFileSearch',
 				shouldGlobSearch: query.type === 'include' ? undefined : true,
 			};
@@ -597,6 +598,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 					fileEncoding: options.encoding,
 					maxResults: options.maxResults,
+					ignoreGlobCase: options.caseInsensitive,
 					previewOptions: options.previewOptions ? {
 						matchLines: options.previewOptions?.numMatchLines ?? 100,
 						charsPerLine: options.previewOptions?.charsPerLine ?? 10000,

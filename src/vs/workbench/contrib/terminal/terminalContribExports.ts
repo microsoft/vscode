@@ -46,6 +46,16 @@ export const enum TerminalContribSettingId {
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
+	AgentSandboxEnabled = TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
+	DeprecatedAgentSandboxEnabled = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled,
+	DeprecatedAgentSandboxNetworkAllowedDomains = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkAllowedDomains,
+	DeprecatedAgentSandboxNetworkDeniedDomains = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkDeniedDomains,
+	DeprecatedAgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem,
+	DeprecatedAgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem,
+	AgentSandboxNetworkAllowedDomains = TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains,
+	AgentSandboxNetworkDeniedDomains = TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains,
+	AgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem,
+	AgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem,
 }
 
 // HACK: Export some context key strings from `terminalContrib/` that are depended upon elsewhere.

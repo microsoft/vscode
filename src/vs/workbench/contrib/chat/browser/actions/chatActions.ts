@@ -56,6 +56,7 @@ import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableE
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
@@ -1095,6 +1096,7 @@ export function registerChatActions() {
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
 						ChatContextKeys.Entitlement.planFree,
+						ChatContextKeys.Entitlement.planEdu,
 						ChatContextKeys.Entitlement.planPro,
 						ChatContextKeys.Entitlement.planProPlus
 					),
@@ -1435,6 +1437,12 @@ export function registerChatActions() {
 					id: MenuId.ChatWelcomeContext,
 					group: '2_settings',
 					order: 1
+				},
+				{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+					order: 15,
+					group: '3_configure'
 				}]
 			});
 		}
@@ -1445,12 +1453,19 @@ export function registerChatActions() {
 		}
 	});
 
+	// Show a direct gear action to open the Customizations editor
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		submenu: CHAT_CONFIG_MENU_ID,
-		title: localize2('config.label', "Configure Chat"),
+		command: {
+			id: AICustomizationManagementCommands.OpenEditor,
+			title: localize2('openChatCustomizations', "Open Customizations"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.gear
+		},
 		group: 'navigation',
-		when: ContextKeyExpr.equals('view', ChatViewId),
-		icon: Codicon.gear,
+		when: ContextKeyExpr.and(
+			ChatContextKeys.enabled,
+			ContextKeyExpr.equals('view', ChatViewId),
+		),
 		order: 6
 	});
 }

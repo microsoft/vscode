@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as nls from '../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -18,7 +18,7 @@ import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IMcpGatewayResult, IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
+import { IWorkbenchMcpGatewayService } from '../../contrib/mcp/common/mcpGatewayService.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
@@ -46,7 +46,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		servers: ISettableObservable<readonly McpServerDefinition[]>;
 		dispose(): void;
 	}>());
-	private readonly _gateways = this._register(new DisposableMap<string, IMcpGatewayResult>());
+	private readonly _gateways = this._register(new DisposableMap<string, DisposableStore>());
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
@@ -401,8 +401,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._telemetryService.publicLog2<IAuthMetadataSource, McpAuthSetupClassification>('mcp/authSetup', data);
 	}
 
-	async $startMcpGateway(): Promise<{ address: URI; gatewayId: string } | undefined> {
-		const result = await this._mcpGatewayService.createGateway(this._extHostContext.extensionHostKind === ExtensionHostKind.Remote);
+	async $startMcpGateway(chatSessionResource?: UriComponents): Promise<{ servers: { label: string; address: URI }[]; gatewayId: string } | undefined> {
+		const result = await this._mcpGatewayService.createGateway(
+			this._extHostContext.extensionHostKind === ExtensionHostKind.Remote,
+			chatSessionResource ? URI.revive(chatSessionResource) : undefined,
+		);
 		if (!result) {
 			return undefined;
 		}
@@ -413,10 +416,15 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 
 		const gatewayId = generateUuid();
-		this._gateways.set(gatewayId, result);
+		const store = new DisposableStore();
+		store.add(result);
+		store.add(result.onDidChangeServers(servers => {
+			this._proxy.$onDidChangeGatewayServers(gatewayId, servers.map(s => ({ label: s.label, address: s.address })));
+		}));
+		this._gateways.set(gatewayId, store);
 
 		return {
-			address: result.address,
+			servers: result.servers.map(s => ({ label: s.label, address: s.address })),
 			gatewayId,
 		};
 	}

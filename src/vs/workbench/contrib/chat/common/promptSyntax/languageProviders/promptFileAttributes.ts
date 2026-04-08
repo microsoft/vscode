@@ -149,11 +149,6 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		description: localize('promptHeader.agent.userInvocable', 'Whether the agent can be selected and invoked by users in the UI.'),
 		enums: booleanAttributeEnumValues,
 	},
-	[PromptHeaderAttributes.userInvokable]: {
-		type: 'scalar',
-		description: localize('promptHeader.agent.userInvokable', 'Deprecated. Use user-invocable instead.'),
-		enums: booleanAttributeEnumValues,
-	},
 	[PromptHeaderAttributes.disableModelInvocation]: {
 		type: 'scalar',
 		description: localize('promptHeader.agent.disableModelInvocation', 'If true, prevents the agent from being invoked as a subagent.'),
@@ -190,11 +185,6 @@ export const skillAttributes: Record<string, IAttributeDefinition> = {
 	[PromptHeaderAttributes.userInvocable]: {
 		type: 'scalar',
 		description: localize('promptHeader.skill.userInvocable', 'Set to false to hide from the / menu. Use for background knowledge users should not invoke directly. Default: true.'),
-		enums: booleanAttributeEnumValues,
-	},
-	[PromptHeaderAttributes.userInvokable]: {
-		type: 'scalar',
-		description: localize('promptHeader.skill.userInvokable', 'Deprecated. Use user-invocable instead.'),
 		enums: booleanAttributeEnumValues,
 	},
 	[PromptHeaderAttributes.disableModelInvocation]: {
@@ -247,7 +237,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeNonRecomm
 }
 
 export function isNonRecommendedAttribute(attributeName: string): boolean {
-	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode || attributeName === PromptHeaderAttributes.infer || attributeName === PromptHeaderAttributes.userInvokable;
+	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode || attributeName === PromptHeaderAttributes.infer;
 }
 
 export function getAttributeDefinition(attributeName: string, promptType: PromptsType, target: Target): IAttributeDefinition | undefined {

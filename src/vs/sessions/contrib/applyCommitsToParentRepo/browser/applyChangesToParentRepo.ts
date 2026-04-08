@@ -19,8 +19,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -43,7 +42,8 @@ class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const activeSession = sessionManagementService.activeSession.read(reader);
-			const hasWorktreeAndRepo = !!activeSession?.worktree && !!activeSession?.repository;
+			const repo = activeSession?.workspace.read(reader)?.repositories[0];
+			const hasWorktreeAndRepo = !!repo?.workingDirectory && !!repo?.uri;
 			worktreeAndRepoKey.set(hasWorktreeAndRepo);
 		}));
 	}
@@ -85,13 +85,14 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 
-		const activeSession = sessionManagementService.getActiveSession();
-		if (!activeSession?.worktree || !activeSession?.repository) {
+		const activeSession = sessionManagementService.activeSession.get();
+		const repo = activeSession?.workspace.get()?.repositories[0];
+		if (!activeSession || !repo?.workingDirectory || !repo?.uri) {
 			return;
 		}
 
-		const worktreeRoot = activeSession.worktree;
-		const repoRoot = activeSession.repository;
+		const worktreeRoot = repo.workingDirectory;
+		const repoRoot = repo.uri;
 
 		const openFolderAction = toAction({
 			id: 'applyChangesToParentRepo.openFolder',
@@ -168,5 +169,5 @@ MenuRegistry.appendMenuItem(MenuId.ChatEditingSessionChangesToolbar, {
 	title: localize2('applyActions', 'Apply Actions'),
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.hasAgentSessionChanges),
+	when: IsSessionsWindowContext,
 });

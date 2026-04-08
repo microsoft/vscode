@@ -1,0 +1,245 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - main
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+
+parameters:
+  - name: customNPMRegistry
+    displayName: 📦 Custom NPM Registry (Terrapin)
+    type: boolean
+    default: true
+  - name: generateNotice
+    displayName: 📝 Generate Notice
+    type: boolean
+    default: true
+  - name: publishExtension
+    displayName: 🚀 Publish Stable Extension
+    type: boolean
+    default: false
+
+extends:
+  template: azure-pipelines/extension/stable.yml@templates
+  parameters:
+    l10nSourcePaths: ./src
+    nodeVersion: 22.21.x
+
+    cgIgnoreDirectories: $(Build.SourcesDirectory)/script
+
+    # Suppress false positive strings SG.default.* that show up in
+    # dist/extension.js after the build. The original strings come from ora.
+    vscePackageArgs: '--allow-package-secrets sendgrid'
+
+    buildSteps:
+      - task: NodeTool@0
+        inputs:
+          versionSpec: '22.21.x'
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "github-distro-mixin-password"
+
+      - pwsh: |
+          "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
+        condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+        displayName: Setup distro auth (Windows)
+
+      - script: |
+          mkdir -p .build
+          cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
+          machine github.com
+          login vscode
+          password $(github-distro-mixin-password)
+          EOF
+        condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+        displayName: Setup distro auth (non-Windows)
+
+      - task: Cache@2
+        inputs:
+          key: '"release_build_cache" | build/.cachesalt | build/setup-emsdk.sh | package-lock.json'
+          path: .build/build_cache
+          cacheHitVar: BUILD_CACHE_RESTORED
+        displayName: Restore build cache (node modules, python packages)
+
+      - script: ./build/setup-emsdk.sh
+        displayName: Setup emsdk
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+      - script: echo '##vso[task.prependpath]/opt/dev/emsdk/upstream/emscripten'
+        displayName: Setup emsdk path 1
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+      - script: echo '##vso[task.prependpath]/opt/dev/emsdk'
+        displayName: Setup emsdk path 2
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+      - script: tar -xzf .build/build_cache/cache.tgz
+        condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
+        displayName: Extract build cache
+
+      - script: npm ci
+        displayName: Install dependencies
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+      - script: |
+          set -e
+          mkdir -p .build
+          node build/listBuildCacheFiles.js .build/build_cache_list.txt
+          mkdir -p .build/build_cache
+          tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+        displayName: Create build cache archive
+
+      - pwsh: |
+          # Clone the vscode-capi repository
+          git clone https://github.com/microsoft/vscode-capi.git --depth 1 ../vscode-capi
+
+          # Run the mixin script
+          Push-Location ../vscode-capi
+          npm ci && npm run mixin
+
+          # Clean up the cloned repository
+          Pop-Location
+          Remove-Item -Recurse -Force ../vscode-capi
+        displayName: mixin
+
+      - script: npm run build
+        displayName: npm run build
+
+    uploadSourceMaps:
+      enabled: true
+
+    # testPlatforms:
+    #     - name: Linux
+    #       nodeVersions: [16.x]
+    #     - name: MacOS
+    #       nodeVersions: [16.x]
+    #     - name: Windows
+    #       nodeVersions: [16.x]
+
+    testSteps:
+      - checkout: self
+        lfs: true
+
+      - task: NodeTool@0
+        inputs:
+          versionSpec: '22.21.x'
+
+      - task: AzureKeyVault@2
+        displayName: "Azure Key Vault: Get Secrets"
+        inputs:
+          azureSubscription: vscode
+          KeyVaultName: vscode-build-secrets
+          SecretsFilter: "github-distro-mixin-password"
+
+      - pwsh: |
+          "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
+        condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+        displayName: Setup distro auth (Windows)
+
+      - script: |
+          mkdir -p .build
+          cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
+          machine github.com
+          login vscode
+          password $(github-distro-mixin-password)
+          EOF
+        condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+        displayName: Setup distro auth (non-Windows)
+
+      - task: Cache@2
+        inputs:
+          key: '"release_build_cache" | build/.cachesalt | build/setup-emsdk.sh | package-lock.json'
+          path: .build/build_cache
+          cacheHitVar: BUILD_CACHE_RESTORED
+        displayName: Restore build cache (node modules, python packages)
+
+      - script: ./build/setup-emsdk.sh
+        displayName: Setup emsdk
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+      - script: echo '##vso[task.prependpath]/opt/dev/emsdk/upstream/emscripten'
+        displayName: Setup emsdk path 1
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+      - script: echo '##vso[task.prependpath]/opt/dev/emsdk'
+        displayName: Setup emsdk path 2
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+      - script: tar -xzf .build/build_cache/cache.tgz
+        condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
+        displayName: Extract build cache
+
+      - script: npm ci
+        displayName: Install dependencies
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+
+      - script: |
+          set -e
+          mkdir -p .build
+          node build/listBuildCacheFiles.js .build/build_cache_list.txt
+          mkdir -p .build/build_cache
+          tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
+        condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
+        displayName: Create build cache archive
+
+      - task: AzureCLI@2
+        inputs:
+          azureSubscription: 'VS Code Development WIF'
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: npm run setup
+        displayName: npm run setup
+
+      - script: npm run setup:dotnet
+        displayName: Install dotnet cli
+
+      - script: npm run typecheck
+        displayName: npm run typecheck
+
+      - script: npm run lint
+        displayName: npm run lint
+
+      - script: npm run compile
+        displayName: npm run compile
+
+      - script: npm run test:unit
+        displayName: Run vitest unit tests
+
+      - script: npm run simulate-ci
+        displayName: Run simulation tests
+
+      - script: xvfb-run -a npm run test:extension
+        displayName: Run extension tests using VS Code
+
+      - script: npm run test:prompt
+        displayName: Run Completions Core prompt tests
+
+      - script: xvfb-run -a npm run test:completions-core
+        displayName: Run Completions Core lib tests using VS Code
+
+      - script: xvfb-run -a npm run test:sanity
+        displayName: Run extension sanity tests using VS Code
+
+    tsa:
+      config:
+        areaPath: 'Visual Studio Code Copilot Extensions'
+        serviceTreeID: '1788a767-5861-45fb-973b-c686b67c5541'
+      enabled: true
+
+    ${{ if eq(parameters.customNPMRegistry, false) }}:
+      customNPMRegistry: ''
+
+    generateNotice: ${{ parameters.generateNotice }}
+
+    publishExtension: ${{ parameters.publishExtension }}
+    ghReleasePublishVSIX: true

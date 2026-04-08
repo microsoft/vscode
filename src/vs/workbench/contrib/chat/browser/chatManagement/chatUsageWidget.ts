@@ -50,7 +50,7 @@ export class ChatUsageWidget extends Disposable {
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 
 		// Anonymous Indicator - show limited quotas
-		if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed && !completionsQuota && !chatQuota && !premiumChatQuota) {
+		if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed && !completionsQuota && !chatQuota && !premiumChatQuota) {
 			this.renderLimitedQuotaItem(this.usageSection, localize('completionsLabel', 'Inline Suggestions'));
 			this.renderLimitedQuotaItem(this.usageSection, localize('chatsLabel', 'Chat messages'));
 		}

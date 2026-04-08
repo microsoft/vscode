@@ -985,7 +985,7 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 
 		this.contentDisposables.add(dependenciesTree);
-		scrollableContent.scanDomNode();
+		depLayout();
 
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}

@@ -34,6 +34,7 @@ import * as cp from 'child_process';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
+import { getCopilotExcludeFilter, copyCopilotNativeDeps, prepareBuiltInCopilotExtensionShims } from './lib/copilot.ts';
 import jsonEditor from 'gulp-json-editor';
 
 
@@ -343,6 +344,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);
@@ -461,6 +463,17 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	};
 }
 
+function copyCopilotNativeDepsTaskREH(platform: string, arch: string, destinationFolderName: string) {
+	return async () => {
+		const outputDir = path.join(BUILD_ROOT, destinationFolderName);
+		const nodeModulesDir = path.join(outputDir, 'node_modules');
+		copyCopilotNativeDeps(platform, arch, nodeModulesDir);
+
+		const builtInCopilotExtensionDir = path.join(outputDir, 'extensions', 'copilot');
+		prepareBuiltInCopilotExtensionShims(platform, arch, builtInCopilotExtensionDir, nodeModulesDir);
+	};
+}
+
 /**
  * @param product The parsed product.json file contents
  */
@@ -509,7 +522,8 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
-				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
+				packageTask(type, platform, arch, sourceFolderName, destinationFolderName),
+				copyCopilotNativeDepsTaskREH(platform, arch, destinationFolderName)
 			];
 
 			if (platform === 'win32') {
