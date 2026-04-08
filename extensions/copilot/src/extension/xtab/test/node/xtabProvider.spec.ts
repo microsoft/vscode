@@ -1855,6 +1855,172 @@ describe('XtabProvider integration', () => {
 			// Cursor prediction must not have been issued — only the main LLM call was made
 			expect(streamingFetcher.callCount).toBe(1);
 		});
+
+		it('same-file cursor jump with edit: retry yields edits with isFromCursorJump', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			// Document with 30 lines; cursor near the top.
+			// Cursor is after the inserted '\n' at the end of line 4 → cursorLineOffset=5.
+			// Edit window: [max(0,5-2), min(30,5+5+1)) = [3, 11) → lines 3..10.
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: cursorOffset,
+				// insertedText defaults to afterText[cursorOffset] = '\n', so documentAfterEdits matches lines
+			});
+
+			// 1st call (main LLM): stream back edit-window lines unchanged → no diff
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): return line 20 (outside the edit window)
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '20',
+				resolvedModel: 'test-model',
+			});
+
+			// 3rd call (retry at predicted cursor line 20):
+			// Retry edit window: [max(0,20-2), min(30,20+5+1)) = [18, 26) → lines 18..25.
+			// Return modified edit-window lines.
+			const retryEditWindowLines = lines.slice(18, 26).map((l, i) => i === 2 ? 'MODIFIED line 20 content' : l);
+			streamingFetcher.setStreamingLines(retryEditWindowLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Edits should have been yielded from the retry
+			expect(edits.length).toBeGreaterThan(0);
+			// All yielded edits should be marked as from cursor jump
+			for (const edit of edits) {
+				expect(edit.v.isFromCursorJump).toBe(true);
+			}
+			// All yielded edits should have an originalWindow (the pre-jump edit window)
+			for (const edit of edits) {
+				expect(edit.v.originalWindow).toBeDefined();
+			}
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// 3 total calls: main LLM + cursor prediction + retry
+			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('cursor jump retry does not double-retry when second call also yields no edits', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: cursorOffset,
+			});
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): return line 20
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '20',
+				resolvedModel: 'test-model',
+			});
+
+			// 3rd call (retry at predicted cursor line 20): edit-window lines unchanged → no edits.
+			// On the retry, retryState is Retrying so doGetNextEditsWithCursorJump returns
+			// NoSuggestions immediately (no further recursion).
+			const retryEditWindowLines = lines.slice(18, 26);
+			streamingFetcher.setStreamingLines(retryEditWindowLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// Exactly 3 calls: main + cursor prediction + retry (no further retry)
+			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('model fallback retry on NotFound then yields edits on second attempt', async () => {
+			const provider = createProvider();
+
+			const lines = ['function foo() {', '  return 1;', '}'];
+			const request = createRequestWithEdit(lines, { insertionOffset: 5, insertedText: 'c' });
+
+			// 1st call → NotFound, triggers fallback to default model
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.NotFound,
+				reason: 'test',
+				requestId: 'req-1',
+				serverRequestId: undefined,
+			});
+
+			// 2nd call (retry with default model) → success with modification
+			const modifiedLines = ['function foo() {', '  return 42;', '}'];
+			streamingFetcher.setStreamingLines(modifiedLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should have produced edits from the retry
+			expect(edits.length).toBeGreaterThan(0);
+			// Edits are NOT from cursor jump
+			for (const edit of edits) {
+				expect(edit.v.isFromCursorJump).toBe(false);
+			}
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			expect(streamingFetcher.callCount).toBe(2);
+		});
+
+		it('model fallback + identical content → NoSuggestions without looping', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, false);
+
+			const lines = ['const a = 1;', 'const b = 2;', 'const c = 3;'];
+			const request = createRequestWithEdit(lines, { insertionOffset: 3 });
+
+			// 1st call → NotFound
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.NotFound,
+				reason: 'test',
+				requestId: 'req-1',
+				serverRequestId: undefined,
+			});
+
+			// 2nd call (default model) → identical edit-window content → no edits
+			// With cursor prediction disabled, should return NoSuggestions directly
+			streamingFetcher.setStreamingLines(lines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// Exactly 2 calls: initial NotFound + retry with default model
+			expect(streamingFetcher.callCount).toBe(2);
+		});
 	});
 
 	// ========================================================================
