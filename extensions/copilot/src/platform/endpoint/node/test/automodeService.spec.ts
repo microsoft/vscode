@@ -1180,5 +1180,38 @@ describe('AutomodeService', () => {
 			);
 			expect(hasImageCalls).toHaveLength(1);
 		});
+
+		it('should make only one CAPI token fetch for 5 concurrent calls', async () => {
+			// Each concurrent resolveAutoModeEndpoint call reaches _acquireTokenBank.
+			// When there's no cache entry (first turn), _acquireTokenBank creates a
+			// NEW AutoModeTokenBank each time (taking the reserve bank, then creating
+			// a fresh reserve). Each bank has its own FetchedValue, so FetchedValue's
+			// built-in request coalescing doesn't help — each bank fetches its own
+			// CAPI token independently.
+			//
+			// Without coalescing: 5 concurrent calls → 5 separate token banks →
+			//   5 CAPI makeRequest(AutoModels) calls.
+			// With coalescing: only the first caller enters resolveAutoModeEndpoint,
+			//   creates 1 token bank, makes 1 CAPI call. Others await the same promise.
+			mockApiResponse(['gpt-4o', 'gpt-4o-mini']);
+			automodeService = createService();
+
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'hello',
+				sessionId: 'session-capi-dup'
+			};
+
+			await Promise.all(Array.from({ length: 5 }, () =>
+				automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [mockChatEndpoint])
+			));
+
+			// Count CAPI token requests (AutoModels type)
+			const capiCalls = (mockCAPIClientService.makeRequest as ReturnType<typeof vi.fn>).mock.calls;
+			const autoModelsCalls = capiCalls.filter((call: any[]) => call[1]?.type === RequestType.AutoModels);
+
+			// Exactly 1 CAPI token fetch (not 5)
+			expect(autoModelsCalls).toHaveLength(1);
+		});
 	});
 });
