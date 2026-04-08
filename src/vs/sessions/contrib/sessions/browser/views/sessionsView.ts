@@ -56,8 +56,11 @@ export class SessionsView extends ViewPane {
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
+	private headerRow: HTMLElement | undefined;
 	private headerLabel: HTMLElement | undefined;
 	private headerActions: HTMLElement | undefined;
+	private headerLabelWidth = 56;
+	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
@@ -139,9 +142,10 @@ export class SessionsView extends ViewPane {
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
 		// Header row: "Sessions" label (left) + compact "New" button (right)
-		const headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
+		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
 		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
 		headerLabel.textContent = localize('sessionsHeader', "Sessions");
+		this.headerLabelWidth = Math.ceil(headerLabel.getBoundingClientRect().width) || this.headerLabelWidth;
 
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
 
@@ -257,9 +261,9 @@ export class SessionsView extends ViewPane {
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
+			this.isFindWidgetOpen = open;
 			findWidgetContainer.style.display = open ? '' : 'none';
-			headerLabel.style.display = open ? 'none' : '';
-			headerActions.style.display = open ? 'none' : '';
+			this.updateHeaderLayout();
 		}));
 
 		// Close find widget on Escape
@@ -481,6 +485,8 @@ export class SessionsView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
+		this.updateHeaderLayout(width);
+
 		if (!this.sessionsControl || !this.sessionsControlContainer) {
 			return;
 		}
@@ -499,17 +505,33 @@ export class SessionsView extends ViewPane {
 	}
 
 	openFind(): void {
+		this.isFindWidgetOpen = true;
 		if (this.findWidgetContainer) {
 			// Show container before opening find so the widget can be focused
 			this.findWidgetContainer.style.display = '';
 		}
-		if (this.headerLabel) {
-			this.headerLabel.style.display = 'none';
-		}
-		if (this.headerActions) {
-			this.headerActions.style.display = 'none';
-		}
+		this.updateHeaderLayout();
 		this.sessionsControl?.openFind();
+	}
+
+	private updateHeaderLayout(width?: number): void {
+		if (!this.headerRow || !this.headerLabel || !this.headerActions) {
+			return;
+		}
+
+		if (this.isFindWidgetOpen) {
+			this.headerLabel.style.display = 'none';
+			this.headerActions.style.display = 'none';
+			return;
+		}
+
+		this.headerActions.style.display = '';
+		const headerWidth = width ?? this.headerRow.offsetWidth;
+		const actionsWidth = Math.ceil(this.headerActions.getBoundingClientRect().width) || this.headerActions.offsetWidth;
+		const shouldHideLabel = headerWidth > 0 && headerWidth < actionsWidth + this.headerLabelWidth + 12;
+
+		this.headerLabel.style.display = shouldHideLabel ? 'none' : '';
+		this.headerActions.style.display = '';
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {
