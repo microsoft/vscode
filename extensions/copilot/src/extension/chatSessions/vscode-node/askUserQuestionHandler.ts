@@ -46,7 +46,7 @@ export class UserQuestionHandler implements IUserQuestionHandler {
 		// Log all available keys in carouselAnswers for debugging
 		this._logService.trace(`[AskQuestionsTool] Question & answers ${question.question}, Answers object: ${JSON.stringify(carouselAnswers)}`);
 
-		const answer = carouselAnswers.answers[question.question];
+		const answer = carouselAnswers.answers[question.question] ?? carouselAnswers.answers[question.header];
 		if (answer === undefined) {
 			return undefined;
 		} else if (answer.freeText) {

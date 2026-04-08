@@ -4587,6 +4587,14 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.cli.thinkingEffort.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.cli.thinkingEffort.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.cli.sessionControllerForSessionsApp.enabled": {
 						"type": "boolean",
 						"default": false,

@@ -409,6 +409,7 @@
 	"github.copilot.config.cli.isolationOption.enabled": "Enable the isolation mode option for Copilot CLI. When enabled, users can choose between Worktree and Workspace modes.",
 	"github.copilot.config.cli.autoCommit.enabled": "Enable automatic commit for Copilot CLI. When enabled, changes made by Copilot CLI will be automatically committed to the repository at the end of each turn.",
 	"github.copilot.config.cli.sessionController.enabled": "Enable the new session controller API for Copilot CLI. Requires VS Code reload.",
+	"github.copilot.config.cli.thinkingEffort.enabled": "Enable thinking effort for Language Models in Copilot CLI.",
 	"github.copilot.config.cli.sessionControllerForSessionsApp.enabled": "Enable the new session controller API for Sessions App. Requires VS Code reload.",
 	"github.copilot.config.cli.terminalLinks.enabled": "Enable advanced clickable file links in Copilot CLI terminals. Resolves relative paths against session state directories. Requires VS Code reload.",
 	"github.copilot.config.backgroundAgent.enabled": "Enable the Copilot CLI. When disabled, the Copilot CLI will not be available in 'Continue In' context menus.",
