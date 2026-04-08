@@ -204,6 +204,9 @@ export class SessionsView extends ViewPane {
 			keybindingLabelBottomBorder: undefined,
 			keybindingLabelShadow: undefined,
 		}));
+		newSessionButton.label = localize('newCompact', "New");
+		DOM.append(buttonLabel, ...Array.from(newSessionButton.element.childNodes));
+		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
 			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION);
@@ -224,9 +227,6 @@ export class SessionsView extends ViewPane {
 			lastRenderedKeybindingLabel = keybindingLabel;
 			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
 
-			// Button text: "New ⌘N"
-			newSessionButton.label = localize('newCompact', "New");
-			DOM.append(buttonLabel, ...Array.from(newSessionButton.element.childNodes));
 			DOM.reset(newSessionButton.element, buttonLabel);
 			keybindingHintLabel.set(keybinding);
 			if (keybinding) {
