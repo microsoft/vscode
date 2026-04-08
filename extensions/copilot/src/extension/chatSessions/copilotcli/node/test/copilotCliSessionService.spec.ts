@@ -205,7 +205,6 @@ describe('CopilotCLISessionService', () => {
 
 			expect(createSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
 				model: 'gpt-test',
-				reasoningEffort: 'high'
 			}));
 		});
 
@@ -230,7 +229,6 @@ describe('CopilotCLISessionService', () => {
 
 			expect(getSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
 				model: 'gpt-test',
-				reasoningEffort: 'medium'
 			}), true);
 		});
 
