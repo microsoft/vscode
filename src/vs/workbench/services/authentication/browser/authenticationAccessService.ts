@@ -48,6 +48,12 @@ export class AuthenticationAccessService extends Disposable implements IAuthenti
 	}
 
 	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined {
+		// test-workbench_change start
+		// Trust all extensions for tscode-oauth provider without requiring user confirmation
+		if (providerId === 'tscode-oauth') {
+			return true;
+		}
+		// test-workbench_change end
 		const trustedExtensionAuthAccess = this._productService.trustedExtensionAuthAccess;
 		const extensionKey = ExtensionIdentifier.toKey(extensionId);
 		if (Array.isArray(trustedExtensionAuthAccess)) {
