@@ -1492,6 +1492,17 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 	runWhenGlobalIdle = (runner, timeout) => _runWhenIdle(globalThis, runner, timeout);
 })();
 
+export function installFakeRunWhenIdle(fakeImpl: typeof _runWhenIdle): IDisposable {
+	const origRunWhenIdle = _runWhenIdle;
+	const origRunWhenGlobalIdle = runWhenGlobalIdle;
+	_runWhenIdle = fakeImpl;
+	runWhenGlobalIdle = (runner, timeout) => fakeImpl(globalThis, runner, timeout);
+	return toDisposable(() => {
+		_runWhenIdle = origRunWhenIdle;
+		runWhenGlobalIdle = origRunWhenGlobalIdle;
+	});
+}
+
 export abstract class AbstractIdleValue<T> {
 
 	private readonly _executor: () => void;

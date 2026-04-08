@@ -227,13 +227,12 @@ Browser compatibility is required — no Node.js APIs.
 
 ## Feature Gating
 
-All commands and UI respect `ChatContextKeys.enabled` and the `chat.customizationsMenu.enabled` setting.
+All commands and UI respect `ChatContextKeys.enabled`.
 
 ## Settings
 
-Settings use the `chat.customizationsMenu.` and `chat.customizations.` namespaces:
+User-facing settings use the `chat.customizations.` namespace:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `chat.customizationsMenu.enabled` | `true` | Show the Chat Customizations editor in the Command Palette |
 | `chat.customizations.harnessSelector.enabled` | `true` | Show the harness selector dropdown in the sidebar |

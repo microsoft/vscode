@@ -59,6 +59,18 @@ export interface ISendToTerminalInputParams {
 
 const SEND_TO_TERMINAL_REFERENCE_NAME = 'sendToTerminal';
 
+/**
+ * Wraps arbitrary text in a markdown inline code span using a backtick fence
+ * long enough to safely contain any backtick sequences present in the text.
+ */
+function toMarkdownInlineCode(text: string): string {
+	const longestBacktickRun = Math.max(0, ...(text.match(/`+/g) ?? []).map(m => m.length));
+	const fence = '`'.repeat(longestBacktickRun + 1);
+	const needsSpace = text.startsWith('`') || text.endsWith('`');
+	const content = needsSpace ? ` ${text} ` : text;
+	return `${fence}${content}${fence}`;
+}
+
 export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _autoApproveAnalyzer: CommandLineAutoApproveAnalyzer;
@@ -88,12 +100,13 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as ISendToTerminalInputParams;
 		const displayCommand = buildCommandDisplayText(args.command);
+		const safeInlineCode = toMarkdownInlineCode(displayCommand);
 
 		const invocationMessage = new MarkdownString();
-		invocationMessage.appendText(localize('send.progressive', "Sending {0} to terminal", displayCommand));
+		invocationMessage.appendMarkdown(localize('send.progressive', "Sending {0} to terminal", safeInlineCode));
 
 		const pastTenseMessage = new MarkdownString();
-		pastTenseMessage.appendText(localize('send.past', "Sent {0} to terminal", displayCommand));
+		pastTenseMessage.appendMarkdown(localize('send.past', "Sent {0} to terminal", safeInlineCode));
 
 		const confirmationMessage = new MarkdownString();
 		confirmationMessage.appendText(localize('send.confirm.message', "Run {0} in background terminal {1}", displayCommand, args.id));
