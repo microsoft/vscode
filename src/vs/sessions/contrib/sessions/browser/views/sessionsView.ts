@@ -194,7 +194,8 @@ export class SessionsView extends ViewPane {
 			this.sessionsManagementService.openNewSessionView();
 		}));
 
-		const buttonLabel = $('.new-session-button-label');
+		newSessionButton.label = localize('newCompact', "New");
+		const buttonLabel = $('span.new-session-button-label', undefined, localize('newCompact', "New"));
 		const keybindingHint = $('span.new-session-keybinding-hint');
 		const keybindingHintLabel = this._register(new KeybindingLabel(keybindingHint, OS, {
 			disableTitle: true,
@@ -204,7 +205,6 @@ export class SessionsView extends ViewPane {
 			keybindingLabelBottomBorder: undefined,
 			keybindingLabelShadow: undefined,
 		}));
-		DOM.reset(buttonLabel, localize('newCompact', "New"));
 		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
@@ -226,10 +226,13 @@ export class SessionsView extends ViewPane {
 			lastRenderedKeybindingLabel = keybindingLabel;
 			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
 
-			DOM.reset(newSessionButton.element, buttonLabel);
 			keybindingHintLabel.set(keybinding);
 			if (keybinding) {
-				DOM.append(newSessionButton.element, keybindingHint);
+				if (keybindingHint.parentElement !== newSessionButton.element) {
+					DOM.append(newSessionButton.element, keybindingHint);
+				}
+			} else {
+				keybindingHint.remove();
 			}
 
 			newSessionButton.element.title = keybindingLabel
