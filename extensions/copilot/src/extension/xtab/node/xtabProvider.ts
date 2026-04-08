@@ -70,7 +70,7 @@ import { EditIntentParseMode, parseEditIntentFromStream } from './editIntent';
 import { XtabCustomDiffPatchResponseHandler } from './xtabCustomDiffPatchResponseHandler';
 import { XtabEndpoint } from './xtabEndpoint';
 import { CursorJumpPrediction, XtabNextCursorPredictor } from './xtabNextCursorPredictor';
-import { charCount, constructMessages, linesWithBackticksRemoved } from './xtabUtils';
+import { charCount, constructMessages, findMergeConflictMarkersRange, linesWithBackticksRemoved } from './xtabUtils';
 
 /**
  * Returns true if the user has made document edits since the request was created.
@@ -1657,28 +1657,4 @@ export function getPredictionContents(doc: StatelessNextEditDocument, editWindow
 	} else {
 		assertNever(responseFormat);
 	}
-}
-
-/**
- * Finds the range of lines containing merge conflict markers within a specified edit window.
- *
- * @param lines - Array of strings representing the lines of text to search through
- * @param editWindowRange - The range within which to search for merge conflict markers
- * @param maxMergeConflictLines - Maximum number of lines to search for conflict markers
- * @returns An OffsetRange object representing the start and end of the conflict markers, or undefined if not found
- */
-export function findMergeConflictMarkersRange(lines: string[], editWindowRange: OffsetRange, maxMergeConflictLines: number): OffsetRange | undefined {
-	for (let i = editWindowRange.start; i < Math.min(lines.length, editWindowRange.endExclusive); ++i) {
-		if (!lines[i].startsWith('<<<<<<<')) {
-			continue;
-		}
-
-		// found start of merge conflict markers -- now find the end
-		for (let j = i + 1; j < lines.length && (j - i) < maxMergeConflictLines; ++j) {
-			if (lines[j].startsWith('>>>>>>>')) {
-				return new OffsetRange(i, j + 1 /* because endExclusive */);
-			}
-		}
-	}
-	return undefined;
 }
