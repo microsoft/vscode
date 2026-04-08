@@ -4887,12 +4887,12 @@
 				},
 				{
 					"command": "github.copilot.sessions.commitAndSync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream",
 					"group": "commit@2"
 				},
 				{
 					"command": "github.copilot.sessions.sync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream",
 					"group": "sync@1"
 				},
 				{
