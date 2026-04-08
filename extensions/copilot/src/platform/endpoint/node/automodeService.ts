@@ -277,7 +277,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				previous_model: entry?.endpoint?.model,
 				turn_number: (entry?.turnCount ?? 0) + 1,
 			};
-			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, token.available_models, undefined, contextSignals, chatRequest?.sessionId, chatRequest?.id);
+			const routingMethod = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModeRoutingMethod, this._expService) || undefined;
+			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, token.available_models, undefined, contextSignals, chatRequest?.sessionId, chatRequest?.id, routingMethod);
+
+			if (result.fallback) {
+				this._logService.info(`[AutomodeService] Router signaled fallback: ${result.fallback_reason ?? 'unknown'}, routing_method=${result.routing_method ?? 'n/a'}`);
+				return { lastRoutedPrompt: prompt, fallbackReason: 'routerFallback' };
+			}
 
 			if (!result.candidate_models.length) {
 				return { lastRoutedPrompt: prompt, fallbackReason: 'emptyCandidateList' };

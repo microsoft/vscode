@@ -11,7 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentDescriptor, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -91,20 +91,6 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- auth ---------------------------------------------------------------
 
-	async listAgents(): Promise<IAgentDescriptor[]> {
-		return [...this._providers.values()].map(p => p.getDescriptor());
-	}
-
-	async getResourceMetadata(): Promise<IResourceMetadata> {
-		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
-		return { resources };
-	}
-
-	getResourceMetadataSync(): IResourceMetadata {
-		const resources = [...this._providers.values()].flatMap(p => p.getProtectedResources());
-		return { resources };
-	}
-
 	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
 		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
 		for (const provider of this._providers.values()) {
@@ -136,30 +122,33 @@ export class AgentService extends Disposable implements IAgentService {
 					return s;
 				}
 				try {
-					const customTitle = await ref.object.getMetadata('customTitle');
+					const [customTitle, isReadRaw, isDoneRaw] = await Promise.all([
+						ref.object.getMetadata('customTitle'),
+						ref.object.getMetadata('isRead'),
+						ref.object.getMetadata('isDone'),
+					]);
+					let updated = s;
 					if (customTitle) {
-						return { ...s, summary: customTitle };
+						updated = { ...updated, summary: customTitle };
 					}
+					if (isReadRaw !== undefined) {
+						updated = { ...updated, isRead: isReadRaw === 'true' };
+					}
+					if (isDoneRaw !== undefined) {
+						updated = { ...updated, isDone: isDoneRaw === 'true' };
+					}
+					return updated;
 				} finally {
 					ref.dispose();
 				}
-			} catch {
-				// ignore — title overlay is best-effort
+			} catch (e) {
+				this._logService.warn(`[AgentService] Failed to read session metadata overlay for ${s.session}`, e);
 			}
 			return s;
 		}));
 
 		this._logService.trace(`[AgentService] listSessions returned ${result.length} sessions`);
 		return result;
-	}
-
-	/**
-	 * Refreshes the model list from all providers and publishes the updated
-	 * agents (with their models) to root state via `root/agentsChanged`.
-	 */
-	async refreshModels(): Promise<void> {
-		this._logService.trace('[AgentService] refreshModels called');
-		this._updateAgents();
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -325,24 +314,36 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const turns = this._buildTurnsFromMessages(messages);
 
-		// Check for a persisted custom title in the session database
+		// Check for persisted metadata in the session database
 		let title = meta.summary ?? 'Session';
+		let isRead: boolean | undefined;
+		let isDone: boolean | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
 				const db = await ref;
 				if (db) {
 					try {
-						const customTitle = await db.object.getMetadata('customTitle');
+						const [customTitle, isReadRaw, isDoneRaw] = await Promise.all([
+							db.object.getMetadata('customTitle'),
+							db.object.getMetadata('isRead'),
+							db.object.getMetadata('isDone'),
+						]);
 						if (customTitle) {
 							title = customTitle;
+						}
+						if (isReadRaw !== undefined) {
+							isRead = isReadRaw === 'true';
+						}
+						if (isDoneRaw !== undefined) {
+							isDone = isDoneRaw === 'true';
 						}
 					} finally {
 						db.dispose();
 					}
 				}
 			} catch {
-				// Best-effort: fall back to agent-provided title
+				// Best-effort: fall back to agent-provided metadata
 			}
 		}
 
@@ -354,6 +355,8 @@ export class AgentService extends Disposable implements IAgentService {
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
 			workingDirectory: meta.workingDirectory?.toString(),
+			isRead,
+			isDone,
 		};
 
 		this._stateManager.restoreSession(summary, turns);

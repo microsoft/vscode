@@ -32,6 +32,7 @@ import { IGitService } from '../../../../../workbench/contrib/git/common/gitServ
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -184,6 +185,7 @@ function createProviderForSendTests(
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', false);
 
+	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});

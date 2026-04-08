@@ -65,6 +65,7 @@ export interface ICopilotCLISessionItem {
 export type ExtendedChatRequest = ChatRequest & { prompt: string };
 export type ISessionOptions = {
 	model?: string;
+	reasoningEffort?: string;
 	workspace: IWorkspaceInfo;
 	agent?: SweCustomAgent;
 	debugTargetSessionIds?: readonly string[];
@@ -526,34 +527,33 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		}
 	}
 
-	public async createSession({ model, workspace, agent, sessionId, debugTargetSessionIds, mcpServerMappings }: ICreateSessionOptions, token: CancellationToken): Promise<RefCountedSession> {
+	public async createSession(options: ICreateSessionOptions, token: CancellationToken): Promise<RefCountedSession> {
 		const { mcpConfig: mcpServers, disposable: mcpGateway } = await this.mcpHandler.loadMcpConfig();
 		try {
-			const copilotUrl = this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl) || undefined;
-			const { agentName, sessionOptions } = await this.createSessionsOptions({ model, workspace, mcpServers, agent, copilotUrl, sessionId, debugTargetSessionIds, mcpServerMappings });
+			const sessionOptions = await this.createSessionsOptions({ ...options, mcpServers });
 			const sessionManager = await raceCancellationError(this.getSessionManager(), token);
-			const sdkSession = await sessionManager.createSession({ ...sessionOptions, sessionId });
+			const sdkSession = await sessionManager.createSession({ ...sessionOptions, sessionId: options.sessionId });
 			this._newSessionIds.delete(sdkSession.sessionId);
 			// After the first session creation, the SDK's OTel TracerProvider is
 			// initialized. Install the bridge processor so SDK-native spans flow
 			// to the debug panel.
 			this._installBridgeIfNeeded();
 
-			if (copilotUrl) {
+			if (sessionOptions.copilotUrl) {
 				sdkSession.setAuthInfo({
 					type: 'hmac',
 					hmac: 'empty',
 					host: 'https://github.com',
 					copilotUser: {
 						endpoints: {
-							api: copilotUrl
+							api: sessionOptions.copilotUrl
 						}
 					}
 				});
 			}
 			this.logService.trace(`[CopilotCLISession] Created new CopilotCLI session ${sdkSession.sessionId}.`);
 
-			const session = this.createCopilotSession(sdkSession, workspace, agentName, sessionManager);
+			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 			session.object.add(mcpGateway);
 			return session;
 		}
@@ -638,7 +638,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return false;
 	}
 
-	protected async createSessionsOptions(options: { model?: string; workspace: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers']; agent: SweCustomAgent | undefined; copilotUrl?: string; sessionId?: string; debugTargetSessionIds?: readonly string[]; mcpServerMappings?: McpServerMappings }): Promise<{ readonly sessionOptions: Readonly<SessionOptions>; readonly agentName: string | undefined }> {
+	protected async createSessionsOptions(options: ICreateSessionOptions & { mcpServers?: SessionOptions['mcpServers'] }): Promise<Readonly<SessionOptions>> {
 		const [agentInfos, skillLocations] = await Promise.all([
 			this.agents.getAgents(),
 			this.copilotCLISkills.getSkillsLocations(),
@@ -680,34 +680,35 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			allOptions.customAgents = customAgents;
 		}
 		allOptions.enableStreaming = true;
-		if (options.copilotUrl) {
-			allOptions.copilotUrl = options.copilotUrl;
+		const copilotUrl = this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl) || undefined;
+		if (copilotUrl) {
+			allOptions.copilotUrl = copilotUrl;
 		}
 		if (systemMessage) {
 			allOptions.systemMessage = systemMessage;
 		}
 		allOptions.sessionCapabilities = new Set(['plan-mode', 'memory', 'cli-documentation', 'ask-user', 'interactive-mode', 'system-notifications']);
+		if (options.reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+			allOptions.reasoningEffort = options.reasoningEffort;
+		}
 
-		return {
-			sessionOptions: allOptions as Readonly<SessionOptions>,
-			agentName: options.agent?.name,
-		};
+		return allOptions as Readonly<SessionOptions>;
 	}
 
-	public async getSession({ sessionId, model, workspace, agent, debugTargetSessionIds, mcpServerMappings }: IGetSessionOptions, token: CancellationToken): Promise<RefCountedSession | undefined> {
+	public async getSession(options: IGetSessionOptions, token: CancellationToken): Promise<RefCountedSession | undefined> {
 		// https://github.com/microsoft/vscode/issues/276573
-		const lock = this.sessionMutexForGetSession.get(sessionId) ?? new Mutex();
-		this.sessionMutexForGetSession.set(sessionId, lock);
+		const lock = this.sessionMutexForGetSession.get(options.sessionId) ?? new Mutex();
+		this.sessionMutexForGetSession.set(options.sessionId, lock);
 		const lockDisposable = await lock.acquire(token);
 		try {
 			{
-				const session = this._sessionWrappers.get(sessionId);
+				const session = this._sessionWrappers.get(options.sessionId);
 				if (session) {
-					this.logService.trace(`[CopilotCLISession] Reusing CopilotCLI session ${sessionId}.`);
-					this._partialSessionHistories.delete(sessionId);
+					this.logService.trace(`[CopilotCLISession] Reusing CopilotCLI session ${options.sessionId}.`);
+					this._partialSessionHistories.delete(options.sessionId);
 					session.acquire();
-					if (agent) {
-						await session.object.sdkSession.selectCustomAgent(agent.name);
+					if (options.agent) {
+						await session.object.sdkSession.selectCustomAgent(options.agent.name);
 					} else {
 						session.object.sdkSession.clearCustomAgent();
 					}
@@ -720,16 +721,15 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				this.mcpHandler.loadMcpConfig(),
 			]);
 			try {
-				const copilotUrl = this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl) || undefined;
-				const { agentName, sessionOptions } = await this.createSessionsOptions({ model, agent, workspace: workspace, mcpServers, copilotUrl, sessionId, debugTargetSessionIds, mcpServerMappings });
+				const sessionOptions = await this.createSessionsOptions({ ...options, mcpServers });
 
-				const sdkSession = await sessionManager.getSession({ ...sessionOptions, sessionId }, true);
+				const sdkSession = await sessionManager.getSession({ ...sessionOptions, sessionId: options.sessionId }, true);
 				if (!sdkSession) {
-					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${sessionId}.`);
+					this.logService.error(`[CopilotCLISession] CopilotCLI failed to get session ${options.sessionId}.`);
 					return undefined;
 				}
 
-				const session = this.createCopilotSession(sdkSession, workspace, agentName, sessionManager);
+				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 				session.object.add(mcpGateway);
 				return session;
 			}
@@ -875,12 +875,11 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const newSessionId = generateUuid();
 		this._sessionsBeingCreatedViaFork.add(newSessionId);
 		try {
-			const copilotUrl = this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl) || undefined;
-			const [sessionManager, title, { history, events: originalSessionEvents }, { sessionOptions }] = await Promise.all([
+			const [sessionManager, title, { history, events: originalSessionEvents }, sessionOptions] = await Promise.all([
 				raceCancellationError(this.getSessionManager(), token),
 				this.getSessionTitle(sessionId, token),
 				requestId ? this.getChatHistoryImpl({ sessionId, workspace }, token) : Promise.resolve({ history: [], events: [] }),
-				this.createSessionsOptions({ workspace, mcpServers: undefined, copilotUrl, agent: undefined, sessionId: newSessionId }),
+				this.createSessionsOptions({ workspace, mcpServers: undefined, agent: undefined, sessionId: newSessionId }),
 				copySessionFilesForForking(sessionId, newSessionId, workspace, this._chatSessionMetadataStore, token),
 			]);
 

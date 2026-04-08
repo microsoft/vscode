@@ -52,7 +52,7 @@ async function checkCopilotJobFailed(): Promise<boolean> {
 			r => r.type === 'Job' && r.name === COPILOT_JOB_NAME
 		);
 
-		if (copilotJob && copilotJob.state === 'completed' && copilotJob.result !== 'succeeded') {
+		if (copilotJob && copilotJob.state === 'completed' && copilotJob.result !== 'succeeded' && copilotJob.result !== 'succeededWithIssues') {
 			return true;
 		}
 	} catch (err) {

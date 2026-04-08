@@ -104,9 +104,6 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 
 	const toolSearchEnabled = isAnthropicToolSearchEnabled(endpoint, configurationService);
 	const customToolSearchEnabled = isAnthropicCustomToolSearchEnabled(endpoint, configurationService, experimentationService);
-	const isAllowedConversationAgent = options.location === ChatLocation.Agent || options.location === ChatLocation.MessagesProxy;
-	// TODO: Use a dedicated flag on options instead of relying on telemetry subType
-	const isSubagent = options.telemetryProperties?.subType?.startsWith('subagent') ?? false;
 
 	// Split tools into non-deferred and deferred up front so we can build finalTools
 	// with non-deferred first. This ensures the cache_control breakpoint on the last
@@ -118,7 +115,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 			if (!tool.function.name || tool.function.name.length === 0) {
 				continue;
 			}
-			const isDeferred = toolSearchEnabled && isAllowedConversationAgent && !isSubagent && !toolDeferralService.isNonDeferredTool(tool.function.name);
+			const isDeferred = options.modelCapabilities?.enableToolSearch && toolSearchEnabled && !toolDeferralService.isNonDeferredTool(tool.function.name);
 			const anthropicTool: AnthropicMessagesTool = {
 				name: tool.function.name,
 				description: tool.function.description || '',
@@ -131,7 +128,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 
 	// Build final tools array, adding tool search tool if enabled
 	const finalTools: AnthropicMessagesTool[] = [];
-	if (isAllowedConversationAgent && !isSubagent && toolSearchEnabled && !customToolSearchEnabled) {
+	if (options.modelCapabilities?.enableToolSearch && toolSearchEnabled && !customToolSearchEnabled) {
 		// Server-side tool search: use the built-in tool_search_tool_regex
 		finalTools.push({ name: TOOL_SEARCH_TOOL_NAME, type: TOOL_SEARCH_TOOL_TYPE, defer_loading: false });
 	}
@@ -141,12 +138,12 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// knows to use the search tool to discover them.
 	finalTools.push(...nonDeferredTools, ...deferredTools);
 
-	// Thinking is enabled only when options.enableThinking is true, a non-zero thinking budget
+	// Thinking is enabled only when options.modelCapabilities?.enableThinking is true, a non-zero thinking budget
 	// is configured for the model, and the model supports thinking. reasoningEffort (if present)
 	// is used only to configure the effort level when thinking is enabled, not to gate it.
-	const reasoningEffort = options.reasoningEffort;
+	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
 	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number } | undefined;
-	if (options.enableThinking) {
+	if (options.modelCapabilities?.enableThinking) {
 		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
 		const thinkingExplicitlyDisabled = configuredBudget === 0;
 		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
@@ -177,7 +174,7 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	}
 
 	// Build context management configuration
-	const contextManagement = isAllowedConversationAgent && !isSubagent && isAnthropicContextEditingEnabled(endpoint, configurationService, experimentationService)
+	const contextManagement = options.modelCapabilities?.enableContextEditing && isAnthropicContextEditingEnabled(endpoint, configurationService, experimentationService)
 		? getContextManagementFromConfig(configurationService, experimentationService, thinkingEnabled)
 		: undefined;
 
@@ -848,6 +845,26 @@ export class AnthropicMessagesProcessor {
 							encrypted: data,
 						}
 					});
+				} else if (chunk.content_block) {
+					const unknownType = (chunk.content_block as { type?: string }).type ?? 'undefined';
+					this.logService.warn(`[messagesAPI] Unknown content_block type '${unknownType}' at index ${chunk.index ?? -1} for model ${this.model}`);
+
+					/* __GDPR__
+						"messagesApi.unknownContentBlock" : {
+							"owner": "bhavyaus",
+							"comment": "Tracks unknown Anthropic content block types",
+							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that emitted the unknown block" },
+							"blockType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unknown content_block.type string" }
+						}
+					*/
+					this.telemetryService.sendMSFTTelemetryEvent('messagesApi.unknownContentBlock',
+						{
+							requestId: this.requestId,
+							model: this.model,
+							blockType: unknownType,
+						}
+					);
 				}
 				return;
 			case 'content_block_delta':

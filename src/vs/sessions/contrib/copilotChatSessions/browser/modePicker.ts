@@ -16,6 +16,7 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
@@ -148,7 +149,7 @@ export class ModePicker extends Disposable {
 				if (item.kind === 'mode') {
 					this._selectMode(item.mode);
 				} else {
-					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor);
+					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
 				}
 			},
 			onHide: () => { triggerElement.focus(); },

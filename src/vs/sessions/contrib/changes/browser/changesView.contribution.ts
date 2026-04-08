@@ -41,7 +41,7 @@ viewsRegistry.registerViews([{
 	canMoveView: true,
 	weight: 100,
 	order: 1,
-	windowVisibility: WindowVisibility.Sessions
+	windowVisibility: WindowVisibility.Sessions,
 }], changesViewContainer);
 
 registerWorkbenchContribution2(ChangesTitleBarContribution.ID, ChangesTitleBarContribution, WorkbenchPhase.AfterRestored);

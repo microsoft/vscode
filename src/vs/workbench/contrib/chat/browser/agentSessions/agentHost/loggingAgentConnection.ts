@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentDescriptor, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IActionEnvelope, INotification, ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
@@ -40,8 +40,9 @@ function formatPayload(data: unknown): string {
  * traffic to a dedicated output channel. Used by both local and remote agent
  * host contributions to provide per-host IPC tracing.
  *
- * The output channel is registered on construction and removed on dispose,
- * so its lifetime matches the connection.
+ * The output channel is registered on first construction for a given channel
+ * ID and ref-counted across instances, so it survives reconnections and is
+ * only removed when the last instance for that ID is disposed.
  *
  * All method calls, results, errors, and events are logged with arrows:
  * - `>>` for outgoing calls
@@ -52,6 +53,9 @@ function formatPayload(data: unknown): string {
 export class LoggingAgentConnection extends Disposable implements IAgentConnection {
 
 	declare readonly _serviceBrand: undefined;
+
+	/** Ref-count per channel ID so the output channel survives reconnections. */
+	private static readonly _channelRefCounts = new Map<string, number>();
 
 	private _outputChannel: IOutputChannel | undefined;
 	private readonly _enabled: boolean;
@@ -72,15 +76,26 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		this._enabled = !!configurationService.getValue<boolean>(AgentHostIpcLoggingSettingId);
 
 		if (this._enabled) {
-			// Register the output channel
 			const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-			registry.registerChannel({
-				id: this._channelId,
-				label: this._channelLabel,
-				log: false,
-				languageId: 'log',
-			});
-			this._register({ dispose: () => registry.removeChannel(this._channelId) });
+			const refs = LoggingAgentConnection._channelRefCounts.get(this._channelId) ?? 0;
+			if (refs === 0) {
+				registry.registerChannel({
+					id: this._channelId,
+					label: this._channelLabel,
+					log: false,
+					languageId: 'log',
+				});
+			}
+			LoggingAgentConnection._channelRefCounts.set(this._channelId, refs + 1);
+			this._register(toDisposable(() => {
+				const current = LoggingAgentConnection._channelRefCounts.get(this._channelId)! - 1;
+				if (current <= 0) {
+					LoggingAgentConnection._channelRefCounts.delete(this._channelId);
+					registry.removeChannel(this._channelId);
+				} else {
+					LoggingAgentConnection._channelRefCounts.set(this._channelId, current);
+				}
+			}));
 		}
 
 		// Wrap events with logging
@@ -101,20 +116,8 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	// ---- IAgentConnection method proxies with logging -----------------------
 
-	async listAgents(): Promise<IAgentDescriptor[]> {
-		return this._logCall('listAgents', undefined, () => this._inner.listAgents());
-	}
-
-	async getResourceMetadata(): Promise<IResourceMetadata> {
-		return this._logCall('getResourceMetadata', undefined, () => this._inner.getResourceMetadata());
-	}
-
 	async authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult> {
 		return this._logCall('authenticate', params, () => this._inner.authenticate(params));
-	}
-
-	async refreshModels(): Promise<void> {
-		return this._logCall('refreshModels', undefined, () => this._inner.refreshModels());
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {

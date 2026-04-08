@@ -240,6 +240,10 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		await this.chatWidgetService.openSession(sessionData.resource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
 	}
 
+	unsetNewSession(): void {
+		this.setActiveSession(undefined);
+	}
+
 	createNewSession(providerId: string, workspace: ISessionWorkspace): ISession {
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);

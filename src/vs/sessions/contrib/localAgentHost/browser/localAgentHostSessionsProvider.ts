@@ -100,6 +100,13 @@ class LocalSessionAdapter implements ISession {
 			? LocalAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory)
 			: undefined);
 
+		if (metadata.isRead === false) {
+			this.isRead.set(false, undefined);
+		}
+		if (metadata.isDone) {
+			this.isArchived.set(true, undefined);
+		}
+
 		this.mainChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
@@ -136,6 +143,16 @@ class LocalSessionAdapter implements ISession {
 		const nextLastTurnEndTime = modifiedTime ? modifiedTime : undefined;
 		if (currentLastTurnEndTime !== nextLastTurnEndTime) {
 			this.lastTurnEnd.set(nextLastTurnEndTime !== undefined ? new Date(nextLastTurnEndTime) : undefined, undefined);
+			didChange = true;
+		}
+
+		if (metadata.isRead !== undefined && metadata.isRead !== this.isRead.get()) {
+			this.isRead.set(metadata.isRead, undefined);
+			didChange = true;
+		}
+
+		if (metadata.isDone !== undefined && metadata.isDone !== this.isArchived.get()) {
+			this.isArchived.set(metadata.isDone, undefined);
 			didChange = true;
 		}
 
@@ -222,6 +239,10 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 				this._refreshSessions();
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.action.session, e.action.title);
+			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
+				this._handleIsReadChanged(e.action.session, e.action.isRead);
+			} else if (e.action.type === ActionType.SessionIsDoneChanged && isSessionAction(e.action)) {
+				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			}
 		}));
 	}
@@ -332,12 +353,26 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 
 	// -- Session Actions --
 
-	async archiveSession(_sessionId: string): Promise<void> {
-		// Agent host sessions don't support archiving
+	async archiveSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			cached.isArchived.set(true, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: true };
+			this._agentHostService.dispatchAction(action, this._agentHostService.clientId, this._agentHostService.nextClientSeq());
+		}
 	}
 
-	async unarchiveSession(_sessionId: string): Promise<void> {
-		// Agent host sessions don't support unarchiving
+	async unarchiveSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			cached.isArchived.set(false, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: false };
+			this._agentHostService.dispatchAction(action, this._agentHostService.clientId, this._agentHostService.nextClientSeq());
+		}
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
@@ -368,8 +403,10 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 	setRead(sessionId: string, read: boolean): void {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (cached) {
+		if (cached && rawId) {
 			cached.isRead.set(read, undefined);
+			const action = { type: ActionType.SessionIsReadChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isRead: read };
+			this._agentHostService.dispatchAction(action, this._agentHostService.clientId, this._agentHostService.nextClientSeq());
 		}
 	}
 
@@ -529,7 +566,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		}
 	}
 
-	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string }): void {
+	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -545,6 +582,8 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			modifiedTime: summary.modifiedAt,
 			summary: summary.title,
 			workingDirectory: workingDir,
+			isRead: summary.isRead,
+			isDone: summary.isDone,
 		};
 		const provider = AgentSession.provider(sessionUri) ?? DEFAULT_AGENT_PROVIDER;
 		const cached = new LocalSessionAdapter(meta, this.id, sessionTypeForProvider(provider), this.sessionTypes[0].id);
@@ -566,6 +605,24 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			cached.title.set(title, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
+	private _handleIsReadChanged(session: string, isRead: boolean): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.isRead.set(isRead, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
+	private _handleIsDoneChanged(session: string, isDone: boolean): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.isArchived.set(isDone, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
