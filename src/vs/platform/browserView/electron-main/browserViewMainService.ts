@@ -6,9 +6,10 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IBrowserViewBounds, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId } from '../common/browserView.js';
+import { IElementData } from '../../browserElements/common/browserElements.js';
 import { clipboard, Menu, MenuItem } from 'electron';
-import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget } from '../common/cdp/types.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { BrowserView } from './browserView.js';
@@ -21,11 +22,11 @@ import { IApplicationStorageMainService } from '../../storage/electron-main/stor
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 import { localize } from '../../../nls.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { ITextEditorOptions } from '../../editor/common/editor.js';
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
+import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget } from '../common/cdp/types.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -47,6 +48,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
+	private readonly _activeTokens = new Map<number, CancellationTokenSource>();
 	private _keybindings: { [commandId: string]: string } = Object.create(null);
 
 	// ICDPBrowserTarget events
@@ -351,8 +353,35 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		await browserSession.clearData();
 	}
 
+	async getConsoleLogs(id: string): Promise<string> {
+		return this._getBrowserView(id).getConsoleLogs();
+	}
+
+	async getElementData(id: string, cancellationId: number): Promise<IElementData | undefined> {
+		return this._makeCancellable(cancellationId, (token) => this._getBrowserView(id).getElementData(token));
+	}
+
+	async getFocusedElementData(id: string): Promise<IElementData | undefined> {
+		return this._getBrowserView(id).getFocusedElementData();
+	}
+
+	async cancel(cancellationId: number): Promise<void> {
+		this._activeTokens.get(cancellationId)?.cancel();
+	}
+
 	async updateKeybindings(keybindings: { [commandId: string]: string }): Promise<void> {
 		this._keybindings = keybindings;
+	}
+
+	private async _makeCancellable<T>(cancellationId: number, callback: (token: CancellationToken) => T | Promise<T>): Promise<T> {
+		const cts: CancellationTokenSource = new CancellationTokenSource();
+		this._activeTokens.set(cancellationId, cts);
+		try {
+			return await callback(cts.token);
+		} finally {
+			this._activeTokens.delete(cancellationId);
+			cts.dispose();
+		}
 	}
 
 	/**

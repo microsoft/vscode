@@ -243,7 +243,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			toCommit: string | undefined;
 			timeToUpdateMs: number | undefined;
 			updateMode: string | undefined;
-			titleBarMode: string | undefined;
 		};
 
 		type VersionChangeClassification = {
@@ -256,7 +255,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			toCommit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The commit hash of the current version.' };
 			timeToUpdateMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Milliseconds between the previous version install and this version install.' };
 			updateMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The update mode configured by the user.' };
-			titleBarMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title bar update indicator mode configured by the user.' };
 		};
 
 		this.telemetryService.publicLog2<VersionChangeEvent, VersionChangeClassification>('update:versionChanged', {
@@ -267,7 +265,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			toCommit: to.commit,
 			timeToUpdateMs: to.timestamp - from.timestamp,
 			updateMode: this.configurationService.getValue<string>('update.mode'),
-			titleBarMode: this.configurationService.getValue<string>('update.titleBar')
 		});
 	}
 
@@ -344,11 +341,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			}
 		}
 
+		// Remember the Ready state so we can restore it if the quit is vetoed
+		const readyState = this.state;
+
+		this.setState(State.Restarting(this.state.update));
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
 		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
+				this.logService.info('update#quitAndInstall(): quit was vetoed, restoring Ready state');
+				this.setState(readyState);
 				return;
 			}
 

@@ -32,6 +32,7 @@ export const AICustomizationManagementCommands = {
 	CreateNewSkill: 'aiCustomization.createNewSkill',
 	CreateNewInstructions: 'aiCustomization.createNewInstructions',
 	CreateNewPrompt: 'aiCustomization.createNewPrompt',
+	GenerateDebugReport: 'aiCustomization.generateDebugReport',
 } as const;
 
 /**
@@ -47,9 +48,19 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<bool
  * Context key for the currently selected section.
  */
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<string>(
-	'aiCustomizationManagementSection',
+	'chatCustomizationSection',
 	AICustomizationManagementSection.Agents,
-	localize('aiCustomizationManagementSection', "The currently selected section in the Chat Customizations editor")
+	localize('chatCustomizationSection', "The currently selected section in the Chat Customizations editor")
+);
+
+/**
+ * Context key for the active harness (session type) in the customizations editor.
+ * Extensions use this in when-clauses to scope create actions to their harness.
+ */
+export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS = new RawContextKey<string>(
+	'chatCustomizationSessionType',
+	'',
+	localize('chatCustomizationSessionType', "The active harness (session type) in the Chat Customizations editor")
 );
 
 /**
@@ -61,6 +72,13 @@ export const AICustomizationManagementTitleMenuId = MenuId.for('AICustomizationM
  * Menu ID for the AI Customization Management Editor item context menu.
  */
 export const AICustomizationManagementItemMenuId = MenuId.for('AICustomizationManagementEditorItem');
+
+/**
+ * Menu ID for the AI Customization Management Editor create/add button.
+ * Extensions can contribute commands here to add create actions to the section's add button dropdown.
+ * Use the `chatCustomizationSection` context key to target a specific section.
+ */
+export const AICustomizationManagementCreateMenuId = MenuId.for('AICustomizationManagementCreate');
 
 /**
  * Context key for the item prompt type (e.g. 'prompt', 'agent') used in when-clause filtering.

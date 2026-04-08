@@ -7,7 +7,10 @@ import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
+import { IElementData } from '../../browserElements/common/browserElements.js';
+import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -34,9 +37,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
-	private _debugger: BrowserViewDebugger;
+	private readonly _debugger: BrowserViewDebugger;
+	private readonly _inspector: BrowserViewElementInspector;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
+
+	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
+	private readonly _consoleLogs: string[] = [];
 
 	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
@@ -134,7 +141,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 					// Return the webContents so Electron can complete the window.open() call
 					return childView.webContents;
-				}
+				},
+
+				// We want the standard browser behavior as opposed to Electron's default of closing the new window when the parent is closed
+				outlivesOpener: true
 			};
 		});
 
@@ -147,6 +157,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		this._debugger = new BrowserViewDebugger(this, this.logService);
+		this._inspector = this._register(new BrowserViewElementInspector(this));
 
 		this.setupEventListeners();
 	}
@@ -169,6 +180,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			for (const url of favicons) {
 				if (!this._faviconRequestCache.has(url)) {
 					this._faviconRequestCache.set(url, (async () => {
+						if (url.startsWith('data:image/')) {
+							return url;
+						}
 						const response = await webContents.session.fetch(url, {
 							cache: 'force-cache'
 						});
@@ -176,6 +190,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 							throw new Error(`Failed to fetch favicon: ${response.status} ${response.statusText}`);
 						}
 						const type = await response.headers.get('content-type');
+						if (!type?.startsWith('image/')) {
+							throw new Error(`Favicon is not an image: ${type}`);
+						}
 						const buffer = await response.arrayBuffer();
 
 						return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
@@ -222,7 +239,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		// Loading state events
 		webContents.on('did-start-loading', () => {
 			this._lastError = undefined;
-			fireLoadingEvent(true);
+
+			// Don't fire loading events for e.g. same-document navigations
+			if (webContents.isLoadingMainFrame()) {
+				fireLoadingEvent(true);
+			}
 		});
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -269,10 +290,16 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
-		// Chromium resets the zoom factor to its per-origin default (100%) when
-		// navigating to a new document. Re-apply our stored zoom to override it.
 		webContents.on('did-navigate', () => {
+			// Chromium resets the zoom factor to its per-origin default (100%) when
+			// navigating to a new document. Re-apply our stored zoom to override it.
+			this._consoleLogs.length = 0; // Clear console logs on navigation since they are per-page
 			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+
+			// Enable pinch-to-zoom
+			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+				this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
+			});
 		});
 
 		// Focus events
@@ -350,6 +377,14 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				selectionArea: result.selectionArea,
 				finalUpdate: result.finalUpdate
 			});
+		});
+
+		// Capture console messages for sharing with chat
+		this._view.webContents.on('console-message', (event) => {
+			this._consoleLogs.push(`[${event.level}] ${event.message}`);
+			if (this._consoleLogs.length > BrowserView.MAX_CONSOLE_LOG_ENTRIES) {
+				this._consoleLogs.splice(0, this._consoleLogs.length - BrowserView.MAX_CONSOLE_LOG_ENTRIES);
+			}
 		});
 	}
 
@@ -451,6 +486,29 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	}
 
 	/**
+	 * Get captured console logs.
+	 */
+	getConsoleLogs(): string {
+		return this._consoleLogs.join('\n');
+	}
+
+	/**
+	 * Start element inspection mode. Sets up a CDP overlay that highlights elements
+	 * on hover. When the user clicks, the element data is returned and the overlay is removed.
+	 * @param token Cancellation token to abort the inspection.
+	 */
+	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
+		return this._inspector.getElementData(token);
+	}
+
+	/**
+	 * Get element data for the currently focused element.
+	 */
+	async getFocusedElementData(): Promise<IElementData | undefined> {
+		return this._inspector.getFocusedElementData();
+	}
+
+	/**
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
@@ -512,13 +570,24 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const quality = options?.quality ?? 80;
-		const image = await this._view.webContents.capturePage(options?.rect, {
+		if (options?.pageRect) {
+			const zoomFactor = this._view.webContents.getZoomFactor();
+			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
+			const visualViewportScale = await this._inspector.getVisualViewportScale();
+			options.screenRect = {
+				x: options.pageRect.x * visualViewportScale * zoomFactor,
+				y: options.pageRect.y * visualViewportScale * zoomFactor,
+				width: options.pageRect.width * visualViewportScale * zoomFactor,
+				height: options.pageRect.height * visualViewportScale * zoomFactor
+			};
+		}
+		const image = await this._view.webContents.capturePage(options?.screenRect, {
 			stayHidden: true
 		});
 		const buffer = image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
-		if (!options?.rect) {
+		if (!options?.screenRect) {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;

@@ -568,7 +568,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					// For normal terminals write a message indicating what happened and relaunch
 					// using the previous shellLaunchConfig
 					const message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
-					this._onProcessData.fire({ data: formatMessageForTerminal(message, { loudFormatting: true }), trackCommit: false });
+					// Align with the pty service's revive logic (_reviveTerminalProcess in src/vs/platform/terminal/node/ptyService.ts)
+					// to hedge against PSReadLine `GetConsoleCursorInfo` and cursor handling from conpty.
+					let postRestartMessage = '';
+					if (this.os === OperatingSystem.Windows && this._dimensions.rows > 0) {
+						postRestartMessage = '\r\n'.repeat(this._dimensions.rows - 1) + `\x1b[H`;
+					}
+					this._onProcessData.fire({ data: formatMessageForTerminal(message, { loudFormatting: true }) + postRestartMessage, trackCommit: false });
 					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, false);
 				}
 			}

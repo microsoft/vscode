@@ -282,19 +282,7 @@ const colorSchemeToPreferred = {
 };
 
 export class ThemeConfiguration {
-	constructor(private configurationService: IConfigurationService, private hostColorService: IHostColorSchemeService, private readonly isNewUser: boolean = false) {
-	}
-
-	private shouldAutoDetectColorScheme(): boolean {
-		const { value, userValue, userLocalValue, userRemoteValue } = this.configurationService.inspect<boolean>(ThemeSettings.DETECT_COLOR_SCHEME);
-		if (value) {
-			return true;
-		}
-		if (this.isNewUser) {
-			const hasUserScopedValue = userValue !== undefined || userLocalValue !== undefined || userRemoteValue !== undefined;
-			return !hasUserScopedValue;
-		}
-		return false;
+	constructor(private configurationService: IConfigurationService, private hostColorService: IHostColorSchemeService) {
 	}
 
 	public get colorTheme(): string {
@@ -348,14 +336,14 @@ export class ThemeConfiguration {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
 			return this.hostColorService.dark ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT;
 		}
-		if (this.shouldAutoDetectColorScheme()) {
+		if (this.isDetectingColorScheme()) {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
 	}
 
 	public isDetectingColorScheme(): boolean {
-		return this.shouldAutoDetectColorScheme();
+		return this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME);
 	}
 
 	public getColorThemeSettingId(): ThemeSettings {

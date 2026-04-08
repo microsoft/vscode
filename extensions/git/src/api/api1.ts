@@ -158,6 +158,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.clean(paths.map(p => Uri.file(p)));
 	}
 
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }) {
+		return this.#repository.restore(paths.map(p => Uri.file(p)), options);
+	}
+
 	diff(cached?: boolean) {
 		return this.#repository.diff(cached);
 	}
@@ -344,7 +348,7 @@ export class ApiRepository implements Repository {
 		return this.#repository.dropStash(index);
 	}
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		return this.#repository.createWorktree(options);
 	}
 

@@ -328,8 +328,13 @@ export class Dialog extends Disposable {
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
 			const window = getWindow(this.container);
+			let sawEscapeKeyDown = false;
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
+
+				if (evt.equals(KeyCode.Escape)) {
+					sawEscapeKeyDown = true;
+				}
 
 				if (evt.equals(KeyMod.Alt)) {
 					evt.preventDefault();
@@ -470,7 +475,7 @@ export class Dialog extends Disposable {
 				EventHelper.stop(e, true);
 				const evt = new StandardKeyboardEvent(e);
 
-				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape)) {
+				if (!this.options.disableCloseAction && evt.equals(KeyCode.Escape) && sawEscapeKeyDown) {
 					close();
 				}
 			}, true));

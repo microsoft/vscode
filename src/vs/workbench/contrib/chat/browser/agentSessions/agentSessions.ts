@@ -29,7 +29,7 @@ export enum AgentSessionProviders {
  */
 export type AgentSessionTarget = AgentSessionProviders | (string & {});
 
-export function isBuiltInAgentSessionProvider(provider: string): boolean {
+export function isBuiltInAgentSessionProvider(provider: AgentSessionTarget): boolean {
 	return provider === AgentSessionProviders.Local ||
 		provider === AgentSessionProviders.Background ||
 		provider === AgentSessionProviders.Cloud ||
@@ -51,7 +51,7 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 	}
 }
 
-export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
+export function getAgentSessionProviderName(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
@@ -67,10 +67,12 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Agent Host - Copilot';
+		default:
+			return provider;
 	}
 }
 
-export function getAgentSessionProviderIcon(provider: AgentSessionProviders): ThemeIcon {
+export function getAgentSessionProviderIcon(provider: AgentSessionTarget): ThemeIcon {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return Codicon.vm;
@@ -86,6 +88,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.lightbulb;
 		case AgentSessionProviders.AgentHostCopilot:
 			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
+		default:
+			return Codicon.extensions;
 	}
 }
 
@@ -96,7 +100,7 @@ export function getAgentHostIcon(productService: IProductService): ThemeIcon {
 	return productService.quality === 'stable' ? Codicon.vscode : Codicon.vscodeInsiders;
 }
 
-export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders): boolean {
+export function isFirstPartyAgentSessionProvider(provider: AgentSessionTarget): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
@@ -106,6 +110,8 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
+			return false;
+		default:
 			return false;
 	}
 }
@@ -125,7 +131,7 @@ export function isAgentHostTarget(target: string): boolean {
 		target.startsWith('remote-');
 }
 
-export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
+export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
@@ -136,10 +142,12 @@ export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean 
 		case AgentSessionProviders.Growth:
 		case AgentSessionProviders.AgentHostCopilot:
 			return false;
+		default:
+			return false;
 	}
 }
 
-export function getAgentSessionProviderDescription(provider: AgentSessionProviders): string {
+export function getAgentSessionProviderDescription(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerDescription.local', "Run tasks within VS Code chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
@@ -155,6 +163,8 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.AgentHostCopilot:
 			return 'Run a Copilot SDK agent in a dedicated process.';
+		default:
+			return '';
 	}
 }
 

@@ -7,6 +7,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import type {
 	IAgentDeltaEvent,
 	IAgentErrorEvent,
+	IAgentMessageEvent,
 	IAgentProgressEvent,
 	IAgentReasoningEvent,
 	IAgentTitleChangedEvent,
@@ -203,8 +204,30 @@ export class AgentEventMapper {
 				};
 			}
 
-			case 'message':
-				return undefined;
+			case 'message': {
+				// The SDK fires a `message` event with the complete assembled
+				// content after all streaming deltas. If delta events already
+				// captured the text (tracked via _currentMarkdownPartId), skip.
+				// Otherwise the text arrived without preceding deltas (e.g.
+				// after tool calls), so emit a new response part.
+				const e = event as IAgentMessageEvent;
+				if (e.role !== 'assistant' || !e.content) {
+					return undefined;
+				}
+				const existingPartId = this._currentMarkdownPartId.get(session);
+				if (existingPartId) {
+					// Deltas already streamed the content for this part
+					return undefined;
+				}
+				const partId = generateUuid();
+				this._currentMarkdownPartId.set(session, partId);
+				return {
+					type: ActionType.SessionResponsePart,
+					session,
+					turnId,
+					part: { kind: ResponsePartKind.Markdown, id: partId, content: e.content },
+				};
+			}
 
 			default:
 				return undefined;

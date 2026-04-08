@@ -160,14 +160,14 @@
 }
 
 .action-widget .monaco-list-row.action .monaco-keybinding > .monaco-keybinding-key {
-		background-color: var(--vscode-keybindingLabel-background);
-		color: var(--vscode-keybindingLabel-foreground);
-		border-style: solid;
-		border-width: 1px;
-		border-radius: 3px;
-		border-color: var(--vscode-keybindingLabel-border);
-		border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
-		box-shadow: inset 0 -1px 0 var(--vscode-widget-shadow);
+	background-color: var(--vscode-keybindingLabel-background);
+	color: var(--vscode-keybindingLabel-foreground);
+	border-style: solid;
+	border-width: 1px;
+	border-radius: 3px;
+	border-color: var(--vscode-keybindingLabel-border);
+	border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
+	box-shadow: inset 0 -1px 0 var(--vscode-widget-shadow);
 }
 
 /* Action bar */
@@ -221,15 +221,18 @@
 .action-widget .description-below .monaco-list .monaco-list-row.action {
 	flex-wrap: wrap;
 	align-content: center;
-	padding-top: 6px;
 	padding-right: 2px;
+
+	&:has(.description:not([style*="display: none"])) {
+		padding-top: 6px;
+	}
 
 	.title {
 		line-height: 14px;
 	}
 
 	.description {
-		display: block !important;
+		display: block;
 		width: 100%;
 		margin-left: 0;
 		padding-left: 20px;
@@ -252,7 +255,7 @@
 	display: flex;
 }
 
-.action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover{
+.action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 

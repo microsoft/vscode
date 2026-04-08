@@ -1621,6 +1621,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string {
+		for (const [item, toolFullReferenceName] of this.toolsWithFullReferenceName.get()) {
+			if (item === tool) {
+				return toolFullReferenceName;
+			}
+		}
+
 		if (isToolSet(tool)) {
 			return getToolSetFullReferenceName(tool);
 		}

@@ -21,10 +21,9 @@ import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments } from './sessionEditorComments.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
@@ -49,7 +48,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const agentFeedbackService = accessor.get(IAgentFeedbackService);
 		const chatEditingService = accessor.get(IChatEditingService);
-		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const codeReviewService = accessor.get(ICodeReviewService);
 
 		const editorGroupsService = accessor.get(IEditorGroupsService);
@@ -59,7 +58,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 			?? editorService.visibleEditorPanes[0];
 		const candidates = getActiveResourceCandidates(activePane?.input);
 		for (const candidate of candidates) {
-			const sessionResource = getSessionForResource(candidate, chatEditingService, agentSessionsService)
+			const sessionResource = getSessionForResource(candidate, chatEditingService, sessionsManagementService)
 				?? agentFeedbackService.getMostRecentSessionForResource(candidate);
 			if (!sessionResource) {
 				continue;
@@ -125,7 +124,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 			await editorService.closeEditors(editorsToClose);
 		}
 
-		await widget.acceptInput('act on feedback'); // move to use /act-on-feedback when the bug is fixed
+		await widget.acceptInput('/act-on-feedback');
 	}
 }
 
@@ -214,7 +213,7 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const logService = accessor.get(ILogService);
 
-		const activeSession = sessionManagementService.getActiveSession();
+		const activeSession = sessionManagementService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
@@ -246,7 +245,7 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 			await editorService.closeEditors(editorsToClose);
 		}
 
-		await widget.acceptInput('act on feedback');
+		await widget.acceptInput('/act-on-feedback');
 	}
 }
 

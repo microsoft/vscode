@@ -3,11 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import { SessionDatabase } from './sessionDatabase.js';
+
+class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
+	constructor(
+		private readonly _getDbPath: (key: string) => string,
+		private readonly _logService: ILogService,
+	) {
+		super();
+	}
+
+	protected createReferencedObject(key: string): ISessionDatabase {
+		const dbPath = this._getDbPath(key);
+		this._logService.trace(`[SessionDataService] Opening database: ${dbPath}`);
+		return new SessionDatabase(dbPath);
+	}
+
+	protected destroyReferencedObject(_key: string, object: ISessionDatabase): void {
+		object.dispose();
+	}
+}
 
 /**
  * Implementation of {@link ISessionDataService} that stores per-session data
@@ -17,13 +38,19 @@ export class SessionDataService implements ISessionDataService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _basePath: URI;
+	private readonly _databases: SessionDatabaseCollection;
 
 	constructor(
 		userDataPath: URI,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		getDbPath?: (key: string) => string, // for testing
 	) {
 		this._basePath = URI.joinPath(userDataPath, 'agentSessionData');
+		this._databases = new SessionDatabaseCollection(
+			getDbPath ?? (key => URI.joinPath(this._basePath, key, 'session.db').fsPath),
+			this._logService,
+		);
 	}
 
 	getSessionDataDir(session: URI): URI {
@@ -33,6 +60,23 @@ export class SessionDataService implements ISessionDataService {
 	getSessionDataDirById(sessionId: string): URI {
 		const sanitized = sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
 		return URI.joinPath(this._basePath, sanitized);
+	}
+
+	private _sanitizedSessionKey(session: URI): string {
+		return AgentSession.id(session).replace(/[^a-zA-Z0-9_.-]/g, '-');
+	}
+
+	openDatabase(session: URI): IReference<ISessionDatabase> {
+		return this._databases.acquire(this._sanitizedSessionKey(session));
+	}
+
+	async tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> {
+		const key = this._sanitizedSessionKey(session);
+		const dbPath = URI.joinPath(this._basePath, key, 'session.db');
+		if (!await this._fileService.exists(dbPath)) {
+			return undefined;
+		}
+		return this._databases.acquire(key);
 	}
 
 	async deleteSessionData(session: URI): Promise<void> {

@@ -53,7 +53,8 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const setArtifactsTool = instantiationService.createInstance(SetArtifactsTool);
 		const setArtifactsRegistration = this._register(new MutableDisposable());
 		const updateArtifactsRegistration = () => {
-			if (configurationService.getValue<boolean>(ChatConfiguration.ArtifactsEnabled)) {
+			if (configurationService.getValue<boolean>(ChatConfiguration.ArtifactsEnabled) &&
+				configurationService.getValue<string>(ChatConfiguration.ArtifactsMode) === 'tool') {
 				if (!setArtifactsRegistration.value) {
 					setArtifactsRegistration.value = toolsService.registerTool(SetArtifactsToolData, setArtifactsTool);
 				}
@@ -63,7 +64,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		};
 		updateArtifactsRegistration();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ArtifactsEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ArtifactsEnabled) || e.affectsConfiguration(ChatConfiguration.ArtifactsMode)) {
 				updateArtifactsRegistration();
 			}
 		}));

@@ -6,6 +6,7 @@
 import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
+import { execFile } from 'child_process';
 import { hostname, release } from 'os';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
@@ -49,6 +50,8 @@ import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from '../..
 import { ExtensionHostStarter } from '../../platform/extensions/electron-main/extensionHostStarter.js';
 import { IExternalTerminalMainService } from '../../platform/externalTerminal/electron-main/externalTerminal.js';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../platform/externalTerminal/node/externalTerminalService.js';
+import { ISandboxHelperMainService } from '../../platform/sandbox/electron-main/sandboxHelperService.js';
+import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.js';
 import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from '../../platform/files/common/diskFileSystemProviderClient.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { DiskFileSystemProviderChannel } from '../../platform/files/electron-main/diskFileSystemProviderServer.js';
@@ -410,11 +413,7 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				if ((process as INodeProcess).isEmbeddedApp || (this.environmentMainService.args['sessions'] && this.productService.quality !== 'stable')) {
-					await this.windowsMainService?.openSessionsWindow({ context: OpenContext.DOCK });
-				} else {
-					await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
-				}
+				await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
 			}
 		});
 
@@ -751,10 +750,9 @@ export class CodeApplication extends Disposable {
 
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
 			if (windowOpenable) {
-				// Sessions app: skip all window openables (file/folder/workspace)
 				if ((process as INodeProcess).isEmbeddedApp) {
-					this.logService.trace('app#resolveInitialProtocolUrls() sessions app skipping window openable:', protocolUrl.uri.toString(true));
-					continue;
+					this.logService.trace('app#resolveInitialProtocolUrls() agents app skipping window openable:', protocolUrl.uri.toString(true));
+					continue; // Agents app: skip all window openables (file/folder/workspace)
 				}
 
 				if (await this.shouldBlockOpenable(windowOpenable, windowsMainService, dialogMainService)) {
@@ -902,19 +900,19 @@ export class CodeApplication extends Disposable {
 	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
-		// Sessions app: ensure the sessions window is open, then let other handlers process the URL.
+		// Agents app: ensure the agents window is open, then let other handlers process the URL.
 		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.trace('app#handleProtocolUrl() sessions app handling protocol URL:', uri.toString(true));
+			this.logService.trace('app#handleProtocolUrl() agents app handling protocol URL:', uri.toString(true));
 
 			// Skip window openables (file/folder/workspace) for security
 			const windowOpenable = this.getWindowOpenableFromProtocolUrl(uri);
 			if (windowOpenable) {
-				this.logService.trace('app#handleProtocolUrl() sessions app skipping window openable:', uri.toString(true));
+				this.logService.trace('app#handleProtocolUrl() agents app skipping window openable:', uri.toString(true));
 				return true;
 			}
 
-			// Ensure sessions window is open to receive the URL
-			const windows = await windowsMainService.openSessionsWindow({ context: OpenContext.LINK, contextWindowId: undefined });
+			// Ensure agents window is open to receive the URL
+			const windows = await windowsMainService.openAgentsWindow({ context: OpenContext.LINK, cli: this.environmentMainService.args });
 			const window = windows.at(0);
 			window?.focus();
 			await window?.ready();
@@ -1150,6 +1148,7 @@ export class CodeApplication extends Disposable {
 		} else if (isLinux) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(LinuxExternalTerminalService));
 		}
+		services.set(ISandboxHelperMainService, new SyncDescriptor(SandboxHelperService));
 
 		// Backups
 		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
@@ -1191,7 +1190,6 @@ export class CodeApplication extends Disposable {
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
-
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1320,6 +1318,10 @@ export class CodeApplication extends Disposable {
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService), disposables);
 		mainProcessElectronServer.registerChannel('externalTerminal', externalTerminalChannel);
 
+		// Sandbox Helper
+		const sandboxHelperChannel = ProxyChannel.fromService(accessor.get(ISandboxHelperMainService), disposables);
+		mainProcessElectronServer.registerChannel('sandboxHelper', sandboxHelperChannel);
+
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
 		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
@@ -1351,9 +1353,13 @@ export class CodeApplication extends Disposable {
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// Handle sessions window first based on context
-		if ((process as INodeProcess).isEmbeddedApp || (args['sessions'] && this.productService.quality !== 'stable')) {
-			return windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
+		// Handle agents window first based on context
+		if ((process as INodeProcess).isEmbeddedApp || (args['agents'] && this.productService.quality !== 'stable')) {
+			return windowsMainService.openAgentsWindow({
+				context,
+				cli: args,
+				initialStartup: true
+			});
 		}
 
 		// Then check for windows from protocol links to open
@@ -1724,5 +1730,25 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
+
+		// macOS: eagerly register the embedded app with Launch Services
+		this.registerEmbeddedAppWithLaunchServices();
+	}
+
+	private registerEmbeddedAppWithLaunchServices(): void {
+		if (!isMacintosh || (process as INodeProcess).isEmbeddedApp || !this.productService.embedded?.nameShort || this.productService.quality === 'stable') {
+			return;
+		}
+
+		// appRoot points to Contents/Resources/app on macOS
+		const embeddedAppPath = join(this.environmentMainService.appRoot, '..', '..', 'Applications', `${this.productService.embedded.nameShort}.app`);
+		const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+		this.logService.trace('Registering embedded app with Launch Services:', embeddedAppPath);
+		const child = execFile(lsregister, ['-f', embeddedAppPath], { timeout: 30_000 }, (error) => {
+			if (error) {
+				this.logService.error('Failed to register embedded app with Launch Services:', error.message);
+			}
+		});
+		child.unref();
 	}
 }

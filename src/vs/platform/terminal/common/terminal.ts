@@ -719,6 +719,7 @@ export interface IShellLaunchConfigDto {
 	reconnectionProperties?: IReconnectionProperties;
 	type?: 'Task' | 'Local';
 	isFeatureTerminal?: boolean;
+	forceShellIntegration?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
 	titleTemplate?: string;
@@ -1058,6 +1059,10 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 * For zsh, we failed to create a temp directory for the shell integration script.
 	 */
 	FailedToCreateTmpDir = 'failedToCreateTmpDir',
+}
+
+export const enum ShellIntegrationTimeoutOverride {
+	DisableForTests = -2
 }
 
 export enum TerminalExitReason {

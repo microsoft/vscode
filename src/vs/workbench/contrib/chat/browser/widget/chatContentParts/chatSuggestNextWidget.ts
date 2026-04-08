@@ -100,7 +100,8 @@ export class ChatSuggestNextWidget extends Disposable {
 		}
 
 		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
-		const firstAutoSendHandoff = isAutopilotEnabled ? handoffs.find(h => h.send) : undefined;
+		const isAutopilotPolicyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const firstAutoSendHandoff = isAutopilotEnabled && !isAutopilotPolicyRestricted ? handoffs.find(h => h.send) : undefined;
 
 		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);

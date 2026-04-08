@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { match } from '../../../../../base/common/glob.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -244,6 +245,13 @@ class QuickOpenBrowserAction extends Action2 {
 interface IOpenBrowserOptions {
 	url?: string;
 	openToSide?: boolean;
+
+	/**
+	 * If set, the first existing tab with a URL matching this glob pattern will be reused / focused instead of opening a new tab.
+	 *
+	 * This is used by Live Preview extension to reuse tabs, especially after reload / restart.
+	 */
+	reuseUrlFilter?: string;
 }
 
 class OpenIntegratedBrowserAction extends Action2 {
@@ -275,6 +283,43 @@ class OpenIntegratedBrowserAction extends Action2 {
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
 		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+
+		if (options.reuseUrlFilter) {
+			const filterUri = URI.parse(options.reuseUrlFilter);
+			const matchingEditor = editorService.editors.find((e): e is BrowserEditorInput => {
+				if (!(e instanceof BrowserEditorInput)) {
+					return false;
+				}
+
+				const editorUri = URI.parse(e.url || '');
+				// URIs default to putting "file" scheme. Check that the scheme is really in the filter.
+				if (filterUri.scheme && options.reuseUrlFilter!.startsWith(`${filterUri.scheme}:`) && filterUri.scheme !== editorUri.scheme) {
+					return false;
+				}
+				if (filterUri.authority && !match(filterUri.authority, editorUri.authority)) {
+					return false;
+				}
+				if (filterUri.path && !match(filterUri.path, editorUri.path)) {
+					return false;
+				}
+				if (filterUri.query) {
+					const filterParams = new URLSearchParams(filterUri.query);
+					const editorParams = new URLSearchParams(editorUri.query);
+					if (![...filterParams].every(([key, value]) => match(value, editorParams.get(key) ?? ''))) {
+						return false;
+					}
+				}
+
+				return true;
+			});
+			if (matchingEditor) {
+				if (options.url) {
+					matchingEditor.navigate(options.url);
+				}
+				await editorService.openEditor(matchingEditor);
+				return;
+			}
+		}
 
 		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
 

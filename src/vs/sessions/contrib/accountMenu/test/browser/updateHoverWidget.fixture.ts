@@ -73,7 +73,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	UpdateHoverUpdating: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderHoverWidget(ctx, State.Updating(mockUpdate, 40, 100)),
+		render: ctx => renderHoverWidget(ctx, State.Updating(mockUpdate, true, 40, 100)),
 	}),
 
 	UpdateHoverSameVersion: defineComponentFixture({

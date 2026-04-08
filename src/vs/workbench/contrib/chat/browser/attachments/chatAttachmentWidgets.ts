@@ -63,7 +63,7 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, MAX_IMAGES_PER_REQUEST, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
@@ -432,6 +432,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			ariaLabel = localize('chat.omittedImageAttachment', "Omitted this image: {0}", attachment.name);
 		} else if (attachment.omittedState === OmittedState.Partial) {
 			ariaLabel = localize('chat.partiallyOmittedImageAttachment', "Partially omitted this image: {0}", attachment.name);
+		} else if (attachment.omittedState === OmittedState.ImageLimitExceeded) {
+			ariaLabel = localize('chat.imageLimitExceededAttachment', "Image not sent due to limit: {0}", attachment.name);
 		} else {
 			ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 		}
@@ -441,7 +443,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const imageData = coerceImageBuffer(attachment.value);
 		const clickHandler = async () => {
 			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-				await this.openInCarousel(attachment.name, imageData, resource);
+				await this.openInCarousel(attachment.id, attachment.name, imageData, resource);
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 			}
@@ -469,8 +471,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private async openInCarousel(name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
-		const resource = referenceUri ?? URI.from({ scheme: 'data', path: name });
+	private async openInCarousel(id: string, name: string, data: Uint8Array | undefined, referenceUri: URI | undefined): Promise<void> {
+		const resource = referenceUri ?? URI.from({ scheme: 'data', path: `${id}/${encodeURIComponent(name)}` });
 		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
 	}
 }
@@ -515,6 +517,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	} else if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
 		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
+		disposable.add(hoverService.setupDelayedHover(element, {
+			content: hoverElement,
+			style: HoverStyle.Pointer,
+		}));
+	} else if (omittedState === OmittedState.ImageLimitExceeded) {
+		element.classList.add('warning');
+		hoverElement.textContent = localize('chat.imageLimitExceededHover', "This image was not sent because the maximum of {0} images per request was exceeded.", MAX_IMAGES_PER_REQUEST);
 		disposable.add(hoverService.setupDelayedHover(element, {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
