@@ -6152,30 +6152,6 @@
 			{
 				"path": "./assets/prompts/plan.prompt.md",
 				"when": "chatSessionType == local"
-			},
-			{
-				"path": "./assets/prompts/init.prompt.md",
-				"when": "chatSessionType == local"
-			},
-			{
-				"path": "./assets/prompts/create-prompt.prompt.md",
-				"when": "chatSessionType == local"
-			},
-			{
-				"path": "./assets/prompts/create-instructions.prompt.md",
-				"when": "chatSessionType == local"
-			},
-			{
-				"path": "./assets/prompts/create-skill.prompt.md",
-				"when": "chatSessionType == local"
-			},
-			{
-				"path": "./assets/prompts/create-agent.prompt.md",
-				"when": "chatSessionType == local"
-			},
-			{
-				"path": "./assets/prompts/create-hook.prompt.md",
-				"when": "chatSessionType == local"
 			}
 		],
 		"chatSkills": [
@@ -6202,6 +6178,30 @@
 			{
 				"path": "./assets/prompts/skills/agent-customization/SKILL.md",
 				"when": "chatSessionType == local || chatSessionType == copilotcli"
+			},
+			{
+				"path": "./assets/prompts/skills/init/SKILL.md",
+				"when": "chatSessionType == local"
+			},
+			{
+				"path": "./assets/prompts/skills/create-prompt/SKILL.md",
+				"when": "chatSessionType == local"
+			},
+			{
+				"path": "./assets/prompts/skills/create-instructions/SKILL.md",
+				"when": "chatSessionType == local"
+			},
+			{
+				"path": "./assets/prompts/skills/create-skill/SKILL.md",
+				"when": "chatSessionType == local"
+			},
+			{
+				"path": "./assets/prompts/skills/create-agent/SKILL.md",
+				"when": "chatSessionType == local"
+			},
+			{
+				"path": "./assets/prompts/skills/create-hook/SKILL.md",
+				"when": "chatSessionType == local"
 			}
 		],
 		"terminal": {

@@ -2137,6 +2137,265 @@ describe('XtabProvider integration', () => {
 			expect(captured.requestOptions?.stream).toBe(true);
 		});
 	});
+
+	// ========================================================================
+	// Group 10: Cursor-Line Divergence — Early Cancellation
+	// ========================================================================
+
+	describe('cursor-line divergence cancellation', () => {
+
+		/**
+		 * Creates a request for divergence tests.
+		 *
+		 * In the real system, `request.documentBeforeEdits` = the current document at
+		 * request creation time (i.e. `documentAfterEdits`), and `intermediateUserEdit`
+		 * tracks changes after that. `createRequestWithEdit` sets
+		 * `request.documentBeforeEdits` to the doc *before* the trigger edit, so we
+		 * construct a request with the intended value here to match reality.
+		 */
+		function createDivergenceRequest(
+			docAtRequestTime: string[],
+			opts: { insertionOffset: number; insertedText: string },
+		): StatelessNextEditRequest {
+			const base = createRequestWithEdit(docAtRequestTime, opts);
+			return new StatelessNextEditRequest(
+				base.headerRequestId,
+				base.opportunityId,
+				new StringText(docAtRequestTime.join('\n')),
+				base.documents,
+				base.activeDocumentIdx,
+				base.xtabEditHistory,
+				new DeferredPromise<Result<unknown, NoNextEditReason>>(),
+				base.expandedEditWindowNLines,
+				base.isSpeculative,
+				base.logContext,
+				base.recordingBookmark,
+				base.recording,
+				base.providerRequestStartDateTime,
+			);
+		}
+
+		beforeEach(async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabEarlyCursorLineDivergenceCancellation, true);
+		});
+
+		it('cancels when user typed a character that diverges from model output', async () => {
+			const provider = createProvider();
+
+			//  Request created with document: `function fi`
+			//  User typed `x` after request → document becomes `function fix`
+			//  Model replies `function fibonacci(n: number): number`
+			//  → "x" not in model's new text → cancel
+			const request = createDivergenceRequest(
+				['function fi'],
+				{ insertionOffset: 10, insertedText: 'i' },
+			);
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(11), 'x')
+			);
+
+			streamingFetcher.setStreamingLines(['function fibonacci(n: number): number']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
+			expect((finalReason.v as NoNextEditReason.GotCancelled).message).toBe('cursorLineDiverged');
+		});
+
+		it('does not cancel when user typed a character consistent with model output', async () => {
+			const provider = createProvider();
+
+			//  Request created with document: `function fi`
+			//  User typed `b` after request → document becomes `function fib`
+			//  Model replies `function fibonacci(n: number): number`
+			//  → "b" is in model's new text → no cancel
+			const request = createDivergenceRequest(
+				['function fi'],
+				{ insertionOffset: 10, insertedText: 'i' },
+			);
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(11), 'b')
+			);
+
+			// Model output is a superset of user's typing
+			streamingFetcher.setStreamingLines(['function fibonacci(n: number): number']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should produce an edit (the rest of the completion), not cancel
+			expect(edits.length).toBeGreaterThan(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('does not cancel when user has not typed since request started', async () => {
+			const provider = createProvider();
+
+			const lines = ['function foo() {', '  return 1;', '}'];
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 3,
+				insertedText: 'c',
+			});
+
+			// intermediateUserEdit is empty → user hasn't typed since request started
+			// The default is StringEdit.empty, so no divergence check should trigger
+
+			// Model responds with a completely different line
+			streamingFetcher.setStreamingLines(['function bar() {', '  return 2;', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should proceed normally with the edit, not cancel
+			expect(edits.length).toBeGreaterThan(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('does not cancel when intermediateUserEdit is undefined (consistency check failed)', async () => {
+			const provider = createProvider();
+
+			const lines = ['const x = 1;', 'const y = 2;'];
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 3,
+				insertedText: 'a',
+			});
+
+			// undefined means consistency check failed earlier — we should not
+			// attempt the divergence check
+			request.intermediateUserEdit = undefined;
+
+			streamingFetcher.setStreamingLines(['completely different', 'content here']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should proceed normally, not cancel via divergence
+			expect(edits.length).toBeGreaterThan(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('does not cancel the request token (only the internal fetch token)', async () => {
+			const provider = createProvider();
+
+			const request = createDivergenceRequest(
+				['hello world'],
+				{ insertionOffset: 5, insertedText: ' ' },
+			);
+
+			// User typed 'Z', diverging from model
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(11), 'Z')
+			);
+
+			streamingFetcher.setStreamingLines(['hello worlQ completely different']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// The provider should NOT cancel the request's token — it doesn't own it.
+			// It creates its own internal CancellationTokenSource for the fetch.
+			expect(request.cancellationTokenSource.token.isCancellationRequested).toBe(false);
+			// But it should still report the divergence
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
+			expect((finalReason.v as NoNextEditReason.GotCancelled).message).toBe('cursorLineDiverged');
+		});
+
+		it('does not false-cancel when user inserted a line above the cursor', async () => {
+			const provider = createProvider();
+
+			//  Request created with 3-line document:
+			//    line 0: "import foo"
+			//    line 1: "function fi"    ← cursor line (line index 1)
+			//    line 2: "}"
+			//
+			//  After the request, the user inserts a blank line after "import foo",
+			//  shifting the cursor line down. Without mapping the cursor line
+			//  through the edit, the code would read the wrong line ("") at
+			//  index 1 and false-cancel.
+			//
+			//  The user also typed "b" on the cursor line → "function fib"
+			//  Model responds with a compatible continuation.
+			const request = createDivergenceRequest(
+				['import foo', 'function fi', '}'],
+				{ insertionOffset: 21, insertedText: 'i' },
+			);
+
+			// intermediateUserEdit (in original doc coordinates):
+			//   offset 10 = '\n' after "import foo" → insert extra '\n' (new blank line)
+			//   offset 22 = '\n' after "function fi" → insert 'b' (user typing)
+			request.intermediateUserEdit = StringEdit.create([
+				new StringReplacement(OffsetRange.emptyAt(10), '\n'),
+				new StringReplacement(OffsetRange.emptyAt(22), 'b'),
+			]);
+
+			// Model output: compatible with user's typing ("b" → "bonacci…")
+			streamingFetcher.setStreamingLines(['import foo', 'function fibonacci(n): number', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// The key assertion: no false cancellation due to line-shift
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
+
+		it('cancels on divergence when cursor is not on the first line of the edit window', async () => {
+			const provider = createProvider();
+
+			//  Doc at request time: "const a = 1;\nfunction fi\n}"
+			//  Offsets: "const a = 1;" = 0..11, \n = 12, "function fi" = 13..23, \n = 24, "}" = 25
+			//  Cursor on line 1 (0-based), insertionOffset 23 = last 'i' of "function fi"
+			//  Edit window: all 3 lines, cursorOriginalLinesOffset = 1
+			//
+			//  User typed "x" at offset 24 (end of "function fi") → "function fix"
+			//  Model responds with "function fibonacci(n): number"
+			//  → "x" doesn't match model → cancel
+			const request = createDivergenceRequest(
+				['const a = 1;', 'function fi', '}'],
+				{ insertionOffset: 23, insertedText: 'i' },
+			);
+
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(24), 'x')
+			);
+
+			streamingFetcher.setStreamingLines(['const a = 1;', 'function fibonacci(n): number', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
+			expect((finalReason.v as NoNextEditReason.GotCancelled).message).toBe('cursorLineDiverged');
+		});
+
+		it('does not cancel on compatible typing when cursor is not on the first line', async () => {
+			const provider = createProvider();
+
+			//  Same setup but user typed "b" → "function fib", compatible with model
+			const request = createDivergenceRequest(
+				['const a = 1;', 'function fi', '}'],
+				{ insertionOffset: 23, insertedText: 'i' },
+			);
+
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(24), 'b')
+			);
+
+			streamingFetcher.setStreamingLines(['const a = 1;', 'function fibonacci(n): number', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// Should not be cancelled due to cursor-line divergence
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
+	});
 });
 suite('filterOutEditsWithSubstrings', () => {
 
