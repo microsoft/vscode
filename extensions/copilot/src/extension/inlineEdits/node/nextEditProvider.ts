@@ -79,6 +79,15 @@ function computeReducedWindow(
 function convertLineEditToEdit(nextLineEdit: LineEdit, document: StringText): StringEdit {
 	const rootedLineEdit = new RootedLineEdit(document, nextLineEdit);
 	const suggestedEdit = rootedLineEdit.toEdit();
+	// LineReplacement.toSingleTextEdit always joins newLines with '\n'.
+	// If the document uses '\r\n' line endings, we need to match that in
+	// the replacement text so that applying the edit produces consistent
+	// line endings and the resulting content matches what VS Code reports.
+	if (document.value.includes('\r\n')) {
+		return new StringEdit(suggestedEdit.replacements.map(
+			r => new StringReplacement(r.replaceRange, r.newText.replace(/\n/g, '\r\n'))
+		));
+	}
 	return suggestedEdit;
 }
 
