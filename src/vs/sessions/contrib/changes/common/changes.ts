@@ -34,6 +34,7 @@ export const ActiveSessionContextKeys = {
 	IsolationMode: new RawContextKey<IsolationMode>('sessions.isolationMode', IsolationMode.Workspace),
 	HasChanges: new RawContextKey<boolean>('sessions.hasChanges', false),
 	HasGitRepository: new RawContextKey<boolean>('sessions.hasGitRepository', true),
+	HasUpstream: new RawContextKey<boolean>('sessions.hasUpstream', false),
 	HasIncomingChanges: new RawContextKey<boolean>('sessions.hasIncomingChanges', false),
 	HasOutgoingChanges: new RawContextKey<boolean>('sessions.hasOutgoingChanges', false),
 	HasUncommittedChanges: new RawContextKey<boolean>('sessions.hasUncommittedChanges', true),

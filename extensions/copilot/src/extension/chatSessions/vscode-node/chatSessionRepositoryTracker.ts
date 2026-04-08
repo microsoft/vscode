@@ -107,7 +107,7 @@ export class ChatSessionRepositoryTracker extends Disposable {
 			// This is still using the old ChatSessionItem API so there is no need to refresh each session
 			// associated with the workspace folder. When the new controller API is fully adopted we will
 			// have to refresh each session.
-			await this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: '' });
+			await this.sessionItemProvider.refreshSession({ reason: 'update', sessionIds: workspaceSessionIds });
 			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangesWorkspaceFile] Updated session properties for workspace ${uri.toString()}.`);
 		} else {
 			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangesWorkspaceFile] No session associated with workspace ${uri.toString()}.`);

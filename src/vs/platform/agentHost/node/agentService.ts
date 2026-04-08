@@ -13,12 +13,14 @@ import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCod
 import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAction, isSessionAction } from '../common/state/sessionActions.js';
+import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IResponsePart, type ISessionSummary, type IToolCallCompletedState, type ITurn } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
+import { AgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -37,10 +39,10 @@ export class AgentService extends Disposable implements IAgentService {
 	readonly onDidNotification = this._onDidNotification.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
-	private readonly _stateManager: SessionStateManager;
+	private readonly _stateManager: AgentHostStateManager;
 
 	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
-	get stateManager(): SessionStateManager { return this._stateManager; }
+	get stateManager(): AgentHostStateManager { return this._stateManager; }
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
@@ -54,6 +56,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
+	/** Manages PTY-backed terminals for the agent host protocol. */
+	private readonly _terminalManager: AgentHostTerminalManager;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -62,7 +66,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._stateManager = this._register(new SessionStateManager(_logService));
+		this._stateManager = this._register(new AgentHostStateManager(_logService));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
@@ -70,6 +74,10 @@ export class AgentService extends Disposable implements IAgentService {
 			sessionDataService: this._sessionDataService,
 			agents: this._agents,
 		}, this._logService));
+
+		// Terminal management — the terminal manager listens to the state
+		// manager's action stream and dispatches PTY output back through it.
+		this._terminalManager = this._register(new AgentHostTerminalManager(this._stateManager, this._logService));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -224,15 +232,31 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- Protocol methods ---------------------------------------------------
 
+	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+		await this._terminalManager.createTerminal(params);
+	}
+
+	async disposeTerminal(terminal: URI): Promise<void> {
+		this._terminalManager.disposeTerminal(terminal.toString());
+	}
+
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
-		let snapshot = this._stateManager.getSnapshot(resource.toString());
+		const resourceStr = resource.toString();
+
+		// Check for terminal state
+		const terminalState = this._terminalManager.getTerminalState(resourceStr);
+		if (terminalState) {
+			return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
+		}
+
+		let snapshot = this._stateManager.getSnapshot(resourceStr);
 		if (!snapshot) {
 			await this.restoreSession(resource);
-			snapshot = this._stateManager.getSnapshot(resource.toString());
+			snapshot = this._stateManager.getSnapshot(resourceStr);
 		}
 		if (!snapshot) {
-			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
+			throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
 		}
 		return snapshot;
 	}
@@ -243,14 +267,17 @@ export class AgentService extends Disposable implements IAgentService {
 		// in Phase 4 (multi-client). For now this is a no-op.
 	}
 
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const origin = { clientId, clientSeq };
-		const state = this._stateManager.dispatchClientAction(action, origin);
-		this._logService.trace(`[AgentService] resulting state:`, state);
 
-		this._sideEffects.handleAction(action);
+		if (isSessionAction(action)) {
+			this._stateManager.dispatchClientAction(action, origin);
+			this._sideEffects.handleAction(action);
+		} else {
+			this._stateManager.dispatchClientAction(action, origin);
+		}
 	}
 
 	async resourceList(uri: URI): Promise<IResourceListResult> {

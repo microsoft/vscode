@@ -435,7 +435,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 			if (this._connection) {
 				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: true };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
+				this._connection.dispatch(action);
 			}
 		}
 	}
@@ -448,7 +448,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 			if (this._connection) {
 				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: false };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
+				this._connection.dispatch(action);
 			}
 		}
 	}
@@ -470,7 +470,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			cached.title.set(_title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 			const action = { type: ActionType.SessionTitleChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), title: _title };
-			this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
+			this._connection.dispatch(action);
 		}
 	}
 
@@ -485,7 +485,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			cached.isRead.set(read, undefined);
 			if (this._connection && rawId) {
 				const action = { type: ActionType.SessionIsReadChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isRead: read };
-				this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
+				this._connection.dispatch(action);
 			}
 		}
 	}

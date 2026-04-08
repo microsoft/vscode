@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.116.0",
-  "distro": "846b868cab05db8a093dad791caa5c61e330f7a9",
+  "distro": "a265239e421aed1dad7d0db84c68f905ebe9096e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -104,12 +104,12 @@
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
     "@vscode/policy-watcher": "^1.3.2",
-    "@vscode/proxy-agent": "^0.40.0",
+    "@vscode/proxy-agent": "^0.41.0",
     "@vscode/ripgrep": "^1.17.1",
     "@vscode/spdlog": "^0.15.8",
     "@vscode/sqlite3": "5.1.12-vscode",
     "@vscode/sudo-prompt": "9.3.2",
-    "@vscode/tree-sitter-wasm": "^0.3.0",
+    "@vscode/tree-sitter-wasm": "^0.3.1",
     "@vscode/vscode-languagedetection": "1.0.23",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",

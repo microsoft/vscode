@@ -5,6 +5,7 @@
 
 import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
@@ -57,7 +58,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_PR_FILE_SCHEME, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -236,6 +237,7 @@ export class ChangesViewPane extends ViewPane {
 	private readonly isMergeBaseBranchProtectedContextKey: IContextKey<boolean>;
 	private readonly isolationModeContextKey: IContextKey<IsolationMode>;
 	private readonly hasGitRepositoryContextKey: IContextKey<boolean>;
+	private readonly hasUpstreamContextKey: IContextKey<boolean>;
 	private readonly hasIncomingChangesContextKey: IContextKey<boolean>;
 	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasOutgoingChangesContextKey: IContextKey<boolean>;
@@ -275,6 +277,7 @@ export class ChangesViewPane extends ViewPane {
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
 		this.isolationModeContextKey = ActiveSessionContextKeys.IsolationMode.bindTo(this.scopedContextKeyService);
 		this.hasGitRepositoryContextKey = ActiveSessionContextKeys.HasGitRepository.bindTo(this.scopedContextKeyService);
+		this.hasUpstreamContextKey = ActiveSessionContextKeys.HasUpstream.bindTo(this.scopedContextKeyService);
 		this.hasIncomingChangesContextKey = ActiveSessionContextKeys.HasIncomingChanges.bindTo(this.scopedContextKeyService);
 		this.hasOutgoingChangesContextKey = ActiveSessionContextKeys.HasOutgoingChanges.bindTo(this.scopedContextKeyService);
 		this.hasUncommittedChangesContextKey = ActiveSessionContextKeys.HasUncommittedChanges.bindTo(this.scopedContextKeyService);
@@ -570,52 +573,6 @@ export class ChangesViewPane extends ViewPane {
 			// Re-layout when collapse state changes so the card height adjusts
 			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutSplitView()));
 
-			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean) => {
-				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
-				const currentIndex = items.indexOf(item);
-
-				const sidebar = includeSidebar ? {
-					render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
-						return this.renderSidebarList(container as HTMLElement, onDidLayout, items, openFileItem);
-					}
-				} : undefined;
-
-				const navigation = {
-					total: items.length,
-					current: currentIndex,
-					navigate: (index: number) => {
-						const target = items[index];
-						if (target) {
-							openFileItem(target, items, false, false, false, includeSidebar);
-						}
-					}
-				};
-
-				const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
-
-				if (isDeletion && originalUri) {
-					this.editorService.openEditor({
-						resource: originalUri,
-						options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-					}, group);
-					return;
-				}
-
-				if (originalUri) {
-					this.editorService.openEditor({
-						original: { resource: originalUri },
-						modified: { resource: modifiedFileUri },
-						options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-					}, group);
-					return;
-				}
-
-				this.editorService.openEditor({
-					resource: modifiedFileUri,
-					options: { preserveFocus, pinned, modal: { sidebar, navigation } }
-				}, group);
-			};
-
 			this.renderDisposables.add(tree.onDidOpen((e) => {
 				if (!e.element || !isChangesFileItem(e.element)) {
 					return;
@@ -624,7 +581,7 @@ export class ChangesViewPane extends ViewPane {
 				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
 
 				const items = changesObs.get();
-				openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
+				this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
 			}));
 		}
 
@@ -693,6 +650,7 @@ export class ChangesViewPane extends ViewPane {
 				this.isMergeBaseBranchProtectedContextKey.set(state.isMergeBaseBranchProtected === true);
 				this.hasPullRequestContextKey.set(state.hasPullRequest === true);
 				this.hasOpenPullRequestContextKey.set(state.hasOpenPullRequest === true);
+				this.hasUpstreamContextKey.set(state.upstreamBranchName !== undefined);
 				this.hasIncomingChangesContextKey.set(state.incomingChanges !== undefined && state.incomingChanges > 0);
 				this.hasOutgoingChangesContextKey.set(state.outgoingChanges !== undefined && state.outgoingChanges > 0);
 				this.hasUncommittedChangesContextKey.set(state.uncommittedChanges !== undefined && state.uncommittedChanges > 0);
@@ -755,7 +713,7 @@ export class ChangesViewPane extends ViewPane {
 
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			// Cloud session
-			resourceTreeRootUri = URI.from({ scheme: GITHUB_PR_FILE_SCHEME, path: '/' });
+			resourceTreeRootUri = URI.from({ scheme: Schemas.copilotPr, path: '/' });
 			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
 			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
 		} else {
@@ -898,7 +856,7 @@ export class ChangesViewPane extends ViewPane {
 					const activeSession = this.sessionManagementService.activeSession.get();
 					const repository = activeSession?.workspace.get()?.repositories[0];
 					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
-						? URI.from({ scheme: GITHUB_PR_FILE_SCHEME, path: '/' })
+						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
 						: repository?.workingDirectory ?? repository?.uri;
 				})],
 			{
@@ -942,6 +900,62 @@ export class ChangesViewPane extends ViewPane {
 				},
 			}
 		));
+	}
+
+	async openChanges(): Promise<void> {
+		const items = this.viewModel.activeSessionChangesObs.get();
+		if (items.length === 0) {
+			return;
+		}
+
+		const changes = toIChangesFileItem(items);
+		await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+	}
+
+	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
+		const { uri: modifiedFileUri, originalUri, isDeletion } = item;
+		const currentIndex = items.indexOf(item);
+
+		const sidebar = includeSidebar ? {
+			render: (container: unknown, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => {
+				return this.renderSidebarList(container as HTMLElement, onDidLayout, items, this._openFileItem.bind(this));
+			}
+		} : undefined;
+
+		const navigation = {
+			total: items.length,
+			current: currentIndex,
+			navigate: (index: number) => {
+				const target = items[index];
+				if (target) {
+					this._openFileItem(target, items, false, false, false, includeSidebar);
+				}
+			}
+		};
+
+		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+
+		if (isDeletion && originalUri) {
+			this.editorService.openEditor({
+				resource: originalUri,
+				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+			}, group);
+			return;
+		}
+
+		if (originalUri) {
+			this.editorService.openEditor({
+				original: { resource: originalUri },
+				modified: { resource: modifiedFileUri },
+				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+			}, group);
+			return;
+		}
+
+		this.editorService.openEditor({
+			resource: modifiedFileUri,
+			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+		}, group);
 	}
 
 	override dispose(): void {

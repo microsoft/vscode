@@ -150,6 +150,7 @@ export interface IChatEntitlementService {
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	readonly previewFeaturesDisabled: boolean;
+	readonly clientByokEnabled: boolean;
 
 	readonly organisations: string[] | undefined;
 	readonly isInternal: boolean;
@@ -241,7 +242,7 @@ function isAnonymous(configurationService: IConfigurationService, entitlement: C
 		return false; // only consider signed out users
 	}
 
-	if (sentiment.hidden || sentiment.disabled) {
+	if (sentiment.hidden) {
 		return false; // only consider enabled scenarios
 	}
 
@@ -395,6 +396,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	get previewFeaturesDisabled(): boolean {
 		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.previewFeaturesDisabled') === true;
+	}
+
+	get clientByokEnabled(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true;
 	}
 
 	//#endregion

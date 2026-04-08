@@ -144,6 +144,7 @@
 		font-size: 12px;
 		line-height: 15px;
 		max-height: 15px;
+		overflow: hidden;
 		color: var(--vscode-descriptionForeground);
 
 		.session-details-icon {

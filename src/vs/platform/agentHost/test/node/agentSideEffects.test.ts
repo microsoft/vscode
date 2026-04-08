@@ -20,7 +20,7 @@ import { PendingMessageKind, SessionStatus } from '../../common/state/sessionSta
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
@@ -29,7 +29,7 @@ suite('AgentSideEffects', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: FileService;
-	let stateManager: SessionStateManager;
+	let stateManager: AgentHostStateManager;
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let agentList: ReturnType<typeof observableValue<readonly IAgent[]>>;
@@ -68,7 +68,7 @@ suite('AgentSideEffects', () => {
 
 		agent = new MockAgent();
 		disposables.add(toDisposable(() => agent.dispose()));
-		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
+		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
 		sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 			getAgent: () => agent,
@@ -791,7 +791,7 @@ suite('AgentSideEffects', () => {
 
 		test('SessionTitleChanged persists to the database', async () => {
 			const sessionDataService = createSessionDataServiceWithDb();
-			const localStateManager = disposables.add(new SessionStateManager(new NullLogService()));
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localSideEffects = disposables.add(new AgentSideEffects(localStateManager, {

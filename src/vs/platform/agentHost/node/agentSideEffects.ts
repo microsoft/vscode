@@ -22,7 +22,7 @@ import {
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
 import { CommandAutoApprover } from './commandAutoApprover.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -56,7 +56,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _commandAutoApprover: CommandAutoApprover;
 
 	constructor(
-		private readonly _stateManager: SessionStateManager,
+		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		private readonly _logService: ILogService,
 	) {

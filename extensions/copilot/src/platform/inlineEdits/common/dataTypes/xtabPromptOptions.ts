@@ -327,7 +327,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		maxTokens: 2000,
 		includeViewedFiles: false,
 		includeLineNumbers: IncludeLineNumbersOption.None,
-		clippingStrategy: RecentFileClippingStrategy.TopToBottom,
+		clippingStrategy: RecentFileClippingStrategy.AroundEditRange,
 	},
 	languageContext: {
 		enabled: false,

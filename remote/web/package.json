@@ -7,7 +7,7 @@
     "@microsoft/1ds-post-js": "^3.2.13",
     "@vscode/codicons": "^0.0.46-1",
     "@vscode/iconv-lite-umd": "0.7.1",
-    "@vscode/tree-sitter-wasm": "^0.3.0",
+    "@vscode/tree-sitter-wasm": "^0.3.1",
     "@vscode/vscode-languagedetection": "1.0.23",
     "@xterm/addon-clipboard": "^0.3.0-beta.197",
     "@xterm/addon-image": "^0.10.0-beta.197",

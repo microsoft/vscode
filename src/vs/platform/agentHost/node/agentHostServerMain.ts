@@ -153,7 +153,7 @@ async function main(): Promise<void> {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
-	// Create the agent service (owns SessionStateManager + AgentSideEffects internally)
+	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
 	const agentService = new AgentService(logService, fileService, sessionDataService);
 	disposables.add(agentService);
 

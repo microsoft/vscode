@@ -715,4 +715,39 @@ describe('ChatDebugFileLoggerService', () => {
 		expect(pathB).toBeDefined();
 		expect(pathA!.fsPath).not.toBe(pathB!.fsPath);
 	});
+
+	it('routes hook spans to child session when registerSpanSession maps parentSpanId', async () => {
+		// Set up parent session
+		await service.startSession('parent-hook');
+		otelService.fireSpan(makeToolCallSpan('parent-hook', 'read_file'));
+
+		// Register child session and its invoke_agent span ID
+		service.startChildSession('child-hook', 'parent-hook', 'runSubagent-default');
+		service.registerSpanSession('invoke-agent-span-123', 'child-hook');
+
+		// Fire a hook span with CHAT_SESSION_ID=parent but parentSpanId=child's invoke_agent
+		const hookSpan = makeSpan({
+			name: 'PreToolUse',
+			spanId: 'hook-span-1',
+			parentSpanId: 'invoke-agent-span-123',
+			attributes: {
+				[GenAiAttr.OPERATION_NAME]: 'execute_hook',
+				[CopilotChatAttr.CHAT_SESSION_ID]: 'parent-hook', // Parent's session ID
+			},
+		});
+		otelService.fireSpan(hookSpan);
+
+		await service.flush('parent-hook');
+		await service.flush('child-hook');
+
+		// Hook should be written to child session, not parent
+		const parentEntries = await readLogEntries('parent-hook');
+		const parentHooks = parentEntries.filter(e => e.type === 'hook');
+		expect(parentHooks).toHaveLength(0);
+
+		const childEntries = await service.readEntries('child-hook');
+		const childHooks = childEntries.filter(e => e.type === 'hook');
+		expect(childHooks).toHaveLength(1);
+		expect(childHooks[0].name).toBe('PreToolUse');
+	});
 });

@@ -92,12 +92,14 @@ import type {
 } from './protocol/actions.js';
 
 import type { IProtocolNotification } from './protocol/notifications.js';
-import type { IRootAction as IRootAction_, ISessionAction as ISessionAction_, IClientSessionAction as IClientSessionAction_, IServerSessionAction as IServerSessionAction_ } from './protocol/action-origin.generated.js';
+import type { IRootAction as IRootAction_, ISessionAction as ISessionAction_, IClientSessionAction as IClientSessionAction_, IServerSessionAction as IServerSessionAction_, ITerminalAction as ITerminalAction_, IClientTerminalAction as IClientTerminalAction_ } from './protocol/action-origin.generated.js';
 
 export type IRootAction = IRootAction_;
 export type ISessionAction = ISessionAction_;
 export type IClientSessionAction = IClientSessionAction_;
 export type IServerSessionAction = IServerSessionAction_;
+export type ITerminalAction = ITerminalAction_;
+export type IClientTerminalAction = IClientTerminalAction_;
 
 // Root actions
 export type IAgentsChangedAction = IRootAgentsChangedAction;
@@ -141,4 +143,8 @@ export function isRootAction(action: IStateAction): action is IRootAction {
 
 export function isSessionAction(action: IStateAction): action is ISessionAction {
 	return action.type.startsWith('session/');
+}
+
+export function isTerminalAction(action: IStateAction): action is ITerminalAction {
+	return action.type.startsWith('terminal/');
 }

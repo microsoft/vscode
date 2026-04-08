@@ -605,8 +605,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		let authMethod: SSHAuthMethod = SSHAuthMethod.Agent;
 		let privateKeyPath: string | undefined;
-		const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
-		if (resolved.identityFile.length > 0 && !defaultKeys.includes(resolved.identityFile[0])) {
+		if (resolved.identityFile.length > 0 && !SSHRemoteAgentHostMainService._defaultKeyPaths.includes(resolved.identityFile[0])) {
 			authMethod = SSHAuthMethod.KeyFile;
 			privateKeyPath = resolved.identityFile[0];
 		}
@@ -738,6 +737,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				const agentSock = process.env['SSH_AUTH_SOCK'];
 				this._logService.info(`${LOG_PREFIX} Using SSH agent: ${agentSock ?? '(not set)'}`);
 				connectConfig.agent = agentSock;
+				// Also provide a default key file as fallback so ssh2 can try
+				// publickey auth if the agent doesn't have the key loaded.
+				const fallbackKey = await this._findDefaultKeyFile();
+				if (fallbackKey) {
+					this._logService.info(`${LOG_PREFIX} Also using fallback key: ${fallbackKey.path}`);
+					connectConfig.privateKey = fallbackKey.contents;
+				}
 				break;
 			}
 			case SSHAuthMethod.KeyFile:
@@ -766,6 +772,31 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			client.connect(connectConfig);
 		});
+	}
+
+	private static readonly _defaultKeyPaths = [
+		'~/.ssh/id_ed25519',
+		'~/.ssh/id_rsa',
+		'~/.ssh/id_ecdsa',
+		'~/.ssh/id_dsa',
+		'~/.ssh/id_xmss',
+	];
+
+	protected async _findDefaultKeyFile(): Promise<{ path: string; contents: Buffer } | undefined> {
+		for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
+			const resolved = keyPath.replace(/^~/, os.homedir());
+			try {
+				const contents = await fsp.readFile(resolved);
+				return { path: keyPath, contents };
+			} catch (error) {
+				const errorCode = (error as NodeJS.ErrnoException).code;
+				if (errorCode === 'ENOENT' || errorCode === 'ENOTDIR') {
+					continue;
+				}
+				this._logService.warn(`${LOG_PREFIX} Failed to read default SSH key file ${resolved}`, error);
+			}
+		}
+		return undefined;
 	}
 
 	private get _quality(): string {

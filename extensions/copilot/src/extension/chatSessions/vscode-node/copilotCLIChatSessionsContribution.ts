@@ -38,7 +38,7 @@ import { IChatSessionMetadataStore, RepositoryProperties, StoredModeInstructions
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
-import { FolderRepositoryInfo, FolderRepositoryMRUEntry, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
+import { FolderRepositoryInfo, FolderRepositoryMRUEntry, IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
 import { isUntitledSessionId } from '../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
@@ -51,7 +51,6 @@ import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
-import { ICopilotCLIFolderMruService } from './copilotCLIFolderMru';
 import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
@@ -209,7 +208,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		this._onDidChangeChatSessionItems.fire();
 	}
 
-	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'delete'; sessionId: string }): Promise<void> {
+	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -474,7 +473,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		@ICustomSessionTitleService private readonly customSessionTitleService: ICustomSessionTitleService,
 		@IVSCodeExtensionContext private readonly context: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
-		@ICopilotCLIFolderMruService private readonly folderMruService: ICopilotCLIFolderMruService,
+		@IChatFolderMruService private readonly folderMruService: IChatFolderMruService,
 	) {
 		super();
 		const originalRepos = this.getRepositoryOptionItems().length;
@@ -1349,23 +1348,23 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				// This is a request that was created in createCLISessionAndSubmitRequest with attachments already resolved.
 				const { prompt, attachments } = contextForRequest;
 				this.contextForRequest.delete(session.object.sessionId);
-				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
+				await session.object.handleRequest(request, { prompt }, attachments, model ? { model } : undefined, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else if (request.command && !request.prompt && !isUntitled) {
 				const input = (copilotCLICommands as readonly string[]).includes(request.command)
 					? { command: request.command as CopilotCLICommand, prompt: '' }
 					: { prompt: `/${request.command}` };
-				await session.object.handleRequest(request, input, [], model, authInfo, token);
+				await session.object.handleRequest(request, input, [], model ? { model } : undefined, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else if (request.prompt && Object.values(builtinSlashSCommands).some(command => request.prompt.startsWith(command))) {
 				// Sessions app built-in slash commands
 				const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token);
-				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
+				await session.object.handleRequest(request, { prompt }, attachments, model ? { model } : undefined, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else {
 				// Construct the full prompt with references to be sent to CLI.
 				const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token);
-				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
+				await session.object.handleRequest(request, { prompt }, attachments, model ? { model } : undefined, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			}
 
@@ -1869,7 +1868,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// The caller is most likely a chat editor or the like.
 			// Now that we've delegated it to a session, we can get out of here.
 			// Else if the request takes say 10 minutes, the caller would be blocked for that long.
-			session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token)
+			session.object.handleRequest(request, { prompt }, attachments, model ? { model } : undefined, authInfo, token)
 				.then(() => this.commitWorktreeChangesIfNeeded(request, session.object, token))
 				.catch(error => {
 					this.logService.error(`Failed to handle CLI session request: ${error}`);
@@ -1922,7 +1921,7 @@ export function registerCLIChatCommands(
 	copilotCliWorkspaceSession: IChatSessionWorkspaceFolderService,
 	contentProvider: CopilotCLIChatSessionContentProvider,
 	folderRepositoryManager: IFolderRepositoryManager,
-	cliFolderMruService: ICopilotCLIFolderMruService,
+	cliFolderMruService: IChatFolderMruService,
 	envService: INativeEnvService,
 	fileSystemService: IFileSystemService,
 	logService: ILogService
@@ -2391,7 +2390,7 @@ export function registerCLIChatCommands(
 			} satisfies RepositoryProperties
 			: undefined;
 
-		copilotCliWorkspaceSession.trackSessionWorkspaceFolder(sessionId, workspaceFolder.fsPath, repositoryProperties);
+		await copilotCliWorkspaceSession.trackSessionWorkspaceFolder(sessionId, workspaceFolder.fsPath, repositoryProperties);
 		copilotCliWorkspaceSession.clearWorkspaceChanges(sessionId);
 
 		copilotcliSessionItemProvider.notifySessionsChange();

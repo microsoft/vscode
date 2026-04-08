@@ -55,7 +55,7 @@ import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../../copilotc
 import { CustomSessionTitleService } from '../../copilotcli/vscode-node/customSessionTitleServiceImpl';
 import { MockChatPromptFileService } from '../../copilotcli/vscode-node/test/testHelpers';
 import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionItemProvider, CopilotCLIChatSessionParticipant } from '../copilotCLIChatSessionsContribution';
-import { ICopilotCLIFolderMruService } from '../copilotCLIFolderMru';
+import { IChatFolderMruService } from '../../common/folderRepositoryManager';
 import { CopilotCloudSessionsProvider } from '../copilotCloudSessionsProvider';
 import { CopilotCLIFolderRepositoryManager } from '../folderRepositoryManagerImpl';
 
@@ -243,15 +243,15 @@ function createChatContext(sessionId: string, isUntitled: boolean): vscode.ChatC
 }
 
 class TestCopilotCLISession extends CopilotCLISession {
-	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; modelId: string | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
+	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
 	public static nextHandleRequestResult: Promise<void> | undefined;
 	public static handleRequestHook: ((request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput) => Promise<void>) | undefined;
 	public static statusOverride?: vscode.ChatSessionStatus;
 	override get status(): vscode.ChatSessionStatus | undefined {
 		return TestCopilotCLISession.statusOverride;
 	}
-	override handleRequest(request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput, attachments: Attachment[], modelId: string | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: vscode.CancellationToken): Promise<void> {
-		this.requests.push({ input, attachments, modelId, authInfo, token });
+	override handleRequest(request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput, attachments: Attachment[], model: { model: string; reasoningEffort?: string } | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: vscode.CancellationToken): Promise<void> {
+		this.requests.push({ input, attachments, model, authInfo, token });
 		if (TestCopilotCLISession.handleRequestHook) {
 			return TestCopilotCLISession.handleRequestHook(request, input);
 		}
@@ -447,7 +447,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 
 		expect(cliSessions.length).toBe(1);
 		expect(cliSessions[0].requests.length).toBe(1);
-		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Say hi' }, attachments: [], modelId: 'base', authInfo, token });
+		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Say hi' }, attachments: [], model: { model: 'base' }, authInfo, token });
 	});
 
 	it('uses worktree workingDirectory when isolation is enabled for a new untitled session', async () => {
@@ -519,7 +519,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(cliSessions.length).toBe(1);
 		expect(cliSessions[0].sessionId).toBe(sessionId);
 		expect(cliSessions[0].requests.length).toBe(1);
-		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Continue' }, attachments: [], modelId: 'base', authInfo, token });
+		expect(cliSessions[0].requests[0]).toEqual({ input: { prompt: 'Continue' }, attachments: [], model: { model: 'base' }, authInfo, token });
 
 		expect(itemProvider.swap).not.toHaveBeenCalled();
 	});
@@ -751,7 +751,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			customSessionTitleService,
 			new MockExtensionContext() as unknown as IVSCodeExtensionContext,
 			logService,
-			new (mock<ICopilotCLIFolderMruService>())(),
+			new (mock<IChatFolderMruService>())(),
 		);
 		const invalidParticipant = new CopilotCLIChatSessionParticipant(
 			invalidContentProvider,

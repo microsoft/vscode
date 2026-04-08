@@ -117,7 +117,7 @@ function startAgentHost(): void {
 /**
  * When the parent process passes WebSocket configuration via environment
  * variables, start a protocol server that external clients can connect to.
- * This reuses the same {@link AgentService} and {@link SessionStateManager}
+ * This reuses the same {@link AgentService} and {@link AgentHostStateManager}
  * that the IPC channel uses, so both IPC and WebSocket clients share state.
  */
 async function startWebSocketServer(agentService: AgentService, fileService: IFileService, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {

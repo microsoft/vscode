@@ -10,7 +10,7 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { RawThinkingDelta, ThinkingDelta } from '../../thinking/common/thinking';
 import { extractThinkingDeltaFromChoice, } from '../../thinking/common/thinkingUtils';
 import { FinishedCallback, getRequestId, ICodeVulnerabilityAnnotation, ICopilotBeginToolCall, ICopilotConfirmation, ICopilotError, ICopilotFunctionCall, ICopilotReference, ICopilotToolCall, ICopilotToolCallStreamUpdate, IIPCodeCitation, isCodeCitationAnnotation, isCopilotAnnotation, RequestId } from '../common/fetch';
-import { DestroyableStream, Response } from '../common/fetcherService';
+import { DestroyableStream, Response, withStreamIdleTimeout } from '../common/fetcherService';
 import { APIErrorResponse, APIJsonData, APIUsage, ChoiceLogProbs, FilterReason, FinishedCompletionReason, isApiUsage, IToolCall } from '../common/openai';
 
 /** Gathers together many chunks of a single completion choice. */
@@ -320,7 +320,7 @@ export class SSEProcessor {
 		let thinkingFound = false;
 
 		// Iterate over arbitrarily sized chunks coming in from the network.
-		for await (const chunk of this.body) {
+		for await (const chunk of withStreamIdleTimeout(this.body)) {
 			if (await this.maybeCancel('after awaiting body chunk')) {
 				return;
 			}

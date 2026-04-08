@@ -247,6 +247,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
 			pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 			argumentHint: agent.argumentHint,
+			tools: agent.tools,
+			model: agent.model,
 			userInvocable: agent.visibility.userInvocable,
 			disableModelInvocation: !agent.visibility.agentInvocable,
 		};

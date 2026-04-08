@@ -11,8 +11,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type IProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ROOT_STATE_URI, type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -50,7 +49,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
 	private _loggedConnection: LoggingAgentConnection | undefined;
-	private _clientState: SessionClientState | undefined;
+
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
@@ -79,43 +78,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._loggedConnection = this._register(this._instantiationService.createInstance(
 			LoggingAgentConnection,
 			this._agentHostService,
-			'agentHostIpc.local',
+			`agenthost.${this._agentHostService.clientId}`,
 			'Agent Host (Local)'));
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
-		// Shared client state for protocol reconciliation
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService, () => this._agentHostService.nextClientSeq()));
-
-		// Forward action envelopes from the host to client state
-		this._register(this._loggedConnection.onDidAction(envelope => {
-			this._clientState!.receiveEnvelope(envelope);
-		}));
-
-		// Forward notifications to client state
-		this._register(this._loggedConnection.onDidNotification(n => {
-			this._clientState!.receiveNotification(n);
-		}));
-
 		// React to root state changes (agent discovery / removal)
-		this._register(this._clientState.onDidChangeRootState(rootState => {
+		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(rootState);
 		}));
 
-		this._initializeAndSubscribe();
-	}
-
-	private async _initializeAndSubscribe(): Promise<void> {
-		try {
-			const snapshot = await this._loggedConnection!.subscribe(URI.parse(ROOT_STATE_URI));
-			if (this._store.isDisposed) {
-				return;
-			}
-			// Feed snapshot into client state - fires onDidChangeRootState
-			this._clientState!.handleSnapshot(ROOT_STATE_URI, snapshot.state, snapshot.fromSeq);
-		} catch (err) {
-			this._logService.error('[AgentHost] Failed to subscribe to root state', err);
-			this._loggedConnection!.logError('subscribe(root)', err);
+		// Process initial root state if already available
+		const initialRootState = this._agentHostService.rootState.value;
+		if (initialRootState && !(initialRootState instanceof Error)) {
+			this._handleRootStateChange(initialRootState);
 		}
 	}
 
@@ -200,7 +176,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._loggedConnection!,
 			connectionAuthority: 'local',
-			clientState: this._clientState!,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			customizations,
 		}));
@@ -218,11 +193,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		// Re-authenticate when credentials change
 		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
-			const agents = this._clientState?.rootState?.agents ?? [];
+			const agents = this._getRootAgents();
 			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
 		}));
 		store.add(this._authenticationService.onDidChangeSessions(() => {
-			const agents = this._clientState?.rootState?.agents ?? [];
+			const agents = this._getRootAgents();
 			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
 		}));
 	}
@@ -267,6 +242,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 
 		return refs;
+	}
+
+	private _getRootAgents(): readonly IAgentInfo[] {
+		const rootState = this._agentHostService.rootState.value;
+		return (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
 	}
 
 	/**
