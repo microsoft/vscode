@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -417,7 +417,7 @@ export function matchesInstructionFileFilter(filePath: string, filters: readonly
  * Concrete registrations only need to supply the list of harness
  * descriptors and a default harness id.
  */
-export class CustomizationHarnessServiceBase implements ICustomizationHarnessService {
+export class CustomizationHarnessServiceBase extends Disposable implements ICustomizationHarnessService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _activeHarness: ISettableObservable<string>;
@@ -432,6 +432,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		staticHarnesses: readonly IHarnessDescriptor[],
 		defaultHarness: string,
 	) {
+		super();
 		this._staticHarnesses = staticHarnesses;
 		this._activeHarness = observableValue<string>(this, defaultHarness);
 		this.activeHarness = this._activeHarness;
