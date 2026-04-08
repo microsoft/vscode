@@ -15,6 +15,10 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagementEditor.ts          # SplitView list/editor
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
 ├── aiCustomizationListWidget.ts                # Search + grouped list + harness toggle
+├── aiCustomizationListItem.ts                  # Browser-only list item model
+├── promptsServiceCustomizationItemProvider.ts  # promptsService -> provider-shaped item adapter
+├── providerCustomizationItemSource.ts          # Active provider/sync -> normalized list item source
+├── aiCustomizationItemNormalizer.ts            # provider-shaped item -> browser list item normalizer
 ├── aiCustomizationListWidgetUtils.ts           # List item helpers (truncation, etc.)
 ├── aiCustomizationDebugPanel.ts                # Debug diagnostics panel
 ├── aiCustomizationWorkspaceService.ts          # Core VS Code workspace service impl
@@ -167,6 +171,10 @@ This follows the same pattern as the MCP list widget, which determines grouping 
 The underlying `storage` remains `PromptsStorage.extension` — the grouping is a UI-level override via `groupKey` that keeps `applyStorageSourceFilter` working with existing storage types while visually distinguishing chat-extension items from third-party extension items.
 
 `BUILTIN_STORAGE` is defined in `aiCustomizationWorkspaceService.ts` (common layer) and re-exported by both `aiCustomizationManagement.ts` (browser) and `builtinPromptsStorage.ts` (sessions) for backward compatibility.
+
+### Management Editor Item Pipeline
+
+The management editor list widget renders one browser-only list item model, but customization discovery converges earlier on the internal provider-shaped item contract (`IExternalCustomizationItem`). Extension-contributed providers already reach that shape through the extension-host/main-thread adapter. The Local/static harness uses `PromptsServiceCustomizationItemProvider`, a thin adapter that reads `IPromptsService`, expands local-only concepts (parsed hooks, instruction buckets, UI integration badges), applies the active harness's file/storage filters, and returns the same provider-shaped rows. `ProviderCustomizationItemSource` then normalizes provider rows via `AICustomizationItemNormalizer` and adds view-only sync overlays when the active harness has an `ICustomizationSyncProvider`.
 
 ### AgenticPromptsService (Sessions)
 
