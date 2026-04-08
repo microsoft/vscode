@@ -650,13 +650,13 @@ export namespace ConfigKey {
 		/** Model to use for the search subagent. When useAgenticProxy is true, defaults to 'agentic-search-v3'. When false, defaults to the main agent model. */
 		export const SearchSubagentModel = defineSetting<string>('chat.searchSubagent.model', ConfigType.ExperimentBased, '');
 		/** Maximum number of tool calls the search subagent can make */
-		export const SearchSubagentToolCallLimit = defineSetting<number>('chat.searchSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
+		export const SearchSubagentToolCallLimit = defineSetting<number>('chat.searchSubagent.toolCallLimit', ConfigType.ExperimentBased, 4);
 
 		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, false);
 		/** Model to use for the execution subagent */
 		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, '');
 		/** Maximum number of tool calls the execution subagent can make */
-		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 5);
+		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
 
 		export const InlineEditsTriggerOnEditorChangeAfterSeconds = defineAndMigrateExpSetting<number | undefined>('chat.advanced.inlineEdits.triggerOnEditorChangeAfterSeconds', 'chat.inlineEdits.triggerOnEditorChangeAfterSeconds', undefined);
 		export const InlineEditsNextCursorPredictionDisplayLine = defineAndMigrateExpSetting<boolean>('chat.advanced.inlineEdits.nextCursorPrediction.displayLine', 'chat.inlineEdits.nextCursorPrediction.displayLine', true);
