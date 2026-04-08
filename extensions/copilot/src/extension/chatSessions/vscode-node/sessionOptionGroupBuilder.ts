@@ -227,14 +227,15 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		} else {
 			const repositories = this.getRepositoryOptionItems();
 			if (repositories.length > 1) {
-				const previouslySelected = (previousInputState ? getSelectedOption(previousInputState.groups, REPOSITORY_OPTION_ID) : undefined) ?? repositories[0];
-				defaultRepoUri = previouslySelected?.id ? vscode.Uri.file(previouslySelected.id) : defaultRepoUri;
+				const previouslySelected = previousInputState ? getSelectedOption(previousInputState.groups, REPOSITORY_OPTION_ID) : undefined;
+				const selectedRepository = previouslySelected ? repositories.find(repository => repository.id === previouslySelected.id) ?? repositories[0] : repositories[0];
+				defaultRepoUri = selectedRepository.id ? vscode.Uri.file(selectedRepository.id) : defaultRepoUri;
 				optionGroups.push({
 					id: REPOSITORY_OPTION_ID,
 					name: l10n.t('Folder'),
 					description: l10n.t('Pick Folder'),
 					items: repositories,
-					selected: previouslySelected ?? repositories[0]
+					selected: selectedRepository
 				});
 			} else if (repositories.length === 1) {
 				defaultRepoUri = vscode.Uri.file(repositories[0].id);
