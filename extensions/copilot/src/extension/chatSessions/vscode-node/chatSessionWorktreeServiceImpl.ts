@@ -91,7 +91,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 				}
 			}
 
-			const worktreePath = await this.gitService.createWorktree(activeRepository.rootUri, { branch, commitish: baseBranch });
+			const worktreePath = await this.gitService.createWorktree(activeRepository.rootUri, { branch, commitish: baseBranch, noTrack: true });
 
 			if (worktreePath && activeRepository.headCommitHash && activeRepository.headBranchName) {
 				const baseBranchName = baseBranch ?? activeRepository.headBranchName;

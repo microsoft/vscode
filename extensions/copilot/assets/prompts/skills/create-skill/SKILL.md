@@ -2,7 +2,7 @@
 name: create-skill
 description: 'Create a reusable skill (SKILL.md) that packages a workflow.'
 argument-hint: What should this skill produce?
-agent: agent
+disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **skills.md** for template and principles.
 
