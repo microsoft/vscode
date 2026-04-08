@@ -96,7 +96,7 @@ export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 
 export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint) {
 	const family_hash = getCachedSha256Hash(model.family);
-	return family_hash === '0d90e0e579352b8502fc2a46b40961ee941adc26ce67c2b1438f0e4ea97d932f';
+	return family_hash === '94e44d9d24608ae2161d0c56704f226dc89c2cd8be566abb8fbfbded5a507401';
 }
 
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {

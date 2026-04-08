@@ -59,14 +59,17 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 		return {};
 	}
 
-	// Only enable effort picker for Claude and GPT models
 	const family = endpoint.family.toLowerCase();
-	if (!family.startsWith('claude') && !family.startsWith('gpt-')) {
+	if (family.startsWith('gemini')) {
 		return {};
 	}
 
-	const preferred = family.startsWith('claude') ? 'high' : 'medium';
-	const defaultEffort = effortLevels.includes(preferred) ? preferred : undefined;
+	let defaultEffort: string | undefined;
+	if (family.startsWith('claude')) {
+		defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+	} else if (family.startsWith('gpt-')) {
+		defaultEffort = effortLevels.includes('medium') ? 'medium' : undefined;
+	}
 
 	return {
 		configurationSchema: {

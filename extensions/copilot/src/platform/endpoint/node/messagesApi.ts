@@ -845,6 +845,26 @@ export class AnthropicMessagesProcessor {
 							encrypted: data,
 						}
 					});
+				} else if (chunk.content_block) {
+					const unknownType = (chunk.content_block as { type?: string }).type ?? 'undefined';
+					this.logService.warn(`[messagesAPI] Unknown content_block type '${unknownType}' at index ${chunk.index ?? -1} for model ${this.model}`);
+
+					/* __GDPR__
+						"messagesApi.unknownContentBlock" : {
+							"owner": "bhavyaus",
+							"comment": "Tracks unknown Anthropic content block types",
+							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that emitted the unknown block" },
+							"blockType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unknown content_block.type string" }
+						}
+					*/
+					this.telemetryService.sendMSFTTelemetryEvent('messagesApi.unknownContentBlock',
+						{
+							requestId: this.requestId,
+							model: this.model,
+							blockType: unknownType,
+						}
+					);
 				}
 				return;
 			case 'content_block_delta':
