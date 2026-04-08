@@ -241,7 +241,7 @@ function isAnonymous(configurationService: IConfigurationService, entitlement: C
 		return false; // only consider signed out users
 	}
 
-	if (sentiment.hidden || sentiment.disabled) {
+	if (sentiment.hidden) {
 		return false; // only consider enabled scenarios
 	}
 

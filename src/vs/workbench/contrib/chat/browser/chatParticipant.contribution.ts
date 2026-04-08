@@ -71,7 +71,6 @@ const chatViewDescriptor: IViewDescriptor = {
 	when: ContextKeyExpr.or(
 		ContextKeyExpr.or(
 			ChatContextKeys.Setup.hidden,
-			ChatContextKeys.Setup.disabled
 		)?.negate(),
 		ChatContextKeys.panelParticipantRegistered,
 		ChatContextKeys.extensionInvalid
