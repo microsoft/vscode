@@ -78,7 +78,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 8px 10px 8px 16px;
+		padding: 8px 10px;
 		min-height: 40px;
 		box-sizing: border-box;
 		-webkit-user-select: none;
@@ -103,7 +103,7 @@
 		min-width: 0;
 	}
 
-	.agent-sessions-find-widget-container .monaco-tree-type-filter {
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter {
 		position: static;
 		display: flex;
 		width: 100%;
@@ -114,11 +114,21 @@
 		border-radius: 0;
 		box-shadow: none;
 		background: transparent;
+		background-color: transparent !important;
 	}
 
 	.agent-sessions-find-widget-container .monaco-tree-type-filter .monaco-tree-type-filter-input {
 		flex: 1;
 		min-width: 0;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
+		display: flex;
+		align-items: center;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
+		top: 1.5px;
 	}
 
 	/* Compact "New" button in header */
