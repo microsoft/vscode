@@ -1967,7 +1967,7 @@ describe('XtabProvider integration', () => {
 			const provider = createProvider();
 
 			const lines = ['function foo() {', '  return 1;', '}'];
-			const request = createRequestWithEdit(lines, { insertionOffset: 5, insertedText: 'c' });
+			const request = createRequestWithEdit(lines, { insertionOffset: 5 });
 
 			// 1st call → NotFound, triggers fallback to default model
 			streamingFetcher.enqueueResponse({
