@@ -45,6 +45,7 @@ class MockChatEntitlementService implements Partial<IChatEntitlementService> {
 	readonly copilotTrackingId = undefined;
 	readonly quotas = {};
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 
 	get entitlement(): ChatEntitlement { return this.entitlementObs.get(); }
 	get sentiment(): IChatSentiment { return this.sentimentObs.get(); }
