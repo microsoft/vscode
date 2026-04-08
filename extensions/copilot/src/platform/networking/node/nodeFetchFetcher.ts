@@ -93,6 +93,9 @@ export function createWebSocket(url: string, options?: WebSocketConnectOptions):
 		},
 		get responseStatusText() {
 			return (webSocket as { responseStatusText?: string }).responseStatusText ?? responseStatusText;
+		},
+		get networkError() {
+			return (webSocket as { networkError?: Error }).networkError ?? undefined;
 		}
 	};
 }

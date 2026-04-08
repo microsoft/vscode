@@ -307,9 +307,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
 						}
 					});
+				} else {
+					// Only show menu-contributed actions (e.g. inline chat Fix) when there
+					// is no AI code action, to avoid duplicate Fix entry points.
+					renderMenuActions();
 				}
-
-				renderMenuActions();
 
 				// Notify that the contents have changed given we added
 				// actions to the hover

@@ -1923,14 +1923,14 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	async createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		return await this.run(Operation.Worktree(false), async () => {
 			let worktreeName: string | undefined;
-			let { path: worktreePath, commitish, branch } = options || {};
+			let { path: worktreePath, commitish, branch, noTrack } = options || {};
 
 			// Create worktree path based on the branch name
 			if (worktreePath === undefined && branch !== undefined) {
@@ -1954,7 +1954,7 @@ export class Repository implements Disposable {
 			}
 
 			// Create the worktree
-			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch });
+			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
 
 			// Update worktree root in global state
 			const newWorktreeRoot = path.dirname(worktreePath!);

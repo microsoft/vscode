@@ -31,7 +31,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IExtensionBisectService } from '../../browser/extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../../extensions/common/extensionManifestPropertiesService.js';
-import { TestContextService, TestProductService, TestWorkspaceTrustEnablementService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestProductService, TestWorkspaceTrustEnablementService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ExtensionManagementService } from '../../common/extensionManagementService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -97,6 +97,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			workspaceTrustManagementService,
 			new class extends mock<IWorkspaceTrustRequestService>() { override requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> { return Promise.resolve(true); } },
 			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
+			new TestChatEntitlementService(),
 			instantiationService,
 			new NullLogService(),
 			productService

@@ -15,7 +15,6 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { InlineChatEditorAffordance } from './inlineChatEditorAffordance.js';
 import { InlineChatInputWidget } from './inlineChatOverlayWidget.js';
-import { InlineChatGutterAffordance } from './inlineChatGutterAffordance.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { assertType } from '../../../../base/common/types.js';
 import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
@@ -23,7 +22,6 @@ import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { Event } from '../../../../base/common/event.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 type InlineChatAffordanceEvent = {
@@ -33,7 +31,7 @@ type InlineChatAffordanceEvent = {
 };
 
 type InlineChatAffordanceClassification = {
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The affordance mode: gutter or editor.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The affordance mode: editor.' };
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'UUID to correlate shown and selected events.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command that was executed.' };
 	owner: 'jrieken';
@@ -64,7 +62,7 @@ export class InlineChatAffordance extends Disposable {
 		this.#instantiationService = instantiationService;
 
 		const editorObs = observableCodeEditor(this.#editor);
-		const affordance = observableConfigValue<'off' | 'gutter' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
+		const affordance = observableConfigValue<'off' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
 
 		const selectionData = this.#selectionData;
@@ -91,7 +89,7 @@ export class InlineChatAffordance extends Disposable {
 			}
 			affordanceId = generateUuid();
 			const mode = affordance.read(undefined);
-			if (mode === 'gutter' || mode === 'editor') {
+			if (mode === 'editor') {
 				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/shown', { mode, id: affordanceId, commandId: '' });
 			}
 			selectionData.set(value, undefined);
@@ -130,14 +128,8 @@ export class InlineChatAffordance extends Disposable {
 		this._store.add(autorun(r => {
 			const sel = selectionData.read(r);
 			const mode = affordance.read(r);
-			ctxAffordanceVisible.set(sel !== undefined && (mode === 'editor' || mode === 'gutter'));
+			ctxAffordanceVisible.set(sel !== undefined && mode === 'editor');
 		}));
-
-		const gutterAffordance = this._store.add(this.#instantiationService.createInstance(
-			InlineChatGutterAffordance,
-			editorObs,
-			derived(r => affordance.read(r) === 'gutter' ? selectionData.read(r) : undefined),
-		));
 
 		const editorAffordance = this.#instantiationService.createInstance(
 			InlineChatEditorAffordance,
@@ -146,7 +138,7 @@ export class InlineChatAffordance extends Disposable {
 		);
 		this._store.add(editorAffordance);
 
-		this._store.add(Event.any(editorAffordance.onDidRunAction, gutterAffordance.onDidRunAction)(commandId => {
+		this._store.add(editorAffordance.onDidRunAction(commandId => {
 			if (affordanceId) {
 				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/selected', { mode: affordance.get(), id: affordanceId, commandId });
 			}
@@ -154,7 +146,7 @@ export class InlineChatAffordance extends Disposable {
 
 		this._store.add(autorun(r => {
 			const mode = affordance.read(r);
-			const hideWithSelection = mode === 'editor' || mode === 'gutter';
+			const hideWithSelection = mode === 'editor';
 			const controller = CodeActionController.get(this.#editor);
 			if (controller) {
 				controller.onlyLightBulbWithEmptySelection = hideWithSelection;

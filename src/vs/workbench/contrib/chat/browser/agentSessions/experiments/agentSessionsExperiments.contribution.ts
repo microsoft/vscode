@@ -266,7 +266,6 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 		ChatContextKeys.supported,
 		ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
 		),
 		ContextKeyExpr.has('config.window.commandCenter').negate(),
 	),

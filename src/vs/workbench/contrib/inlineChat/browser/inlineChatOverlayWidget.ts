@@ -539,7 +539,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const pendingConfirmation = response.isPendingConfirmation.read(r);
 			if (pendingConfirmation) {
 				return {
-					message: localize('needsApproval', "Sorry, but an expected error happened"),
+					message: localize('needsApproval', "Sorry, but an unexpected error happened"),
 					icon: Codicon.error
 				};
 			}

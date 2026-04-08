@@ -50,6 +50,7 @@ interface IResponseCache {
 	readonly completedToolCount: number;
 	readonly byMimeType: Record<string, IArtifactGroupConfig>;
 	readonly byFilePath: Record<string, IArtifactGroupConfig>;
+	readonly byMemoryFilePath: Record<string, IArtifactGroupConfig>;
 	readonly artifacts: IChatArtifact[];
 }
 
@@ -104,6 +105,12 @@ class RulesChatArtifacts extends Disposable implements IChatArtifacts {
 			() => configurationService.getValue<Record<string, IArtifactGroupConfig>>(ChatConfiguration.ArtifactsRulesByFilePath) ?? {},
 		);
 
+		const configByMemoryFilePath = observableFromEvent<Record<string, IArtifactGroupConfig>>(
+			this,
+			configurationService.onDidChangeConfiguration,
+			() => configurationService.getValue<Record<string, IArtifactGroupConfig>>(ChatConfiguration.ArtifactsRulesByMemoryFilePath) ?? {},
+		);
+
 		const modelSignal = observableFromEvent(
 			this,
 			chatService.onDidCreateModel,
@@ -113,6 +120,7 @@ class RulesChatArtifacts extends Disposable implements IChatArtifacts {
 		this.artifacts = derived<readonly IChatArtifact[]>(reader => {
 			const byMimeType = configByMimeType.read(reader);
 			const byFilePath = configByFilePath.read(reader);
+			const byMemoryFilePath = configByMemoryFilePath.read(reader);
 			const model = modelSignal.read(reader);
 			if (!model) {
 				return [];
@@ -146,11 +154,11 @@ class RulesChatArtifacts extends Disposable implements IChatArtifacts {
 
 				const cached = this._responseCache.get(response.id);
 				let extracted: IChatArtifact[];
-				if (cached && cached.partsLength === partsLength && cached.completedToolCount === completedToolCount && cached.byMimeType === byMimeType && cached.byFilePath === byFilePath) {
+				if (cached && cached.partsLength === partsLength && cached.completedToolCount === completedToolCount && cached.byMimeType === byMimeType && cached.byFilePath === byFilePath && cached.byMemoryFilePath === byMemoryFilePath) {
 					extracted = cached.artifacts;
 				} else {
-					extracted = extractArtifactsFromResponse(responseValue, sessionResource, byMimeType, byFilePath);
-					this._responseCache.set(response.id, { partsLength, completedToolCount, byMimeType, byFilePath, artifacts: extracted });
+					extracted = extractArtifactsFromResponse(responseValue, sessionResource, byMimeType, byFilePath, byMemoryFilePath);
+					this._responseCache.set(response.id, { partsLength, completedToolCount, byMimeType, byFilePath, byMemoryFilePath, artifacts: extracted });
 				}
 
 				for (const artifact of extracted) {

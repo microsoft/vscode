@@ -4,28 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, Uri } from 'vscode';
-import { IGitService } from '../../../platform/git/common/gitService';
-import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
-import { createServiceIdentifier } from '../../../util/common/services';
-import { raceTimeout } from '../../../util/vs/base/common/async';
-import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
-import { ChatSessionStatus } from '../../../vscodeTypes';
-import { FolderRepositoryMRUEntry } from '../common/folderRepositoryManager';
-import { ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
+import { IGitService } from '../../../../platform/git/common/gitService';
+import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
+import { raceTimeout } from '../../../../util/vs/base/common/async';
+import { ResourceMap, ResourceSet } from '../../../../util/vs/base/common/map';
+import { ChatSessionStatus } from '../../../../vscodeTypes';
+import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../../common/folderRepositoryManager';
+import { ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 
 
 type Mutable<T> = {
 	-readonly [K in keyof T]: T[K];
 };
 
-export interface ICopilotCLIFolderMruService {
-	readonly _serviceBrand: undefined;
-	getRecentlyUsedFolders(token: CancellationToken): Promise<FolderRepositoryMRUEntry[]>;
-	deleteRecentlyUsedFolder(folder: Uri): Promise<void>;
-}
-export const ICopilotCLIFolderMruService = createServiceIdentifier<ICopilotCLIFolderMruService>('ICopilotCLIFolderMruService');
-
-export class CopilotCLIFolderMruService implements ICopilotCLIFolderMruService {
+export class CopilotCLIFolderMruService implements IChatFolderMruService {
 	declare _serviceBrand: undefined;
 	private readonly removedFolders = new ResourceSet();
 	private cachedEntries: FolderRepositoryMRUEntry[] | undefined = undefined;
@@ -64,7 +56,7 @@ export class CopilotCLIFolderMruService implements ICopilotCLIFolderMruService {
 				continue;
 			}
 			const isActive = session.status === ChatSessionStatus.InProgress;
-			const lastAccessed = session.timing?.lastRequestEnded ?? session.timing?.endTime ?? session.timing?.startTime ?? session.timing?.startTime ?? (isActive ? Date.now() : 0);
+			const lastAccessed = session.timing?.lastRequestEnded ?? session.timing?.endTime ?? session.timing?.lastRequestStarted ?? session.timing?.startTime ?? (isActive ? Date.now() : 0);
 			mruEntries.set(session.workingDirectory, {
 				folder: session.workingDirectory,
 				repository: undefined,

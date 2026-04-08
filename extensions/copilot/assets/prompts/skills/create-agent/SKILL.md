@@ -2,7 +2,7 @@
 name: create-agent
 description: 'Create a custom agent (.agent.md) for a specific job.'
 argument-hint: What job should this agent do and how?
-agent: agent
+disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **agents.md** for template and principles.
 

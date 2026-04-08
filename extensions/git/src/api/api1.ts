@@ -348,7 +348,7 @@ export class ApiRepository implements Repository {
 		return this.#repository.dropStash(index);
 	}
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string> {
 		return this.#repository.createWorktree(options);
 	}
 

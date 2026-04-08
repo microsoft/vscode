@@ -69,7 +69,7 @@ export interface IGitService extends IDisposable {
 	getMergeBase(uri: URI, ref1: string, ref2: string): Promise<string | undefined>;
 	restore(uri: URI, paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void>;
 
-	createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string }): Promise<string | undefined>;
+	createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string | undefined>;
 	deleteWorktree(uri: URI, path: string, options?: { force?: boolean }): Promise<void>;
 
 	migrateChanges(uri: URI, sourceRepositoryUri: URI, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;

@@ -14,6 +14,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -21,6 +22,7 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ChatMemoryFileResource } from '../../common/chatArtifactExtraction.js';
 import { IChatArtifact, IChatArtifacts, IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
 import { getEditorOverrideForChatResource } from './chatContentParts/chatInlineAnchorWidget.js';
@@ -67,6 +69,7 @@ export class ChatArtifactsWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IChatImageCarouselService private readonly _chatImageCarouselService: IChatImageCarouselService,
@@ -144,11 +147,15 @@ export class ChatArtifactsWidget extends Disposable {
 					this._openScreenshotInCarousel(artifact);
 				} else if (artifact.uri) {
 					const uri = URI.parse(artifact.uri);
-					const editorOverride = getEditorOverrideForChatResource(uri, this._configurationService);
-					this._openerService.open(uri, {
-						fromUserGesture: true,
-						editorOptions: { override: editorOverride },
-					});
+					if (ChatMemoryFileResource.isChatMemoryFileUri(uri)) {
+						this._openMemoryFileArtifact(uri);
+					} else {
+						const editorOverride = getEditorOverrideForChatResource(uri, this._configurationService);
+						this._openerService.open(uri, {
+							fromUserGesture: true,
+							editorOptions: { override: editorOverride },
+						});
+					}
 				}
 			}
 		}));
@@ -197,6 +204,23 @@ export class ChatArtifactsWidget extends Disposable {
 	private async _openScreenshotInCarousel(clicked: IChatArtifact): Promise<void> {
 		if (clicked.uri) {
 			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri));
+		}
+	}
+
+	private async _openMemoryFileArtifact(uri: URI): Promise<void> {
+		const { memoryPath, sessionResource } = ChatMemoryFileResource.parse(uri);
+		const resolvedUriStr: string | undefined = await this._commandService.executeCommand(
+			'github.copilot.chat.tools.memory.resolveMemoryFileUri',
+			memoryPath,
+			sessionResource,
+		);
+		if (resolvedUriStr) {
+			const resolvedUri = URI.parse(resolvedUriStr);
+			const editorOverride = getEditorOverrideForChatResource(resolvedUri, this._configurationService);
+			this._openerService.open(resolvedUri, {
+				fromUserGesture: true,
+				editorOptions: { override: editorOverride },
+			});
 		}
 	}
 

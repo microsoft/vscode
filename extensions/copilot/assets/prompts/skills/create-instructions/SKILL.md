@@ -2,7 +2,7 @@
 name: create-instructions
 description: 'Create an instructions file (.instructions.md) for a project rule or convention.'
 argument-hint: What rule or convention to enforce?
-agent: agent
+disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **instructions.md** for template and principles.
 

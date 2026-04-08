@@ -40,7 +40,6 @@ export const CopilotCloudSessionType: ISessionType = {
 	icon: Codicon.cloud,
 };
 
-export const GITHUB_PR_FILE_SCHEME = 'copilot-pr';
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**

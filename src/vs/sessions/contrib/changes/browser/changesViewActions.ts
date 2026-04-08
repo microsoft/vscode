@@ -22,6 +22,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { ChangesViewPane } from './changesView.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -114,6 +115,37 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(ChangesViewActionsContribution.ID, ChangesViewActionsContribution, WorkbenchPhase.AfterRestored);
+
+export class ViewAllSessionChangesAction extends Action2 {
+	static readonly ID = 'chatEditing.viewAllSessionChanges';
+
+	constructor() {
+		super({
+			id: ViewAllSessionChangesAction.ID,
+			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
+			icon: Codicon.diffMultiple,
+			f1: false,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('sessions.hasGitRepository', true),
+				ChatContextKeys.hasAgentSessionChanges,
+			),
+			menu: [
+				{
+					id: MenuId.ChatEditingSessionChangesToolbar,
+					group: 'navigation',
+					order: 10,
+				}
+			],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		await view?.openChanges();
+	}
+}
+registerAction2(ViewAllSessionChangesAction);
 
 class OpenPullRequestAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openPullRequest';

@@ -347,7 +347,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		}
 	}
 
-	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string }): Promise<string | undefined> {
+	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string | undefined> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
 		return await repository?.createWorktree(options);

@@ -205,7 +205,6 @@ abstract class OpenChatGlobalAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.disabled.negate()
 			)
 		});
 	}
@@ -1728,7 +1727,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	title: localize('generateCode', "Generate Code"),
 	when: ContextKeyExpr.and(
 		ChatContextKeys.Setup.hidden.negate(),
-		ChatContextKeys.Setup.disabled.negate()
 	)
 });
 

@@ -114,7 +114,7 @@ export class MockGitService implements IGitService {
 		return Promise.resolve(undefined);
 	}
 
-	createWorktree(_uri: URI, _options?: { path?: string; commitish?: string; branch?: string }): Promise<string | undefined> {
+	createWorktree(_uri: URI, _options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string | undefined> {
 		return Promise.resolve(undefined);
 	}
 

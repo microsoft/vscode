@@ -2,7 +2,7 @@
 name: init
 description: Generate or update workspace instructions file for AI coding agents
 argument-hint: Optionally specify a focus area or pattern to document for agents
-agent: agent
+disable-model-invocation: true
 ---
 Related skill: `agent-customization`. Load and follow **workspace-instructions.md** for template, principles, and anti-patterns.
 

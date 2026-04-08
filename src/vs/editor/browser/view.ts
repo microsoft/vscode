@@ -601,12 +601,21 @@ export class View extends ViewEventHandler {
 				inputLatency.onRenderStart();
 
 				if (!this.domNode.domNode.isConnected) {
+					const model = this._context.viewModel.model;
+					if (model.uri.scheme === 'vscode-chat-code-block') {
+						console.warn(`[EditorView] Render dropped: isConnected=false for ${model.uri.toString()}`);
+					}
 					return null;
 				}
 
 				const viewPartsToRender = this._getViewPartsToRender();
-				if (!this._viewLines.shouldRender() && viewPartsToRender.length === 0) {
+				const viewLinesShouldRender = this._viewLines.shouldRender();
+				if (!viewLinesShouldRender && viewPartsToRender.length === 0) {
 					// Nothing to render
+					const model = this._context.viewModel.model;
+					if (model.uri.scheme === 'vscode-chat-code-block') {
+						console.warn(`[EditorView] Render dropped: nothing to render for ${model.uri.toString()}, viewLines.shouldRender=${viewLinesShouldRender}, viewParts=${viewPartsToRender.length}`);
+					}
 					return null;
 				}
 
