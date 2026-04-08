@@ -95,11 +95,14 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 			const repositoryProperties = await this.getRepositoryProperties(sessionId);
 			if (!repositoryProperties) {
 				this.logService.warn(`[ChatSessionWorkspaceFolderService][getWorkspaceChanges] No repository properties found for session ${sessionId}`);
+				this.workspaceFolderChanges.set(sessionId, []);
 				return [];
 			}
 
 			const repository = await this.gitService.getRepository(vscode.Uri.file(repositoryProperties.repositoryPath));
 			if (!repository?.changes) {
+				this.logService.warn(`[ChatSessionWorkspaceFolderService][getWorkspaceChanges] No repository found for session ${sessionId}`);
+				this.workspaceFolderChanges.set(sessionId, []);
 				return [];
 			}
 

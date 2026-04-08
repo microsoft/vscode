@@ -34,6 +34,8 @@ export interface IParsedHookCommand {
 	readonly env?: Record<string, string>;
 	/** Timeout in seconds. */
 	readonly timeout?: number;
+	/** URI of the file this hook was defined in. */
+	readonly sourceUri?: URI;
 }
 
 /** A group of hooks for a single lifecycle event. */

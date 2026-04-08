@@ -42,7 +42,7 @@ export interface IExtHostMpcService extends ExtHostMcpShape {
 	readonly mcpServerDefinitions: readonly vscode.McpServerDefinition[];
 
 	/** Starts an MCP gateway that exposes MCP servers via HTTP endpoints. */
-	startMcpGateway(): Promise<vscode.McpGateway | undefined>;
+	startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined>;
 }
 
 const serverDataValidation = vObj({
@@ -264,8 +264,8 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 
 	/** {@link vscode.lm.startMcpGateway} */
-	public async startMcpGateway(): Promise<vscode.McpGateway | undefined> {
-		const result = await this._proxy.$startMcpGateway();
+	public async startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined> {
+		const result = await this._proxy.$startMcpGateway(chatSessionResource?.toJSON());
 		if (!result) {
 			return undefined;
 		}

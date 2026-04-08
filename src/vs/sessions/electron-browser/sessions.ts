@@ -44,7 +44,9 @@
 		let shellForeground = '#CCCCCC';
 		if (data) {
 			baseTheme = data.baseTheme;
-			shellBackground = data.colorInfo.editorBackground ?? data.colorInfo.background;
+			shellBackground = data.baseTheme === 'vs'
+				? (data.colorInfo.background ?? data.colorInfo.editorBackground)
+				: (data.colorInfo.editorBackground ?? data.colorInfo.background);
 			shellForeground = data.colorInfo.foreground ?? shellForeground;
 		} else if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
 			if (configuration.colorScheme.dark) {
@@ -63,7 +65,7 @@
 				shellForeground = '#CCCCCC';
 			} else {
 				baseTheme = 'vs';
-				shellBackground = '#FFFFFF';
+				shellBackground = '#F3F3F3';
 				shellForeground = '#000000';
 			}
 		}

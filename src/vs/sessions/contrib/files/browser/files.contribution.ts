@@ -17,11 +17,27 @@ import { WorkspaceFolderCountContext } from '../../../../workbench/common/contex
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import type { IViewPaneLocationColors } from '../../../../workbench/browser/parts/views/viewPane.js';
+import { sessionsAuxiliaryBarBackground } from '../../../common/theme.js';
 
 const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 const SESSIONS_FILES_VIEW_ID = 'sessions.files.explorer';
 
 const filesViewIcon = registerIcon('sessions-files-view-icon', Codicon.files, localize2('sessionsFilesViewIcon', 'View icon of the files view in the sessions window.').value);
+
+class SessionsExplorerView extends ExplorerView {
+	protected override getLocationBasedColors(): IViewPaneLocationColors {
+		const colors = super.getLocationBasedColors();
+		return {
+			...colors,
+			background: sessionsAuxiliaryBarBackground,
+			listOverrideStyles: {
+				...colors.listOverrideStyles,
+				listBackground: sessionsAuxiliaryBarBackground,
+			}
+		};
+	}
+}
 
 class RegisterFilesViewContribution implements IWorkbenchContribution {
 
@@ -48,7 +64,7 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			id: SESSIONS_FILES_VIEW_ID,
 			name: localize2('files', "Files"),
 			containerIcon: filesViewIcon,
-			ctorDescriptor: new SyncDescriptor(ExplorerView),
+			ctorDescriptor: new SyncDescriptor(SessionsExplorerView),
 			canToggleVisibility: true,
 			canMoveView: false,
 			when: WorkspaceFolderCountContext.notEqualsTo('0'),

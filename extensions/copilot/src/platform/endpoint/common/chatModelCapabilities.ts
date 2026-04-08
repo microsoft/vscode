@@ -96,7 +96,7 @@ export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 
 export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint) {
 	const family_hash = getCachedSha256Hash(model.family);
-	return family_hash === '0d90e0e579352b8502fc2a46b40961ee941adc26ce67c2b1438f0e4ea97d932f';
+	return family_hash === '94e44d9d24608ae2161d0c56704f226dc89c2cd8be566abb8fbfbded5a507401';
 }
 
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {
@@ -378,4 +378,48 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 	}
 
 	return undefined;
+}
+
+/** Model ID prefixes that support the tool search tool. */
+export const TOOL_SEARCH_SUPPORTED_MODELS = [
+	'claude-sonnet-4.5',
+	'claude-sonnet-4.6',
+	'claude-opus-4.5',
+	'claude-opus-4.6',
+] as const;
+
+/**
+ * Returns true if the model supports the tool search tool.
+ * Provider-agnostic: add additional model prefixes here as other providers adopt tool search.
+ */
+export function modelSupportsToolSearch(modelId: string): boolean {
+	return TOOL_SEARCH_SUPPORTED_MODELS.some(prefix => modelId.toLowerCase().startsWith(prefix));
+}
+
+/**
+ * Context editing is supported by:
+ * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
+ * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
+ * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
+ * - Claude Sonnet 4 (claude-sonnet-4-*)
+ * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
+ * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
+ * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
+ * - Claude Opus 4 (claude-opus-4-*)
+ * Provider-agnostic: add additional model prefixes here as other providers adopt context editing.
+ */
+export function modelSupportsContextEditing(modelId: string): boolean {
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	// The 1M context variant doesn't need context editing
+	if (normalized.includes('1m')) {
+		return false;
+	}
+	return normalized.startsWith('claude-haiku-4-5') ||
+		normalized.startsWith('claude-sonnet-4-6') ||
+		normalized.startsWith('claude-sonnet-4-5') ||
+		normalized.startsWith('claude-sonnet-4') ||
+		normalized.startsWith('claude-opus-4-6') ||
+		normalized.startsWith('claude-opus-4-5') ||
+		normalized.startsWith('claude-opus-4-1') ||
+		normalized.startsWith('claude-opus-4');
 }

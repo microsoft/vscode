@@ -20,7 +20,7 @@ suite('CustomizationHarnessService', () => {
 		if (harnesses.length === 0) {
 			harnesses = [createVSCodeHarnessDescriptor([PromptsStorage.extension])];
 		}
-		return new CustomizationHarnessServiceBase(harnesses, harnesses[0].id);
+		return store.add(new CustomizationHarnessServiceBase(harnesses, harnesses[0].id));
 	}
 
 	suite('registerExternalHarness', () => {

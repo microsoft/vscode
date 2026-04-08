@@ -8,14 +8,48 @@ import * as yaml from 'js-yaml';
 import type { LanguageModelToolInformation, Uri } from 'vscode';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { URI } from '../../../util/vs/base/common/uri';
 
 interface PromptOverrideConfig {
 	readonly systemPrompt?: string;
 	readonly toolDescriptions?: Record<string, { readonly description: string }>;
 }
 
-/** Tracks which file URIs have already had a warning logged, to avoid spamming. */
-const warnedFiles = new Set<string>();
+interface PromptOverrideResult {
+	readonly messages: Raw.ChatMessage[];
+	readonly tools: LanguageModelToolInformation[];
+}
+
+const INLINE_PROMPT_OVERRIDE_SOURCE = 'inlinePromptOverrideString';
+
+/** Tracks which override sources have already had a warning logged, to avoid spamming. */
+const warnedSources = new Set<string>();
+
+export async function applyConfiguredPromptOverrides(
+	inlinePromptOverride: string | null,
+	promptOverrideFile: string | null,
+	messages: readonly Raw.ChatMessage[],
+	tools: readonly LanguageModelToolInformation[],
+	fileSystemService: IFileSystemService,
+	logService: ILogService,
+): Promise<PromptOverrideResult> {
+	const normalizedInlinePromptOverride = inlinePromptOverride?.trim();
+	const normalizedPromptOverrideFile = promptOverrideFile?.trim();
+
+	if (normalizedInlinePromptOverride) {
+		if (normalizedPromptOverrideFile) {
+			logService.trace('[PromptOverride] Both inline prompt override text and prompt override file are configured; using inline prompt override text');
+		}
+
+		return applyPromptOverridesFromString(normalizedInlinePromptOverride, messages, tools, logService);
+	}
+
+	if (normalizedPromptOverrideFile) {
+		return applyPromptOverrides(URI.file(normalizedPromptOverrideFile), messages, tools, fileSystemService, logService);
+	}
+
+	return clonePromptOverrideResult(messages, tools);
+}
 
 /**
  * Applies debug prompt overrides from a YAML file.
@@ -28,30 +62,70 @@ export async function applyPromptOverrides(
 	tools: readonly LanguageModelToolInformation[],
 	fileSystemService: IFileSystemService,
 	logService: ILogService,
-): Promise<{ messages: Raw.ChatMessage[]; tools: LanguageModelToolInformation[] }> {
-	let config: PromptOverrideConfig;
+): Promise<PromptOverrideResult> {
+	const key = fileUri.toString();
+	let content: string;
 	try {
 		const buffer = await fileSystemService.readFile(fileUri);
-		const content = new TextDecoder().decode(buffer);
+		content = new TextDecoder().decode(buffer);
+	} catch (err) {
+		logPromptOverrideFailure(logService, key, `Failed to read prompt override file "${key}"`, err);
+		return clonePromptOverrideResult(messages, tools);
+	}
+
+	const config = parsePromptOverrideConfig(content, key, `prompt override file "${key}"`, logService);
+	if (!config) {
+		return clonePromptOverrideResult(messages, tools);
+	}
+
+	return applyPromptOverrideConfig(config, messages, tools, logService);
+}
+
+
+export function applyPromptOverridesFromString(
+	content: string,
+	messages: readonly Raw.ChatMessage[],
+	tools: readonly LanguageModelToolInformation[],
+	logService: ILogService,
+): PromptOverrideResult {
+	const config = parsePromptOverrideConfig(content, INLINE_PROMPT_OVERRIDE_SOURCE, `inline prompt override setting "${INLINE_PROMPT_OVERRIDE_SOURCE}"`, logService);
+	if (!config) {
+		return clonePromptOverrideResult(messages, tools);
+	}
+
+	return applyPromptOverrideConfig(config, messages, tools, logService);
+}
+
+function parsePromptOverrideConfig(
+	content: string,
+	sourceKey: string,
+	sourceDescription: string,
+	logService: ILogService,
+): PromptOverrideConfig | undefined {
+	let config: PromptOverrideConfig;
+	try {
 		config = yaml.load(content) as PromptOverrideConfig;
 	} catch (err) {
-		const key = fileUri.toString();
-		if (!warnedFiles.has(key)) {
-			warnedFiles.add(key);
-			logService.warn(`[PromptOverride] Failed to read or parse YAML file "${key}": ${err}`);
-		} else {
-			logService.trace(`[PromptOverride] Failed to read or parse YAML file "${key}": ${err}`);
-		}
-		return { messages: [...messages], tools: [...tools] };
+		logPromptOverrideFailure(logService, sourceKey, `Failed to parse prompt override from ${sourceDescription}`, err);
+		return undefined;
 	}
 
-	// On successful read, clear any previous warning so a new error is re-surfaced as warn
-	warnedFiles.delete(fileUri.toString());
+	// On successful parsing, clear any previous warning so a new error is re-surfaced as warn.
+	warnedSources.delete(sourceKey);
 
 	if (!config || typeof config !== 'object') {
-		return { messages: [...messages], tools: [...tools] };
+		return undefined;
 	}
 
+	return config;
+}
+
+function applyPromptOverrideConfig(
+	config: PromptOverrideConfig,
+	messages: readonly Raw.ChatMessage[],
+	tools: readonly LanguageModelToolInformation[],
+	logService: ILogService,
+): PromptOverrideResult {
 	let resultMessages = [...messages];
 	let resultTools = [...tools];
 
@@ -68,12 +142,28 @@ export async function applyPromptOverrides(
 	return { messages: resultMessages, tools: resultTools };
 }
 
+function clonePromptOverrideResult(
+	messages: readonly Raw.ChatMessage[],
+	tools: readonly LanguageModelToolInformation[],
+): PromptOverrideResult {
+	return { messages: [...messages], tools: [...tools] };
+}
+
+function logPromptOverrideFailure(logService: ILogService, sourceKey: string, message: string, err: unknown): void {
+	if (!warnedSources.has(sourceKey)) {
+		warnedSources.add(sourceKey);
+		logService.warn(`[PromptOverride] ${message}: ${err}`);
+	} else {
+		logService.trace(`[PromptOverride] ${message}: ${err}`);
+	}
+}
+
 /**
  * Resets the internal warning deduplication state.
  * Exported for testing only.
  */
 export function resetPromptOverrideWarnings(): void {
-	warnedFiles.clear();
+	warnedSources.clear();
 }
 
 function applySystemPromptOverride(messages: Raw.ChatMessage[], systemPrompt: string): Raw.ChatMessage[] {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
+import { modelSupportsContextEditing, modelSupportsToolSearch } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { IChatEndpoint } from './networking';
 
@@ -75,14 +76,6 @@ export const TOOL_SEARCH_TOOL_TYPE = 'tool_search_tool_regex_20251119';
 /** Name for the custom client-side embeddings-based tool search tool. Must not use copilot_/vscode_ prefix — those are reserved for static package.json declarations and will be rejected by vscode.lm.registerToolDefinition. */
 export const CUSTOM_TOOL_SEARCH_NAME = 'tool_search';
 
-/** Model ID prefixes that support tool search tools. Used by isAnthropicToolSearchEnabled() and the tool registration's model selector. */
-export const TOOL_SEARCH_SUPPORTED_MODELS = [
-	'claude-sonnet-4.5',
-	'claude-sonnet-4.6',
-	'claude-opus-4.5',
-	'claude-opus-4.6',
-] as const;
-
 /**
  * Context management types for Anthropic Messages API
  * Based on https://platform.claude.com/docs/en/build-with-claude/context-editing
@@ -133,36 +126,6 @@ export interface ContextManagementResponse {
 }
 
 /**
- * Context editing is supported by:
- * - Claude Haiku 4.5 (claude-haiku-4-5-* or claude-haiku-4.5-*)
- * - Claude Sonnet 4.6 (claude-sonnet-4-6-* or claude-sonnet-4.6-*)
- * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
- * - Claude Sonnet 4 (claude-sonnet-4-*)
- * - Claude Opus 4.6 (claude-opus-4-6-* or claude-opus-4.6-*)
- * - Claude Opus 4.5 (claude-opus-4-5-* or claude-opus-4.5-*)
- * - Claude Opus 4.1 (claude-opus-4-1-* or claude-opus-4.1-*)
- * - Claude Opus 4 (claude-opus-4-*)
- * @param modelId The model ID to check
- * @returns true if the model supports context editing
- */
-export function modelSupportsContextEditing(modelId: string): boolean {
-	// Normalize: lowercase and replace dots with dashes so "4.5" matches "4-5"
-	const normalized = modelId.toLowerCase().replace(/\./g, '-');
-	// The 1M context variant doesn't need context editing
-	if (normalized.includes('1m')) {
-		return false;
-	}
-	return normalized.startsWith('claude-haiku-4-5') ||
-		normalized.startsWith('claude-sonnet-4-6') ||
-		normalized.startsWith('claude-sonnet-4-5') ||
-		normalized.startsWith('claude-sonnet-4') ||
-		normalized.startsWith('claude-opus-4-6') ||
-		normalized.startsWith('claude-opus-4-5') ||
-		normalized.startsWith('claude-opus-4-1') ||
-		normalized.startsWith('claude-opus-4');
-}
-
-/**
  * Interleaved thinking is supported by:
  * - Claude Sonnet 4.5 (claude-sonnet-4-5-* or claude-sonnet-4.5-*)
  * - Claude Sonnet 4 (claude-sonnet-4-*)
@@ -209,9 +172,10 @@ export function isAnthropicToolSearchEnabled(
 	endpoint: IChatEndpoint | string,
 	configurationService: IConfigurationService
 ): boolean {
-
-	const effectiveModelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!TOOL_SEARCH_SUPPORTED_MODELS.some(prefix => effectiveModelId.toLowerCase().startsWith(prefix))) {
+	const supportsIt = typeof endpoint === 'string'
+		? modelSupportsToolSearch(endpoint)
+		: endpoint.supportsToolSearch ?? modelSupportsToolSearch(endpoint.model);
+	if (!supportsIt) {
 		return false;
 	}
 
@@ -239,9 +203,10 @@ export function isAnthropicContextEditingEnabled(
 	configurationService: IConfigurationService,
 	experimentationService: IExperimentationService,
 ): boolean {
-
-	const effectiveModelId = typeof endpoint === 'string' ? endpoint : endpoint.model;
-	if (!modelSupportsContextEditing(effectiveModelId)) {
+	const supportsIt = typeof endpoint === 'string'
+		? modelSupportsContextEditing(endpoint)
+		: endpoint.supportsContextEditing ?? modelSupportsContextEditing(endpoint.model);
+	if (!supportsIt) {
 		return false;
 	}
 	const mode = configurationService.getExperimentBasedConfig(ConfigKey.AnthropicContextEditingMode, experimentationService);

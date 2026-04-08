@@ -34,6 +34,8 @@ export interface IAICustomizationShortcutsWidgetOptions {
 
 export class AICustomizationShortcutsWidget extends Disposable {
 
+	private _headerButton: Button | undefined;
+
 	constructor(
 		container: HTMLElement,
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
@@ -77,6 +79,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		headerButton.element.classList.add('customization-link-button', 'sidebar-action-button');
 		headerButton.element.setAttribute('aria-expanded', String(!isCollapsed));
 		headerButton.label = localize('customizations', "Customizations");
+		this._headerButton = headerButton;
 
 		const chevronContainer = DOM.append(headerButton.element, $('span.customization-link-counts'));
 		const chevron = DOM.append(chevronContainer, $('.ai-customization-chevron'));
@@ -140,5 +143,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		};
 
 		this._register(headerButton.onDidClick(() => toggleCollapse()));
+	}
+
+	focus(): void {
+		this._headerButton?.element.focus();
 	}
 }

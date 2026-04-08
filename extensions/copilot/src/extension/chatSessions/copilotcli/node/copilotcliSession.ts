@@ -86,7 +86,7 @@ export interface ICopilotCLISession extends IDisposable {
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		modelId: string | undefined,
+		model: { model: string; reasoningEffort?: string } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void>;
@@ -213,7 +213,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		modelId: string | undefined,
+		model: { model: string; reasoningEffort?: string } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void> {
@@ -229,12 +229,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const previousRequestSnapshot = this.previousRequest;
 
 		const handled = this._requestLogger.captureInvocation(capturingToken, async () => {
-			await this.updateModel(modelId, authInfo, token);
+			await this.updateModel(model?.model, model?.reasoningEffort, authInfo, token);
 
 			if (isAlreadyBusyWithAnotherRequest) {
-				return this._handleRequestSteering(input, attachments, modelId, previousRequestSnapshot, token);
+				return this._handleRequestSteering(input, attachments, model, previousRequestSnapshot, token);
 			} else {
-				return this._handleRequestImpl(request, input, attachments, modelId, token);
+				return this._handleRequestImpl(request, input, attachments, model, token);
 			}
 		});
 
@@ -261,7 +261,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private async _handleRequestSteering(
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		modelId: string | undefined,
+		model: { model: string; reasoningEffort?: string } | undefined,
 		previousRequestPromise: Promise<unknown>,
 		token: vscode.CancellationToken,
 	): Promise<void> {
@@ -281,9 +281,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// previous request to finish, so this promise settles only once all
 			// in-flight work is done.
 			await Promise.all([previousRequestPromise, this.sendRequestInternal(input, attachments, true, logStartTime)]);
-			this._logConversation(prompt, '', modelId || '', attachments, logStartTime, 'Completed');
+			this._logConversation(prompt, '', model?.model || '', attachments, logStartTime, 'Completed');
 		} catch (error) {
-			this._logConversation(prompt, '', modelId || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
+			this._logConversation(prompt, '', model?.model || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
 			throw error;
 		} finally {
 			disposables.dispose();
@@ -294,9 +294,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		modelId: string | undefined,
+		model: { model: string; reasoningEffort?: string } | undefined,
 		token: vscode.CancellationToken
 	): Promise<void> {
+		const modelId = model?.model;
 		return this._otelService.startActiveSpan(
 			'invoke_agent copilotcli',
 			{
@@ -766,7 +767,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		}
 	}
 
-	private async updateModel(modelId: string | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
+	private async updateModel(modelId: string | undefined, reasoningEffort: string | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
 		// Where possible try to avoid an extra call to getSelectedModel by using cached value.
 		let currentModel: string | undefined = undefined;
 		if (modelId) {
@@ -782,9 +783,17 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (authInfo) {
 			this._sdkSession.setAuthInfo(authInfo);
 		}
-		if (modelId && modelId !== currentModel) {
-			this._lastUsedModel = modelId;
-			await raceCancellation(this._sdkSession.setSelectedModel(modelId), token);
+		if (modelId) {
+			if (modelId !== currentModel) {
+				this._lastUsedModel = modelId;
+				if (this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+					await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
+				} else {
+					await raceCancellation(this._sdkSession.setSelectedModel(modelId), token);
+				}
+			} else if (reasoningEffort && this._sdkSession.getReasoningEffort() !== reasoningEffort && this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled)) {
+				await raceCancellation(this._sdkSession.setSelectedModel(modelId, reasoningEffort), token);
+			}
 		}
 	}
 

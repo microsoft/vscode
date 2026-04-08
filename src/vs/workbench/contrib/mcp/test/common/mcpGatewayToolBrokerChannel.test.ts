@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
@@ -13,7 +14,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMcpGatewayServerDescriptor } from '../../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { McpGatewayToolBrokerChannel } from '../../common/mcpGatewayToolBrokerChannel.js';
-import { IMcpIcons, IMcpServer, IMcpTool, McpConnectionState, McpServerCacheState, McpToolVisibility } from '../../common/mcpTypes.js';
+import { IMcpIcons, IMcpServer, IMcpTool, IMcpToolCallContext, McpConnectionState, McpServerCacheState, McpToolVisibility } from '../../common/mcpTypes.js';
 import { TestMcpService } from './testMcpService.js';
 
 suite('McpGatewayToolBrokerChannel', () => {
@@ -269,6 +270,55 @@ suite('McpGatewayToolBrokerChannel', () => {
 		channel.dispose();
 	});
 
+	test('forwards chatSessionResource as tool call context', async () => {
+		const mcpService = new TestMcpService();
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
+
+		const receivedContexts: (IMcpToolCallContext | undefined)[] = [];
+		const server = createServer('collectionA', 'serverA', [
+			createToolWithContextCapture('echo', receivedContexts, async () => ({ content: [{ type: 'text', text: 'ok' }] })),
+		]);
+
+		mcpService.servers.set([server], undefined);
+
+		const sessionUri = 'vscode-chat-session://test/session-123';
+		await channel.call<MCP.CallToolResult>(undefined, 'callToolForServer', {
+			serverId: 'serverA',
+			name: 'echo',
+			args: { input: 'hello' },
+			chatSessionResource: sessionUri,
+		});
+
+		assert.strictEqual(receivedContexts.length, 1);
+		assert.ok(receivedContexts[0]);
+		assert.strictEqual(receivedContexts[0]!.chatSessionResource!.toString(), URI.parse(sessionUri).toString());
+
+		channel.dispose();
+	});
+
+	test('passes undefined context when chatSessionResource is omitted', async () => {
+		const mcpService = new TestMcpService();
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
+
+		const receivedContexts: (IMcpToolCallContext | undefined)[] = [];
+		const server = createServer('collectionA', 'serverA', [
+			createToolWithContextCapture('echo', receivedContexts, async () => ({ content: [{ type: 'text', text: 'ok' }] })),
+		]);
+
+		mcpService.servers.set([server], undefined);
+
+		await channel.call<MCP.CallToolResult>(undefined, 'callToolForServer', {
+			serverId: 'serverA',
+			name: 'echo',
+			args: { input: 'hello' },
+		});
+
+		assert.strictEqual(receivedContexts.length, 1);
+		assert.strictEqual(receivedContexts[0], undefined);
+
+		channel.dispose();
+	});
+
 	test('emits onDidChangeServers with descriptors when servers change', () => {
 		const mcpService = new TestMcpService();
 		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
@@ -387,6 +437,36 @@ function createNeverStartingServer(
 		cacheStateValue: cacheState,
 	};
 	return result;
+}
+
+function createToolWithContextCapture(
+	name: string,
+	receivedContexts: (IMcpToolCallContext | undefined)[],
+	call: (params: Record<string, unknown>) => Promise<MCP.CallToolResult>,
+	visibility: McpToolVisibility = McpToolVisibility.Model,
+): IMcpTool {
+	const definition: MCP.Tool = {
+		name,
+		description: `Tool ${name}`,
+		inputSchema: { type: 'object', properties: { input: { type: 'string' } } },
+	};
+
+	return {
+		id: `tool_${name}`,
+		referenceName: name,
+		icons: {} as IMcpIcons,
+		definition,
+		visibility,
+		uiResourceUri: undefined,
+		call: (params: Record<string, unknown>, context, _token) => {
+			receivedContexts.push(context);
+			return call(params);
+		},
+		callWithProgress: (params: Record<string, unknown>, _progress, context, _token = CancellationToken.None) => {
+			receivedContexts.push(context);
+			return call(params);
+		},
+	};
 }
 
 function createTool(name: string, call: (params: Record<string, unknown>) => Promise<MCP.CallToolResult>, visibility: McpToolVisibility = McpToolVisibility.Model): IMcpTool {

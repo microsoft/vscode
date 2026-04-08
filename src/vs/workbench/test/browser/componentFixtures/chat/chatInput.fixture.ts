@@ -13,7 +13,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -106,8 +107,6 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 		additionalServices: (reg) => {
 			reg.define(IMenuService, FixtureMenuService);
 			registerWorkbenchServices(reg);
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() { override async createModelReference() { return { object: { textEditorModel: null }, dispose() { } } as unknown as Awaited<ReturnType<ITextModelService['createModelReference']>>; } }());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override getLanguageModelIds() { return []; } }());
@@ -141,6 +140,7 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 				override readonly repositoryCount = 0;
 			}());
 			reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { override show() { } override hide() { } override get isVisible() { return false; } }());
+			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() { }());
@@ -201,34 +201,27 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 		listBackground: 'var(--vscode-editor-background)',
 	};
 
-	try {
-		const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
-		const mockWidget = new class extends mock<IChatWidget>() {
-			override readonly onDidChangeViewModel = new Emitter<never>().event;
-			override readonly viewModel = undefined;
-			override readonly contribs = [];
-			override readonly location = ChatAgentLocation.Chat;
-			override readonly viewContext = {};
-		}();
+	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
+	const mockWidget = new class extends mock<IChatWidget>() {
+		override readonly onDidChangeViewModel = new Emitter<never>().event;
+		override readonly viewModel = undefined;
+		override readonly contribs = [];
+		override readonly location = ChatAgentLocation.Chat;
+		override readonly viewContext = {};
+	}();
 
-		inputPart.render(session, '', mockWidget);
-		inputPart.layout(500);
-		await new Promise(r => setTimeout(r, 100));
-		inputPart.layout(500);
-		inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
-		await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
+	inputPart.render(session, '', mockWidget);
+	inputPart.layout(500);
+	await new Promise(r => setTimeout(r, 100));
+	inputPart.layout(500);
+	inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
+	await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
+	await new Promise(r => setTimeout(r, 50));
+
+	if (editingSession) {
+		inputPart.renderChatEditingSessionState(editingSession);
 		await new Promise(r => setTimeout(r, 50));
-
-		if (editingSession) {
-			inputPart.renderChatEditingSessionState(editingSession);
-			await new Promise(r => setTimeout(r, 50));
-			inputPart.layout(500);
-		}
-	} catch (e) {
-		const err = document.createElement('pre');
-		err.style.cssText = 'color:red;font-size:11px;white-space:pre-wrap';
-		err.textContent = `Render error: ${e instanceof Error ? e.message : String(e)}`;
-		session.appendChild(err);
+		inputPart.layout(500);
 	}
 }
 

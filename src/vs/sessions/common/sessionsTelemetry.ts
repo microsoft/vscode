@@ -15,21 +15,25 @@ export type SessionsInteractionButton =
 	| 'openTerminal'
 	| 'openInVSCode';
 
+export type SessionsInteractionSource = 'menu' | 'actionWidget';
+
 type SessionsInteractionEvent = {
 	button: string;
+	source?: string;
 };
 
 type SessionsInteractionClassification = {
 	owner: 'osortega';
 	comment: 'Tracks user interactions with buttons in the Agents window';
 	button: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the button that was clicked' };
+	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The UI surface that triggered the interaction (menu or actionWidget)' };
 };
 
 /**
  * Log a titlebar button interaction in the Agents window.
  */
-export function logSessionsInteraction(telemetryService: ITelemetryService, button: SessionsInteractionButton): void {
-	telemetryService.publicLog2<SessionsInteractionEvent, SessionsInteractionClassification>('vscodeAgents.interaction', { button });
+export function logSessionsInteraction(telemetryService: ITelemetryService, button: SessionsInteractionButton, source?: SessionsInteractionSource): void {
+	telemetryService.publicLog2<SessionsInteractionEvent, SessionsInteractionClassification>('vscodeAgents.interaction', source ? { button, source } : { button });
 }
 
 // --- Changes panel interactions ---

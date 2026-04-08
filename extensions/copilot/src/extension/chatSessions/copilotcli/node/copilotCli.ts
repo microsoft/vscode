@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import * as l10n from '@vscode/l10n';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type * as vscode from 'vscode';
@@ -26,6 +27,7 @@ import { getCopilotLogger } from './logger';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 
+export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
 const COPILOT_CLI_REQUEST_MAP_KEY = 'github.copilot.cli.requestMap';
 // Store last used Agent for a Session.
@@ -44,6 +46,9 @@ export interface CopilotCLIModelInfo {
 	readonly maxOutputTokens?: number;
 	readonly maxContextWindowTokens: number;
 	readonly supportsVision?: boolean;
+	readonly supportsReasoningEffort?: boolean;
+	readonly defaultReasoningEffort?: string;
+	readonly supportedReasoningEfforts?: string[];
 }
 
 export interface ICopilotCLIModels {
@@ -68,6 +73,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._availableModels = new Lazy<Promise<CopilotCLIModelInfo[]>>(() => this._getAvailableModels());
@@ -124,6 +130,9 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				maxOutputTokens: model.capabilities.limits.max_output_tokens,
 				maxContextWindowTokens: model.capabilities.limits.max_context_window_tokens,
 				supportsVision: model.capabilities.supports.vision,
+				supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
+				defaultReasoningEffort: model.defaultReasoningEffort,
+				supportedReasoningEfforts: model.supportedReasoningEfforts
 			} satisfies CopilotCLIModelInfo));
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
@@ -152,7 +161,8 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 
 	private async _provideLanguageModelChatInfo(): Promise<vscode.LanguageModelChatInformation[]> {
 		const models = await this.getModels();
-		return models.map((model, index) => {
+		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
+		const modelsInfo = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
 			return {
 				id: model.id,
@@ -164,6 +174,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				multiplier,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
+				configurationSchema: isReasoningEffortEnabled ? buildConfigurationSchema(model) : undefined,
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
@@ -172,7 +183,40 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				isDefault: index === 0 // SDK guarantees the first item is the default model
 			};
 		});
+		return modelsInfo;
 	}
+}
+
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): vscode.LanguageModelConfigurationSchema | undefined {
+	const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
+	if (effortLevels.length === 0) {
+		return;
+	}
+
+	const defaultEffort = modelInfo.defaultReasoningEffort;
+
+	return {
+		properties: {
+			[COPILOT_CLI_REASONING_EFFORT_PROPERTY]: {
+				type: 'string',
+				title: l10n.t('Thinking Effort'),
+				enum: effortLevels,
+				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+				enumDescriptions: effortLevels.map(level => {
+					switch (level) {
+						case 'none': return l10n.t('No reasoning applied');
+						case 'low': return l10n.t('Faster responses with less reasoning');
+						case 'medium': return l10n.t('Balanced reasoning and speed');
+						case 'high': return l10n.t('Greater reasoning depth but slower');
+						case 'xhigh': return l10n.t('Maximum reasoning depth but slower');
+						default: return level;
+					}
+				}),
+				default: defaultEffort,
+				group: 'navigation',
+			}
+		}
+	};
 }
 
 /** An agent with its source URI preserved for UI and cross-referencing. */

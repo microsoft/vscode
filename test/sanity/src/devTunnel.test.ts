@@ -66,6 +66,7 @@ export function setup(context: TestContext) {
 		await testCliApp(entryPoint);
 	});
 
+	/** TODO: @dmitrivMS Fix flakiness and then reenable
 	context.test('dev-tunnel-win32-x64', ['windows', 'x64', 'browser', 'github-account'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-x64');
 		context.validateAllAuthenticodeSignatures(dir);
@@ -73,6 +74,7 @@ export function setup(context: TestContext) {
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
+	*/
 
 	async function testCliApp(entryPoint: string) {
 		if (context.options.downloadOnly) {

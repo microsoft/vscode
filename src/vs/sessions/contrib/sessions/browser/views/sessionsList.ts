@@ -598,7 +598,9 @@ class SessionsAccessibilityProvider {
 		if (isSessionShowMore(element)) {
 			return localize('showMoreAria', "Show {0} more sessions", element.remainingCount);
 		}
-		return element.title.get();
+		const title = element.title.get();
+		const created = fromNow(element.createdAt, true);
+		return localize('sessionItemAria', "{0}, created {1}", title, created);
 	}
 }
 

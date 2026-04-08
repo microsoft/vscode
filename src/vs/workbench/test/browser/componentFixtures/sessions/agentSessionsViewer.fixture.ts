@@ -48,7 +48,10 @@ function createMockSession(overrides: Partial<IAgentSession> & { label: string; 
 		};
 		override isArchived(): boolean { return overrides.isArchived?.() ?? false; }
 		override setArchived(): void { }
+		override isPinned(): boolean { return overrides.isPinned?.() ?? false; }
+		override setPinned(): void { }
 		override isRead(): boolean { return overrides.isRead?.() ?? true; }
+		override isMarkedUnread(): boolean { return false; }
 		override setRead(): void { }
 	}();
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
-use crate::constants::{CONTROL_PORT, PRODUCT_NAME_LONG};
+use crate::constants::{AGENT_HOST_PORT, CONTROL_PORT, PRODUCT_NAME_LONG};
 use crate::log;
 use crate::msgpack_rpc::{new_msgpack_rpc, start_msgpack_rpc, MsgPackCodec, MsgPackSerializer};
 use crate::options::Quality;
@@ -44,6 +44,9 @@ use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, DuplexStream};
 use tokio::sync::{mpsc, Mutex};
 
+use super::agent_host::{
+	handle_request as handle_agent_host_request, AgentHostConfig, AgentHostManager,
+};
 use super::challenge::{create_challenge, sign_challenge, verify_challenge};
 use super::code_server::{
 	download_cli_into_cache, AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw,
@@ -182,9 +185,45 @@ pub async fn serve(
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
+	let mut agent_host_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
+
+	// Set up the agent host manager for on-demand server start on AGENT_HOST_PORT
+	let agent_host_manager = AgentHostManager::new(
+		log.clone(),
+		platform,
+		launcher_paths.server_cache.clone(),
+		Arc::new(ReqwestSimpleHttp::new()),
+		AgentHostConfig {
+			server_data_dir: code_server_args.server_data_dir.clone(),
+			without_connection_token: true,
+			connection_token: None,
+			connection_token_file: None,
+		},
+	);
+
+	// Eagerly resolve the latest version and start background updates
+	if option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH").is_none() {
+		let mgr = agent_host_manager.clone();
+		let log_for_init = log.clone();
+		tokio::spawn(async move {
+			match mgr.get_latest_release().await {
+				Ok(release) => {
+					if let Err(e) = mgr.ensure_downloaded(&release).await {
+						warning!(log_for_init, "Error downloading latest server: {}", e);
+					}
+				}
+				Err(e) => warning!(log_for_init, "Error resolving latest version: {}", e),
+			}
+		});
+
+		let mgr = agent_host_manager.clone();
+		tokio::spawn(async move {
+			mgr.run_update_loop().await;
+		});
+	}
 
 	if !code_server_args.install_extensions.is_empty() {
 		info!(
@@ -210,6 +249,7 @@ pub async fn serve(
 		tokio::select! {
 			Ok(reason) = shutdown_rx.wait() => {
 				info!(log, "Shutting down: {}", reason);
+				agent_host_manager.kill_running_server().await;
 				drop(signal_exit);
 				return Ok(ServerTermination {
 					next: match reason {
@@ -221,6 +261,7 @@ pub async fn serve(
 			},
 			c = rx.recv() => {
 				if let Some(ServerSignal::Respawn) = c {
+					agent_host_manager.kill_running_server().await;
 					drop(signal_exit);
 					return Ok(ServerTermination {
 						next: Next::Respawn,
@@ -230,6 +271,25 @@ pub async fn serve(
 			},
 			Some(w) = forwarding.recv() => {
 				forwarding.process(w, &mut tunnel).await;
+			},
+			Some(socket) = agent_host_port.recv() => {
+				let mgr = agent_host_manager.clone();
+				let ah_log = log.clone();
+				tokio::spawn(async move {
+					debug!(ah_log, "Serving new agent host connection");
+					let rw = socket.into_rw();
+					let svc = hyper::service::service_fn(move |req| {
+						let mgr = mgr.clone();
+						async move { handle_agent_host_request(mgr, req).await }
+					});
+					if let Err(e) = hyper::server::conn::Http::new()
+						.serve_connection(rw, svc)
+						.with_upgrades()
+						.await
+					{
+						debug!(ah_log, "Agent host connection ended: {:?}", e);
+					}
+				});
 			},
 			l = port.recv() => {
 				let socket = match l {

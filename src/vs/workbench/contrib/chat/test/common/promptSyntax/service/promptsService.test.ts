@@ -37,7 +37,7 @@ import { IUserDataProfileService } from '../../../../../../services/userDataProf
 import { toUserDataProfile } from '../../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
-import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
@@ -501,7 +501,7 @@ suite('PromptsService', () => {
 			};
 			const result = new ChatRequestVariableSet();
 
-			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), newInstructionsCollectionDebugInfo(), CancellationToken.None);
 
 			assert.deepStrictEqual(
 				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
@@ -674,7 +674,7 @@ suite('PromptsService', () => {
 			};
 
 			const result = new ChatRequestVariableSet();
-			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), newInstructionsCollectionDebugInfo(), CancellationToken.None);
 
 			assert.deepStrictEqual(
 				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
@@ -3905,6 +3905,7 @@ suite('PromptsService', () => {
 
 			assert.deepStrictEqual(result.hooks[HookType.PreToolUse], [{
 				command: 'echo from-plugin',
+				sourceUri: URI.file('/plugins/test-plugin/hooks.json'),
 			}], 'Expected plugin hooks to be included in computed hooks');
 		});
 
@@ -3923,7 +3924,7 @@ suite('PromptsService', () => {
 
 			const before = await service.getHooks(CancellationToken.None);
 			assert.ok(before, 'Expected hooks result before plugin update');
-			assert.deepStrictEqual(before.hooks[HookType.PreToolUse], [{ command: 'echo before' }]);
+			assert.deepStrictEqual(before.hooks[HookType.PreToolUse], [{ command: 'echo before', sourceUri: URI.file('/plugins/test-plugin/hooks.json') }]);
 
 			hooks.set([{
 				type: HookType.PreToolUse,
@@ -3934,7 +3935,7 @@ suite('PromptsService', () => {
 
 			const after = await service.getHooks(CancellationToken.None);
 			assert.ok(after, 'Expected hooks result after plugin update');
-			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ command: 'echo after' }]);
+			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ command: 'echo after', sourceUri: URI.file('/plugins/test-plugin/hooks.json') }]);
 		});
 
 		test('returns undefined when workspace is untrusted', async function () {

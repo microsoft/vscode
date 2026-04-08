@@ -1154,6 +1154,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					owner: pr.repository?.owner?.login,
 					branch: pr.headRefName,
 					baseBranch: pr.baseRefName,
+					headRefOid: pr.headRefOid,
+					baseRefOid: pr.baseRefOid,
 					pullRequestUrl: pr.url,
 					pullRequestState: derivePullRequestState(pr),
 				} satisfies { readonly [key: string]: unknown };

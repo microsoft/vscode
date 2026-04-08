@@ -75,7 +75,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview';
 	const effortFromSetting = configService.getConfig(ConfigKey.TeamInternal.ResponsesApiReasoningEffort);
 	const effort = endpoint.supportsReasoningEffort?.length
-		? (effortFromSetting || options.reasoningEffort || 'medium')
+		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
 	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
 	if (effort || summary) {

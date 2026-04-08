@@ -222,6 +222,10 @@
 	overflow: hidden;
 }
 
+.sessions-chat-picker-slot .action-label.hidden {
+	display: none;
+}
+
 .sessions-chat-picker-slot .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);

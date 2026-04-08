@@ -21,7 +21,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { isAnthropicToolSearchEnabled } from '../../../platform/networking/common/anthropic';
+import { isAnthropicContextEditingEnabled, isAnthropicToolSearchEnabled } from '../../../platform/networking/common/anthropic';
 import { FilterReason } from '../../../platform/networking/common/openai';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
@@ -693,9 +693,18 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		const debugName = this._isInlineSummarizationRequest ? 'inlineSummarizeConversationHistory-full' : baseDebugName;
 		const location = this.options.overrideRequestLocation ?? this.options.location;
 		const isThinkingLocation = location === ChatLocation.Agent || location === ChatLocation.MessagesProxy;
+		const rawEffort = this.options.request.modelConfiguration?.reasoningEffort;
+		const reasoningEffort = typeof rawEffort === 'string' ? rawEffort : undefined;
+		const isSubagent = !!this.options.request.subAgentInvocationId;
 		return this.options.invocation.endpoint.makeChatRequest2({
 			...opts,
-			enableThinking: isThinkingLocation && opts.enableThinking,
+			modelCapabilities: {
+				...opts.modelCapabilities,
+				enableThinking: isThinkingLocation && opts.modelCapabilities?.enableThinking,
+				reasoningEffort,
+				enableToolSearch: !isSubagent && isAnthropicToolSearchEnabled(this.options.invocation.endpoint, this._configurationService),
+				enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.options.invocation.endpoint, this._configurationService, this._experimentationService),
+			},
 			debugName,
 			conversationId: this.options.conversation.sessionId,
 			turnId: opts.turnId,

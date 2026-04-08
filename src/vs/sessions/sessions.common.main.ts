@@ -6,9 +6,16 @@
 //#region --- editor/workbench core
 
 import '../editor/editor.all.js';
+import { getColorRegistry } from '../platform/theme/common/colorUtils.js';
+import { PANEL_BACKGROUND } from '../workbench/common/theme.js';
+import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/terminalColorRegistry.js';
 
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
+import { sessionsPanelBackground } from './common/theme.js';
+
+getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, sessionsPanelBackground);
+getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, sessionsPanelBackground);
 
 //#endregion
 

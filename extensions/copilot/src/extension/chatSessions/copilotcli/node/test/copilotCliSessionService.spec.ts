@@ -198,6 +198,50 @@ describe('CopilotCLISessionService', () => {
 				clientName: 'vscode'
 			}));
 		});
+
+		it('passes reasoningEffort to session manager when provided', async () => {
+			const createSessionSpy = vi.spyOn(manager, 'createSession');
+			await service.createSession({ model: 'gpt-test', reasoningEffort: 'high', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(createSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
+				model: 'gpt-test',
+			}));
+		});
+
+		it('does not set reasoningEffort when not provided', async () => {
+			const createSessionSpy = vi.spyOn(manager, 'createSession');
+			await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(createSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
+				model: 'gpt-test',
+			}));
+			const callArgs = createSessionSpy.mock.calls[0][0];
+			expect(callArgs.reasoningEffort).toBeUndefined();
+		});
+	});
+
+	describe('CopilotCLISessionService.getSession', () => {
+		it('passes reasoningEffort to session manager when creating a new session', async () => {
+			const targetId = 'reasoning-get';
+			manager.sessions.set(targetId, new MockCliSdkSession(targetId, new Date()));
+			const getSessionSpy = vi.spyOn(manager, 'getSession');
+			await service.getSession({ sessionId: targetId, model: 'gpt-test', reasoningEffort: 'medium', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(getSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
+				model: 'gpt-test',
+			}), true);
+		});
+
+		it('does not set reasoningEffort when not provided', async () => {
+			const targetId = 'no-reasoning-get';
+			manager.sessions.set(targetId, new MockCliSdkSession(targetId, new Date()));
+			const getSessionSpy = vi.spyOn(manager, 'getSession');
+			await service.getSession({ sessionId: targetId, model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(getSessionSpy).toHaveBeenCalled();
+			const callArgs = getSessionSpy.mock.calls[0][0];
+			expect(callArgs.reasoningEffort).toBeUndefined();
+		});
 	});
 
 	describe('CopilotCLISessionService.getSession concurrency & locking', () => {

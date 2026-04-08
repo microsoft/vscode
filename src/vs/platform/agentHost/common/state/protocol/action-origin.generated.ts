@@ -9,15 +9,16 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type IStateAction, type IRootAgentsChangedAction, type IRootActiveSessionsChangedAction, type ISessionReadyAction, type ISessionCreationFailedAction, type ISessionTurnStartedAction, type ISessionDeltaAction, type ISessionResponsePartAction, type ISessionToolCallStartAction, type ISessionToolCallDeltaAction, type ISessionToolCallReadyAction, type ISessionToolCallConfirmedAction, type ISessionToolCallCompleteAction, type ISessionToolCallResultConfirmedAction, type ISessionTurnCompleteAction, type ISessionTurnCancelledAction, type ISessionErrorAction, type ISessionTitleChangedAction, type ISessionUsageAction, type ISessionReasoningAction, type ISessionModelChangedAction, type ISessionServerToolsChangedAction, type ISessionActiveClientChangedAction, type ISessionActiveClientToolsChangedAction, type ISessionPendingMessageSetAction, type ISessionPendingMessageRemovedAction, type ISessionQueuedMessagesReorderedAction, type ISessionCustomizationsChangedAction, type ISessionCustomizationToggledAction, type ISessionTruncatedAction } from './actions.js';
+import { ActionType, type IStateAction, type IRootAgentsChangedAction, type IRootActiveSessionsChangedAction, type IRootTerminalsChangedAction, type ISessionReadyAction, type ISessionCreationFailedAction, type ISessionTurnStartedAction, type ISessionDeltaAction, type ISessionResponsePartAction, type ISessionToolCallStartAction, type ISessionToolCallDeltaAction, type ISessionToolCallReadyAction, type ISessionToolCallConfirmedAction, type ISessionToolCallCompleteAction, type ISessionToolCallResultConfirmedAction, type ISessionToolCallContentChangedAction, type ISessionTurnCompleteAction, type ISessionTurnCancelledAction, type ISessionErrorAction, type ISessionTitleChangedAction, type ISessionUsageAction, type ISessionReasoningAction, type ISessionModelChangedAction, type ISessionServerToolsChangedAction, type ISessionActiveClientChangedAction, type ISessionActiveClientToolsChangedAction, type ISessionPendingMessageSetAction, type ISessionPendingMessageRemovedAction, type ISessionQueuedMessagesReorderedAction, type ISessionCustomizationsChangedAction, type ISessionCustomizationToggledAction, type ISessionTruncatedAction, type ISessionIsReadChangedAction, type ISessionIsDoneChangedAction, type ITerminalDataAction, type ITerminalInputAction, type ITerminalResizedAction, type ITerminalClaimedAction, type ITerminalTitleChangedAction, type ITerminalCwdChangedAction, type ITerminalExitedAction, type ITerminalClearedAction } from './actions.js';
 
 
-// ─── Root vs Session Action Unions ───────────────────────────────────────────
+// ─── Root vs Session vs Terminal Action Unions ───────────────────────────────
 
 /** Union of all root-scoped actions. */
 export type IRootAction =
 	| IRootAgentsChangedAction
 	| IRootActiveSessionsChangedAction
+	| IRootTerminalsChangedAction
 	;
 
 /** Union of all session-scoped actions. */
@@ -33,6 +34,7 @@ export type ISessionAction =
 	| ISessionToolCallConfirmedAction
 	| ISessionToolCallCompleteAction
 	| ISessionToolCallResultConfirmedAction
+	| ISessionToolCallContentChangedAction
 	| ISessionTurnCompleteAction
 	| ISessionTurnCancelledAction
 	| ISessionErrorAction
@@ -49,6 +51,8 @@ export type ISessionAction =
 	| ISessionCustomizationsChangedAction
 	| ISessionCustomizationToggledAction
 	| ISessionTruncatedAction
+	| ISessionIsReadChangedAction
+	| ISessionIsDoneChangedAction
 	;
 
 /** Union of session actions that clients may dispatch. */
@@ -67,6 +71,8 @@ export type IClientSessionAction =
 	| ISessionQueuedMessagesReorderedAction
 	| ISessionCustomizationToggledAction
 	| ISessionTruncatedAction
+	| ISessionIsReadChangedAction
+	| ISessionIsDoneChangedAction
 	;
 
 /** Union of session actions that only the server may produce. */
@@ -78,12 +84,41 @@ export type IServerSessionAction =
 	| ISessionToolCallStartAction
 	| ISessionToolCallDeltaAction
 	| ISessionToolCallReadyAction
+	| ISessionToolCallContentChangedAction
 	| ISessionTurnCompleteAction
 	| ISessionErrorAction
 	| ISessionUsageAction
 	| ISessionReasoningAction
 	| ISessionServerToolsChangedAction
 	| ISessionCustomizationsChangedAction
+	;
+
+/** Union of all terminal-scoped actions. */
+export type ITerminalAction =
+	| ITerminalDataAction
+	| ITerminalInputAction
+	| ITerminalResizedAction
+	| ITerminalClaimedAction
+	| ITerminalTitleChangedAction
+	| ITerminalCwdChangedAction
+	| ITerminalExitedAction
+	| ITerminalClearedAction
+	;
+
+/** Union of terminal actions that clients may dispatch. */
+export type IClientTerminalAction =
+	| ITerminalInputAction
+	| ITerminalResizedAction
+	| ITerminalClaimedAction
+	| ITerminalTitleChangedAction
+	| ITerminalClearedAction
+	;
+
+/** Union of terminal actions that only the server may produce. */
+export type IServerTerminalAction =
+	| ITerminalDataAction
+	| ITerminalCwdChangedAction
+	| ITerminalExitedAction
 	;
 
 // ─── Client-Dispatchable Map ─────────────────────────────────────────────────
@@ -95,6 +130,7 @@ export type IServerSessionAction =
 export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boolean } = {
 	[ActionType.RootAgentsChanged]: false,
 	[ActionType.RootActiveSessionsChanged]: false,
+	[ActionType.RootTerminalsChanged]: false,
 	[ActionType.SessionReady]: false,
 	[ActionType.SessionCreationFailed]: false,
 	[ActionType.SessionTurnStarted]: true,
@@ -106,6 +142,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
 	[ActionType.SessionToolCallConfirmed]: true,
 	[ActionType.SessionToolCallComplete]: true,
 	[ActionType.SessionToolCallResultConfirmed]: true,
+	[ActionType.SessionToolCallContentChanged]: false,
 	[ActionType.SessionTurnComplete]: false,
 	[ActionType.SessionTurnCancelled]: true,
 	[ActionType.SessionError]: false,
@@ -122,4 +159,14 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
 	[ActionType.SessionCustomizationsChanged]: false,
 	[ActionType.SessionCustomizationToggled]: true,
 	[ActionType.SessionTruncated]: true,
+	[ActionType.SessionIsReadChanged]: true,
+	[ActionType.SessionIsDoneChanged]: true,
+	[ActionType.TerminalData]: false,
+	[ActionType.TerminalInput]: true,
+	[ActionType.TerminalResized]: true,
+	[ActionType.TerminalClaimed]: true,
+	[ActionType.TerminalTitleChanged]: true,
+	[ActionType.TerminalCwdChanged]: false,
+	[ActionType.TerminalExited]: false,
+	[ActionType.TerminalCleared]: true,
 };

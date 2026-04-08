@@ -37,14 +37,25 @@ export type InstructionsCollectionEvent = {
 	claudeRulesCount: number;
 	claudeMdCount: number;
 	claudeAgentsCount: number;
-	/** Per-file detail entries for debug logging (not sent as telemetry). */
+};
+
+/**
+ * Debug-only information collected alongside {@link InstructionsCollectionEvent}.
+ * This data is used for debug logging and is not sent as telemetry.
+ */
+export type InstructionsCollectionDebugInfo = {
+	/** Per-file detail entries for debug logging. */
 	debugDetails: InstructionsCollectionDebugEntry[];
-	/** Total wall-clock time of the collect() call in milliseconds (not sent as telemetry). */
+	/** Total wall-clock time of the collect() call in milliseconds. */
 	durationInMillis: number;
 };
 
 export function newInstructionsCollectionEvent(): InstructionsCollectionEvent {
-	return { applyingInstructionsCount: 0, referencedInstructionsCount: 0, agentInstructionsCount: 0, listedInstructionsCount: 0, totalInstructionsCount: 0, claudeRulesCount: 0, claudeMdCount: 0, claudeAgentsCount: 0, debugDetails: [], durationInMillis: 0 };
+	return { applyingInstructionsCount: 0, referencedInstructionsCount: 0, agentInstructionsCount: 0, listedInstructionsCount: 0, totalInstructionsCount: 0, claudeRulesCount: 0, claudeMdCount: 0, claudeAgentsCount: 0 };
+}
+
+export function newInstructionsCollectionDebugInfo(): InstructionsCollectionDebugInfo {
+	return { debugDetails: [], durationInMillis: 0 };
 }
 
 /**
@@ -664,11 +675,4 @@ export interface IPromptsService extends IDisposable {
 	 * Returns the cached discovery info for the given prompt type.
 	 */
 	getDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
-
-	/**
-	 * The last {@link InstructionsCollectionEvent} computed by
-	 * {@link ComputeAutomaticInstructions.collect}.
-	 */
-	lastInstructionsCollectionEvent: InstructionsCollectionEvent | undefined;
-
 }

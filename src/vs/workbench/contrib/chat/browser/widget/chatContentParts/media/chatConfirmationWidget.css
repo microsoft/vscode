@@ -448,8 +448,6 @@
 }
 
 .chat-tool-invocation-part {
-	contain: layout style;
-
 	.chat-confirmation-widget {
 		border: none;
 		font-size: var(--vscode-chat-font-size-body-s);
