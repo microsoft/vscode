@@ -40,52 +40,52 @@ class TestFetcherService extends mock<IFetcherService>() implements IFetcherServ
 	public lastOptions: FetchOptions | undefined;
 	public fetchImpl: (url: string, options: FetchOptions) => Promise<Response> = () => Promise.reject(new Error('fetchImpl not configured'));
 
-	readonly onDidFetch = Event.None;
-	readonly onDidCompleteFetch = Event.None;
+	override readonly onDidFetch = Event.None;
+	override readonly onDidCompleteFetch = Event.None;
 
-	getUserAgentLibrary(): string {
+	override getUserAgentLibrary(): string {
 		return 'test-fetcher';
 	}
 
-	fetch(url: string, options: FetchOptions): Promise<Response> {
+	override fetch(url: string, options: FetchOptions): Promise<Response> {
 		this.lastUrl = url;
 		this.lastOptions = options;
 		return this.fetchImpl(url, options);
 	}
 
-	createWebSocket(): never {
+	override createWebSocket(): never {
 		throw new Error('Method not implemented.');
 	}
 
-	disconnectAll(): Promise<unknown> {
+	override disconnectAll(): Promise<unknown> {
 		return Promise.resolve();
 	}
 
-	makeAbortController(): IAbortController {
+	override makeAbortController(): IAbortController {
 		return new AbortController();
 	}
 
-	isAbortError(e: any): boolean {
+	override isAbortError(e: any): boolean {
 		return e instanceof DOMException && e.name === 'AbortError';
 	}
 
-	isInternetDisconnectedError(_e: any): boolean {
+	override isInternetDisconnectedError(_e: any): boolean {
 		return false;
 	}
 
-	isFetcherError(_e: any): boolean {
+	override isFetcherError(_e: any): boolean {
 		return false;
 	}
 
-	isNetworkProcessCrashedError(_e: any): boolean {
+	override isNetworkProcessCrashedError(_e: any): boolean {
 		return false;
 	}
 
-	getUserMessageForFetcherError(err: any): string {
+	override getUserMessageForFetcherError(err: any): string {
 		return String(err);
 	}
 
-	fetchWithPagination<T>(): Promise<T[]> {
+	override fetchWithPagination<T>(): Promise<T[]> {
 		throw new Error('Method not implemented.');
 	}
 }
