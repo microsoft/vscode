@@ -225,36 +225,36 @@ const completionSpec: Fig.Spec = {
 			subcommands: [
 				{
 					name: ['agent'],
-					description: 'Extension for the Foundry Agent Service. (Preview)',
+					description: 'Ship agents with Microsoft Foundry from your terminal. (Preview)',
 					subcommands: [
 						{
 							name: ['init'],
 							description: 'Initialize a new AI agent project. (Preview)',
 							options: [
 								{
-									name: ['--environment', '-e'],
-									description: 'The name of the azd environment to use.',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
-								{
-									name: ['--host'],
-									description: '[Optional] For container based agents, can override the default host to target a container app instead. Accepted values: \'containerapp\'',
-									args: [
-										{
-											name: 'host',
-										},
-									],
-								},
-								{
 									name: ['--manifest', '-m'],
 									description: 'Path or URI to an agent manifest to add to your azd project',
 									args: [
 										{
 											name: 'manifest',
+										},
+									],
+								},
+								{
+									name: ['--model'],
+									description: 'Name of the AI model to use (e.g., \'gpt-4o\'). If not specified, defaults to \'gpt-4.1-mini\'. Mutually exclusive with --model-deployment, with --model-deployment being used if both are provided',
+									args: [
+										{
+											name: 'model',
+										},
+									],
+								},
+								{
+									name: ['--model-deployment', '-d'],
+									description: 'Name of an existing model deployment to use from the Foundry project. Only used when paired with an existing Foundry project, either via --project-id or interactive prompts',
+									args: [
+										{
+											name: 'model-deployment',
 										},
 									],
 								},
@@ -269,7 +269,7 @@ const completionSpec: Fig.Spec = {
 								},
 								{
 									name: ['--src', '-s'],
-									description: '[Optional] Directory to download the agent definition to (defaults to \'src/<agent-id>\')',
+									description: 'Directory to download the agent definition to (defaults to \'src/<agent-id>\')',
 									args: [
 										{
 											name: 'src',
@@ -279,37 +279,82 @@ const completionSpec: Fig.Spec = {
 							],
 						},
 						{
-							name: ['monitor'],
-							description: 'Monitor logs from a hosted agent container.',
+							name: ['invoke'],
+							description: 'Send a message to your agent.',
 							options: [
 								{
-									name: ['--account-name', '-a'],
-									description: 'Cognitive Services account name',
+									name: ['--conversation-id'],
+									description: 'Explicit conversation ID override',
 									args: [
 										{
-											name: 'account-name',
+											name: 'conversation-id',
 										},
 									],
 								},
+								{
+									name: ['--input-file', '-f'],
+									description: 'Path to a file whose contents are sent as the request body',
+									args: [
+										{
+											name: 'input-file',
+										},
+									],
+								},
+								{
+									name: ['--local', '-l'],
+									description: 'Invoke on localhost instead of Foundry',
+								},
+								{
+									name: ['--new-conversation'],
+									description: 'Force a new conversation (discard saved one)',
+								},
+								{
+									name: ['--new-session'],
+									description: 'Force a new session (discard saved one)',
+								},
+								{
+									name: ['--port'],
+									description: 'Local server port',
+									args: [
+										{
+											name: 'port',
+										},
+									],
+								},
+								{
+									name: ['--session-id', '-s'],
+									description: 'Explicit session ID override',
+									args: [
+										{
+											name: 'session-id',
+										},
+									],
+								},
+								{
+									name: ['--timeout', '-t'],
+									description: 'Request timeout in seconds (0 for no timeout)',
+									args: [
+										{
+											name: 'timeout',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['monitor'],
+							description: 'Monitor logs from a hosted agent.',
+							options: [
 								{
 									name: ['--follow', '-f'],
 									description: 'Stream logs in real-time',
 								},
 								{
-									name: ['--name', '-n'],
-									description: 'Name of the hosted agent (required)',
+									name: ['--session', '-s'],
+									description: 'Session ID to stream logs for',
 									args: [
 										{
-											name: 'name',
-										},
-									],
-								},
-								{
-									name: ['--project-name', '-p'],
-									description: 'AI Foundry project name',
-									args: [
-										{
-											name: 'project-name',
+											name: 'session',
 										},
 									],
 								},
@@ -331,12 +376,27 @@ const completionSpec: Fig.Spec = {
 										},
 									],
 								},
+							],
+						},
+						{
+							name: ['run'],
+							description: 'Run your agent locally for development.',
+							options: [
 								{
-									name: ['--version', '-v'],
-									description: 'Version of the hosted agent (required)',
+									name: ['--port', '-p'],
+									description: 'Port to listen on',
 									args: [
 										{
-											name: 'version',
+											name: 'port',
+										},
+									],
+								},
+								{
+									name: ['--start-command', '-c'],
+									description: 'Explicit startup command (overrides azure.yaml and auto-detection)',
+									args: [
+										{
+											name: 'start-command',
 										},
 									],
 								},
@@ -347,47 +407,11 @@ const completionSpec: Fig.Spec = {
 							description: 'Show the status of a hosted agent deployment.',
 							options: [
 								{
-									name: ['--account-name', '-a'],
-									description: 'Cognitive Services account name',
-									args: [
-										{
-											name: 'account-name',
-										},
-									],
-								},
-								{
-									name: ['--name', '-n'],
-									description: 'Name of the hosted agent (required)',
-									args: [
-										{
-											name: 'name',
-										},
-									],
-								},
-								{
 									name: ['--output', '-o'],
 									description: 'Output format (json or table)',
 									args: [
 										{
 											name: 'output',
-										},
-									],
-								},
-								{
-									name: ['--project-name', '-p'],
-									description: 'AI Foundry project name',
-									args: [
-										{
-											name: 'project-name',
-										},
-									],
-								},
-								{
-									name: ['--version', '-v'],
-									description: 'Version of the hosted agent (required)',
-									args: [
-										{
-											name: 'version',
 										},
 									],
 								},
@@ -407,15 +431,6 @@ const completionSpec: Fig.Spec = {
 							name: ['init'],
 							description: 'Initialize a new AI Fine-tuning project. (Preview)',
 							options: [
-								{
-									name: ['--environment', '-n'],
-									description: 'The name of the azd environment to use.',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
 								{
 									name: ['--from-job', '-j'],
 									description: 'Clone configuration from an existing job ID',
@@ -896,15 +911,6 @@ const completionSpec: Fig.Spec = {
 											],
 										},
 										{
-											name: ['--blob-uri'],
-											description: 'Already-uploaded blob URI (skips upload, registers directly)',
-											args: [
-												{
-													name: 'blob-uri',
-												},
-											],
-										},
-										{
 											name: ['--description'],
 											description: 'Model description',
 											args: [
@@ -921,6 +927,10 @@ const completionSpec: Fig.Spec = {
 													name: 'name',
 												},
 											],
+										},
+										{
+											name: ['--no-wait'],
+											description: 'Start async registration and return immediately with the operation URL',
 										},
 										{
 											name: ['--project-endpoint', '-e'],
@@ -1100,7 +1110,7 @@ const completionSpec: Fig.Spec = {
 										},
 										{
 											name: ['--version'],
-											description: 'Model version',
+											description: 'Model version (defaults to latest)',
 											args: [
 												{
 													name: 'version',
@@ -1135,15 +1145,6 @@ const completionSpec: Fig.Spec = {
 							name: ['init'],
 							description: 'Initialize a new AI models project. (Preview)',
 							options: [
-								{
-									name: ['--environment', '-n'],
-									description: 'The name of the azd environment to use',
-									args: [
-										{
-											name: 'environment',
-										},
-									],
-								},
 								{
 									name: ['--project-endpoint', '-e'],
 									description: 'Azure AI Foundry project endpoint URL (e.g., https://account.services.ai.azure.com/api/projects/project-name)',
@@ -1472,6 +1473,196 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
+			name: ['copilot'],
+			description: 'Manage GitHub Copilot agent settings. (Preview)',
+			subcommands: [
+				{
+					name: ['consent'],
+					description: 'Manage tool consent.',
+					subcommands: [
+						{
+							name: ['grant'],
+							description: 'Grant consent trust rules.',
+							options: [
+								{
+									name: ['--action'],
+									description: 'Action type: \'all\' or \'readonly\'',
+									args: [
+										{
+											name: 'action',
+											suggestions: ['all', 'readonly'],
+										},
+									],
+								},
+								{
+									name: ['--global'],
+									description: 'Apply globally to all servers',
+								},
+								{
+									name: ['--operation'],
+									description: 'Operation type: \'tool\' or \'sampling\'',
+									args: [
+										{
+											name: 'operation',
+											suggestions: ['tool', 'sampling'],
+										},
+									],
+								},
+								{
+									name: ['--permission'],
+									description: 'Permission: \'allow\', \'deny\', or \'prompt\'',
+									args: [
+										{
+											name: 'permission',
+											suggestions: ['allow', 'deny', 'prompt'],
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Rule scope: \'global\', or \'project\'',
+									args: [
+										{
+											name: 'scope',
+											suggestions: ['global', 'project'],
+										},
+									],
+								},
+								{
+									name: ['--server'],
+									description: 'Server name',
+									args: [
+										{
+											name: 'server',
+										},
+									],
+								},
+								{
+									name: ['--tool'],
+									description: 'Specific tool name (requires --server)',
+									args: [
+										{
+											name: 'tool',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['list'],
+							description: 'List consent rules.',
+							options: [
+								{
+									name: ['--action'],
+									description: 'Action type to filter by (readonly, any)',
+									args: [
+										{
+											name: 'action',
+											suggestions: ['all', 'readonly'],
+										},
+									],
+								},
+								{
+									name: ['--operation'],
+									description: 'Operation to filter by (tool, sampling)',
+									args: [
+										{
+											name: 'operation',
+											suggestions: ['tool', 'sampling'],
+										},
+									],
+								},
+								{
+									name: ['--permission'],
+									description: 'Permission to filter by (allow, deny, prompt)',
+									args: [
+										{
+											name: 'permission',
+											suggestions: ['allow', 'deny', 'prompt'],
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Consent scope to filter by (global, project). If not specified, lists rules from all scopes.',
+									args: [
+										{
+											name: 'scope',
+											suggestions: ['global', 'project'],
+										},
+									],
+								},
+								{
+									name: ['--target'],
+									description: 'Specific target to operate on (server/tool format)',
+									args: [
+										{
+											name: 'target',
+										},
+									],
+								},
+							],
+						},
+						{
+							name: ['revoke'],
+							description: 'Revoke consent rules.',
+							options: [
+								{
+									name: ['--action'],
+									description: 'Action type to filter by (readonly, any)',
+									args: [
+										{
+											name: 'action',
+											suggestions: ['all', 'readonly'],
+										},
+									],
+								},
+								{
+									name: ['--operation'],
+									description: 'Operation to filter by (tool, sampling)',
+									args: [
+										{
+											name: 'operation',
+											suggestions: ['tool', 'sampling'],
+										},
+									],
+								},
+								{
+									name: ['--permission'],
+									description: 'Permission to filter by (allow, deny, prompt)',
+									args: [
+										{
+											name: 'permission',
+											suggestions: ['allow', 'deny', 'prompt'],
+										},
+									],
+								},
+								{
+									name: ['--scope'],
+									description: 'Consent scope to filter by (global, project). If not specified, revokes rules from all scopes.',
+									args: [
+										{
+											name: 'scope',
+											suggestions: ['global', 'project'],
+										},
+									],
+								},
+								{
+									name: ['--target'],
+									description: 'Specific target to operate on (server/tool format)',
+									args: [
+										{
+											name: 'target',
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		},
+		{
 			name: ['demo'],
 			description: 'This extension provides examples of the azd extension framework.',
 			subcommands: [
@@ -1556,6 +1747,15 @@ const completionSpec: Fig.Spec = {
 					args: [
 						{
 							name: 'file-path|image-tag',
+						},
+					],
+				},
+				{
+					name: ['--timeout'],
+					description: 'Maximum time in seconds for azd to wait for each service deployment. This stops azd from waiting but does not cancel the Azure-side deployment. (default: 1200)',
+					args: [
+						{
+							name: 'timeout',
 						},
 					],
 				},
@@ -2054,7 +2254,7 @@ const completionSpec: Fig.Spec = {
 			subcommands: [
 				{
 					name: ['run'],
-					description: 'Runs the specified hook for the project and services',
+					description: 'Runs the specified hook for the project, provisioning layers, and services',
 					options: [
 						{
 							name: ['--environment', '-e'],
@@ -2062,6 +2262,15 @@ const completionSpec: Fig.Spec = {
 							args: [
 								{
 									name: 'environment',
+								},
+							],
+						},
+						{
+							name: ['--layer'],
+							description: 'Only runs hooks for the specified provisioning layer.',
+							args: [
+								{
+									name: 'layer',
 								},
 							],
 						},
@@ -2213,190 +2422,6 @@ const completionSpec: Fig.Spec = {
 			name: ['mcp'],
 			description: 'Manage Model Context Protocol (MCP) server. (Alpha)',
 			subcommands: [
-				{
-					name: ['consent'],
-					description: 'Manage MCP tool consent.',
-					subcommands: [
-						{
-							name: ['grant'],
-							description: 'Grant consent trust rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type: \'all\' or \'readonly\'',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--global'],
-									description: 'Apply globally to all servers',
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation type: \'tool\' or \'sampling\'',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission: \'allow\', \'deny\', or \'prompt\'',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Rule scope: \'global\', or \'project\'',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--server'],
-									description: 'Server name',
-									args: [
-										{
-											name: 'server',
-										},
-									],
-								},
-								{
-									name: ['--tool'],
-									description: 'Specific tool name (requires --server)',
-									args: [
-										{
-											name: 'tool',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: ['list'],
-							description: 'List consent rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type to filter by (readonly, any)',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation to filter by (tool, sampling)',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission to filter by (allow, deny, prompt)',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Consent scope to filter by (global, project). If not specified, lists rules from all scopes.',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--target'],
-									description: 'Specific target to operate on (server/tool format)',
-									args: [
-										{
-											name: 'target',
-										},
-									],
-								},
-							],
-						},
-						{
-							name: ['revoke'],
-							description: 'Revoke consent rules.',
-							options: [
-								{
-									name: ['--action'],
-									description: 'Action type to filter by (readonly, any)',
-									args: [
-										{
-											name: 'action',
-											suggestions: ['all', 'readonly'],
-										},
-									],
-								},
-								{
-									name: ['--operation'],
-									description: 'Operation to filter by (tool, sampling)',
-									args: [
-										{
-											name: 'operation',
-											suggestions: ['tool', 'sampling'],
-										},
-									],
-								},
-								{
-									name: ['--permission'],
-									description: 'Permission to filter by (allow, deny, prompt)',
-									args: [
-										{
-											name: 'permission',
-											suggestions: ['allow', 'deny', 'prompt'],
-										},
-									],
-								},
-								{
-									name: ['--scope'],
-									description: 'Consent scope to filter by (global, project). If not specified, revokes rules from all scopes.',
-									args: [
-										{
-											name: 'scope',
-											suggestions: ['global', 'project'],
-										},
-									],
-								},
-								{
-									name: ['--target'],
-									description: 'Specific target to operate on (server/tool format)',
-									args: [
-										{
-											name: 'target',
-										},
-									],
-								},
-							],
-						},
-					],
-				},
 				{
 					name: ['start'],
 					description: 'Starts the MCP server.',
@@ -2809,6 +2834,30 @@ const completionSpec: Fig.Spec = {
 			],
 		},
 		{
+			name: ['update'],
+			description: 'Updates azd to the latest version.',
+			options: [
+				{
+					name: ['--channel'],
+					description: 'Update channel: stable or daily.',
+					args: [
+						{
+							name: 'channel',
+						},
+					],
+				},
+				{
+					name: ['--check-interval-hours'],
+					description: 'Override the update check interval in hours.',
+					args: [
+						{
+							name: 'check-interval-hours',
+						},
+					],
+				},
+			],
+		},
+		{
 			name: ['version'],
 			description: 'Print the version number of Azure Developer CLI.',
 		},
@@ -3063,15 +3112,23 @@ const completionSpec: Fig.Spec = {
 					subcommands: [
 						{
 							name: ['agent'],
-							description: 'Extension for the Foundry Agent Service. (Preview)',
+							description: 'Ship agents with Microsoft Foundry from your terminal. (Preview)',
 							subcommands: [
 								{
 									name: ['init'],
 									description: 'Initialize a new AI agent project. (Preview)',
 								},
 								{
+									name: ['invoke'],
+									description: 'Send a message to your agent.',
+								},
+								{
 									name: ['monitor'],
-									description: 'Monitor logs from a hosted agent container.',
+									description: 'Monitor logs from a hosted agent.',
+								},
+								{
+									name: ['run'],
+									description: 'Run your agent locally for development.',
 								},
 								{
 									name: ['show'],
@@ -3290,6 +3347,30 @@ const completionSpec: Fig.Spec = {
 					],
 				},
 				{
+					name: ['copilot'],
+					description: 'Manage GitHub Copilot agent settings. (Preview)',
+					subcommands: [
+						{
+							name: ['consent'],
+							description: 'Manage tool consent.',
+							subcommands: [
+								{
+									name: ['grant'],
+									description: 'Grant consent trust rules.',
+								},
+								{
+									name: ['list'],
+									description: 'List consent rules.',
+								},
+								{
+									name: ['revoke'],
+									description: 'Revoke consent rules.',
+								},
+							],
+						},
+					],
+				},
+				{
 					name: ['demo'],
 					description: 'This extension provides examples of the azd extension framework.',
 					subcommands: [
@@ -3473,7 +3554,7 @@ const completionSpec: Fig.Spec = {
 					subcommands: [
 						{
 							name: ['run'],
-							description: 'Runs the specified hook for the project and services',
+							description: 'Runs the specified hook for the project, provisioning layers, and services',
 						},
 					],
 				},
@@ -3495,24 +3576,6 @@ const completionSpec: Fig.Spec = {
 					name: ['mcp'],
 					description: 'Manage Model Context Protocol (MCP) server. (Alpha)',
 					subcommands: [
-						{
-							name: ['consent'],
-							description: 'Manage MCP tool consent.',
-							subcommands: [
-								{
-									name: ['grant'],
-									description: 'Grant consent trust rules.',
-								},
-								{
-									name: ['list'],
-									description: 'List consent rules.',
-								},
-								{
-									name: ['revoke'],
-									description: 'Revoke consent rules.',
-								},
-							],
-						},
 						{
 							name: ['start'],
 							description: 'Starts the MCP server.',
@@ -3590,6 +3653,10 @@ const completionSpec: Fig.Spec = {
 					description: 'Provision and deploy your project to Azure with a single command.',
 				},
 				{
+					name: ['update'],
+					description: 'Updates azd to the latest version.',
+				},
+				{
 					name: ['version'],
 					description: 'Print the version number of Azure Developer CLI.',
 				},
@@ -3645,6 +3712,16 @@ const completionSpec: Fig.Spec = {
 			name: ['--debug'],
 			description: 'Enables debugging and diagnostics logging.',
 			isPersistent: true,
+		},
+		{
+			name: ['--environment', '-e'],
+			description: 'The name of the environment to use.',
+			isPersistent: true,
+			args: [
+				{
+					name: 'environment',
+				},
+			],
 		},
 		{
 			name: ['--no-prompt'],
