@@ -193,7 +193,13 @@ export class CommandAutoApprover extends Disposable {
 			}
 
 			const parser = new TreeSitter.Parser();
-			this._register(toDisposable(() => parser.delete()));
+			this._register(toDisposable(() => {
+				try {
+					parser.delete();
+				} catch {
+					// WASM memory may already be freed
+				}
+			}));
 
 			// Load bash grammar
 			const bashWasmPath = URI.joinPath(moduleRoot, 'tree-sitter-bash.wasm').fsPath;
