@@ -8,7 +8,7 @@ import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { IToggleStyles } from '../toggle/toggle.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
-import { InputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
+import { InputBox, IInputBoxStyles, IMessage as InputBoxMessage } from '../inputbox/inputBox.js';
 import { Widget } from '../widget.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
@@ -18,7 +18,6 @@ import * as nls from '../../../../nls.js';
 export interface INthMatchInputOptions {
 	readonly placeholder?: string;
 	readonly width?: number;
-	readonly validation?: IInputValidator;
 	readonly label: string;
 	readonly type: 'text';
 	readonly min?: number;
@@ -38,7 +37,7 @@ export interface IStepEvent {
 }
 
 export interface IJumpEvent {
-	toMatchLocation: number;
+	targetMatchPos: number;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -46,7 +45,6 @@ const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 export class NthMatchInput extends Widget {
 
 	private placeholder: string;
-	private validation?: IInputValidator;
 	private label: string;
 	private type: string;
 	private imeSessionInProgress = false;
@@ -81,7 +79,6 @@ export class NthMatchInput extends Widget {
 	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: INthMatchInputOptions) {
 		super();
 		this.placeholder = options.placeholder || '';
-		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
 		this.type = options.type || 'text';
 		this.min = options.min || 0;
@@ -107,7 +104,7 @@ export class NthMatchInput extends Widget {
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			const currentValueAsInt = parseInt(this.inputBox.value);
 
-			// Arrow-Key support to step the matched location up or down
+			// Arrow-Key support to step the match position up or down
 			if (event.equals(KeyCode.UpArrow)) {
 				this._onStep.fire({ direction: 'down' });
 			}
@@ -115,7 +112,7 @@ export class NthMatchInput extends Widget {
 				this._onStep.fire({ direction: 'up' });
 			}
 			else if (event.equals(KeyCode.Enter)) {
-				this._onJump.fire({ toMatchLocation: currentValueAsInt });
+				this._onJump.fire({ targetMatchPos: currentValueAsInt });
 			}
 
 		});

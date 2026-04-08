@@ -603,6 +603,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return (await this._getSearchAddon()).findPrevious(term, searchOptions);
 	}
 
+	async findNth(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		this._updateFindColors(searchOptions);
+		return (await this._getSearchAddon()).findNth(term, searchOptions);
+	}
+
 	private _updateFindColors(searchOptions: ISearchOptions): void {
 		const theme = this._themeService.getColorTheme();
 		// Theme color names align with monaco/vscode whereas xterm.js has some different naming.

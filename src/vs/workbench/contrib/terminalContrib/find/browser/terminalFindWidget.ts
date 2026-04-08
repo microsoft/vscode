@@ -30,6 +30,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findInputFocused: IContextKey<boolean>;
 	private _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
+	private _nthMatchInputFocused: IContextKey<boolean>;
 
 	private _overrideCopyOnSelectionDisposable = this._register(new MutableDisposable());
 	private _selectionDisposable = this._register(new MutableDisposable());
@@ -58,6 +59,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			appendWholeWordsActionId: TerminalFindCommandId.ToggleFindWholeWord,
 			previousMatchActionId: TerminalFindCommandId.FindPrevious,
 			nextMatchActionId: TerminalFindCommandId.FindNext,
+			nthMatchActionId: TerminalFindCommandId.FindNth,
 			closeWidgetActionId: TerminalFindCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
@@ -69,6 +71,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(contextKeyService);
 		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(contextKeyService);
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(contextKeyService);
+		this._nthMatchInputFocused = TerminalContextKeys.nthMatchInputFocus.bindTo(contextKeyService);
 		const innerDom = this.getDomNode().firstChild;
 		if (innerDom) {
 			this._register(dom.addDisposableListener(innerDom, 'mousedown', (event) => {
@@ -134,6 +137,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		} else {
 			this._findNextWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
+	}
+
+	public override findNth(nthMatchPosition: number): void {
+		const xterm = this._instance.xterm;
+		if (!xterm) {
+			return;
+		}
+		this._findNthWithEvent(xterm, this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), nthMatchPosition: nthMatchPosition });
 	}
 
 	override reveal(): void {
@@ -202,6 +213,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findInputFocused.reset();
 	}
 
+	protected _onNthMatchInputFocusTrackerBlur() {
+		this._nthMatchInputFocused.reset();
+	}
+
+	protected _onNthMatchInputFocusTrackerFocus() {
+		this._nthMatchInputFocused.set(true);
+	}
+
 	findFirst() {
 		const instance = this._instance;
 		if (instance.hasSelection()) {
@@ -227,5 +246,12 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		const foundMatch = await xterm.findPrevious(term, options);
 		this._registerSelectionChangeListener(xterm);
 		return foundMatch;
+	}
+
+	private async _findNthWithEvent(xterm: IXtermTerminal, term: string, options: ISearchOptions): Promise<boolean> {
+		return xterm.findNth(term, options).then(foundMatch => {
+			this._register(Event.once(xterm.onDidChangeSelection)(() => xterm.clearActiveSearchDecoration()));
+			return foundMatch;
+		});
 	}
 }

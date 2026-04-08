@@ -26,7 +26,7 @@ import './findWidget.css';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
-import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from './findModel.js';
+import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_FOCUSED, CONTEXT_NTH_MATCH_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from './findModel.js';
 import { FindReplaceState, FindReplaceStateChangedEvent } from './findState.js';
 import * as nls from '../../../../nls.js';
 import { AccessibilitySupport, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -67,6 +67,7 @@ const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
+const NLS_NTH_MATCH_INPUT_LABEL = nls.localize('label.nthMatchInput', "Nth Match");
 const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
@@ -158,6 +159,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _widgetFocusTracker: dom.IFocusTracker | undefined;
 	private readonly _findWidgetFocused: IContextKey<boolean>;
 	private _lastFocusedElement: HTMLElement | null = null;
+	private readonly _nthMatchInputFocusTracker: dom.IFocusTracker;
+	private readonly _nthMatchInputFocused: IContextKey<boolean>;
 	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: string;
 
@@ -280,6 +283,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			if (dom.isHTMLElement(e.target)) {
 				this._lastFocusedElement = e.target;
 			}
+		}));
+		this._nthMatchInputFocused = CONTEXT_NTH_MATCH_INPUT_FOCUSED.bindTo(contextKeyService);
+		this._nthMatchInputFocusTracker = this._register(dom.trackFocus(this._nthMatchInput.inputBox.inputElement));
+		this._register(this._nthMatchInputFocusTracker.onDidFocus(() => {
+			this._nthMatchInputFocused.set(true);
+			this._updateSearchScope();
+		}));
+		this._register(this._nthMatchInputFocusTracker.onDidBlur(() => {
+			this._nthMatchInputFocused.set(false);
 		}));
 
 		this._codeEditor.addOverlayWidget(this);
@@ -464,14 +476,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._matchesCount.title = '';
 		}
 
-		// remove previous content
-		if (this._matchesCount.childNodes.length > 1) {
-			[...this._matchesCount.childNodes].forEach(x => x.parentNode?.removeChild(x));
-		}
-		else {
-			this._matchesCount.firstChild?.remove();
+
+		// Remove previous content.
+		// Only destroy this._matchesCount if there are no results AND there are no blurable input controls within.
+		// Needless blur events cause focus-retention issues later, so we want to avoid them if we can.
+		// See dom.ts ---> class FocusTracker {...} for more.
+		if (
+			this._matchesCount.firstChild?.nodeValue === NLS_NO_RESULTS
+			&& (
+				!this._matchesCount.querySelector('input') &&
+				!this._matchesCount.querySelector('textarea')
+			)
+		) {
+			this._matchesCount.innerText = '';
 		}
 
+		// Otherwise, just query the children of this._matchesCount, and update them.
 
 		let label: string;
 		if (this._state.matchesCount > 0) {
@@ -489,12 +509,20 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._nthMatchInput.min = this._state.matchesCount >= 1 ? 1 : 0;
 			this._nthMatchInput.max = this._state.matchesCount;
 
-			this._matchesCount.appendChild(this._nthMatchInput.domNode);
-			this._matchesCount.appendChild(document.createTextNode(' of '));
-			this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
+			if (([...this._matchesCount.childNodes].length === 0)) {
+				this._matchesCount.appendChild(this._nthMatchInput.domNode);
+				this._matchesCount.appendChild(document.createTextNode(' of '));
+				this._matchesCount.appendChild(document.createTextNode(`${matchesCount}`));
+			}
+			else {
+				(this._matchesCount.lastChild as Node).nodeValue = `${matchesCount}`;
+			}
 
 		} else {
 			label = NLS_NO_RESULTS;
+			// It's okay to destroy the contents here,
+			// since there are no matches and therefore no blurable input controls.
+			this._matchesCount.innerText = '';
 			this._matchesCount.appendChild(document.createTextNode(label));
 		}
 
@@ -507,10 +535,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	private getNthMatchInput(): NthMatchInput {
 		const input = new NthMatchInput(this._domNode, this._contextViewProvider, {
-			placeholder: '',
+			placeholder: 'N',
 			width: 20,
-			validation: undefined,
-			label: '',
+			label: NLS_NTH_MATCH_INPUT_LABEL,
 			type: 'text',
 			min: this._state.matchesCount >= 1 ? 1 : 0,
 			max: this._state.matchesCount,
