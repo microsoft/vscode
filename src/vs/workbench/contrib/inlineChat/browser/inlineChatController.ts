@@ -622,7 +622,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async continueSessionInChat(): Promise<void> {
-		const session = this._currentSession.get();
+		const session = this._currentSession.get() ?? (this._editor.hasModel() ? this._inlineChatSessionService.getSessionByTextModel(this._editor.getModel().uri) : undefined);
 		if (!session) {
 			return;
 		}
@@ -631,7 +631,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async rephraseSession(): Promise<void> {
-		const session = this._currentSession.get();
+		const session = this._currentSession.get() ?? (this._editor.hasModel() ? this._inlineChatSessionService.getSessionByTextModel(this._editor.getModel().uri) : undefined);
 		if (!session) {
 			return;
 		}
