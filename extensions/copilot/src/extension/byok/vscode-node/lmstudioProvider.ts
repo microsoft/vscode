@@ -15,12 +15,12 @@ import { IBYOKStorageService } from './byokStorageService';
 
 interface LMStudioModelsResponse {
 	data?: Array<{
-		id: string;
+		id?: string;
 		object?: string;
 		owned_by?: string;
 	}>;
 	models?: Array<{
-		id: string;
+		id?: string;
 	}>;
 }
 
