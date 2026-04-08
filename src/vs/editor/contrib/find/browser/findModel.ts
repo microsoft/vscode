@@ -28,13 +28,14 @@ import { IKeybindings } from '../../../../platform/keybinding/common/keybindings
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
 // Keep ContextKey use of 'Focussed' to not break when clauses
-export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
-export const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocussed', false);
+export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocused', false);
+export const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocused', false);
 /**
  * Context key that is true when any element within the Find widget has focus.
  * This includes the Find input, Replace input, checkboxes, buttons, etc.
  */
 export const CONTEXT_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('findWidgetFocused', false);
+export const CONTEXT_NTH_MATCH_INPUT_FOCUSED = new RawContextKey<boolean>('nthMatchInputFocused', false);
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KeyC,
@@ -64,6 +65,7 @@ export const FIND_IDS = {
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	GoToMatchFindAction: 'editor.action.goToMatchFindAction',
+	GoToEditableNthMatchFindAction: 'editor.action.goToEditableNthMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
 	PreviousSelectionMatchFindAction: 'editor.action.previousSelectionMatchFindAction',
 	StartFindReplaceAction: 'editor.action.startFindReplaceAction',

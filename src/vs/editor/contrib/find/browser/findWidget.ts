@@ -11,6 +11,7 @@ import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
 import { FindInput } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
+import { NthMatchInput } from '../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
@@ -132,6 +133,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _cachedHeight: number | null = null;
 	private _findInput!: FindInput;
 	private _replaceInput!: ReplaceInput;
+	private _nthMatchInput!: NthMatchInput;
 
 	private _toggleReplaceBtn!: SimpleButton;
 	private _matchesCount!: HTMLElement;
@@ -463,7 +465,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		// remove previous content
-		this._matchesCount.firstChild?.remove();
+		if (this._matchesCount.childNodes.length > 1) {
+			[...this._matchesCount.childNodes].forEach(x => x.parentNode?.removeChild(x));
+		}
+		else {
+			this._matchesCount.firstChild?.remove();
+		}
+
 
 		let label: string;
 		if (this._state.matchesCount > 0) {
@@ -476,17 +484,74 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				matchesPosition = '?';
 			}
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+
+			this._nthMatchInput.setValue(`${this._state.matchesPosition}`);
+			this._nthMatchInput.min = this._state.matchesCount >= 1 ? 1 : 0;
+			this._nthMatchInput.max = this._state.matchesCount;
+
+			this._matchesCount.appendChild(this._nthMatchInput.domNode);
+			this._matchesCount.appendChild(document.createTextNode(' of '));
+			this._matchesCount.appendChild(document.createTextNode(`${this._state.matchesCount}`));
+
 		} else {
 			label = NLS_NO_RESULTS;
+			this._matchesCount.appendChild(document.createTextNode(label));
 		}
-
-		this._matchesCount.appendChild(document.createTextNode(label));
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
 	// ----- actions
+
+
+	private getNthMatchInput(): NthMatchInput {
+		const input = new NthMatchInput(this._domNode, this._contextViewProvider, {
+			placeholder: '',
+			width: 20,
+			validation: undefined,
+			label: '',
+			type: 'text',
+			min: this._state.matchesCount >= 1 ? 1 : 0,
+			max: this._state.matchesCount,
+			flexibleHeight: undefined,
+			flexibleWidth: undefined,
+			flexibleMaxHeight: undefined,
+			toggleStyles: defaultToggleStyles,
+			inputBoxStyles: defaultInputBoxStyles,
+		});
+
+		this._register(input.onStep((e) => {
+			if (e.direction === 'up') {
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
+			}
+			else {
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
+			}
+			input.focus();
+		}));
+
+		this._register(input.onJump((e) => {
+			assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToEditableNthMatchFindAction)).run().then(undefined, onUnexpectedError);
+			input.focus();
+		}));
+
+		this._register(input.onInput((e) => {
+			const currentValueAsInt = parseInt(input.getValue());
+			// Enforce the numerical input and min/max constraints here.
+			input.setValue(
+				isNaN(currentValueAsInt) ?
+					`${input.min}` : currentValueAsInt > input.max ?
+						`${input.max}` : currentValueAsInt < input.min ?
+							`${input.min}` : `${currentValueAsInt}`
+			);
+		}));
+
+		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
+		input.setValue(`${this._state.matchesPosition}`);
+
+		return input;
+	}
 
 	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
 		let result: string;
@@ -1064,6 +1129,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
+		this._nthMatchInput = this.getNthMatchInput();
 		this._updateMatchesCount();
 
 		const hoverLifecycleOptions: IHoverLifecycleOptions = { groupId: 'find-widget' };
