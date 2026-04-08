@@ -1397,8 +1397,14 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
+			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector (Local, Copilot CLI, Claude) is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
 			default: true,
+		},
+		[ChatConfiguration.CustomizationsProviderApi]: {
+			type: 'boolean',
+			description: nls.localize('chat.customizations.providerApi.enabled', "When enabled, the Customizations management UI reads items from the session type's customizations provider instead of built-in discovery."),
+			default: true,
+			tags: ['preview'],
 		},
 	}
 });

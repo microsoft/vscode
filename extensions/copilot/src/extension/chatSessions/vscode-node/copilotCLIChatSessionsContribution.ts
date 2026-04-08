@@ -38,7 +38,7 @@ import { IChatSessionMetadataStore, RepositoryProperties, StoredModeInstructions
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
-import { FolderRepositoryInfo, FolderRepositoryMRUEntry, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
+import { FolderRepositoryInfo, FolderRepositoryMRUEntry, IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
 import { isUntitledSessionId } from '../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
@@ -51,7 +51,6 @@ import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
-import { ICopilotCLIFolderMruService } from './copilotCLIFolderMru';
 import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
@@ -209,7 +208,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		this._onDidChangeChatSessionItems.fire();
 	}
 
-	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'delete'; sessionId: string }): Promise<void> {
+	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -474,7 +473,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		@ICustomSessionTitleService private readonly customSessionTitleService: ICustomSessionTitleService,
 		@IVSCodeExtensionContext private readonly context: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
-		@ICopilotCLIFolderMruService private readonly folderMruService: ICopilotCLIFolderMruService,
+		@IChatFolderMruService private readonly folderMruService: IChatFolderMruService,
 	) {
 		super();
 		const originalRepos = this.getRepositoryOptionItems().length;
@@ -1922,7 +1921,7 @@ export function registerCLIChatCommands(
 	copilotCliWorkspaceSession: IChatSessionWorkspaceFolderService,
 	contentProvider: CopilotCLIChatSessionContentProvider,
 	folderRepositoryManager: IFolderRepositoryManager,
-	cliFolderMruService: ICopilotCLIFolderMruService,
+	cliFolderMruService: IChatFolderMruService,
 	envService: INativeEnvService,
 	fileSystemService: IFileSystemService,
 	logService: ILogService

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { GITHUB_PR_FILE_SCHEME } from '../../../services/sessions/common/session.js';
 import { IGitHubChangedFile } from './types.js';
 
 export interface IPullRequestContentUriParams {
@@ -19,7 +19,7 @@ export interface IPullRequestContentUriParams {
 
 export function toPRContentUri(fileName: string, params: IPullRequestContentUriParams): URI {
 	return URI.from({
-		scheme: GITHUB_PR_FILE_SCHEME,
+		scheme: Schemas.copilotPr,
 		path: `/${fileName}`,
 		query: JSON.stringify({ ...params, fileName })
 	});

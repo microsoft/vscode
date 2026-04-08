@@ -2,25 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { Attachment, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
+import type { Attachment, SessionOptions } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
-import { ChatExtendedRequestHandler, ChatRequestTurn2, ChatSessionProviderOptionItem, Uri } from 'vscode';
+import { ChatExtendedRequestHandler, ChatRequestTurn2, Uri } from 'vscode';
 import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
-import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
-import { getGitHubRepoInfoFromContext, IGitService, RepoContext } from '../../../platform/git/common/gitService';
+import { IGitService } from '../../../platform/git/common/gitService';
 import { toGitUri } from '../../../platform/git/common/utils';
-import { derivePullRequestState } from '../../../platform/github/common/githubAPI';
-import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { IPromptsService, ParsedPromptFile } from '../../../platform/promptFiles/common/promptsService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isUri } from '../../../util/common/types';
-import { DeferredPromise, IntervalTimer, SequencerByKey } from '../../../util/vs/base/common/async';
+import { DeferredPromise, IntervalTimer } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -29,42 +24,41 @@ import { ResourceMap } from '../../../util/vs/base/common/map';
 import { relative } from '../../../util/vs/base/common/path';
 import { basename, dirname, extUri } from '../../../util/vs/base/common/resources';
 import { StopWatch } from '../../../util/vs/base/common/stopwatch';
-import { URI } from '../../../util/vs/base/common/uri';
+import { hasKey } from '../../../util/vs/base/common/types';
 import { EXTENSION_ID } from '../../common/constants';
-import { ChatVariablesCollection, extractDebugTargetSessionIds, isPromptFile } from '../../prompt/common/chatVariablesCollection';
 import { GitBranchNameGenerator } from '../../prompt/node/gitBranch';
-import { IAgentSessionsWorkspace } from '../common/agentSessionsWorkspace';
-import { IChatSessionMetadataStore, StoredModeInstructions } from '../common/chatSessionMetadataStore';
+import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
-import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
-import { FolderRepositoryInfo, FolderRepositoryMRUEntry, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
-import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../common/workspaceInfo';
+import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
+import { getWorkingDirectory, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
-import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView } from '../copilotcli/node/copilotCli';
+import { ICopilotCLISDK } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings } from '../copilotcli/node/mcpHandler';
 import { ICopilotCLISessionTracker } from '../copilotcli/vscode-node/copilotCLISessionTracker';
-import { ICopilotCLIFolderMruService } from './copilotCLIFolderMru';
+import { ICopilotCLIChatSessionInitializer } from './copilotCLIChatSessionInitializer';
 import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
-
-const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
+import { IPullRequestDetectionService } from './pullRequestDetectionService';
+import { ISessionOptionGroupBuilder, OPEN_REPOSITORY_COMMAND_ID, toRepositoryOptionItem, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
+import { ISessionRequestLifecycle } from './sessionRequestLifecycle';
 
 /**
  * ODO:
- * 1. We cannot use setNewSessionFolder hence we need a way to track what is the folder we need to use when creating new sessions.
- * 2. When we invoke initializeFolderRepository we should pass the folder thats been selected by the user.
  * 3. Verify all command handlers do the exact same thing
- * 4. Remove this._currentSessionId
- * 5. Remove isWorktreeIsolationSelected and update to account for dropdown.
  * 6. Is chatSessionContext?.initialSessionOptions still valid with new API
  * 7. Validated selected MRU item
+ * 8. We shouldn't have to pass model information into CLISession class, and then update sdk with the model info. Instead when we call get/create session, we should be able to pass the model info there and update the SDK session accordingly.
+ * This makes it unnecessary to pass model information.
+ * 2. Behavioral Change: trusted flag no longer unlocks dropdowns on trust failure
+In the old code, when sessionResult.trusted === false, there was a call to this.unlockRepoOptionForSession(context, token) to reset dropdown selections. The new code at copilotCLIChatSessions.ts:634 simply returns {} without any dropdown reset. However, lockRepoOptionForSession and unlockRepoOptionForSession were already dead code (commented out), so this is actually correct — removing a no-op.
  *
  * Cases to cover:
  * 1. Hook up the dropdowns for empty workspace folders as well
@@ -85,41 +79,16 @@ const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
  */
 
 export interface ICopilotCLIChatSessionItemProvider extends IDisposable {
-	refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'delete'; sessionId: string }): Promise<void>;
+	refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void>;
 }
 
-const REPOSITORY_OPTION_ID = 'repository';
-const BRANCH_OPTION_ID = 'branch';
-const ISOLATION_OPTION_ID = 'isolation';
-const LAST_USED_ISOLATION_OPTION_KEY = 'github.copilot.cli.lastUsedIsolationOption';
-const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.cli.sessions.openRepository';
 const OPEN_IN_COPILOT_CLI_COMMAND_ID = 'github.copilot.cli.openInCopilotCLI';
-const MAX_MRU_ENTRIES = 10;
 const CHECK_FOR_STEERING_DELAY = 100; // ms
-
-// // When we start new sessions, we don't have the real session id, we have a temporary untitled id.
-// // We also need this when we open a session and later run it.
-// // When opening the session for readonly mode we store it here and when run the session we read from here instead of opening session in readonly mode again.
-// const _sessionBranch: Map<string, string | undefined> = new Map();
-// const _sessionIsolation: Map<string, IsolationMode | undefined> = new Map();
 
 const _invalidCopilotCLISessionIdsWithErrorMessage = new Map<string, string>();
 
-namespace SessionIdForCLI {
-	export function getResource(sessionId: string): vscode.Uri {
-		return vscode.Uri.from({
-			scheme: 'copilotcli', path: `/${sessionId}`,
-		});
-	}
-
-	export function parse(resource: vscode.Uri): string {
-		return resource.path.slice(1);
-	}
-
-	export function isCLIResource(resource: vscode.Uri): boolean {
-		return resource.scheme === 'copilotcli';
-	}
-}
+// Re-export for backward compatibility
+export { resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection } from './sessionOptionGroupBuilder';
 
 /**
  * Escape XML special characters
@@ -181,78 +150,27 @@ export async function resolveSessionDirsForTerminal(
 	return [...matching, ...rest];
 }
 
-function isBranchOptionFeatureEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getConfig(ConfigKey.Advanced.CLIBranchSupport);
-}
-
-function isReasoningEffortFeatureEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
-}
-
-function isIsolationOptionFeatureEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getConfig(ConfigKey.Advanced.CLIIsolationOption);
-}
-
-
-function toRepositoryOptionItem(repository: RepoContext | Uri, isDefault: boolean = false): ChatSessionProviderOptionItem {
-	const repositoryUri = isUri(repository) ? repository : repository.rootUri;
-	const repositoryIcon = isUri(repository) ? 'repo' : repository.kind === 'repository' ? 'repo' : 'archive';
-	const repositoryName = repositoryUri.path.split('/').pop() ?? repositoryUri.toString();
-
-	return {
-		id: repositoryUri.fsPath,
-		name: repositoryName,
-		icon: new vscode.ThemeIcon(repositoryIcon),
-		default: isDefault
-	} satisfies vscode.ChatSessionProviderOptionItem;
-}
-
-
-function toWorkspaceFolderOptionItem(workspaceFolderUri: URI, name: string): ChatSessionProviderOptionItem {
-	return {
-		id: workspaceFolderUri.fsPath,
-		name: name,
-		icon: new vscode.ThemeIcon('folder'),
-	} satisfies vscode.ChatSessionProviderOptionItem;
-}
-
 export class CopilotCLIChatSessionContentProvider extends Disposable implements vscode.ChatSessionContentProvider, ICopilotCLIChatSessionItemProvider {
 	private readonly _onDidCommitChatSessionItem = this._register(new Emitter<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }>());
 	public readonly onDidCommitChatSessionItem: Event<{ original: vscode.ChatSessionItem; modified: vscode.ChatSessionItem }> = this._onDidCommitChatSessionItem.event;
 
 	private readonly controller: vscode.ChatSessionItemController;
 	private readonly newSessions = new ResourceMap<vscode.ChatSessionItem>();
-	/**
-	 * ID of the last used folder in an untitled workspace (for defaulting selection).
-	 */
-	private _lastUsedFolderIdInUntitledWorkspace?: { kind: 'folder' | 'repo'; uri: vscode.Uri; lastAccessed: number };
 	constructor(
 		@ICopilotCLISessionService private readonly sessionService: ICopilotCLISessionService,
-		@IChatSessionMetadataStore private readonly chatSessionMetadataStore: IChatSessionMetadataStore,
 		@IChatSessionWorktreeService private readonly copilotCLIWorktreeManagerService: IChatSessionWorktreeService,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
-		@IGitService private readonly gitService: IGitService,
 		@IFolderRepositoryManager private readonly folderRepositoryManager: IFolderRepositoryManager,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICustomSessionTitleService private readonly customSessionTitleService: ICustomSessionTitleService,
-		@IVSCodeExtensionContext private readonly context: IVSCodeExtensionContext,
-		@ICopilotCLISessionTracker private readonly sessionTracker: ICopilotCLISessionTracker,
-		@ICopilotCLITerminalIntegration private readonly terminalIntegration: ICopilotCLITerminalIntegration,
 		@IRunCommandExecutionService private readonly commandExecutionService: IRunCommandExecutionService,
-		@IChatSessionWorkspaceFolderService private readonly workspaceFolderService: IChatSessionWorkspaceFolderService,
-		@IOctoKitService private readonly octoKitService: IOctoKitService,
 		@ILogService private readonly logService: ILogService,
-		@IAgentSessionsWorkspace private readonly _agentSessionsWorkspace: IAgentSessionsWorkspace,
-		@ICopilotCLIFolderMruService private readonly copilotCLIFolderMruService: ICopilotCLIFolderMruService,
+		@IPullRequestDetectionService private readonly _prDetectionService: IPullRequestDetectionService,
+		@ISessionOptionGroupBuilder private readonly _optionGroupBuilder: ISessionOptionGroupBuilder,
+		@IGitService private readonly _gitService: IGitService,
+		@IChatSessionWorkspaceFolderService private readonly _workspaceFolderService: IChatSessionWorkspaceFolderService,
+		@IChatSessionMetadataStore private readonly _metadataStore: IChatSessionMetadataStore,
 	) {
 		super();
-
-		this._register(this.terminalIntegration);
-
-		// Resolve session dirs for terminal links. See resolveSessionDirsForTerminal.
-		this.terminalIntegration.setSessionDirResolver(terminal =>
-			resolveSessionDirsForTerminal(this.sessionTracker, terminal)
-		);
 
 		let isRefreshing = false;
 		const controller = this.controller = this._register(vscode.chat.createChatSessionItemController(
@@ -343,15 +261,30 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		}
 
 		controller.getChatSessionInputState = async (sessionResource, context, token) => {
-			const groups = sessionResource ? await this.buildExistingSessionInputStateGroups(sessionResource, token) : await this.provideChatSessionProviderOptionGroups(context.previousInputState);
-			return controller.createChatSessionInputState(groups);
+			const groups = sessionResource ? await this._optionGroupBuilder.buildExistingSessionInputStateGroups(sessionResource, token) : await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(context.previousInputState);
+			const state = controller.createChatSessionInputState(groups);
+			if (!sessionResource) {
+				// Only wire dynamic updates for new sessions (existing sessions are fully locked).
+				// Note: don't use the getChatSessionInputState token here — it's a one-shot token
+				// that may be disposed by the time the user interacts with the dropdowns.
+				state.onDidChange(() => this._optionGroupBuilder.handleInputStateChange(state));
+			}
+			return state;
 		};
 	}
 
-	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'delete'; sessionId: string }): Promise<void> {
+	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
 		if (refreshOptions.reason === 'delete') {
 			const uri = SessionIdForCLI.getResource(refreshOptions.sessionId);
 			this.controller.items.delete(uri);
+		} else if (refreshOptions.reason === 'update' && hasKey(refreshOptions, { 'sessionIds': true })) {
+			await Promise.allSettled(refreshOptions.sessionIds.map(async sessionId => {
+				const item = await this.sessionService.getSessionItem(sessionId, CancellationToken.None);
+				if (item) {
+					const chatSessionItem = await this.toChatSessionItem(item);
+					this.controller.items.add(chatSessionItem);
+				}
+			}));
 		} else {
 			const item = await this.sessionService.getSessionItem(refreshOptions.sessionId, CancellationToken.None);
 			if (item) {
@@ -371,52 +304,62 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		return diskSessions;
 	}
 
-	private shouldShowBadge(): boolean {
-		const repositories = this.gitService.repositories
-			.filter(repository => repository.kind !== 'worktree');
-
-		return vscode.workspace.workspaceFolders === undefined || // empty window
-			vscode.workspace.isAgentSessionsWorkspace ||          // agent sessions workspace
-			repositories.length > 1;                              // multiple repositories
-	}
-
 	public async toChatSessionItem(session: ICopilotCLISessionItem): Promise<vscode.ChatSessionItem> {
 		const resource = SessionIdForCLI.getResource(session.id);
+		const item = this.controller.createChatSessionItem(resource, session.label);
+
 		const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.id);
 		const workingDirectory = worktreeProperties?.worktreePath ? vscode.Uri.file(worktreeProperties.worktreePath)
 			: session.workingDirectory;
 
-		const label = session.label;
+		item.timing = session.timing;
+		item.status = session.status ?? vscode.ChatSessionStatus.Completed;
+		const [badge, changes, metadata] = await Promise.all([
+			this.buildBadge(worktreeProperties, workingDirectory),
+			this.buildChanges(session.id, worktreeProperties, workingDirectory),
+			this.buildMetadata(session.id, worktreeProperties, workingDirectory),
+		]);
+		item.badge = badge;
+		item.changes = changes;
+		item.metadata = metadata;
+		return item;
+	}
 
-		// Badge
-		let badge: vscode.MarkdownString | undefined;
-		if (this.shouldShowBadge()) {
-			if (worktreeProperties?.repositoryPath) {
-				// Worktree
-				const repositoryPathUri = vscode.Uri.file(worktreeProperties.repositoryPath);
-				const isTrusted = await vscode.workspace.isResourceTrusted(repositoryPathUri);
-				const badgeIcon = isTrusted ? '$(repo)' : '$(workspace-untrusted)';
-
-				badge = new vscode.MarkdownString(`${badgeIcon} ${basename(repositoryPathUri)}`);
-				badge.supportThemeIcons = true;
-			} else if (workingDirectory) {
-				// Workspace
-				const isTrusted = await vscode.workspace.isResourceTrusted(workingDirectory);
-				const badgeIcon = isTrusted ? '$(folder)' : '$(workspace-untrusted)';
-
-				badge = new vscode.MarkdownString(`${badgeIcon} ${basename(workingDirectory)}`);
-				badge.supportThemeIcons = true;
-			}
+	private async buildBadge(
+		worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>,
+		workingDirectory: vscode.Uri | undefined,
+	): Promise<vscode.MarkdownString | undefined> {
+		const repositories = this._gitService.repositories.filter(r => r.kind !== 'worktree');
+		const shouldShow = vscode.workspace.workspaceFolders === undefined ||
+			vscode.workspace.isAgentSessionsWorkspace ||
+			repositories.length > 1;
+		if (!shouldShow) {
+			return undefined;
 		}
+		const badgeUri = worktreeProperties?.repositoryPath
+			? vscode.Uri.file(worktreeProperties.repositoryPath)
+			: workingDirectory;
+		if (!badgeUri) {
+			return undefined;
+		}
+		const isTrusted = await vscode.workspace.isResourceTrusted(badgeUri);
+		const isRepo = !!worktreeProperties?.repositoryPath;
+		const icon = isTrusted ? (isRepo ? '$(repo)' : '$(folder)') : '$(workspace-untrusted)';
+		const badge = new vscode.MarkdownString(`${icon} ${basename(badgeUri)}`);
+		badge.supportThemeIcons = true;
+		return badge;
+	}
 
-		// Statistics (only returned for trusted workspace/worktree folders)
+	private async buildChanges(
+		sessionId: string,
+		worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>,
+		workingDirectory: vscode.Uri | undefined,
+	): Promise<vscode.ChatSessionChangedFile2[]> {
 		const changes: vscode.ChatSessionChangedFile2[] = [];
 		if (worktreeProperties?.repositoryPath && await vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath))) {
-			// Worktree
-			changes.push(...(await this.copilotCLIWorktreeManagerService.getWorktreeChanges(session.id) ?? []));
+			changes.push(...(await this.copilotCLIWorktreeManagerService.getWorktreeChanges(sessionId) ?? []));
 		} else if (workingDirectory && await vscode.workspace.isResourceTrusted(workingDirectory)) {
-			// Workspace
-			const workspaceChanges = await this.workspaceFolderService.getWorkspaceChanges(session.id) ?? [];
+			const workspaceChanges = await this._workspaceFolderService.getWorkspaceChanges(sessionId) ?? [];
 			changes.push(...workspaceChanges.map(change => new vscode.ChatSessionChangedFile2(
 				vscode.Uri.file(change.filePath),
 				change.originalFilePath
@@ -428,16 +371,16 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				change.statistics.additions,
 				change.statistics.deletions)));
 		}
+		return changes;
+	}
 
-		// Status
-		const status = session.status ?? vscode.ChatSessionStatus.Completed;
-
-		// Metadata
-		let metadata: { readonly [key: string]: unknown };
-
+	private async buildMetadata(
+		sessionId: string,
+		worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>,
+		workingDirectory: vscode.Uri | undefined,
+	): Promise<{ readonly [key: string]: unknown }> {
 		if (worktreeProperties) {
-			// Worktree
-			metadata = {
+			return {
 				autoCommit: worktreeProperties.autoCommit !== false,
 				baseCommit: worktreeProperties?.baseCommit,
 				baseBranchName: worktreeProperties.version === 2
@@ -466,90 +409,35 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 					? worktreeProperties.lastCheckpointRef
 					: undefined
 			} satisfies { readonly [key: string]: unknown };
-		} else {
-			// Workspace
-			const sessionRequestDetails = await this.chatSessionMetadataStore.getRequestDetails(session.id);
-			const repositoryProperties = await this.chatSessionMetadataStore.getRepositoryProperties(session.id);
-
-			let lastCheckpointRef: string | undefined;
-			for (let i = sessionRequestDetails.length - 1; i >= 0; i--) {
-				const checkpointRef = sessionRequestDetails[i]?.checkpointRef;
-				if (checkpointRef !== undefined) {
-					lastCheckpointRef = checkpointRef;
-					break;
-				}
-			}
-
-			const firstCheckpointRef = lastCheckpointRef
-				? `${lastCheckpointRef.slice(0, lastCheckpointRef.lastIndexOf('/'))}/0`
-				: undefined;
-
-			metadata = {
-				isolationMode: IsolationMode.Workspace,
-				repositoryPath: repositoryProperties?.repositoryPath,
-				branchName: repositoryProperties?.branchName,
-				baseBranchName: repositoryProperties?.baseBranchName,
-				workingDirectoryPath: workingDirectory?.fsPath,
-				firstCheckpointRef,
-				lastCheckpointRef
-			} satisfies { readonly [key: string]: unknown };
 		}
 
-		const item = this.controller.createChatSessionItem(resource, label);
-		item.badge = badge;
-		item.timing = session.timing;
-		item.changes = changes;
-		item.status = status;
-		item.metadata = metadata;
-		return item;
-	}
+		const [sessionRequestDetails, repositoryProperties] = await Promise.all([
+			this._metadataStore.getRequestDetails(sessionId),
+			this._metadataStore.getRepositoryProperties(sessionId)
+		]);
 
-	/**
-	 * Detects a pull request for a session when the user opens it.
-	 * If a PR is found, persists the URL and notifies the UI.
-	 */
-	public async detectPullRequestOnSessionOpen(sessionId: string): Promise<void> {
-		try {
-			const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
-			if (worktreeProperties?.version !== 2
-				|| worktreeProperties.pullRequestState === 'merged'
-				|| !worktreeProperties.branchName
-				|| !worktreeProperties.repositoryPath) {
-				this.logService.debug(`[CopilotCLIChatSessionItemProvider] Skipping PR detection on session open for ${sessionId}: version=${worktreeProperties?.version}, prState=${worktreeProperties?.version === 2 ? worktreeProperties.pullRequestState : 'n/a'}, branch=${!!worktreeProperties?.branchName}, repoPath=${!!worktreeProperties?.repositoryPath}`);
-				return;
+		let lastCheckpointRef: string | undefined;
+		for (let i = sessionRequestDetails.length - 1; i >= 0; i--) {
+			const checkpointRef = sessionRequestDetails[i]?.checkpointRef;
+			if (checkpointRef !== undefined) {
+				lastCheckpointRef = checkpointRef;
+				break;
 			}
-
-			this.logService.debug(`[CopilotCLIChatSessionItemProvider] Detecting PR on session open for ${sessionId}, branch=${worktreeProperties.branchName}, existingPrUrl=${worktreeProperties.pullRequestUrl ?? 'none'}`);
-
-			const prResult = await detectPullRequestFromGitHubAPI(
-				worktreeProperties.branchName,
-				worktreeProperties.repositoryPath,
-				this.gitService,
-				this.octoKitService,
-				this.logService,
-			);
-
-			if (prResult) {
-				const currentProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
-				if (currentProperties?.version === 2
-					&& (currentProperties.pullRequestUrl !== prResult.url || currentProperties.pullRequestState !== prResult.state)) {
-					this.logService.debug(`[CopilotCLIChatSessionItemProvider] Updating PR metadata for ${sessionId}: url=${prResult.url}, state=${prResult.state} (was url=${currentProperties.pullRequestUrl ?? 'none'}, state=${currentProperties.pullRequestState ?? 'none'})`);
-					await this.copilotCLIWorktreeManagerService.setWorktreeProperties(sessionId, {
-						...currentProperties,
-						pullRequestUrl: prResult.url,
-						pullRequestState: prResult.state,
-						changes: undefined,
-					});
-					await this.refreshSession({ reason: 'update', sessionId });
-				} else {
-					this.logService.debug(`[CopilotCLIChatSessionItemProvider] PR metadata unchanged for ${sessionId}, skipping update`);
-				}
-			} else {
-				this.logService.debug(`[CopilotCLIChatSessionItemProvider] No PR found via GitHub API for ${sessionId}`);
-			}
-		} catch (error) {
-			this.logService.trace(`[CopilotCLIChatSessionItemProvider] Failed to detect pull request on session open for ${sessionId}: ${error instanceof Error ? error.message : String(error)}`);
 		}
+
+		const firstCheckpointRef = lastCheckpointRef
+			? `${lastCheckpointRef.slice(0, lastCheckpointRef.lastIndexOf('/'))}/0`
+			: undefined;
+
+		return {
+			isolationMode: IsolationMode.Workspace,
+			repositoryPath: repositoryProperties?.repositoryPath,
+			branchName: repositoryProperties?.branchName,
+			baseBranchName: repositoryProperties?.baseBranchName,
+			workingDirectoryPath: workingDirectory?.fsPath,
+			firstCheckpointRef,
+			lastCheckpointRef
+		} satisfies { readonly [key: string]: unknown };
 	}
 
 	async provideChatSessionContent(resource: Uri, token: vscode.CancellationToken, _context?: { readonly inputState: vscode.ChatSessionInputState; readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | vscode.ChatSessionProviderOptionItem }> }): Promise<vscode.ChatSession> {
@@ -575,6 +463,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 					options: {},
 				};
 			} else {
+				this.newSessions.delete(resource);
 				return await this.provideChatSessionContentForExistingSession(resource, token);
 			}
 		} finally {
@@ -586,7 +475,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		const copilotcliSessionId = SessionIdForCLI.parse(resource);
 
 		// Fire-and-forget: detect PR when the user opens a session.
-		void this.detectPullRequestOnSessionOpen(copilotcliSessionId);
+		this._prDetectionService.detectPullRequest(copilotcliSessionId);
 
 		const folderRepo = await this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token);
 		const [history, title] = await Promise.all([
@@ -622,300 +511,35 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		}
 	}
 
-	async provideChatSessionProviderOptionGroups(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup[]> {
-		const optionGroups: vscode.ChatSessionProviderOptionGroup[] = [];
-		const previouslySelectedIsolationOption = previousInputState?.groups.find(g => g.id === ISOLATION_OPTION_ID)?.selected;
-		if (isIsolationOptionFeatureEnabled(this.configurationService)) {
-			const lastUsed = this.context.globalState.get<IsolationMode>(LAST_USED_ISOLATION_OPTION_KEY, IsolationMode.Workspace);
-			const defaultSelection = lastUsed === IsolationMode.Workspace ?
-				{ id: IsolationMode.Workspace, name: l10n.t('Workspace'), icon: new vscode.ThemeIcon('folder') } :
-				{ id: IsolationMode.Worktree, name: l10n.t('Worktree'), icon: new vscode.ThemeIcon('worktree') };
-			optionGroups.push({
-				id: ISOLATION_OPTION_ID,
-				name: l10n.t('Isolation'),
-				description: l10n.t('Pick Isolation Mode'),
-				items: [
-					{ id: IsolationMode.Workspace, name: l10n.t('Workspace'), icon: new vscode.ThemeIcon('folder') },
-					{ id: IsolationMode.Worktree, name: l10n.t('Worktree'), icon: new vscode.ThemeIcon('worktree') },
-				],
-				selected: previouslySelectedIsolationOption ?? defaultSelection
-			});
-		}
-
-		// Handle repository options based on workspace type
-		let defaultRepoUri = !isWelcomeView(this.workspaceService) && !this._agentSessionsWorkspace.isAgentSessionsWorkspace && this.workspaceService.getWorkspaceFolders()?.length === 1 ? this.workspaceService.getWorkspaceFolders()![0] : undefined;
-		if (isWelcomeView(this.workspaceService)) {
-			const commands: vscode.Command[] = [];
-			const previouslySelected = previousInputState?.groups.find(g => g.id === REPOSITORY_OPTION_ID)?.selected;
-			let items: vscode.ChatSessionProviderOptionItem[] = [];
-
-			// For untitled workspaces, show last used repositories and "Open Repository..." command
-			const repositories = await this.copilotCLIFolderMruService.getRecentlyUsedFolders(CancellationToken.None);
-			items = folderMRUToChatProviderOptions(repositories);
-			items.splice(MAX_MRU_ENTRIES); // Limit to max entries
-			if (this._lastUsedFolderIdInUntitledWorkspace) {
-				const folder = this._lastUsedFolderIdInUntitledWorkspace.uri;
-				const isRepo = this._lastUsedFolderIdInUntitledWorkspace.kind === 'repo';
-				const lastAccessed = this._lastUsedFolderIdInUntitledWorkspace.lastAccessed;
-				const id = folder.fsPath;
-				if (!items.find(item => item.id === id)) {
-					const lastUsedEntry = folderMRUToChatProviderOptions([{
-						folder,
-						repository: isRepo ? folder : undefined,
-						lastAccessed
-					}])[0];
-					items.unshift(lastUsedEntry);
-				}
-			}
-			commands.push({
-				command: OPEN_REPOSITORY_COMMAND_ID,
-				title: l10n.t('Browse folders...')
-			});
-
-			optionGroups.push({
-				id: REPOSITORY_OPTION_ID,
-				name: l10n.t('Folder'),
-				description: l10n.t('Pick Folder'),
-				items,
-				selected: previouslySelected,
-				commands
-			});
-		} else {
-			const repositories = this.getRepositoryOptionItems();
-			if (repositories.length > 1) {
-				const previouslySelected = previousInputState?.groups.find(g => g.id === REPOSITORY_OPTION_ID)?.selected ?? repositories[0];
-				defaultRepoUri = previouslySelected?.id ? vscode.Uri.file(previouslySelected.id) : defaultRepoUri;
-				optionGroups.push({
-					id: REPOSITORY_OPTION_ID,
-					name: l10n.t('Folder'),
-					description: l10n.t('Pick Folder'),
-					items: repositories,
-					selected: previouslySelected ?? repositories[0]
-				});
-			} else if (repositories.length === 1) {
-				defaultRepoUri = vscode.Uri.file(repositories[0].id);
-			}
-		}
-
-		if ((isBranchOptionFeatureEnabled(this.configurationService))) {
-			// If we have a selected branch and it belongs to this repo, then use that as the default branch selection,
-			// //Else fall back to the repo's head branch, and if that doesn't exist use no default selection.
-			const repo = defaultRepoUri ? await this.gitService.getRepository(defaultRepoUri) : undefined;
-			const branches = repo ? await this.getBranchOptionItemsForRepository(repo.rootUri, repo.headBranchName) : [];
-			const previouslySelectedBranchItem = previousInputState?.groups.find(g => g.id === BRANCH_OPTION_ID)?.selected;
-			const activeBranch = repo?.headBranchName ? branches.find(branch => branch.id === repo.headBranchName) : undefined;
-			const selectedBranch = previouslySelectedBranchItem?.id || activeBranch?.id;
-			const selectedItem = (selectedBranch ? branches.find(branch => branch.id === selectedBranch) : undefined) ?? previouslySelectedBranchItem;
-			if (branches.length > 0) {
-				optionGroups.push({
-					id: BRANCH_OPTION_ID,
-					name: l10n.t('Branch'),
-					description: l10n.t('Pick Branch'),
-					items: branches,
-					selected: selectedItem,
-					when: `chatSessionOption.${ISOLATION_OPTION_ID} == '${IsolationMode.Worktree}'`
-				});
-			}
-		}
-
-		return optionGroups;
-	}
-
-	private async buildExistingSessionInputStateGroups(resource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[]> {
-		const copilotcliSessionId = SessionIdForCLI.parse(resource);
-		const optionGroups: vscode.ChatSessionProviderOptionGroup[] = [];
-		const folderInfo = await this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token);
-		const repositories = isWelcomeView(this.workspaceService) ? folderMRUToChatProviderOptions(await this.copilotCLIFolderMruService.getRecentlyUsedFolders(token)) : this.getRepositoryOptionItems();
-		const folderOrRepoId = folderInfo.repository?.fsPath ?? folderInfo.folder?.fsPath;
-		const existingItem = folderOrRepoId ? repositories.find(repo => repo.id === folderOrRepoId) : undefined;
-		const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(copilotcliSessionId);
-
-		let repoSelected: vscode.ChatSessionProviderOptionItem;
-		if (existingItem) {
-			repoSelected = { ...existingItem, locked: true };
-		} else if (folderInfo.repository) {
-			repoSelected = { ...toRepositoryOptionItem(folderInfo.repository), locked: true };
-		} else if (folderInfo.folder) {
-			const folderName = this.workspaceService.getWorkspaceFolderName(folderInfo.folder) || basename(folderInfo.folder);
-			repoSelected = { ...toWorkspaceFolderOptionItem(folderInfo.folder, folderName), locked: true };
-		} else {
-			let folderName = l10n.t('Unknown');
-			if (this.workspaceService.getWorkspaceFolders().length === 1) {
-				folderName = this.workspaceService.getWorkspaceFolderName(this.workspaceService.getWorkspaceFolders()[0]) || folderName;
-			}
-			repoSelected = { id: '', name: folderName, icon: new vscode.ThemeIcon('folder'), locked: true };
-		}
-
-		if (isIsolationOptionFeatureEnabled(this.configurationService)) {
-			const isWorktree = !!worktreeProperties;
-			const isolationSelected = {
-				id: isWorktree ? IsolationMode.Worktree : IsolationMode.Workspace,
-				name: isWorktree ? l10n.t('Worktree') : l10n.t('Workspace'),
-				icon: new vscode.ThemeIcon(isWorktree ? 'worktree' : 'folder'),
-				locked: true
-			};
-			optionGroups.push({
-				id: ISOLATION_OPTION_ID,
-				name: l10n.t('Isolation'),
-				description: l10n.t('Pick Isolation Mode'),
-				items: [
-					{ id: IsolationMode.Workspace, name: l10n.t('Workspace'), icon: new vscode.ThemeIcon('folder') },
-					{ id: IsolationMode.Worktree, name: l10n.t('Worktree'), icon: new vscode.ThemeIcon('worktree') },
-				],
-				selected: isolationSelected
-			});
-		}
-
-		optionGroups.push({
-			id: REPOSITORY_OPTION_ID,
-			name: l10n.t('Folder'),
-			description: l10n.t('Pick Folder'),
-			items: [repoSelected],
-			selected: repoSelected,
-			commands: []
-		});
-
-		const branchName = worktreeProperties?.branchName;
-		const branchSelected = branchName ? { id: branchName, name: branchName, icon: new vscode.ThemeIcon('git-branch'), locked: true } : undefined;
-		optionGroups.push({
-			id: BRANCH_OPTION_ID,
-			name: l10n.t('Branch'),
-			description: l10n.t('Pick Branch'),
-			items: branchSelected ? [branchSelected] : [],
-			selected: branchSelected,
-			when: `chatSessionOption.${ISOLATION_OPTION_ID} == '${IsolationMode.Worktree}'`
-		});
-
-		return optionGroups;
-	}
-
-
-	private readonly _getBranchOptionItemsForRepositorySequencer = new SequencerByKey<string>();
-	private async getBranchOptionItemsForRepository(repoUri: Uri, headBranchName: string | undefined): Promise<vscode.ChatSessionProviderOptionItem[]> {
-		const key = `${repoUri.toString()}${headBranchName}`;
-		return this._getBranchOptionItemsForRepositorySequencer.queue(key, async () => {
-
-			const refs = await this.gitService.getRefs(repoUri, { sort: 'committerdate' });
-
-			// Filter to local branches only (RefType.Head === 0)
-			const localBranches = refs.filter(ref => ref.type === 0 /* RefType.Head */ && ref.name);
-
-			// Build items with HEAD branch first
-			const items: vscode.ChatSessionProviderOptionItem[] = [];
-			let headItem: vscode.ChatSessionProviderOptionItem | undefined;
-			let mainOrheadBranch: vscode.ChatSessionProviderOptionItem | undefined;
-			for (const ref of localBranches) {
-				if (!ref.name) {
-					continue;
-				}
-				if (ref.name.includes(COPILOT_WORKTREE_PATTERN)) {
-					continue;
-				}
-				const isHead = ref.name === headBranchName;
-				const item: vscode.ChatSessionProviderOptionItem = {
-					id: ref.name!,
-					name: ref.name!,
-					icon: new vscode.ThemeIcon('git-branch'),
-					// default: isHead
-				};
-				if (isHead) {
-					headItem = item;
-				} else if (ref.name === 'main' || ref.name === 'master') {
-					mainOrheadBranch = item;
-				} else {
-					items.push(item);
-				}
-			}
-
-			if (mainOrheadBranch) {
-				items.unshift(mainOrheadBranch);
-			}
-			if (headItem) {
-				items.unshift(headItem);
-			}
-
-			return items;
-		});
-	}
-
-	private getRepositoryOptionItems() {
-		// Exclude worktrees from the repository list
-		const repositories = this.gitService.repositories
-			.filter(repository => repository.kind !== 'worktree')
-			.filter(repository => {
-				if (isWelcomeView(this.workspaceService)) {
-					// In the welcome view, include all repositories from the MRU list
-					return true;
-				}
-				// Only include repositories that belong to one of the workspace folders
-				return this.workspaceService.getWorkspaceFolder(repository.rootUri) !== undefined;
-			});
-
-		const repoItems = repositories
-			.map(repository => toRepositoryOptionItem(repository));
-
-		// In multi-root workspaces, also include workspace folders that don't have any git repos
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length) {
-			// Find workspace folders that contain git repos
-			const foldersWithRepos = new Set<string>();
-			for (const repo of repositories) {
-				const folder = this.workspaceService.getWorkspaceFolder(repo.rootUri);
-				if (folder) {
-					foldersWithRepos.add(folder.fsPath);
-				}
-			}
-
-			// Add workspace folders that don't have any git repos
-			for (const folder of workspaceFolders) {
-				if (!foldersWithRepos.has(folder.fsPath)) {
-					const folderName = this.workspaceService.getWorkspaceFolderName(folder);
-					repoItems.push(toWorkspaceFolderOptionItem(folder, folderName));
-				}
-			}
-		}
-
-		return repoItems.sort((a, b) => a.name.localeCompare(b.name));
-	}
-	public async trackLastUsedFolderInWelcomeView(folderUri: vscode.Uri) {
-		// Update MRU tracking for untitled workspaces
-		if (isWelcomeView(this.workspaceService)) {
-			const repository = await this.gitService.getRepository(folderUri);
-			if (repository) {
-				this._lastUsedFolderIdInUntitledWorkspace = { kind: 'repo', uri: repository.rootUri, lastAccessed: Date.now() };
-			} else {
-				this._lastUsedFolderIdInUntitledWorkspace = { kind: 'folder', uri: folderUri, lastAccessed: Date.now() };
-			}
-		}
+	public async updateInputStateAfterFolderSelection(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): Promise<void> {
+		return this._optionGroupBuilder.updateInputStateAfterFolderSelection(inputState, folderUri);
 	}
 }
 
 export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	constructor(
-		private readonly contentProvider: CopilotCLIChatSessionContentProvider,
+		private readonly sessionItemProvider: ICopilotCLIChatSessionItemProvider,
 		private readonly promptResolver: CopilotCLIPromptResolver,
 		private readonly cloudSessionProvider: CopilotCloudSessionsProvider | undefined,
 		private readonly branchNameGenerator: GitBranchNameGenerator,
 		@IGitService private readonly gitService: IGitService,
-		@ICopilotCLIModels private readonly copilotCLIModels: ICopilotCLIModels,
-		@ICopilotCLIAgents private readonly copilotCLIAgents: ICopilotCLIAgents,
 		@ICopilotCLISessionService private readonly sessionService: ICopilotCLISessionService,
 		@IChatSessionWorktreeService private readonly copilotCLIWorktreeManagerService: IChatSessionWorktreeService,
-		@IChatSessionWorktreeCheckpointService private readonly copilotCLIWorktreeCheckpointService: IChatSessionWorktreeCheckpointService,
-		@IChatSessionWorkspaceFolderService private readonly workspaceFolderService: IChatSessionWorkspaceFolderService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 		@IChatDelegationSummaryService private readonly chatDelegationSummaryService: IChatDelegationSummaryService,
-		@IFolderRepositoryManager private readonly folderRepositoryManager: IFolderRepositoryManager,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
-		@IChatSessionMetadataStore private readonly chatSessionMetadataStore: IChatSessionMetadataStore,
-		@IOctoKitService private readonly octoKitService: IOctoKitService,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
+		@ICopilotCLIChatSessionInitializer private readonly sessionInitializer: ICopilotCLIChatSessionInitializer,
+		@ISessionRequestLifecycle private readonly sessionRequestLifecycle: ISessionRequestLifecycle,
+		@IPullRequestDetectionService private readonly prDetectionService: IPullRequestDetectionService,
 	) {
 		super();
+
+		this._register(this.prDetectionService.onDidDetectPullRequest(sessionId => {
+			this.sessionItemProvider.refreshSession({ reason: 'update', sessionId }).catch(error => this.logService.error(error, 'Failed to refresh session after PR detection'));
+		}));
 	}
 
 	createHandler(): ChatExtendedRequestHandler {
@@ -923,19 +547,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}
 
 	private readonly contextForRequest = new Map<string, { prompt: string; attachments: Attachment[] }>();
-
-	/**
-	 * Tracks in-flight requests per session so we can coordinate worktree
-	 * commit / PR handling and cleanup.
-	 *
-	 * We generally cannot have parallel requests for the same session, but when
-	 * steering is involved there can be multiple requests in flight for a
-	 * single session (the original request continues running while steering
-	 * requests are processed). This map records all active requests for each
-	 * session so that any worktree-related actions are deferred until the last
-	 * in-flight request for that session has completed.
-	 */
-	private readonly pendingRequestBySession = new Map<string, Set<vscode.ChatRequest>>();
 
 	/**
 	 * Outer request handler that supports *yielding* for session steering.
@@ -1001,34 +612,70 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		});
 	}
 
+	private async authenticate(): Promise<NonNullable<SessionOptions['authInfo']>> {
+		const authInfo = await this.copilotCLISDK.getAuthInfo().catch((ex) => this.logService.error(ex, 'Authorization failed'));
+		if (!authInfo) {
+			this.logService.error(`Authorization failed`);
+			throw new Error(vscode.l10n.t('Authorization failed. Please sign into GitHub and try again.'));
+		}
+		if ((authInfo.type === 'token' && !authInfo.token) && !this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl)) {
+			this.logService.error(`Authorization failed`);
+			throw new Error(vscode.l10n.t('Authorization failed. Please sign into GitHub and try again.'));
+		}
+		return authInfo;
+	}
+
+	/**
+	 * Resolve the input and attachments for the SDK session based on request type.
+	 *
+	 * The VS Code chat API creates the session before firing the request handler,
+	 * so delegated requests pre-resolve and cache prompt/attachments in `contextForRequest`.
+	 */
+	private async resolveInput(
+		request: vscode.ChatRequest,
+		session: ICopilotCLISession,
+		isNewSession: boolean,
+		token: vscode.CancellationToken,
+	): Promise<{ input: { prompt: string; command?: CopilotCLICommand }; attachments: Attachment[] }> {
+		const contextForRequest = this.contextForRequest.get(session.sessionId);
+		this.contextForRequest.delete(session.sessionId);
+
+		if (contextForRequest) {
+			return { input: { prompt: contextForRequest.prompt }, attachments: contextForRequest.attachments };
+		}
+
+		if (request.command && !request.prompt && !isNewSession) {
+			const input = (copilotCLICommands as readonly string[]).includes(request.command)
+				? { command: request.command as CopilotCLICommand, prompt: '' }
+				: { prompt: `/${request.command}` };
+			return { input, attachments: [] };
+		}
+
+		const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.workspace, [], token);
+		const input = (request.command && (copilotCLICommands as readonly string[]).includes(request.command))
+			? { command: request.command as CopilotCLICommand, prompt }
+			: { prompt };
+		return { input, attachments };
+	}
+
 	private async handleRequestImpl(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> {
 		const { chatSessionContext } = context;
 		const disposables = new DisposableStore();
-		let sessionId: string | undefined = undefined;
 		let sdkSessionId: string | undefined = undefined;
+		let session: IReference<ICopilotCLISession> | undefined = undefined;
 		try {
 			this.sendTelemetryForHandleRequest(request, context);
 
-			const [authInfo,] = await Promise.all([this.copilotCLISDK.getAuthInfo().catch((ex) => this.logService.error(ex, 'Authorization failed')), this.lockRepoOptionForSession(context, token)]);
-			if (!authInfo) {
-				this.logService.error(`Authorization failed`);
-				throw new Error(vscode.l10n.t('Authorization failed. Please sign into GitHub and try again.'));
-			}
-			if ((authInfo.type === 'token' && !authInfo.token) && !this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl)) {
-				this.logService.error(`Authorization failed`);
-				throw new Error(vscode.l10n.t('Authorization failed. Please sign into GitHub and try again.'));
-			}
+			const authInfo = await this.authenticate();
 
 			if (!chatSessionContext) {
-				// Delegating from another chat session
 				return await this.handleDelegationFromAnotherChat(request, undefined, request.references, context, stream, authInfo, token);
 			}
 
 			const { resource } = chatSessionContext.chatSessionItem;
-			const id = SessionIdForCLI.parse(resource);
-			sessionId = id;
-			const isNewSession = this.sessionService.isNewSessionId(id);
-			const invalidSessionMessage = _invalidCopilotCLISessionIdsWithErrorMessage.get(id);
+			const sessionId = SessionIdForCLI.parse(resource);
+			const isNewSession = this.sessionService.isNewSessionId(sessionId);
+			const invalidSessionMessage = _invalidCopilotCLISessionIdsWithErrorMessage.get(sessionId);
 			if (invalidSessionMessage) {
 				const { issueUrl } = getSessionLoadFailureIssueInfo(invalidSessionMessage);
 				const warningMessage = new vscode.MarkdownString();
@@ -1048,425 +695,57 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				yieldRequested: false,
 			};
 			const branchNamePromise = isNewSession && request.prompt ? this.branchNameGenerator.generateBranchName(fakeContext, token) : Promise.resolve(undefined);
-			const [model, agent] = await Promise.all([
-				this.getModelId(request, token),
-				this.getAgent(id, request, token),
-			]);
 
-			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { model, agent, branchName: branchNamePromise }, disposables, token);
-			const session = sessionResult.session;
-			if (session) {
-				disposables.add(session);
-			}
+			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { branchName: branchNamePromise }, disposables, token);
+			({ session } = sessionResult);
+			const { model } = sessionResult;
 			if (!session || token.isCancellationRequested) {
-				// If user didn't trust, then reset the session options to make it read-write.
-				if (!sessionResult.trusted) {
-					await this.unlockRepoOptionForSession(context, token);
-				}
 				return {};
 			}
 
-			if (context.history.length === 0) {
-				// Create baseline checkpoint when handling the first request
-				await this.copilotCLIWorktreeCheckpointService.handleRequest(session.object.sessionId);
-			}
-
 			sdkSessionId = session.object.sessionId;
-			const modeInstructions = this.createModeInstructions(request);
-			this.chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 
-			// Lock the repo option with more accurate information.
-			// Previously we just updated it with details of the folder.
-			// If user has selected a repo, then update with repo information (right icons, etc).
-			if (isNewSession) {
-				void this.lockRepoOptionForSession(context, token);
-				// The session has been created and initialized with workspace information,
-				// No need to track the temproary workspace folders as its been persisted.
-				// this.folderRepositoryManager.deleteNewSessionFolder(id);
-			}
-			const requestsForSession = this.pendingRequestBySession.get(session.object.sessionId) ?? new Set<vscode.ChatRequest>();
-			requestsForSession.add(request);
-			this.pendingRequestBySession.set(session.object.sessionId, requestsForSession);
+			await this.sessionRequestLifecycle.startRequest(sdkSessionId, request, context.history.length === 0);
 
-			// Check if we have context stored for this request (created in createCLISessionAndSubmitRequest, work around)
-			const contextForRequest = this.contextForRequest.get(session.object.sessionId);
-			this.contextForRequest.delete(session.object.sessionId);
 			if (request.command === 'delegate') {
 				await this.handleDelegationToCloud(session.object, request, context, stream, token);
-			} else if (contextForRequest) {
-				// This is a request that was created in createCLISessionAndSubmitRequest with attachments already resolved.
-				const { prompt, attachments } = contextForRequest;
-				this.contextForRequest.delete(session.object.sessionId);
-				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
-				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
-			} else if (request.command && !request.prompt && !isNewSession) {
-				const input = (copilotCLICommands as readonly string[]).includes(request.command)
-					? { command: request.command as CopilotCLICommand, prompt: '' }
-					: { prompt: `/${request.command}` };
-				await session.object.handleRequest(request, input, [], model, authInfo, token);
-				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
-			} else if (request.prompt && Object.values(builtinSlashSCommands).some(command => request.prompt.startsWith(command))) {
-				// Sessions app built-in slash commands
-				const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token);
-				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
-				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else {
-				// Construct the full prompt with references to be sent to CLI.
-				const { prompt, attachments } = await this.promptResolver.resolvePrompt(request, undefined, [], session.object.workspace, [], token);
-				const input = (request.command && (copilotCLICommands as readonly string[]).includes(request.command))
-					? { command: request.command as CopilotCLICommand, prompt }
-					: { prompt: prompt };
+				const { input, attachments } = await this.resolveInput(request, session.object, isNewSession, token);
 				await session.object.handleRequest(request, input, attachments, model, authInfo, token);
-				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			}
 
-			// No need to delay handling the request, we can refresh in background.
-			this.contentProvider.refreshSession({ reason: 'update', sessionId: session.object.sessionId }).catch(error => this.logService.error(error, 'Failed to refresh session item after handling request'));
 			return {};
 		} catch (ex) {
 			if (isCancellationError(ex)) {
 				return {};
 			}
 			throw ex;
-		}
-		finally {
-			if (sdkSessionId) {
-				const requestsForSession = this.pendingRequestBySession.get(sdkSessionId);
-				if (requestsForSession) {
-					requestsForSession.delete(request);
-					if (requestsForSession.size === 0) {
-						this.pendingRequestBySession.delete(sdkSessionId);
-					}
-				}
+		} finally {
+			if (sdkSessionId && session) {
+				await this.sessionRequestLifecycle.endRequest(
+					sdkSessionId, request,
+					{ status: session.object.status, workspace: session.object.workspace, createdPullRequestUrl: session.object.createdPullRequestUrl },
+					token,
+				);
+				this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: sdkSessionId })
+					.catch(error => this.logService.error(error, 'Failed to refresh session item after handling request'));
 			}
 			disposables.dispose();
 		}
 	}
 
-	private async lockRepoOptionForSession(context: vscode.ChatContext, token: vscode.CancellationToken) {
-		// const { chatSessionContext } = context;
-		// if (!chatSessionContext?.chatSessionItem?.resource) {
-		// 	return;
-		// }
-		// const { resource } = chatSessionContext.chatSessionItem;
-		// const id = SessionIdForCLI.parse(resource);
-		// if (!this.sessionService.isNewSessionId(id)) {
-		// 	return;
-		// }
-		// const folderInfo = await this.folderRepositoryManager.getFolderRepository(id, undefined, token);
-		// if (folderInfo.folder) {
-		// 	const folderName = basename(folderInfo.folder);
-		// 	const option = folderInfo.repository ? toRepositoryOptionItem(folderInfo.repository) : toWorkspaceFolderOptionItem(folderInfo.folder, folderName);
-		// 	const changes: { optionId: string; value: string | vscode.ChatSessionProviderOptionItem }[] = [
-		// 		{ optionId: REPOSITORY_OPTION_ID, value: { ...option, locked: true } }
-		// 	];
-		// 	// Also lock the branch option
-		// 	const selectedBranch = folderInfo.worktreeProperties?.branchName ?? _sessionBranch.get(id);
-		// 	if (selectedBranch && isBranchOptionFeatureEnabled(this.configurationService)) {
-		// 		changes.push({
-		// 			optionId: BRANCH_OPTION_ID,
-		// 			value: {
-		// 				id: selectedBranch,
-		// 				name: selectedBranch,
-		// 				icon: new vscode.ThemeIcon('git-branch'),
-		// 				locked: true
-		// 			}
-		// 		});
-		// 	}
-		// 	// Also lock the isolation option if set
-		// 	const selectedIsolation = _sessionIsolation.get(id);
-		// 	if (selectedIsolation && isIsolationOptionFeatureEnabled(this.configurationService)) {
-		// 		changes.push({
-		// 			optionId: ISOLATION_OPTION_ID,
-		// 			value: {
-		// 				id: selectedIsolation,
-		// 				name: selectedIsolation === IsolationMode.Worktree
-		// 					? l10n.t('Worktree')
-		// 					: l10n.t('Workspace'),
-		// 				icon: new vscode.ThemeIcon(selectedIsolation === IsolationMode.Worktree ? 'worktree' : 'folder'),
-		// 				locked: true
-		// 			}
-		// 		});
-		// 	}
-		// 	this.contentProvider.notifySessionOptionsChange(resource, changes);
-		// }
-	}
-
-	private async unlockRepoOptionForSession(context: vscode.ChatContext, token: vscode.CancellationToken) {
-		// const { chatSessionContext } = context;
-		// if (!chatSessionContext?.chatSessionItem?.resource) {
-		// 	return;
-		// }
-		// const { resource } = chatSessionContext.chatSessionItem;
-		// const id = SessionIdForCLI.parse(resource);
-		// if (!this.sessionService.isNewSessionId(id)) {
-		// 	return;
-		// }
-		// const folderInfo = await this.folderRepositoryManager.getFolderRepository(id, undefined, token);
-		// if (folderInfo.folder) {
-		// 	const option = folderInfo.repository?.fsPath ?? folderInfo.folder.fsPath;
-		// 	const changes: { optionId: string; value: string }[] = [
-		// 		{ optionId: REPOSITORY_OPTION_ID, value: option }
-		// 	];
-		// 	// Also unlock the branch option if a branch was selected
-		// 	const selectedBranch = _sessionBranch.get(id);
-		// 	if (selectedBranch && isBranchOptionFeatureEnabled(this.configurationService)) {
-		// 		changes.push({ optionId: BRANCH_OPTION_ID, value: selectedBranch });
-		// 	}
-		// 	// Also unlock the isolation option if set
-		// 	const selectedIsolation = _sessionIsolation.get(id);
-		// 	if (selectedIsolation && isIsolationOptionFeatureEnabled(this.configurationService)) {
-		// 		changes.push({ optionId: ISOLATION_OPTION_ID, value: selectedIsolation });
-		// 	}
-		// 	this.contentProvider.notifySessionOptionsChange(resource, changes);
-		// }
-	}
-
-	private async commitWorktreeChangesIfNeeded(request: vscode.ChatRequest, session: ICopilotCLISession, token: vscode.CancellationToken): Promise<void> {
-		const pendingRequests = this.pendingRequestBySession.get(session.sessionId);
-		if (pendingRequests && pendingRequests.size > 1) {
-			// We still have pending requests for this session, which means the user has done some steering.
-			// Wait for all requests to complete, the last request to complete will handle the commit.
-			pendingRequests.delete(request);
-			return;
+	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { branchName: Promise<string | undefined> }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; trusted: boolean }> {
+		const result = await this.sessionInitializer.getOrCreateSession(request, chatSessionContext, stream, options, disposables, token);
+		const { session, isNewSession, model, trusted } = result;
+		if (!session || token.isCancellationRequested) {
+			return { session: undefined, isNewSession, model, trusted };
 		}
 
-		if (token.isCancellationRequested) {
-			pendingRequests?.delete(request);
-			return;
-		}
-
-		try {
-			if (session.status === vscode.ChatSessionStatus.Completed) {
-				const workingDirectory = getWorkingDirectory(session.workspace);
-				if (isIsolationEnabled(session.workspace)) {
-					// When isolation is enabled and we are using a git worktree, so we commit
-					// all the changes in the worktree directory when the session is completed.
-					// Note that if the worktree supports checkpoints, then the commit will be
-					// done in the checkpoint so that users can easily see the changes made in
-					// the worktree and also revert back if needed.
-					await this.copilotCLIWorktreeManagerService.handleRequestCompleted(session.sessionId);
-				} else if (workingDirectory) {
-					// When isolation is not enabled, we are operating in the workspace directly,
-					// so we stage all the changes in the workspace directory when the session is
-					// completed
-					await this.workspaceFolderService.handleRequestCompleted(session.sessionId);
-				}
-
-				// Create checkpoint - we create a checkpoint for the worktree changes so that users
-				// can easily see the changes made in the worktree and also revert back if needed. This
-				// is used if worktree isolation is enabled, and auto-commit is disabled or workspace
-				// isolation is enabled.
-				await this.copilotCLIWorktreeCheckpointService.handleRequestCompleted(session.sessionId, request.id);
-			}
-
-			void this.handlePullRequestCreated(session).catch(ex => this.logService.error(ex, 'Failed to handle pull request creation'));
-		} finally {
-			pendingRequests?.delete(request);
-		}
-	}
-
-	private static readonly _PR_DETECTION_RETRY_COUNT = 5;
-	private static readonly _PR_DETECTION_INITIAL_DELAY_MS = 2_000;
-
-	private async handlePullRequestCreated(session: ICopilotCLISession): Promise<void> {
-		const sessionId = session.sessionId;
-		let prUrl = session.createdPullRequestUrl;
-		let prState = '';
-
-		this.logService.debug(`[CopilotCLIChatSessionParticipant] handlePullRequestCreated for ${sessionId}: createdPullRequestUrl=${prUrl ?? 'none'}`);
-
-		const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
-		if (!worktreeProperties || worktreeProperties.version !== 2) {
-			return;
-		}
-
-		if (!prUrl) {
-			// Only attempt retry detection if the session has v2 worktree properties
-			// with branch info — v1 worktrees can't store PR URLs, and sessions
-			// without worktree properties have nothing to look up.
-			if (worktreeProperties.branchName && worktreeProperties.repositoryPath) {
-				this.logService.debug(`[CopilotCLIChatSessionParticipant] No PR URL from session, attempting retry detection for ${sessionId}, branch=${worktreeProperties.branchName}`);
-				const prResult = await this.detectPullRequestWithRetry(sessionId);
-				prUrl = prResult?.url;
-				prState = prResult?.state ?? prResult?.url ? 'open' : '';
-			} else {
-				this.logService.debug(`[CopilotCLIChatSessionParticipant] Skipping retry detection for ${sessionId}: branch=${worktreeProperties.branchName ?? 'none'}, repoPath=${!!worktreeProperties.repositoryPath}`);
-			}
-		}
-
-		if (!prUrl) {
-			this.logService.debug(`[CopilotCLIChatSessionParticipant] No PR detected for ${sessionId} after all attempts`);
-			return;
-		}
-
-		try {
-			await this.copilotCLIWorktreeManagerService.setWorktreeProperties(sessionId, {
-				...worktreeProperties,
-				pullRequestUrl: prUrl,
-				pullRequestState: prState,
-				changes: undefined,
-			});
-			await this.contentProvider.refreshSession({ reason: 'update', sessionId: session.sessionId });
-		} catch (error) {
-			this.logService.error(error instanceof Error ? error : new Error(String(error)), `Failed to persist pull request metadata for session ${sessionId}`);
-		}
-	}
-
-	/**
-	 * Attempts to detect a pull request for a freshly-completed session using
-	 * exponential backoff. The GitHub API may not have indexed the PR immediately
-	 * after `gh pr create` returns, so we retry with increasing delays:
-	 * attempt 1: 2s, attempt 2: 4s, attempt 3: 8s.
-	 */
-	private async detectPullRequestWithRetry(sessionId: string): Promise<{ url: string; state: string } | undefined> {
-		const maxRetries = CopilotCLIChatSessionParticipant._PR_DETECTION_RETRY_COUNT;
-		const initialDelay = CopilotCLIChatSessionParticipant._PR_DETECTION_INITIAL_DELAY_MS;
-
-		for (let attempt = 0; attempt < maxRetries; attempt++) {
-			const delay = initialDelay * Math.pow(2, attempt);
-			this.logService.debug(`[CopilotCLIChatSessionParticipant] PR detection retry for ${sessionId}: attempt ${attempt + 1}/${maxRetries}, waiting ${delay}ms`);
-			await new Promise<void>(resolve => setTimeout(resolve, delay));
-
-			const prResult = await this.detectPullRequestForSession(sessionId);
-			if (prResult) {
-				this.logService.debug(`[CopilotCLIChatSessionParticipant] PR detected on attempt ${attempt + 1} for ${sessionId}: url=${prResult.url}, state=${prResult.state}`);
-				return prResult;
-			}
-		}
-
-		this.logService.debug(`[CopilotCLIChatSessionParticipant] PR detection exhausted all ${maxRetries} retries for ${sessionId}`);
-		return undefined;
-	}
-
-
-	/**
-	 * Queries the GitHub API to find a pull request whose head branch matches the
-	 * session's worktree branch. This covers cases where the MCP tool failed to
-	 * report a PR URL, or the user created the PR externally (e.g., via github.com).
-	 */
-	private async detectPullRequestForSession(sessionId: string): Promise<{ url: string; state: string } | undefined> {
-		try {
-			const worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(sessionId);
-			if (!worktreeProperties?.branchName || !worktreeProperties.repositoryPath) {
-				this.logService.debug(`[CopilotCLIChatSessionParticipant] detectPullRequestForSession: missing worktree info for ${sessionId}, branch=${worktreeProperties?.branchName ?? 'none'}, repoPath=${!!worktreeProperties?.repositoryPath}`);
-				return undefined;
-			}
-
-			return await detectPullRequestFromGitHubAPI(
-				worktreeProperties.branchName,
-				worktreeProperties.repositoryPath,
-				this.gitService,
-				this.octoKitService,
-				this.logService,
-			);
-		} catch (error) {
-			this.logService.debug(`[CopilotCLIChatSessionParticipant] Failed to detect pull request via GitHub API: ${error instanceof Error ? error.message : String(error)}`);
-			return undefined;
-		}
-	}
-
-	/**
-	 * Gets the agent to be used.
-	 * If the request has a prompt file (modeInstructions2) that specifies an agent, uses that agent.
-	 * If the prompt file specifies tools, those tools override the agent's default tools.
-	 * Otherwise returns undefined (no agent).
-	 */
-	private async getAgent(sessionId: string | undefined, request: vscode.ChatRequest | undefined, token: vscode.CancellationToken): Promise<SweCustomAgent | undefined> {
-		// If we have a prompt file that specifies an agent or tools, use that.
-		if (request?.modeInstructions2) {
-			const customAgent = request.modeInstructions2.uri ? await this.copilotCLIAgents.resolveAgent(request.modeInstructions2.uri.toString()) : await this.copilotCLIAgents.resolveAgent(request.modeInstructions2.name);
-			if (customAgent) {
-				const tools = (request.modeInstructions2.toolReferences || []).map(t => t.name);
-				if (tools.length > 0) {
-					customAgent.tools = tools;
-				}
-				return customAgent;
-			}
-		}
-		// If not found, don't use any agent, default to empty agent.
-		return undefined;
-	}
-
-	private async getPromptInfoFromRequest(request: vscode.ChatRequest, token: vscode.CancellationToken): Promise<ParsedPromptFile | undefined> {
-		const promptFile = new ChatVariablesCollection(request.references).find(isPromptFile);
-		if (!promptFile || !URI.isUri(promptFile.reference.value)) {
-			return undefined;
-		}
-		try {
-			return await this.promptsService.parseFile(promptFile.reference.value, token);
-		} catch (ex) {
-			this.logService.error(`Failed to parse the prompt file: ${promptFile.reference.value.toString()}`, ex);
-			return undefined;
-		}
-	}
-
-	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; branchName: Promise<string | undefined> }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
-		const { resource } = chatSessionContext.chatSessionItem;
-		const sessionId = SessionIdForCLI.parse(resource);
-		const isNewSession = this.sessionService.isNewSessionId(sessionId);
-
-		const { workspaceInfo, cancelled, trusted } = await this.getOrInitializeWorkingDirectory(chatSessionContext, undefined, options.branchName, stream, request.toolInvocationToken, token);
-		const workingDirectory = getWorkingDirectory(workspaceInfo);
-		const worktreeProperties = workspaceInfo.worktreeProperties;
-		if (cancelled || token.isCancellationRequested) {
-			return { session: undefined, trusted };
-		}
-
-		const model = options.model?.model;
-		const agent = options.agent;
-		const reasoningEffort = options.model?.reasoningEffort;
-		const debugTargetSessionIds = extractDebugTargetSessionIds(request.references);
-		const mcpServerMappings = buildMcpServerMappings(request.tools);
-		const session = isNewSession ?
-			await this.sessionService.createSession({ sessionId, model, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings, reasoningEffort }, token) :
-			await this.sessionService.getSession({ sessionId, model, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings, reasoningEffort }, token);
-
-		if (!session) {
-			stream.warning(l10n.t('Chat session not found.'));
-			return { session: undefined, trusted };
-		}
-		this.logService.info(`Using Copilot CLI session: ${session.object.sessionId} (isNewSession: ${isNewSession}, isolationEnabled: ${isIsolationEnabled(workspaceInfo)}, workingDirectory: ${workingDirectory}, worktreePath: ${worktreeProperties?.worktreePath})`);
 		if (isNewSession) {
-			this.contentProvider.refreshSession({ reason: 'update', sessionId: session.object.sessionId });
-			if (worktreeProperties) {
-				void this.copilotCLIWorktreeManagerService.setWorktreeProperties(session.object.sessionId, worktreeProperties);
-			}
+			this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: session.object.sessionId });
 		}
-		const sessionWorkingDirectory = getWorkingDirectory(session.object.workspace);
-		if (sessionWorkingDirectory && !isIsolationEnabled(session.object.workspace)) {
-			void this.workspaceFolderService.trackSessionWorkspaceFolder(session.object.sessionId, sessionWorkingDirectory.fsPath, session.object.workspace.repositoryProperties);
-		}
-		disposables.add(session.object.attachStream(stream));
-		const permissionLevel = request.permissionLevel;
-		session.object.setPermissionLevel(permissionLevel);
 
-		return { session, trusted };
-	}
-
-	private async getModelId(request: vscode.ChatRequest | undefined, token: vscode.CancellationToken): Promise<{ model: string; reasoningEffort?: string } | undefined> {
-		const promptFile = request ? await this.getPromptInfoFromRequest(request, token) : undefined;
-		const model = promptFile?.header?.model ? await getModelFromPromptFile(promptFile.header.model, this.copilotCLIModels) : undefined;
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-		if (model) {
-			return { model };
-		}
-		// Get model from request.
-		const preferredModelInRequest = request?.model?.id ? await this.copilotCLIModels.resolveModel(request.model.id) : undefined;
-		if (preferredModelInRequest) {
-			const reasoningEffort = isReasoningEffortFeatureEnabled(this.configurationService) ? request?.modelConfiguration?.[COPILOT_CLI_REASONING_EFFORT_PROPERTY] : undefined;
-			return {
-				model: preferredModelInRequest,
-				reasoningEffort: typeof reasoningEffort === 'string' && reasoningEffort ? reasoningEffort : undefined
-			};
-		}
-		const defaultModel = await this.copilotCLIModels.getDefaultModel();
-		if (!defaultModel) {
-			return undefined;
-		}
-		return { model: defaultModel };
+		return { session, isNewSession, model, trusted };
 	}
 
 	private async handleDelegationToCloud(session: ICopilotCLISession, request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
@@ -1490,71 +769,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	}
 
-	private async getOrInitializeWorkingDirectory(
-		chatSessionContext: vscode.ChatSessionContext | undefined,
-		isolation: IsolationMode | undefined,
-		branchName: Promise<string | undefined> | undefined,
-		stream: vscode.ChatResponseStream,
-		toolInvocationToken: vscode.ChatParticipantToolToken,
-		token: vscode.CancellationToken
-	): Promise<{
-		workspaceInfo: IWorkspaceInfo;
-		cancelled: boolean;
-		trusted: boolean;
-	}> {
-		let folderInfo: FolderRepositoryInfo;
-		let folder: undefined | vscode.Uri = undefined;
-		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length === 1) {
-			folder = workspaceFolders[0];
-		}
-		if (chatSessionContext) {
-			const sessionId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
-			const isNewSession = this.sessionService.isNewSessionId(sessionId);
-
-			if (isNewSession) {
-				let isolation = IsolationMode.Workspace;
-				let branch: string | undefined = undefined;
-				for (const opt of (chatSessionContext.initialSessionOptions || [])) {
-					const value = typeof opt.value === 'string' ? opt.value : opt.value.id;
-					if (opt.optionId === REPOSITORY_OPTION_ID && value) {
-						folder = vscode.Uri.file(value);
-					} else if (opt.optionId === BRANCH_OPTION_ID && value) {
-						branch = value;
-					} else if (opt.optionId === ISOLATION_OPTION_ID && value) {
-						isolation = value as IsolationMode;
-					}
-				}
-
-				// Use FolderRepositoryManager to initialize folder/repository with worktree creation
-				folderInfo = await this.folderRepositoryManager.initializeFolderRepository(sessionId, { stream, toolInvocationToken, branch, isolation, folder, newBranch: branchName }, token);
-			} else {
-				// Existing session - use getFolderRepository for resolution with trust check
-				folderInfo = await this.folderRepositoryManager.getFolderRepository(sessionId, { promptForTrust: true, stream }, token);
-			}
-		} else {
-			// No chat session context (e.g., delegation) - initialize with active repository
-			folderInfo = await this.folderRepositoryManager.initializeFolderRepository(undefined, { stream, toolInvocationToken, isolation, folder }, token);
-		}
-
-		if (folderInfo.trusted === false || folderInfo.cancelled) {
-			return { workspaceInfo: emptyWorkspaceInfo(), cancelled: true, trusted: folderInfo.trusted !== false };
-		}
-
-		const workspaceInfo = Object.assign({}, folderInfo);
-		return { workspaceInfo, cancelled: false, trusted: true };
-	}
-
-	private createModeInstructions(request: vscode.ChatRequest): StoredModeInstructions | undefined {
-		return request.modeInstructions2 ? {
-			uri: request.modeInstructions2.uri?.toString(),
-			name: request.modeInstructions2.name,
-			content: request.modeInstructions2.content,
-			metadata: request.modeInstructions2.metadata,
-			isBuiltin: request.modeInstructions2.isBuiltin,
-		} : undefined;
-
-	}
 	private async handleDelegationFromAnotherChat(
 		request: vscode.ChatRequest,
 		userPrompt: string | undefined,
@@ -1577,36 +791,21 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			return summary ? `${userPrompt}\n${summary}` : userPrompt;
 		})();
 
-		const [{ workspaceInfo, cancelled }, model, agent] = await Promise.all([
-			this.getOrInitializeWorkingDirectory(undefined, undefined, undefined, stream, request.toolInvocationToken, token),
-			this.getModelId(request, token), // prefer model in request, as we're delegating from another session here.
-			this.getAgent(undefined, undefined, token)
-		]);
+		const { workspaceInfo, cancelled } = await this.sessionInitializer.initializeWorkingDirectory(undefined, undefined, undefined, stream, request.toolInvocationToken, token);
 
 		if (cancelled || token.isCancellationRequested) {
 			stream.markdown(l10n.t('Copilot CLI delegation cancelled.'));
 			return {};
 		}
-		const workingDirectory = getWorkingDirectory(workspaceInfo);
-		const worktreeProperties = workspaceInfo.worktreeProperties;
 		const { prompt, attachments, references } = await this.promptResolver.resolvePrompt(request, await requestPromptPromise, (otherReferences || []).concat([]), workspaceInfo, [], token);
 
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
-		const session = await this.sessionService.createSession({ workspace: workspaceInfo, agent, model: model?.model, mcpServerMappings }, token);
-		const modeInstructions = this.createModeInstructions(request);
-		this.chatSessionMetadataStore.updateRequestDetails(session.object.sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
+		const { session, model } = await this.sessionInitializer.createDelegatedSession(request, workspaceInfo, { mcpServerMappings }, token);
 		if (summary) {
 			const summaryRef = await this.chatDelegationSummaryService.trackSummaryUsage(session.object.sessionId, summary);
 			if (summaryRef) {
 				references.push(summaryRef);
 			}
-		}
-		// Do not await, we want this code path to be as fast as possible.
-		if (worktreeProperties) {
-			void this.copilotCLIWorktreeManagerService.setWorktreeProperties(session.object.sessionId, worktreeProperties);
-		}
-		if (workingDirectory && !isIsolationEnabled(workspaceInfo)) {
-			void this.workspaceFolderService.trackSessionWorkspaceFolder(session.object.sessionId, workingDirectory.fsPath, workspaceInfo.repositoryProperties);
 		}
 
 		try {
@@ -1622,7 +821,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		} catch {
 			this.contextForRequest.delete(session.object.sessionId);
 			session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token)
-				.then(() => this.commitWorktreeChangesIfNeeded(request, session.object, token))
+				.then(() => this.sessionRequestLifecycle.endRequest(session.object.sessionId, request, { status: session.object.status, workspace: session.object.workspace, createdPullRequestUrl: session.object.createdPullRequestUrl }, token))
 				.catch(error => {
 					this.logService.error(`Failed to handle CLI session request: ${error}`);
 				})
@@ -1670,7 +869,7 @@ export function registerCLIChatCommands(
 	copilotCliWorkspaceSession: IChatSessionWorkspaceFolderService,
 	contentProvider: CopilotCLIChatSessionContentProvider,
 	folderRepositoryManager: IFolderRepositoryManager,
-	copilotCLIFolderMruService: ICopilotCLIFolderMruService,
+	copilotCLIFolderMruService: IChatFolderMruService,
 	envService: INativeEnvService,
 	fileSystemService: IFileSystemService,
 	sessionTracker: ICopilotCLISessionTracker,
@@ -1678,6 +877,12 @@ export function registerCLIChatCommands(
 	logService: ILogService
 ): IDisposable {
 	const disposableStore = new DisposableStore();
+
+	// Terminal integration setup: resolve session dirs for terminal links.
+	disposableStore.add(terminalIntegration);
+	terminalIntegration.setSessionDirResolver(terminal =>
+		resolveSessionDirsForTerminal(sessionTracker, terminal)
+	);
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.delete', async (sessionItem?: vscode.ChatSessionItem) => {
 		if (sessionItem?.resource) {
 			const id = SessionIdForCLI.parse(sessionItem.resource);
@@ -1876,10 +1081,10 @@ export function registerCLIChatCommands(
 		return undefined;
 	}
 
-	disposableStore.add(vscode.commands.registerCommand(OPEN_REPOSITORY_COMMAND_ID, async (sessionItemResource?: vscode.Uri) => {
-		if (!sessionItemResource) {
-			return;
-		}
+	// Command handler receives `{ inputState, sessionResource }` context args (new API)
+	disposableStore.add(vscode.commands.registerCommand(OPEN_REPOSITORY_COMMAND_ID, async (contextArg?: { inputState: vscode.ChatSessionInputState; sessionResource: vscode.Uri | undefined } | vscode.Uri) => {
+		// Support both new API shape and legacy Uri shape for backward compat
+		const inputState = contextArg && !isUri(contextArg) ? contextArg.inputState : undefined;
 
 		let selectedFolderUri: Uri | undefined = undefined;
 		const mruItems = await copilotCLIFolderMruService.getRecentlyUsedFolders(CancellationToken.None);
@@ -1972,9 +1177,15 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		const sessionId = SessionIdForCLI.parse(sessionItemResource);
-		if (copilotCLISessionService.isNewSessionId(sessionId)) {
-			await contentProvider.trackLastUsedFolderInWelcomeView(selectedFolderUri);
+		// // We need to check trust now, as we need to determine whether this is a Git repo or not.
+		// // Using the relevant services to check if its a git repo result in checking trust as well, might as well check now instead of complicating code later to handle both trusted and untrusted cases.
+		// if (!(await vscode.workspace.isResourceTrusted(selectedFolderUri))) {
+		// 	return;
+		// }
+
+		// Update inputState groups with newly selected folder and reload branches
+		if (inputState) {
+			await contentProvider.updateInputStateAfterFolderSelection(inputState, selectedFolderUri);
 		}
 	}));
 
@@ -2413,37 +1624,6 @@ export function registerCLIChatCommands(
 	return disposableStore;
 }
 
-async function getModelFromPromptFile(models: readonly string[], copilotCLIModels: ICopilotCLIModels): Promise<string | undefined> {
-	for (const model of models) {
-		let modelId = await copilotCLIModels.resolveModel(model);
-		if (modelId) {
-			return modelId;
-		}
-		// Sometimes the models can contain ` (Copilot)` suffix, try stripping that and resolving again.
-		if (!model.includes('(')) {
-			continue;
-		}
-		modelId = await copilotCLIModels.resolveModel(model.substring(0, model.indexOf('(')).trim());
-		if (modelId) {
-			return modelId;
-		}
-	}
-	return undefined;
-}
-
-
-function folderMRUToChatProviderOptions(mruItems: FolderRepositoryMRUEntry[]): ChatSessionProviderOptionItem[] {
-	return mruItems.map((item) => {
-		if (item.repository) {
-			return toRepositoryOptionItem(item.folder);
-		} else {
-			return toWorkspaceFolderOptionItem(item.folder, basename(item.folder));
-		}
-	});
-
-}
-
-
 /**
  * Check if a path exists and is a directory.
  */
@@ -2459,47 +1639,4 @@ async function checkPathExists(filePath: vscode.Uri, fileSystemService: IFileSys
 function isUnknownEventTypeError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
 	return /Unknown event type:/i.test(message);
-}
-
-/**
- * Queries the GitHub API to find a pull request whose head branch matches the
- * given worktree branch. This covers cases where the MCP tool failed to report
- * a PR URL, or the user created the PR externally (e.g., via github.com).
- */
-async function detectPullRequestFromGitHubAPI(
-	branchName: string,
-	repositoryPath: string,
-	gitService: IGitService,
-	octoKitService: IOctoKitService,
-	logService: ILogService,
-): Promise<{ url: string; state: string } | undefined> {
-	const repoContext = await gitService.getRepository(URI.file(repositoryPath));
-	if (!repoContext) {
-		logService.debug(`[detectPullRequestFromGitHubAPI] No git repository found for path: ${repositoryPath}`);
-		return undefined;
-	}
-
-	const repoInfo = getGitHubRepoInfoFromContext(repoContext);
-	if (!repoInfo) {
-		logService.debug(`[detectPullRequestFromGitHubAPI] Could not extract GitHub repo info from repository at: ${repositoryPath}`);
-		return undefined;
-	}
-
-	logService.debug(`[detectPullRequestFromGitHubAPI] Querying GitHub API for PR on ${repoInfo.id.org}/${repoInfo.id.repo}, branch=${branchName}`);
-
-	const pr = await octoKitService.findPullRequestByHeadBranch(
-		repoInfo.id.org,
-		repoInfo.id.repo,
-		branchName,
-		{},
-	);
-
-	if (pr?.url) {
-		const prState = derivePullRequestState(pr);
-		logService.trace(`[detectPullRequestFromGitHubAPI] Detected pull request via GitHub API: ${pr.url} ${prState}`);
-		return { url: pr.url, state: prState };
-	}
-
-	logService.debug(`[detectPullRequestFromGitHubAPI] No PR found for ${repoInfo.id.org}/${repoInfo.id.repo}, branch=${branchName}`);
-	return undefined;
 }
