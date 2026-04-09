@@ -89,6 +89,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					type: McpServerTransportType.HTTP,
 					uri: URI.parse(config.url),
 					headers: Object.entries(config.headers || {}),
+					oauth: config.oauth,
 				} : {
 					type: McpServerTransportType.Stdio,
 					command: config.command,

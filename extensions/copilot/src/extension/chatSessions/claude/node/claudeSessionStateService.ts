@@ -11,6 +11,7 @@ import { arrayEquals } from '../../../../util/vs/base/common/equals';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ClaudeFolderInfo } from '../common/claudeFolderInfo';
+import type { ParsedClaudeModelId } from './claudeModelId';
 
 /**
  * Usage handler function type for reporting token usage to stream.
@@ -18,7 +19,7 @@ import type { ClaudeFolderInfo } from '../common/claudeFolderInfo';
 export type UsageHandler = (usage: vscode.ChatResultUsage) => void;
 
 export interface SessionState {
-	modelId: string | undefined;
+	modelId: ParsedClaudeModelId | undefined;
 	permissionMode: PermissionMode;
 	capturingToken: CapturingToken | undefined;
 	folderInfo: ClaudeFolderInfo | undefined;
@@ -30,7 +31,7 @@ export interface SessionState {
  */
 export interface SessionStateChangeEvent {
 	readonly sessionId: string;
-	readonly modelId?: string;
+	readonly modelId?: ParsedClaudeModelId;
 	readonly permissionMode?: PermissionMode;
 	readonly folderInfo?: ClaudeFolderInfo;
 }
@@ -46,12 +47,12 @@ export interface IClaudeSessionStateService {
 	/**
 	 * Gets the stored model ID for a session (does not apply fallback logic).
 	 */
-	getModelIdForSession(sessionId: string): string | undefined;
+	getModelIdForSession(sessionId: string): ParsedClaudeModelId | undefined;
 
 	/**
 	 * Sets the model ID for a session.
 	 */
-	setModelIdForSession(sessionId: string, modelId: string | undefined): void;
+	setModelIdForSession(sessionId: string, modelId: ParsedClaudeModelId | undefined): void;
 
 	/**
 	 * Gets the permission mode for a session.
@@ -110,12 +111,12 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 		super();
 	}
 
-	getModelIdForSession(sessionId: string): string | undefined {
+	getModelIdForSession(sessionId: string): ParsedClaudeModelId | undefined {
 		const state = this._sessionState.get(sessionId);
 		return state?.modelId;
 	}
 
-	setModelIdForSession(sessionId: string, modelId: string | undefined): void {
+	setModelIdForSession(sessionId: string, modelId: ParsedClaudeModelId | undefined): void {
 		const existing = this._sessionState.get(sessionId);
 		if (existing?.modelId === modelId) {
 			return;

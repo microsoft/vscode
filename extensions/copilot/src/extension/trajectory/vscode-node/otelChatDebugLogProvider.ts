@@ -121,6 +121,23 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 	}
 
 	/**
+	 * Prefix child entry event IDs that reuse the invoke_agent spanId
+	 * (user_message and subagent entries) so they don't collide with
+	 * parent-session entries (hooks, tool calls) that use the same ID
+	 * as their parentSpanId. Include the entry type in the prefix so
+	 * child-session user_message and subagent events that share a spanId
+	 * don't collide with each other in UI caches or id-based lookups.
+	 */
+	private _prefixChildEventId(evt: vscode.ChatDebugEvent, entry: IDebugLogEntry): void {
+		if (entry.type === 'user_message' || entry.type === 'subagent') {
+			const evtWithId = evt as { id?: string };
+			if (evtWithId.id) {
+				evtWithId.id = `child-${entry.type}-${evtWithId.id}`;
+			}
+		}
+	}
+
+	/**
 	 * Add an entry to the detail resolution cache with LRU eviction.
 	 */
 	private _cacheEntry(evtId: string, entry: IDebugLogEntry): void {
@@ -179,6 +196,7 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 				const evt = debugLogEntryToDebugEvent(entry, this._skipCoreEvents);
 				if (evt) {
 					this._scopeEventIds(evt, entry.rIdx ?? 0);
+					this._prefixChildEventId(evt, entry);
 					if ('parentEventId' in evt) {
 						(evt as { parentEventId?: string }).parentEventId = childParentId;
 					}
@@ -285,6 +303,7 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 							const childEvt = debugLogEntryToDebugEvent(childEntry, this._skipCoreEvents);
 							if (childEvt) {
 								this._scopeEventIds(childEvt, childEntry.rIdx ?? 0);
+								this._prefixChildEventId(childEvt, childEntry);
 								// Set parent to the child_session_ref entry (with run-index scope)
 								if ('parentEventId' in childEvt) {
 									(childEvt as { parentEventId?: string }).parentEventId = scopedParentId;
@@ -388,6 +407,7 @@ export class OTelChatDebugLogProviderContribution extends Disposable implements 
 				const childEvt = debugLogEntryToDebugEvent(childEntry, this._skipCoreEvents);
 				if (childEvt) {
 					this._scopeEventIds(childEvt, childEntry.rIdx ?? 0);
+					this._prefixChildEventId(childEvt, childEntry);
 					if ('parentEventId' in childEvt) {
 						(childEvt as { parentEventId?: string }).parentEventId = scopedParentId;
 					}

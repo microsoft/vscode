@@ -385,12 +385,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
 		this.responseTemplateDataByRequestId.clear();
+		this.templateDataByRequestId.clear();
+
+		// Fire the viewModel update first so template listeners can dispose
+		// their rendered content parts and release pool items back. Only then
+		// clear the pools so all released items are caught.
+		this._onDidUpdateViewModel.fire();
 		this._editorPool.clear();
 		this._toolEditorPool.clear();
 		this._diffEditorPool.clear();
 		this._treePool.clear();
 		this._contentReferencesListPool.clear();
-		this._onDidUpdateViewModel.fire();
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -665,6 +670,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.footerToolbar.context = undefined;
 		templateData.checkpointToolbar.context = undefined;
 		templateData.checkpointRestoreToolbar.context = undefined;
+		templateData.currentElement = undefined;
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {

@@ -346,6 +346,17 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		this.logService.trace(`[ChatSessionMetadataStore] Wrote request details for session ${sessionId}`);
 	}
 
+	async storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void> {
+		await this._intialize.value;
+		const sourceMetadata = await this.getSessionMetadata(sourceSessionId);
+		const forkedMetadata: ChatSessionMetadataFile = {
+			...sourceMetadata,
+			customTitle,
+			writtenToDisc: true,
+		};
+		await this.updateMetadataFields(targetSessionId, forkedMetadata);
+	}
+
 	private async getSessionMetadata(sessionId: string): Promise<ChatSessionMetadataFile | undefined> {
 		if (isUntitledSessionId(sessionId)) {
 			return undefined;

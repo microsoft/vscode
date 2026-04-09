@@ -287,6 +287,47 @@ describe('ChatSessionWorkspaceFolderService', () => {
 			expect(metadataStore.deleteSessionMetadata).toHaveBeenCalledWith(sessionId);
 		});
 
+		it('should invalidate workspace changes cache when deleting a tracked folder', async () => {
+			const repo = {
+				rootUri: URI.file('/repo'),
+				kind: 'repository' as const,
+				headBranchName: 'main',
+				headCommitHash: 'abc123',
+				upstreamBranchName: undefined,
+				upstreamRemote: undefined,
+				isRebasing: false,
+				remotes: [],
+				remoteFetchUrls: [],
+				worktrees: [],
+				changes: { mergeChanges: [], indexChanges: [], workingTree: [], untrackedChanges: [] },
+				headBranchNameObs: constObservable('main'),
+				headCommitHashObs: observableValue('test-head-commit', 'abc123'),
+				upstreamBranchNameObs: constObservable(undefined),
+				upstreamRemoteObs: constObservable(undefined),
+				isRebasingObs: constObservable(false),
+				isIgnored: async () => false,
+			} as RepoContext;
+
+			gitService.getRepository = vi.fn().mockResolvedValue(repo);
+
+			const sessionId1 = 'session-1';
+			const sessionId2 = 'session-2';
+			const sharedProperties = {
+				repositoryPath: '/repo',
+				branchName: 'main',
+				baseBranchName: 'origin/main',
+			};
+
+			await service.trackSessionWorkspaceFolder(sessionId1, '/repo', sharedProperties);
+			await service.trackSessionWorkspaceFolder(sessionId2, '/repo', sharedProperties);
+
+			await service.getWorkspaceChanges(sessionId1);
+			await service.deleteTrackedWorkspaceFolder(sessionId1);
+			await service.getWorkspaceChanges(sessionId2);
+
+			expect(gitService.getRepository).toHaveBeenCalledTimes(2);
+		});
+
 		it('should handle deletion of non-existent session', async () => {
 			// Should not throw
 			await expect(service.deleteTrackedWorkspaceFolder('non-existent')).resolves.toBeUndefined();
@@ -445,6 +486,37 @@ describe('ChatSessionWorkspaceFolderService', () => {
 				expect(result).toEqual([]);
 			});
 
+			it('should cache empty result when session has no repository properties', async () => {
+				// Session with no stored repository properties
+				const result1 = await service.getWorkspaceChanges('no-repo-session');
+				const result2 = await service.getWorkspaceChanges('no-repo-session');
+
+				expect(result1).toEqual([]);
+				expect(result2).toEqual([]);
+				// Should only read metadata once — subsequent call uses the negative cache
+				expect(metadataStore.getRepositoryProperties).toHaveBeenCalledTimes(1);
+			});
+
+			it('should clear negative cache when repository properties are later provided via trackSessionWorkspaceFolder', async () => {
+				const repo = makeRepoContext();
+				gitService.getRepository = vi.fn().mockResolvedValue(repo);
+
+				// First call: no repo properties → negative-cached, returns []
+				const result1 = await service.getWorkspaceChanges('late-init-session');
+				expect(result1).toEqual([]);
+
+				// Later: repo properties are provided via trackSessionWorkspaceFolder
+				await service.trackSessionWorkspaceFolder('late-init-session', '/repo', {
+					repositoryPath: '/repo',
+					branchName: 'main',
+				});
+
+				// Second call: negative cache should be cleared, should re-read metadata
+				const result2 = await service.getWorkspaceChanges('late-init-session');
+				expect(result2).toBeDefined();
+				expect(metadataStore.getRepositoryProperties).toHaveBeenCalledTimes(2);
+			});
+
 			it('should not re-fetch when cache is valid for a folder', async () => {
 				const repo = makeRepoContext();
 				gitService.getRepository = vi.fn().mockResolvedValue(repo);
@@ -513,6 +585,72 @@ describe('ChatSessionWorkspaceFolderService', () => {
 				const sessionId2Calls = calls.filter((c: URI[]) => c[0].fsPath === folder2.fsPath).length;
 				expect(sessionId1Calls).toBe(2);
 				expect(sessionId2Calls).toBe(1);
+			});
+
+			it('should serialize git operations for different sessions sharing the same repo, base branch and branch', async () => {
+				const repo = makeRepoContext();
+				const repoPath = '/shared-repo';
+
+				gitService.getRepository = vi.fn().mockImplementation(async () => {
+					// Simulate async work
+					await new Promise(resolve => setTimeout(resolve, 10));
+					return repo;
+				});
+
+				const sessionId1 = 'session-A';
+				const sessionId2 = 'session-B';
+
+				await metadataStore.storeRepositoryProperties(sessionId1, {
+					repositoryPath: repoPath,
+					branchName: 'feature',
+					baseBranchName: 'main',
+				});
+				await metadataStore.storeRepositoryProperties(sessionId2, {
+					repositoryPath: repoPath,
+					branchName: 'feature',
+					baseBranchName: 'main',
+				});
+
+				// Fire both concurrently — they share the same repo+baseBranch
+				const [result1, result2] = await Promise.all([
+					service.getWorkspaceChanges(sessionId1),
+					service.getWorkspaceChanges(sessionId2),
+				]);
+
+				expect(result1).toBeDefined();
+				expect(result2).toBeDefined();
+
+				// Session B should reuse the result computed by session A via shared repo-level cache
+				expect(result1).toBe(result2);
+				expect(gitService.getRepository).toHaveBeenCalledTimes(1);
+			});
+
+			it('should not share cache for sessions with different branch names in the same repo and base branch', async () => {
+				const repo = makeRepoContext();
+				const repoPath = '/shared-repo';
+
+				gitService.getRepository = vi.fn().mockImplementation(async () => {
+					await new Promise(resolve => setTimeout(resolve, 10));
+					return repo;
+				});
+
+				await metadataStore.storeRepositoryProperties('session-main', {
+					repositoryPath: repoPath,
+					branchName: 'main',
+					baseBranchName: 'origin/main',
+				});
+				await metadataStore.storeRepositoryProperties('session-feature', {
+					repositoryPath: repoPath,
+					branchName: 'feature',
+					baseBranchName: 'origin/main',
+				});
+
+				await Promise.all([
+					service.getWorkspaceChanges('session-main'),
+					service.getWorkspaceChanges('session-feature'),
+				]);
+
+				expect(gitService.getRepository).toHaveBeenCalledTimes(2);
 			});
 		});
 	});
