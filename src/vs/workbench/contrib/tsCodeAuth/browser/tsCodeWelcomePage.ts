@@ -14,6 +14,7 @@ interface WelcomePageElements {
 	root: HTMLElement;
 	loginBtn: HTMLButtonElement;
 	waitingMsg: HTMLElement;
+	cancelBtn: HTMLButtonElement; // test-workbench_change
 	errorMsg: HTMLElement;
 }
 
@@ -46,6 +47,13 @@ export class TsCodeWelcomePage extends Disposable {
 			this.authService.startOAuthFlow();
 		});
 
+		// test-workbench_change start
+		elements.cancelBtn.addEventListener('click', () => {
+			this.authService.stopPolling();
+			this.showLoginState();
+		});
+		// test-workbench_change end
+
 		// Mount directly on document.body to cover all VSCode UI
 		mainWindow.document.body.appendChild(elements.root);
 		this._overlay = elements.root;
@@ -63,21 +71,52 @@ export class TsCodeWelcomePage extends Disposable {
 		if (!this._elements) { return; }
 		this._elements.loginBtn.style.display = 'none';
 		this._elements.waitingMsg.style.display = 'block';
+		this._elements.cancelBtn.style.display = 'block'; // test-workbench_change
 		this._elements.errorMsg.style.display = 'none';
 	}
+
+	// test-workbench_change start
+	showLoginState(): void {
+		if (!this._elements) { return; }
+		this._elements.loginBtn.style.display = 'block';
+		this._elements.waitingMsg.style.display = 'none';
+		this._elements.cancelBtn.style.display = 'none';
+		this._elements.errorMsg.style.display = 'none';
+	}
+	// test-workbench_change end
 
 	showErrorState(message: string): void {
 		if (!this._elements) { return; }
 		this._elements.loginBtn.style.display = 'block';
 		this._elements.waitingMsg.style.display = 'none';
+		this._elements.cancelBtn.style.display = 'none'; // test-workbench_change
 		this._elements.errorMsg.textContent = message;
 		this._elements.errorMsg.style.display = 'block';
 	}
 
 	private _buildDOM(): WelcomePageElements {
 		const waitingMsg = h('div').root;
-		waitingMsg.textContent = '正在等待授权完成...';
+		waitingMsg.textContent = '正在等待授权...';
 		waitingMsg.style.cssText = 'display: none; color: #888; margin-top: 20px; font-size: 14px;';
+
+		// test-workbench_change start
+		const cancelBtn = h('button').root as HTMLButtonElement;
+		cancelBtn.textContent = '取 消';
+		cancelBtn.style.cssText = [
+			'display: none',
+			'padding: 12px 0',
+			'font-size: 16px',
+			'font-weight: 600',
+			'cursor: pointer',
+			'background: #f0f0f0',
+			'color: #1e1e1e',
+			'border: none',
+			'border-radius: 6px',
+			'width: 360px',
+			'margin-top: 16px',
+			'letter-spacing: 2px',
+		].join('; ');
+		// test-workbench_change end
 
 		const errorMsg = h('div').root;
 		errorMsg.style.cssText = 'display: none; color: #f44; margin-top: 20px; font-size: 14px; max-width: 360px;';
@@ -130,6 +169,7 @@ export class TsCodeWelcomePage extends Disposable {
 		inner.appendChild(subtitle);
 		inner.appendChild(loginBtn);
 		inner.appendChild(waitingMsg);
+		inner.appendChild(cancelBtn); // test-workbench_change
 		inner.appendChild(errorMsg);
 
 		const root = h('div').root;
@@ -148,6 +188,6 @@ export class TsCodeWelcomePage extends Disposable {
 		].join('; ');
 		root.appendChild(inner);
 
-		return { root, loginBtn, waitingMsg, errorMsg };
+		return { root, loginBtn, waitingMsg, cancelBtn, errorMsg }; // test-workbench_change
 	}
 }

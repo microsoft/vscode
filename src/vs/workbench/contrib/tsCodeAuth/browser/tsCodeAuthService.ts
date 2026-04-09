@@ -104,13 +104,13 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 			this._pollingTimer = setTimeout(async () => {
 				await this.tokenStore.saveToken(TSCODE_AUTH_MOCK_TOKEN);
 				this._onDidLogin.fire();
-			}, 3000);
+			}, 10000);
 			return;
 		}
 
 		const poll = async () => {
 			try {
-				const response = await fetch(`${TSCODE_GATEWAY_BASE_URL}/login/relate-token?app_code=${encodeURIComponent(appCode)}`, {
+				const response = await fetch(`${TSCODE_GATEWAY_BASE_URL}/login/relate-token?appCode=${encodeURIComponent(appCode)}`, {
 					method: 'GET',
 				});
 				if (response.ok) {
