@@ -61,7 +61,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		append(card, $('div.sessions-policy-blocked-logo'));
 
 		// Title
-		append(card, $('h2', undefined, localize('policyBlocked.title', "Agents Disabled by Policy")));
+		append(card, $('h2', undefined, localize('policyBlocked.title', "Agents Disabled")));
 
 		// Description
 		const description = append(card, $('p'));
