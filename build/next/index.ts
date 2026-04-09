@@ -1021,6 +1021,29 @@ ${tslib}`,
 		}
 	}
 
+	// Syntax-check JS files that were post-processed (mangle-privates, NLS).
+	// These steps do raw string surgery on bundled JS so a bug could silently
+	// produce syntactically broken output. Catch it here at build time.
+	// Uses esbuild.transform() as a parser since the bundles are ESM.
+	const postProcessedFiles = new Set([...mangleEdits.keys(), ...nlsEdits.keys()]);
+	if (postProcessedFiles.size > 0) {
+		const errors = (await Promise.all([...postProcessedFiles].map(async jsPath => {
+			try {
+				const src = await fs.promises.readFile(jsPath, 'utf-8');
+				await esbuild.transform(src, { loader: 'js', format: 'esm' });
+				return undefined;
+			} catch (e: unknown) {
+				const rel = path.relative(path.join(REPO_ROOT, outDir), jsPath);
+				const message = e instanceof Error ? e.message : String(e);
+				return { rel, message };
+			}
+		}))).filter(error => error !== undefined).sort((a, b) => a.rel.localeCompare(b.rel));
+		if (errors.length > 0) {
+			throw new Error(`[bundle] Syntax errors in post-processed JS files:\n${errors.map(e => `${e.rel}: ${e.message}`).join('\n')}`);
+		}
+		console.log(`[bundle] Syntax check passed for ${postProcessedFiles.size} post-processed JS files`);
+	}
+
 	// Log mangle-privates stats
 	if (doManglePrivates && mangleStats.length > 0) {
 		let totalClasses = 0, totalFields = 0, totalEdits = 0, totalElapsed = 0;

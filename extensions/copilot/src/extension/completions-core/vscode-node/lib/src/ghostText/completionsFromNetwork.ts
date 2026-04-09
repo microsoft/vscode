@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken as ICancellationToken } from 'vscode-languageserver-protocol';
-import { ConfigKey as ChatConfigKey, IConfigurationService } from '../../../../../../platform/configuration/common/configurationService';
 import { NoNextEditReason, StatelessNextEditTelemetryBuilder } from '../../../../../../platform/inlineEdits/common/statelessNextEditProvider';
-import { IExperimentationService } from '../../../../../../platform/telemetry/common/nullExperimentationService';
 import { ErrorUtils } from '../../../../../../util/common/errors';
 import { Result } from '../../../../../../util/common/result';
 import { assertNever } from '../../../../../../util/vs/base/common/assert';
@@ -45,8 +43,6 @@ export class CompletionsFromNetwork {
 		@ICompletionsLogTargetService private readonly logTarget: ICompletionsLogTargetService,
 		@ICompletionsCacheService private readonly completionsCacheService: ICompletionsCacheService,
 		@ICompletionsUserErrorNotifierService private readonly userErrorNotifier: ICompletionsUserErrorNotifierService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly expService: IExperimentationService
 	) { }
 
 	/** Requests new completion from OpenAI, should be called if and only if the completions for given prompt were not cached before.
@@ -325,9 +321,7 @@ export class CompletionsFromNetwork {
 				headers: requestContext.headers,
 				extra,
 			};
-			const res = this.configurationService.getExperimentBasedConfig(ChatConfigKey.TeamInternal.GhostTextUseCompletionsFetchService, this.expService)
-				? await this.fetcherService.fetchAndStreamCompletions2(completionParams, baseTelemetryData, finishedCb, cancellationToken)
-				: await this.fetcherService.fetchAndStreamCompletions(completionParams, baseTelemetryData, finishedCb, cancellationToken);
+			const res = await this.fetcherService.fetchAndStreamCompletions(completionParams, baseTelemetryData, finishedCb, cancellationToken);
 			if (res.type === 'failed') {
 				return {
 					type: 'failed',

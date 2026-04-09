@@ -14,6 +14,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { toGitUri } from '../../../platform/git/common/utils';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isUri } from '../../../util/common/types';
 import { DeferredPromise, IntervalTimer } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -169,6 +170,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		@IGitService private readonly _gitService: IGitService,
 		@IChatSessionWorkspaceFolderService private readonly _workspaceFolderService: IChatSessionWorkspaceFolderService,
 		@IChatSessionMetadataStore private readonly _metadataStore: IChatSessionMetadataStore,
+		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
 	) {
 		super();
 
@@ -263,6 +265,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			}));
 		}
 
+		const newInputStates: WeakRef<vscode.ChatSessionInputState>[] = [];
 		controller.getChatSessionInputState = async (sessionResource, context, token) => {
 			const groups = sessionResource ? await this._optionGroupBuilder.buildExistingSessionInputStateGroups(sessionResource, token) : await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(context.previousInputState);
 			const state = controller.createChatSessionInputState(groups);
@@ -270,10 +273,39 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				// Only wire dynamic updates for new sessions (existing sessions are fully locked).
 				// Note: don't use the getChatSessionInputState token here — it's a one-shot token
 				// that may be disposed by the time the user interacts with the dropdowns.
-				state.onDidChange(() => this._optionGroupBuilder.handleInputStateChange(state));
+				newInputStates.push(new WeakRef(state));
+
+				state.onDidChange(() => {
+					void this._optionGroupBuilder.handleInputStateChange(state);
+				});
 			}
 			return state;
 		};
+
+		// Refresh new-session dropdown groups when git or workspace state changes
+		// (e.g. after git init, opening a repo, or adding/removing workspace folders).
+		const refreshActiveInputState = () => {
+			// Sweep stale WeakRefs before iterating
+			for (let i = newInputStates.length - 1; i >= 0; i--) {
+				if (!newInputStates[i].deref()) {
+					newInputStates.splice(i, 1);
+				}
+			}
+			for (const weakRef of newInputStates) {
+				const state = weakRef.deref();
+				if (state) {
+					void this._optionGroupBuilder.rebuildInputState(state);
+				}
+			}
+		};
+		this._register(this._gitService.onDidFinishInitialization(refreshActiveInputState));
+		this._register(this._gitService.onDidOpenRepository(refreshActiveInputState));
+		this._register(this._gitService.onDidCloseRepository(refreshActiveInputState));
+		this._register(this._workspaceService.onDidChangeWorkspaceFolders(refreshActiveInputState));
+	}
+
+	provideHandleOptionsChange() {
+		// This is required for Controller.createChatSessionInputState.onDidChange event to work.
 	}
 
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
@@ -295,16 +327,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				this.controller.items.add(chatSessionItem);
 			}
 		}
-	}
-
-	public async provideChatSessionItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
-		const sessions = await this.sessionService.getAllSessions(token);
-		const diskSessions = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
-
-		const count = diskSessions.length;
-		this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
-
-		return diskSessions;
 	}
 
 	public async toChatSessionItem(session: ICopilotCLISessionItem): Promise<vscode.ChatSessionItem> {
@@ -474,7 +496,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		}
 	}
 
-	async provideChatSessionContentForExistingSession(resource: Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
+	private async provideChatSessionContentForExistingSession(resource: Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
 		const copilotcliSessionId = SessionIdForCLI.parse(resource);
 
 		// Fire-and-forget: detect PR when the user opens a session.

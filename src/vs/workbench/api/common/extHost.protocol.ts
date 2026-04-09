@@ -3510,11 +3510,13 @@ export interface IMcpAuthenticationDetails {
 	authorizationServerMetadata: IAuthorizationServerMetadata;
 	resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
 	scopes: string[] | undefined;
+	clientId?: string;
 }
 
 export interface IMcpAuthenticationOptions {
 	errorOnUserInteraction?: boolean;
 	forceNewRegistration?: boolean;
+	clientId?: string;
 }
 
 export const enum IAuthResourceMetadataSource {

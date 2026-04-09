@@ -517,13 +517,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ArtifactsMode]: {
-			default: 'rules',
-			description: nls.localize('chat.artifacts.mode', "Controls how artifacts are populated. 'rules' extracts artifacts deterministically from the conversation. 'tool' lets the model set artifacts via a tool call."),
-			type: 'string',
-			enum: ['rules', 'tool'],
-			tags: ['experimental']
-		},
 		[ChatConfiguration.ArtifactsRulesByMimeType]: {
 			default: {
 				'image/*': { groupName: 'Screenshots', onlyShowGroup: true }

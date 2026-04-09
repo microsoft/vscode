@@ -73,45 +73,106 @@
 		display: none;
 	}
 
-	.agent-sessions-new-button-container {
-		padding: 0 10px 10px 10px;
-	}
-
-	.agent-sessions-new-button-container .monaco-button {
+	/* Header row: label + action buttons */
+	.agent-sessions-header-row {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		column-gap: 12px;
-		padding-right: 5px;
-		text-align: left;
+		padding: 8px 10px;
+		min-height: 40px;
+		box-sizing: border-box;
+		-webkit-user-select: none;
+		user-select: none;
 	}
 
-	.agent-sessions-new-button-container .monaco-button:focus {
-		outline-offset: -1px !important;
+	.agent-sessions-header-label {
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
 	}
 
-	.agent-sessions-new-button-container .monaco-button .new-session-button-label {
-		display: inline-flex;
+	.agent-sessions-header-actions {
+		display: flex;
 		align-items: center;
 		gap: 4px;
+		margin-left: auto;
+	}
+
+	/* Inline search input — replaces label + actions when active */
+	.agent-sessions-find-widget-container {
 		flex: 1;
 		min-width: 0;
 	}
 
-	.agent-sessions-new-button-container .monaco-button .new-session-button-label > .codicon {
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter {
+		position: static;
+		display: flex;
+		width: 100%;
+		max-width: none;
 		margin: 0;
-		font-size: 14px;
-		line-height: 14px;
-		transform: translateY(1px);
+		padding: 0;
+		border: none;
+		border-radius: 0;
+		box-shadow: none;
+		background: transparent;
+		background-color: transparent !important;
 	}
 
-	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint {
+	.agent-sessions-find-widget-container .monaco-tree-type-filter .monaco-tree-type-filter-input {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
+		display: flex;
+		align-items: center;
+	}
+
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
+		top: 1.5px;
+	}
+
+	/* Compact "New" button in header */
+	.agent-sessions-compact-new-button.monaco-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		padding: 2px 8px;
+		font-size: 12px;
+		line-height: 18px;
+		border-radius: var(--vscode-cornerRadius-medium);
+		border: 1px solid var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+		background-color: transparent;
+		color: var(--vscode-foreground);
+		width: auto;
+		min-width: 0;
+		height: auto;
+		white-space: nowrap;
+	}
+
+	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.agent-sessions-compact-new-button.monaco-button:focus {
+		outline-offset: -1px !important;
+	}
+
+	.agent-sessions-compact-new-button .new-session-button-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+		min-width: 0;
+		white-space: nowrap;
+	}
+
+	.agent-sessions-compact-new-button .new-session-keybinding-hint {
 		display: inline-block;
 		flex-shrink: 0;
 		font-family: var(--monaco-monospace-font);
-		font-size: 11px;
+		font-size: 10px;
 		line-height: 1;
-		padding: 2px 4px;
+		padding: 1px 3px;
 		border: 1px solid transparent;
 		border-radius: 2px;
 		background-color: var(--vscode-keybindingLabel-background);
@@ -119,11 +180,11 @@
 		box-shadow: none;
 	}
 
-	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding {
+	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding {
 		line-height: 1;
 	}
 
-	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
+	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key {
 		margin: 0 1px;
 		padding: 0;
 		min-width: auto;
@@ -132,11 +193,11 @@
 		box-shadow: none;
 	}
 
-	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:first-child {
+	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:first-child {
 		margin-left: 0;
 	}
 
-	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
+	.agent-sessions-compact-new-button .new-session-keybinding-hint .monaco-keybinding > .monaco-keybinding-key:last-child {
 		margin-right: 0;
 	}
 

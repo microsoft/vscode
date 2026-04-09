@@ -128,25 +128,25 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 			return haiku;
 		}
 
-		// 5. Any Claude model
-		return endpoints.find(e => e.family?.includes('claude') || e.model.includes('claude'));
+		// 5. Any model (these are already only Anthropic models)
+		return endpoints[0];
 	}
 
 	private async _fetchAvailableEndpoints(): Promise<IChatEndpoint[]> {
 		try {
 			const endpoints = await this.endpointProvider.getAllChatEndpoints();
 
-			// Filter for Claude/Anthropic models that are available in the model picker
+			// Filter for Anthropic models that are available in the model picker
 			// and use the Messages API (required for Claude Code)
 			const claudeEndpoints = endpoints.filter(e =>
 				e.supportsToolCalls &&
 				e.showInModelPicker &&
-				(e.family?.toLowerCase().includes('claude') || e.model?.toLowerCase().includes('claude')) &&
+				e.modelProvider === 'Anthropic' &&
 				e.apiType === 'messages'
 			);
 
 			if (claudeEndpoints.length === 0) {
-				this.logService.trace('[ClaudeCodeModels] No Claude models with Messages API found');
+				this.logService.trace('[ClaudeCodeModels] No Anthropic models with Messages API found');
 				return [];
 			}
 

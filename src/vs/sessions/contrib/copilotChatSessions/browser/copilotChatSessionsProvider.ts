@@ -260,6 +260,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 				this._gitRepository = await this.gitService.openRepository(repoUri);
 				if (!this._gitRepository) {
 					this.setIsolationMode('workspace');
+				} else if (!this._gitRepository.state.get().HEAD?.commit) {
+					// Empty repositories have no HEAD commit and cannot run worktree isolation.
+					this.setIsolationMode('workspace');
 				}
 			} catch {
 				// No git repository available
@@ -273,7 +276,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			// state changes. This is done only for the Folder sessions.
 			const currentBranchName = derived(reader => {
 				const state = this._gitRepository?.state.read(reader);
-				return state?.HEAD?.name;
+				return state?.HEAD?.commit ? state.HEAD.name : undefined;
 			});
 
 			this._register(autorun(reader => {
@@ -297,15 +300,18 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
+			const hasHeadCommit = !!repo.state.get().HEAD?.commit;
 			const branches = refs
 				.map(r => r.name)
 				.filter((name): name is string => !!name)
 				.filter(name => !name.includes(CopilotCLISession.COPILOT_WORKTREE_PATTERN));
 
-			const defaultBranch = branches.find(b => b === 'main')
-				?? branches.find(b => b === 'master')
-				?? branches.find(b => b === repo.state.get().HEAD?.name)
-				?? branches[0];
+			const defaultBranch = hasHeadCommit
+				? (branches.find(b => b === 'main')
+					?? branches.find(b => b === 'master')
+					?? branches.find(b => b === repo.state.get().HEAD?.name)
+					?? branches[0])
+				: undefined;
 
 			this._defaultBranch = defaultBranch;
 
@@ -335,7 +341,8 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 				// When switching to workspace mode, update the branch
 				// selection to reflect the current branch as that is
 				// what will be used for the folder session
-				const currentBranch = this._gitRepository?.state.get().HEAD?.name;
+				const head = this._gitRepository?.state.get().HEAD;
+				const currentBranch = head?.commit ? head.name : undefined;
 				this.setBranch(currentBranch ?? this._defaultBranch);
 			} else {
 				this.setBranch(this._defaultBranch);
@@ -1406,7 +1413,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		// Send request
-		this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for session ${session.id}`);
+		this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for session ${session.id} with options:`, {
+			userSelectedModelId: sendOptions.userSelectedModelId,
+		});
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);

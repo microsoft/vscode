@@ -118,6 +118,13 @@ jobs:
             echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
             echo "$BODY" >> "$GITHUB_OUTPUT"
             echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "No screenshot changes to report."
+          fi
+          if [ -f .tmp/screenshotDiffReport.json ]; then
+            echo "::group::Compare response JSON"
+            cat .tmp/screenshotDiffReport.json
+            echo "::endgroup::"
           fi
         continue-on-error: true
         env:
@@ -125,7 +132,7 @@ jobs:
 
       - name: Post PR comment
         if: github.event_name == 'pull_request' && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const marker = '<!-- screenshot-diff-report -->';

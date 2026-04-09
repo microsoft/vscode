@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "1.0.0",
+	"version": "0.44.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.115.0",
+		"vscode": "^1.116.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -4349,7 +4349,8 @@
 						"markdownDescription": "%github.copilot.config.executionSubagent.enabled%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.executionSubagent.model": {
@@ -4358,16 +4359,18 @@
 						"markdownDescription": "%github.copilot.config.executionSubagent.model%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.executionSubagent.toolCallLimit": {
 						"type": "number",
-						"default": 5,
+						"default": 10,
 						"markdownDescription": "%github.copilot.config.executionSubagent.toolCallLimit%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.summarizeAgentConversationHistoryThreshold": {
@@ -6089,7 +6092,7 @@
 				"type": "copilotcli",
 				"name": "cli",
 				"displayName": "Copilot CLI",
-				"icon": "$(worktree)",
+				"icon": "$(copilot)",
 				"welcomeTitle": "Copilot CLI",
 				"welcomeMessage": "Run tasks in the background with the Copilot CLI",
 				"inputPlaceholder": "Run tasks in the background with the Copilot CLI, type `#` for adding context",
@@ -6230,7 +6233,6 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"prepare": "husky",
 		"vscode-dts:update": "node script/build/vscodeDtsUpdate.js",
 		"vscode-dts:check": "node script/build/vscodeDtsCheck.js",
 		"vscode-dts:dev": "node node_modules/@vscode/dts/index.js dev && node script/build/moveProposedDts.js",
@@ -6328,7 +6330,6 @@
 		"eslint-plugin-no-only-tests": "^3.3.0",
 		"fastq": "^1.19.1",
 		"glob": "^11.1.0",
-		"husky": "^9.1.7",
 		"js-yaml": "^4.1.1",
 		"keyv": "^5.3.2",
 		"lint-staged": "15.2.9",
@@ -6421,7 +6422,7 @@
 		"node-gyp": "npm:node-gyp@10.3.1",
 		"zod": "3.25.76"
 	},
-	"vscodeCommit": "5be5cffdefe8d8961ea7a21397a936de68b04628",
+	"vscodeCommit": "eb014b61a9ac4d91acc39984167e2ca84c03b758",
 	"__metadata": {
 		"id": "7ec7d6e6-b89e-4cc5-a59b-d6c4d238246f",
 		"publisherId": {

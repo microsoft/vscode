@@ -24,9 +24,9 @@ function createMockEndpoint(overrides: {
 	showInModelPicker?: boolean;
 	multiplier?: number;
 	apiType?: string;
+	modelProvider?: string;
 }): IChatEndpoint {
-	// Default to Messages API for Claude models
-	const isClaude = overrides.family?.toLowerCase().includes('claude') || overrides.model?.toLowerCase().includes('claude');
+	const isAnthropic = overrides.modelProvider === undefined || overrides.modelProvider === 'Anthropic';
 	return {
 		model: overrides.model,
 		name: overrides.name,
@@ -34,7 +34,8 @@ function createMockEndpoint(overrides: {
 		version: '1.0',
 		showInModelPicker: overrides.showInModelPicker ?? true,
 		multiplier: overrides.multiplier,
-		apiType: overrides.apiType ?? (isClaude ? 'messages' : 'chatCompletions'),
+		modelProvider: overrides.modelProvider ?? 'Anthropic',
+		apiType: overrides.apiType ?? (isAnthropic ? 'messages' : 'chatCompletions'),
 		// Required properties with sensible defaults
 		maxOutputTokens: 4096,
 		supportsToolCalls: true,
@@ -187,9 +188,9 @@ describe('ClaudeCodeModels', () => {
 			expect(endpoint?.model).toBe('claude-sonnet-4');
 		});
 
-		it('does not fall back to non-Claude models', async () => {
+		it('does not fall back to non-Anthropic models', async () => {
 			const { service } = createServiceWithRefreshableEndpoints([
-				createMockEndpoint({ model: 'gpt-4o', name: 'GPT-4o', family: 'gpt-4' }),
+				createMockEndpoint({ model: 'gpt-4o', name: 'GPT-4o', family: 'gpt-4', modelProvider: 'Azure OpenAI' }),
 			]);
 
 			const endpoint = await service.resolveEndpoint('unknown-model', undefined);

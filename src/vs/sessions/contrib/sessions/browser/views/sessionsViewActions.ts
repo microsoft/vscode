@@ -25,6 +25,7 @@ import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, Sessio
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 //  Constants
 
@@ -64,13 +65,22 @@ KeybindingsRegistry.registerKeybindingRule({
 
 //  View Title Menu
 
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+	command: {
+		id: 'sessionsViewPane.find',
+		title: localize2('find', "Find Session"),
+		icon: Codicon.search,
+	},
+	group: 'navigation',
+	order: 0,
+});
+
+MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	submenu: SessionsViewFilterSubMenu,
 	title: localize2('filterSessions', "Filter Sessions"),
-	group: 'navigation',
-	order: 3,
 	icon: Codicon.settings,
-	when: ContextKeyExpr.equals('view', SessionsViewId)
+	group: 'navigation',
+	order: 1,
 });
 
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
@@ -224,12 +234,6 @@ registerAction2(class FindSessionAction extends Action2 {
 			title: localize2('find', "Find Session"),
 			icon: Codicon.search,
 			category: SessionsCategories.Sessions,
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.equals('view', SessionsViewId),
-			}]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -669,6 +673,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			id: 'agentSession.markAsDone',
 			title: localize2('markAsDone', "Mark as Done"),
 			icon: Codicon.check,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				id: Menus.CommandCenter,
 				order: 103,

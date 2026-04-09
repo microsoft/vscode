@@ -217,6 +217,10 @@ export class CopilotToken {
 		return this.getTokenValue('mcp') !== '0';
 	}
 
+	isClientBYOKEnabled(): boolean {
+		return this.getTokenValue('client_byok') === '1';
+	}
+
 	getTokenValue(key: string): string | undefined {
 		return this.tokenMap.get(key);
 	}

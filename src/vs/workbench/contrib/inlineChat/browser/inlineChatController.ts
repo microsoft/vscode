@@ -42,10 +42,10 @@ import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
 import { ChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
-import { IChatService } from '../../chat/common/chatService/chatService.js';
+import { IChatLocationData, IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -339,9 +339,7 @@ export class InlineChatController implements IEditorContribution {
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else if (renderMode === 'hover') {
-				// hover mode: set model but don't show zone, keep focus in editor
-				this._zone.value.widget.chatWidget.setModel(session.chatModel);
-				this._zone.rawValue?.hide();
+				// hover mode: no zone widget needed, keep focus in editor
 				ctxInlineChatVisible.set(true);
 			} else {
 				ctxInlineChatVisible.set(true);
@@ -479,13 +477,13 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 			// make sure the ZONE isn't inbetween a diff and move above if so
-			if (entry?.diffInfo && this._zone.value.position) {
-				const { position } = this._zone.value;
+			if (entry?.diffInfo && this._zone.rawValue?.position) {
+				const { position } = this._zone.rawValue;
 				const diff = entry.diffInfo.read(r);
 
 				for (const change of diff.changes) {
 					if (change.modified.contains(position.lineNumber)) {
-						this._zone.value.updatePositionAndHeight(new Position(change.modified.startLineNumber - 1, 1));
+						this._zone.rawValue?.updatePositionAndHeight(new Position(change.modified.startLineNumber - 1, 1));
 						break;
 					}
 				}
@@ -519,6 +517,99 @@ export class InlineChatController implements IEditorContribution {
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
 
+		if (this._renderMode.get() === 'hover') {
+			return this._runHover(session, arg);
+		} else {
+			return this._runZone(session, arg);
+		}
+	}
+
+	/**
+	 * Hover mode: submit requests directly via IChatService.sendRequest without
+	 * instantiating the zone widget.
+	 */
+	private async _runHover(session: IInlineChatSession2, arg?: InlineChatRunOptions): Promise<boolean> {
+		assertType(this._editor.hasModel());
+		const uri = this._editor.getModel().uri;
+
+
+		// Apply editor adjustments from args
+		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
+			if (arg.initialRange) {
+				this._editor.revealRange(arg.initialRange);
+			}
+			if (arg.initialSelection) {
+				this._editor.setSelection(arg.initialSelection);
+			}
+		}
+
+		// Build location data (after selection adjustments)
+		const { location, locationData } = this._buildLocationData();
+
+		// Resolve model
+		let userSelectedModelId: string | undefined;
+		if (arg?.modelSelector) {
+			userSelectedModelId = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
+			if (!userSelectedModelId) {
+				throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
+			}
+		} else {
+			userSelectedModelId = await this._resolveModelId(location);
+		}
+
+		// Collect attachments
+		const attachedContext: IChatRequestVariableEntry[] = [];
+		if (arg?.attachments) {
+			for (const attachment of arg.attachments) {
+				const resolved = await this._chatAttachmentResolveService.resolveImageEditorAttachContext(attachment);
+				if (resolved) {
+					attachedContext.push(resolved);
+				}
+			}
+		}
+
+		// Send the request directly
+		if (arg?.message && arg.autoSend) {
+			await this._chatService.sendRequest(
+				session.chatModel.sessionResource,
+				arg.message,
+				{
+					userSelectedModelId,
+					location,
+					locationData,
+					attachedContext: attachedContext.length > 0 ? attachedContext : undefined,
+					modeInfo: {
+						kind: ChatModeKind.Ask,
+						isBuiltin: true,
+						modeInstructions: undefined,
+						modeId: 'ask',
+						applyCodeBlockSuggestionId: undefined,
+					},
+				}
+			);
+		}
+
+		if (!arg?.resolveOnResponse) {
+			await Event.toPromise(session.editingSession.onDidDispose);
+			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+			return !rejected;
+		} else {
+			const modifiedObs = derived(r => {
+				const entry = session.editingSession.readEntry(uri, r);
+				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+			});
+			await waitForState(modifiedObs, state => state === true);
+			return true;
+		}
+	}
+
+	/**
+	 * Zone mode: use the full zone widget and chat widget for request submission.
+	 */
+	private async _runZone(session: IInlineChatSession2, arg?: InlineChatRunOptions): Promise<boolean> {
+		assertType(this._editor.hasModel());
+		const uri = this._editor.getModel().uri;
+
 		// Store for tracking model changes during this session
 		const sessionStore = new DisposableStore();
 
@@ -526,7 +617,7 @@ export class InlineChatController implements IEditorContribution {
 			await this._applyModelDefaults(session, sessionStore);
 
 			if (arg) {
-				arg.attachDiagnostics ??= this._configurationService.getValue(InlineChatConfigKeys.RenderMode) === 'zone';
+				arg.attachDiagnostics ??= true;
 			}
 
 			// ADD diagnostics (only when explicitly requested)
@@ -662,6 +753,90 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Resolves the language model identifier without going through the zone widget.
+	 * Used in hover mode to avoid instantiating the zone widget.
+	 *
+	 * Priority: user session choice > inlineChat.defaultModel setting > vendor default for location
+	 */
+	private async _resolveModelId(location: ChatAgentLocation): Promise<string | undefined> {
+		const userSelectedModel = InlineChatController._userSelectedModel;
+		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+
+		// 1. Try user's explicitly chosen model from a previous inline chat
+		if (userSelectedModel) {
+			const match = this._languageModelService.lookupLanguageModelByQualifiedName(userSelectedModel);
+			if (match) {
+				return match.identifier;
+			}
+			// Previously selected model is no longer available
+			InlineChatController._userSelectedModel = undefined;
+		}
+
+		// 2. Try inlineChat.defaultModel setting
+		if (defaultModelSetting) {
+			const match = this._languageModelService.lookupLanguageModelByQualifiedName(defaultModelSetting);
+			if (match) {
+				return match.identifier;
+			}
+			this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+		}
+
+		// 3. Fall back to vendor default for the given location
+		for (const id of this._languageModelService.getLanguageModelIds()) {
+			const metadata = this._languageModelService.lookupLanguageModel(id);
+			if (metadata?.isDefaultForLocation[location]) {
+				return id;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Builds location data for chat requests without going through the zone widget.
+	 */
+	private _buildLocationData(): { location: ChatAgentLocation; locationData: IChatLocationData } {
+		assertType(this._editor.hasModel());
+
+		const notebookEditor = this._notebookEditorService.getNotebookForPossibleCell(this._editor);
+		if (notebookEditor) {
+			const useNotebookAgent = this._configurationService.getValue<boolean>(InlineChatConfigKeys.notebookAgent);
+			if (useNotebookAgent) {
+				return {
+					location: ChatAgentLocation.Notebook,
+					locationData: {
+						type: ChatAgentLocation.Notebook,
+						sessionInputUri: this._editor.getModel().uri,
+					}
+				};
+			}
+			// Notebook cell but notebookAgent config is off: use Notebook location
+			// but with EditorInline-shaped locationData (matches zone widget behavior)
+			return {
+				location: ChatAgentLocation.Notebook,
+				locationData: {
+					type: ChatAgentLocation.EditorInline,
+					id: getEditorId(this._editor, this._editor.getModel()),
+					selection: this._editor.getSelection(),
+					document: this._editor.getModel().uri,
+					wholeRange: this._editor.getSelection(),
+				}
+			};
+		}
+
+		return {
+			location: ChatAgentLocation.EditorInline,
+			locationData: {
+				type: ChatAgentLocation.EditorInline,
+				id: getEditorId(this._editor, this._editor.getModel()),
+				selection: this._editor.getSelection(),
+				document: this._editor.getModel().uri,
+				wholeRange: this._editor.getSelection(),
+			}
+		};
 	}
 
 	/**

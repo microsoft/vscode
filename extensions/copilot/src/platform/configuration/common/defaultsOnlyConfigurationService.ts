@@ -21,7 +21,7 @@ export class DefaultsOnlyConfigurationService extends AbstractConfigurationServi
 		};
 	}
 
-	override setConfig(): Promise<void> {
+	override setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
 		return Promise.resolve();
 	}
 
