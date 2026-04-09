@@ -1009,6 +1009,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const chatSessionResource = invocation.context.sessionResource;
+		// Subagent-initiated terminals cannot receive steering messages; the subagent
+		// runs in its own tool-calling loop and should poll with get_terminal_output.
+		const shouldSendBackgroundNotifications = this._configurationService.getValue(TerminalChatAgentToolsSettingId.BackgroundNotifications) === true && !invocation.subAgentInvocationId;
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
@@ -1396,7 +1399,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				});
 				// Register a listener to notify the agent when commands complete in this
 				// background terminal, and continue the output monitor for prompt-for-input detection
-				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.BackgroundNotifications)) {
+				if (shouldSendBackgroundNotifications) {
 					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor);
 				} else {
 					outputMonitor?.dispose();
@@ -1461,7 +1464,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input. Evaluate the terminal output to determine if the command is actually waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, call the askQuestions tool to ask the user what input to provide, then call ${TerminalToolId.SendToTerminal} with id "${termId}" to send their response.\n\n`);
 			}
 		} else if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
-			const notificationHint = this._configurationService.getValue(TerminalChatAgentToolsSettingId.BackgroundNotifications)
+			const notificationHint = shouldSendBackgroundNotifications
 				? ' You will be automatically notified on your next turn when it completes.'
 				: '';
 			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}.${notificationHint} Use ${TerminalToolId.GetTerminalOutput} to check output before then, ${TerminalToolId.SendToTerminal} to send further input, or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait. Evaluate the terminal output to determine if the command is waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input.\n\n`);
