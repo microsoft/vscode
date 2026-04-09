@@ -125,10 +125,11 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 	}
 
 	private async generateBranchName(preferredName: string | undefined, repository: RepoContext) {
-		const branchPrefix = vscode.workspace.getConfiguration('git').get<string>('branchPrefix') ?? '';
+		const branchPrefixConfig = vscode.workspace.getConfiguration('git').get<string>('branchPrefix') ?? '';
+		const branchPrefix = this.agentSessionsWorkspace.isAgentSessionsWorkspace ? 'agents' : 'copilot';
 
 		if (preferredName) {
-			let branchName = `${branchPrefix}copilot/${preferredName}`;
+			let branchName = `${branchPrefixConfig}${branchPrefix}/${preferredName}`;
 			// Check if we already have a branch with the preferred name, and if not, then use it.
 			// Else suffix the preferred name with a random string to avoid conflicts.
 			const refs = await this.gitService.getRefs(repository.rootUri, { pattern: `refs/heads/${branchName}` });
@@ -142,8 +143,8 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		// Attempt to generate a random branch name for the worktree
 		const randomBranchName = await this.gitService.generateRandomBranchName(repository.rootUri);
 
-		const branch = randomBranchName ? `${branchPrefix}copilot/${randomBranchName.substring(branchPrefix.length)}`
-			: `${branchPrefix}copilot/worktree-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
+		const branch = randomBranchName ? `${branchPrefixConfig}${branchPrefix}/${randomBranchName.substring(branchPrefixConfig.length)}`
+			: `${branchPrefixConfig}${branchPrefix}/worktree-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
 
 		return branch;
 	}
