@@ -397,7 +397,7 @@ suite('RunSubagentTool', () => {
 			};
 		}
 
-		test('falls back to main model when subagent model has higher multiplier', async () => {
+		test('throws error when subagent model has higher multiplier', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const expensiveMeta = createMetadata('O3 Pro', 50);
 			const models = new Map([
@@ -411,22 +411,21 @@ suite('RunSubagentTool', () => {
 			const agent = createAgent('ExpensiveAgent', ['O3 Pro (TestVendor)']);
 			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
 
-			const result = await tool.prepareToolInvocation({
-				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
-				toolCallId: 'call-1',
-				modelId: 'main-model-id',
-				chatSessionResource: URI.parse('test://session'),
-			}, CancellationToken.None);
-
-			assert.ok(result);
-			// Should fall back to the main model's name, not the expensive model
-			assert.deepStrictEqual(result.toolSpecificData, {
-				kind: 'subagent',
-				description: 'test task',
-				agentName: 'ExpensiveAgent',
-				prompt: 'test',
-				modelName: 'GPT-4o',
-			});
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+					toolCallId: 'call-1',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('O3 Pro'));
+					assert.ok(err.message.includes('exceeds'));
+					assert.ok(err.message.includes('cost tier'));
+					assert.ok(err.message.includes('Unavailable'));
+					return true;
+				}
+			);
 		});
 
 		test('uses subagent model when it has equal multiplier', async () => {
@@ -752,7 +751,7 @@ suite('RunSubagentTool', () => {
 			});
 		});
 
-		test('falls back to main model when explicit model has higher multiplier', async () => {
+		test('throws error when explicit model has higher multiplier', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const expensiveMeta = createMetadata('O3 Pro', 50);
 			const models = new Map([
@@ -765,21 +764,21 @@ suite('RunSubagentTool', () => {
 
 			const tool = createTool({ models, qualifiedNameMap });
 
-			const result = await tool.prepareToolInvocation({
-				parameters: { prompt: 'test', description: 'test task', model: 'O3 Pro (TestVendor)' },
-				toolCallId: 'model-call-3',
-				modelId: 'main-model-id',
-				chatSessionResource: URI.parse('test://session'),
-			}, CancellationToken.None);
-
-			assert.ok(result);
-			assert.deepStrictEqual(result.toolSpecificData, {
-				kind: 'subagent',
-				description: 'test task',
-				agentName: undefined,
-				prompt: 'test',
-				modelName: 'GPT-4o',
-			});
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', model: 'O3 Pro (TestVendor)' },
+					toolCallId: 'model-call-3',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('O3 Pro'));
+					assert.ok(err.message.includes('exceeds'));
+					assert.ok(err.message.includes('cost tier'));
+					assert.ok(err.message.includes('Unavailable'));
+					return true;
+				}
+			);
 		});
 
 		test('throws error with available models when explicit model is not found', async () => {
