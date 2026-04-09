@@ -275,10 +275,18 @@ export class ConfigurationModel implements IConfigurationModel {
 		if (index === -1) {
 			return;
 		}
+
 		this.keys.splice(index, 1);
 		removeFromValueTree(this.contents, key);
+
 		if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-			this.overrides.splice(this.overrides.findIndex(o => arrays.equals(o.identifiers, overrideIdentifiersFromKey(key))), 1);
+			const overrideIndex = this.overrides.findIndex(o =>
+				arrays.equals(o.identifiers, overrideIdentifiersFromKey(key))
+			);
+
+			if (overrideIndex !== -1) {
+				this.overrides.splice(overrideIndex, 1);
+			}
 		}
 	}
 
