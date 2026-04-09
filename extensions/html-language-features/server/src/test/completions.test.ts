@@ -94,6 +94,34 @@ suite('HTML Completion', () => {
 	});
 });
 
+suite('HTML Unclosed String Completions', () => {
+	test('Completion should not replace content after cursor when attribute value has unclosed quote', async () => {
+		// Issue #273226: When an attribute value has an opening quote but no closing quote,
+		// the replacement range should not extend into subsequent HTML tags.
+		await testCompletionFor('<th><input type="che|</th>', {
+			items: [
+				{ label: 'checkbox', resultText: '<th><input type="checkbox</th>' },
+			]
+		});
+	});
+
+	test('Completion should not replace content after cursor with space before closing tag', async () => {
+		await testCompletionFor('<th><input type="che| </th>', {
+			items: [
+				{ label: 'checkbox', resultText: '<th><input type="checkbox </th>' },
+			]
+		});
+	});
+
+	test('Completion with properly closed quotes should still work normally', async () => {
+		await testCompletionFor('<input type="che|">', {
+			items: [
+				{ label: 'checkbox', resultText: '<input type="checkbox">' },
+			]
+		});
+	});
+});
+
 suite('HTML Path Completion', () => {
 	const triggerSuggestCommand = {
 		title: 'Suggest',

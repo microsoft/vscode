@@ -20,14 +20,45 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		async getSelectionRange(document: TextDocument, position: Position): Promise<SelectionRange> {
 			return htmlLanguageService.getSelectionRanges(document, [position])[0];
 		},
-		doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, settings = workspace.settings) {
+		async doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, settings = workspace.settings) {
 			const htmlSettings = settings?.html;
 			const options = merge(htmlSettings?.suggest, {});
 			options.hideAutoCompleteProposals = htmlSettings?.autoClosingTags === true;
 			options.attributeDefaultValue = htmlSettings?.completion?.attributeDefaultValue ?? 'doublequotes';
 
 			const htmlDocument = htmlDocuments.get(document);
-			const completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
+			const completionList = await htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
+
+			// Fix completion ranges for unclosed string literals (issue #273226).
+			// When an attribute value has an opening quote but no closing quote,
+			// the parser treats everything after the quote as the attribute value,
+			// causing the replacement range to extend too far (e.g., into subsequent tags).
+			// We clamp the replacement range to end before the next '<' character after the cursor.
+			const text = document.getText();
+			const offset = document.offsetAt(position);
+			for (const item of completionList.items) {
+				if (!item.textEdit) {
+					continue;
+				}
+				const editRange = 'range' in item.textEdit ? item.textEdit.range : item.textEdit.replace;
+				const editEndOffset = document.offsetAt(editRange.end);
+				if (editEndOffset <= offset) {
+					continue;
+				}
+				// Check if the text between cursor and end of range contains a '<',
+				// which indicates the range leaked into subsequent HTML tags
+				const textAfterCursor = text.substring(offset, editEndOffset);
+				const angleBracketIndex = textAfterCursor.indexOf('<');
+				if (angleBracketIndex !== -1) {
+					const clampedEnd = document.positionAt(offset + angleBracketIndex);
+					if ('range' in item.textEdit) {
+						item.textEdit.range = Range.create(editRange.start, clampedEnd);
+					} else {
+						item.textEdit.replace = Range.create(editRange.start, clampedEnd);
+					}
+				}
+			}
+
 			return completionList;
 		},
 		async doHover(document: TextDocument, position: Position, settings?: Settings) {
