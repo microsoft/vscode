@@ -1079,7 +1079,7 @@ class SummaryMessageElement extends PromptElement<SummaryMessageProps> {
  */
 export class InlineSummarizationRequestedMetadata extends PromptMetadata { }
 
-interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
+export interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
 }
 
@@ -1089,7 +1089,7 @@ interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
  * no tool calls. The summary is extracted from the response and stored on the round
  * for the next iteration.
  */
-class InlineSummarizationUserMessage extends PromptElement<InlineSummarizationUserMessageProps> {
+export class InlineSummarizationUserMessage extends PromptElement<InlineSummarizationUserMessageProps> {
 	override async render(state: void, sizing: PromptSizing) {
 		const isOpus = this.props.endpoint.model.startsWith('claude-opus');
 		return <UserMessage priority={1000}>
