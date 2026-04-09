@@ -171,3 +171,9 @@ x $12.45
 <!-- Should not interpret text for skipped percent (\%) -->
 
 $$ \% Should not be highlighted $$
+
+<!-- Angle brackets inside math should be scoped as math #272922 -->
+
+$x < y$
+
+$$x < y$$
