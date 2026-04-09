@@ -62,14 +62,16 @@ import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_L
 import { countTokensForLines, toUniquePath } from '../common/promptCraftingUtils';
 import { ISimilarFilesContextService } from '../common/similarFilesContextService';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../common/systemMessages';
-import { PromptTags, ResponseTags } from '../common/tags';
+import { PromptTags } from '../common/tags';
 import { TerminalMonitor } from '../common/terminalOutput';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
 import { getCurrentCursorLine, isModelCursorLineCompatible } from './cursorLineDivergence';
+import { EditIntentParseMode } from './editIntent';
+import { handleCodeBlock, handleEditWindowOnly, handleEditWindowWithEditIntent, handleUnifiedWithXml, ResponseParseResult } from './responseFormatHandlers';
 import { XtabCustomDiffPatchResponseHandler } from './xtabCustomDiffPatchResponseHandler';
 import { XtabEndpoint } from './xtabEndpoint';
 import { CursorJumpPrediction, XtabNextCursorPredictor } from './xtabNextCursorPredictor';
-import { charCount, constructMessages, linesWithBackticksRemoved } from './xtabUtils';
+import { charCount, constructMessages, findMergeConflictMarkersRange } from './xtabUtils';
 
 /**
  * Returns true if the user has made document edits since the request was created.
@@ -814,6 +816,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				logContext.setResponse(responseSoFar);
 			});
 
+		const getFetchFailure = (): NoNextEditReason | undefined =>
+			chatResponseFailure ? mapChatFetcherErrorToNoNextEditReason(chatResponseFailure) : undefined;
+
 		const llmLinesStream = AsyncIterUtilsExt.splitLines(AsyncIterUtils.map(fetchStreamSource.stream, (chunk) => chunk.delta.text));
 
 		// logging of times
@@ -832,125 +837,91 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const isFromCursorJump = retryState instanceof RetryState.Retrying && retryState.reason === 'cursorJump';
 
-		let cleanedLinesStream: AsyncIterable<string>;
+		// Dispatch to the appropriate response format handler
+		let parseResult: ResponseParseResult.t;
 
-		if (responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowOnly) {
-			cleanedLinesStream = linesStream;
-		} else if (responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowWithEditIntent ||
-			responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort) {
-			// Determine parse mode based on response format
-			const parseMode = responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort
-				? EditIntentParseMode.ShortName
-				: EditIntentParseMode.Tags;
+		switch (responseOpts.responseFormat) {
+			case xtabPromptOptions.ResponseFormat.EditWindowOnly: {
+				parseResult = handleEditWindowOnly(linesStream);
+				break;
+			}
+			case xtabPromptOptions.ResponseFormat.CodeBlock: {
+				parseResult = handleCodeBlock(linesStream);
+				break;
+			}
+			case xtabPromptOptions.ResponseFormat.EditWindowWithEditIntent:
+			case xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort: {
+				const parseMode = responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort
+					? EditIntentParseMode.ShortName
+					: EditIntentParseMode.Tags;
+				parseResult = await handleEditWindowWithEditIntent(linesStream, tracer, parseMode, getFetchFailure);
+				break;
+			}
+			case xtabPromptOptions.ResponseFormat.CustomDiffPatch: {
+				const activeDoc = request.getActiveDocument();
+				const currentDocument = promptPieces.currentDocument;
+				const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
+				const lastLineLength = lastLine.length;
+				const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+				parseResult = new ResponseParseResult.DirectEdits(
+					XtabCustomDiffPatchResponseHandler.handleResponse(
+						linesStream,
+						currentDocument,
+						activeDoc.id,
+						activeDoc.workspaceRoot,
+						pseudoEditWindow,
+						tracer,
+						getFetchFailure,
+					),
+				);
+				break;
+			}
+			case xtabPromptOptions.ResponseFormat.UnifiedWithXml: {
+				parseResult = await handleUnifiedWithXml(
+					linesStream,
+					{
+						editWindowLines,
+						editWindowLineRange,
+						cursorOriginalLinesOffset,
+						cursorColumnZeroBased: promptPieces.currentDocument.cursorPosition.column - 1,
+						editWindow,
+						originalEditWindow,
+						targetDocument,
+						isFromCursorJump,
+					},
+					request.documentBeforeEdits,
+					tracer,
+					getFetchFailure,
+				);
+				break;
+			}
+			default:
+				assertNever(responseOpts.responseFormat);
+		}
 
-			// Parse the edit_intent from the response
-			const { editIntent, remainingLinesStream, parseError } = await parseEditIntentFromStream(linesStream, tracer, parseMode);
+		// Handle result uniformly
+		if (parseResult instanceof ResponseParseResult.Done) {
+			return parseResult.reason;
+		}
 
-			// Log the edit intent for telemetry
-			telemetry.setEditIntent(editIntent);
+		if (parseResult instanceof ResponseParseResult.DirectEdits) {
+			return yield* parseResult.stream;
+		}
 
-			// Log parse errors for telemetry - this helps detect malformed model output during flights
+		// parseResult is EditWindowLines — log edit-intent telemetry and apply aggressiveness filter
+		if (parseResult.editIntentMetadata) {
+			const { intent, parseError } = parseResult.editIntentMetadata;
+			telemetry.setEditIntent(intent);
 			if (parseError) {
 				telemetry.setEditIntentParseError(parseError);
 			}
-
-			// Check if we should show this edit based on intent and aggressiveness
-			if (!xtabPromptOptions.EditIntent.shouldShowEdit(editIntent, promptPieces.aggressivenessLevel)) {
-				tracer.trace(`Filtered out edit due to edit intent "${editIntent}" with aggressiveness "${promptPieces.aggressivenessLevel}"`);
-				return new NoNextEditReason.FilteredOut(`editIntent:${editIntent} aggressivenessLevel:${promptPieces.aggressivenessLevel}`);
+			if (!xtabPromptOptions.EditIntent.shouldShowEdit(intent, promptPieces.aggressivenessLevel)) {
+				tracer.trace(`Filtered out edit due to edit intent "${intent}" with aggressiveness "${promptPieces.aggressivenessLevel}"`);
+				return new NoNextEditReason.FilteredOut(`editIntent:${intent} aggressivenessLevel:${promptPieces.aggressivenessLevel}`);
 			}
-
-			cleanedLinesStream = remainingLinesStream;
-		} else if (responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.CustomDiffPatch) {
-			const activeDoc = request.getActiveDocument();
-			const currentDocument = promptPieces.currentDocument;
-			const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
-			const lastLineLength = lastLine.length;
-			const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
-			return yield* XtabCustomDiffPatchResponseHandler.handleResponse(
-				linesStream,
-				currentDocument,
-				activeDoc.id,
-				activeDoc.workspaceRoot,
-				pseudoEditWindow,
-				tracer,
-				() => chatResponseFailure ? mapChatFetcherErrorToNoNextEditReason(chatResponseFailure) : undefined,
-			);
-		} else if (responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.UnifiedWithXml) {
-			const linesIter = linesStream[Symbol.asyncIterator]();
-			const firstLine = await linesIter.next();
-
-			if (chatResponseFailure !== undefined) { // handle fetch failure
-				return new NoNextEditReason.Unexpected(ErrorUtils.fromUnknown(chatResponseFailure));
-			}
-
-			if (firstLine.done) { // no lines in response -- unexpected case but take as no suggestions
-				return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
-			}
-
-			const trimmedLines = firstLine.value.trim();
-
-			if (trimmedLines === ResponseTags.NO_CHANGE.start) {
-				return yield* this.doGetNextEditsWithCursorJump(request, editStreamCtx, delaySession, tracing, cancellationToken, retryState);
-			}
-
-			if (trimmedLines === ResponseTags.INSERT.start) {
-				const lineWithCursorContinued = await linesIter.next();
-				if (lineWithCursorContinued.done || lineWithCursorContinued.value.includes(ResponseTags.INSERT.end)) {
-					return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
-				}
-				const cursorColumnOffsetZeroBased = promptPieces.currentDocument.cursorPosition.column - 1;
-				const edit = new LineReplacement(
-					new LineRange(editWindowLineRange.start + cursorOriginalLinesOffset + 1 /* 0-based to 1-based */, editWindowLineRange.start + cursorOriginalLinesOffset + 2),
-					[editWindowLines[cursorOriginalLinesOffset].slice(0, cursorColumnOffsetZeroBased) + lineWithCursorContinued.value + editWindowLines[cursorOriginalLinesOffset].slice(cursorColumnOffsetZeroBased)]
-				);
-				yield { edit, isFromCursorJump, window: editWindow, originalWindow: originalEditWindow, targetDocument };
-
-				const lines: string[] = [];
-				let v = await linesIter.next();
-				while (!v.done) {
-					if (v.value.includes(ResponseTags.INSERT.end)) {
-						break;
-					} else {
-						lines.push(v.value);
-					}
-					v = await linesIter.next();
-				}
-
-				const line = editWindowLineRange.start + cursorOriginalLinesOffset + 2;
-				yield {
-					edit: new LineReplacement(
-						new LineRange(line, line),
-						lines
-					),
-					isFromCursorJump,
-					window: editWindow,
-					originalWindow: originalEditWindow,
-					targetDocument,
-				};
-
-				return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
-			}
-
-			if (trimmedLines === ResponseTags.EDIT.start) {
-				cleanedLinesStream = (async function* () {
-					let v = await linesIter.next();
-					while (!v.done) {
-						if (v.value.includes(ResponseTags.EDIT.end)) {
-							return;
-						}
-						yield v.value;
-						v = await linesIter.next();
-					}
-				})();
-			} else {
-				return new NoNextEditReason.Unexpected(new Error(`unexpected tag ${trimmedLines}`));
-			}
-		} else if (responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.CodeBlock) {
-			cleanedLinesStream = linesWithBackticksRemoved(linesStream);
-		} else {
-			assertNever(responseOpts.responseFormat);
 		}
+
+		const cleanedLinesStream = parseResult.lines;
 
 		const diffOptions: ResponseProcessor.DiffParams = {
 			emitFastCursorLineChange: ResponseProcessor.mapEmitFastCursorLineChange(this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderEmitFastCursorLineChange, this.expService)),
@@ -1009,6 +980,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					break;
 				}
 
+				{
+					const fetchFailure = getFetchFailure();
+					if (fetchFailure) {
+						return fetchFailure;
+					}
+				}
+
 				tracer.trace(`ResponseProcessor streamed edit #${i} with latency ${fetchRequestStopWatch.elapsed()} ms`);
 
 				const singleLineEdits: LineReplacement[] = [];
@@ -1041,10 +1019,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					}
 				}
 
-				if (chatResponseFailure) { // do not emit edits if chat response failed
-					break;
-				}
-
 				logContext.setResponse(responseSoFar);
 
 				for (const singleLineEdit of singleLineEdits) {
@@ -1071,8 +1045,11 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return new NoNextEditReason.GotCancelled('cursorLineDiverged');
 			}
 
-			if (chatResponseFailure) {
-				return mapChatFetcherErrorToNoNextEditReason(chatResponseFailure);
+			{
+				const fetchFailure = getFetchFailure();
+				if (fetchFailure) {
+					return fetchFailure;
+				}
 			}
 
 			return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
@@ -1656,225 +1633,4 @@ export function getPredictionContents(doc: StatelessNextEditDocument, editWindow
 	} else {
 		assertNever(responseFormat);
 	}
-}
-
-export interface ParseEditIntentResult {
-	editIntent: xtabPromptOptions.EditIntent;
-	remainingLinesStream: AsyncIterable<string>;
-	parseError?: string;
-}
-
-/**
- * Mode for parsing edit intent from the model response.
- */
-export enum EditIntentParseMode {
-	/** Parse using XML-style tags: <|edit_intent|>value<|/edit_intent|> */
-	Tags = 'tags',
-	/** Parse using short names on the first line: N|L|M|H */
-	ShortName = 'shortName',
-}
-
-/**
- * Parses the edit_intent from the first line of the response stream.
- * The edit_intent MUST be on the first line, otherwise it's treated as not provided.
- * Returns the parsed EditIntent and a new stream with the remaining content.
- *
- * Supports two modes:
- * - Tags (default): <|edit_intent|>low|medium|high|no_edit<|/edit_intent|>
- * - ShortName: N|L|M|H on the first line
- *
- * @param linesStream The stream of lines from the model response
- * @param tracer Logger for tracing
- * @param mode The parse mode (Tags or ShortName), defaults to Tags
- */
-export async function parseEditIntentFromStream(
-	linesStream: AsyncIterable<string>,
-	tracer: ILogger,
-	mode: EditIntentParseMode = EditIntentParseMode.Tags,
-): Promise<ParseEditIntentResult> {
-	if (mode === EditIntentParseMode.ShortName) {
-		return parseEditIntentFromStreamShortName(linesStream, tracer);
-	}
-
-	return parseEditIntentFromStreamTags(linesStream, tracer);
-}
-
-/**
- * Parses the edit_intent using short name format (N|L|M|H on first line).
- */
-async function parseEditIntentFromStreamShortName(
-	linesStream: AsyncIterable<string>,
-	tracer: ILogger,
-): Promise<ParseEditIntentResult> {
-	let editIntent: xtabPromptOptions.EditIntent = xtabPromptOptions.EditIntent.High; // Default to high (always show) if no short name found
-	let parseError: string | undefined;
-
-	const linesIter = linesStream[Symbol.asyncIterator]();
-	const firstLineResult = await linesIter.next();
-
-	if (firstLineResult.done) {
-		// Empty stream
-		parseError = 'emptyResponse';
-		tracer.warn(`Empty response stream, no edit_intent short name found`);
-		const remainingLinesStream: AsyncIterable<string> = (async function* () { })();
-		return { editIntent, remainingLinesStream, parseError };
-	}
-
-	const firstLine = firstLineResult.value.trim();
-
-	// Check if the first line is a single character short name
-	const parsedIntent = xtabPromptOptions.EditIntent.fromShortName(firstLine);
-
-	if (parsedIntent !== undefined) {
-		editIntent = parsedIntent;
-		tracer.trace(`Parsed edit_intent short name from first line: "${firstLine}" -> ${editIntent}`);
-
-		// Create a new stream with the remaining lines (excluding the short name line)
-		const remainingLinesStream: AsyncIterable<string> = (async function* () {
-			let next = await linesIter.next();
-			while (!next.done) {
-				yield next.value;
-				next = await linesIter.next();
-			}
-		})();
-
-		return { editIntent, remainingLinesStream, parseError };
-	}
-
-	// Short name not found or invalid
-	parseError = `unknownIntentValue:${firstLine}`;
-
-	tracer.warn(`Edit intent parse error: ${parseError} (using Xtab275EditIntentShort prompting strategy). ` +
-		`Defaulting to High (always show). First line was: "${firstLine.substring(0, 100)}..."`);
-
-	// Return the first line plus the rest of the stream
-	const remainingLinesStream: AsyncIterable<string> = (async function* () {
-		yield firstLineResult.value; // Use original value, not trimmed
-		let next = await linesIter.next();
-		while (!next.done) {
-			yield next.value;
-			next = await linesIter.next();
-		}
-	})();
-
-	return { editIntent, remainingLinesStream, parseError };
-}
-
-/**
- * Parses the edit_intent tag from the first line of the response stream (original tag-based format).
- */
-async function parseEditIntentFromStreamTags(
-	linesStream: AsyncIterable<string>,
-	tracer: ILogger,
-): Promise<ParseEditIntentResult> {
-	const EDIT_INTENT_START_TAG = '<|edit_intent|>';
-	const EDIT_INTENT_END_TAG = '<|/edit_intent|>';
-
-	let editIntent: xtabPromptOptions.EditIntent = xtabPromptOptions.EditIntent.High; // Default to high (always show) if no tag found
-	let parseError: string | undefined;
-
-	const linesIter = linesStream[Symbol.asyncIterator]();
-	const firstLineResult = await linesIter.next();
-
-	if (firstLineResult.done) {
-		// Empty stream
-		parseError = 'emptyResponse';
-		tracer.warn(`Empty response stream, no edit_intent tag found`);
-		const remainingLinesStream: AsyncIterable<string> = (async function* () { })();
-		return { editIntent, remainingLinesStream, parseError };
-	}
-
-	const firstLine = firstLineResult.value;
-
-	// Check if the first line contains the complete edit_intent tag
-	const startIdx = firstLine.indexOf(EDIT_INTENT_START_TAG);
-	const endIdx = firstLine.indexOf(EDIT_INTENT_END_TAG);
-
-	if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-		// Found complete tag on first line
-		const intentValue = firstLine.substring(
-			startIdx + EDIT_INTENT_START_TAG.length,
-			endIdx
-		).trim().toLowerCase();
-
-		// Check if it's a known intent value
-		const knownIntentValues = ['no_edit', 'low', 'medium', 'high'];
-		if (!knownIntentValues.includes(intentValue)) {
-			parseError = `unknownIntentValue:${intentValue}`;
-			tracer.warn(`Unknown edit_intent value: "${intentValue}", defaulting to High`);
-		}
-
-		editIntent = xtabPromptOptions.EditIntent.fromString(intentValue);
-		tracer.trace(`Parsed edit_intent from first line: "${intentValue}" -> ${editIntent}`);
-
-		// Calculate remaining content after the end tag on the first line
-		const afterEndTag = firstLine.substring(endIdx + EDIT_INTENT_END_TAG.length);
-
-		// Create a new stream that first yields remaining content from first line, then continues
-		const remainingLinesStream: AsyncIterable<string> = (async function* () {
-			// Only yield remaining content from first line if non-empty
-			if (afterEndTag.trim() !== '') {
-				yield afterEndTag;
-			}
-			// Continue with rest of the stream
-			let next = await linesIter.next();
-			while (!next.done) {
-				yield next.value;
-				next = await linesIter.next();
-			}
-		})();
-
-		return { editIntent, remainingLinesStream, parseError };
-	}
-
-	// Determine the parse error type
-	if (startIdx !== -1 && endIdx === -1) {
-		// Start tag found but no end tag - malformed (possibly split across lines)
-		parseError = 'malformedTag:startWithoutEnd';
-	} else if (startIdx === -1 && endIdx !== -1) {
-		// End tag found but no start tag - malformed
-		parseError = 'malformedTag:endWithoutStart';
-	} else {
-		// No tag found at all
-		parseError = 'noTagFound';
-	}
-
-	tracer.warn(`Edit intent parse error: ${parseError} (using Xtab275EditIntent prompting strategy). ` +
-		`Defaulting to High (always show). First line was: "${firstLine.substring(0, 100)}..."`);
-
-	// Return the first line plus the rest of the stream
-	const remainingLinesStream: AsyncIterable<string> = (async function* () {
-		yield firstLine;
-		let next = await linesIter.next();
-		while (!next.done) {
-			yield next.value;
-			next = await linesIter.next();
-		}
-	})();
-
-	return { editIntent, remainingLinesStream, parseError };
-}
-
-/**
- * Finds the range of lines containing merge conflict markers within a specified edit window.
- *
- * @param lines - Array of strings representing the lines of text to search through
- * @param editWindowRange - The range within which to search for merge conflict markers
- * @param maxMergeConflictLines - Maximum number of lines to search for conflict markers
- * @returns An OffsetRange object representing the start and end of the conflict markers, or undefined if not found
- */
-export function findMergeConflictMarkersRange(lines: string[], editWindowRange: OffsetRange, maxMergeConflictLines: number): OffsetRange | undefined {
-	for (let i = editWindowRange.start; i < Math.min(lines.length, editWindowRange.endExclusive); ++i) {
-		if (!lines[i].startsWith('<<<<<<<')) {
-			continue;
-		}
-
-		// found start of merge conflict markers -- now find the end
-		for (let j = i + 1; j < lines.length && (j - i) < maxMergeConflictLines; ++j) {
-			if (lines[j].startsWith('>>>>>>>')) {
-				return new OffsetRange(i, j + 1 /* because endExclusive */);
-			}
-		}
-	}
-	return undefined;
 }

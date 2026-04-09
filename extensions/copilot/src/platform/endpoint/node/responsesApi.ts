@@ -5,7 +5,7 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
-import { Response } from '../../../platform/networking/common/fetcherService';
+import { Response, withStreamIdleTimeout } from '../../../platform/networking/common/fetcherService';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { binaryIndexOf } from '../../../util/vs/base/common/buffer';
@@ -534,7 +534,7 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 			}
 		});
 
-		for await (const chunk of response.body) {
+		for await (const chunk of withStreamIdleTimeout(response.body)) {
 			parser.feed(chunk);
 		}
 	}, async () => {

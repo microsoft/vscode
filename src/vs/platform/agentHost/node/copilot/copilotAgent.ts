@@ -259,7 +259,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._plugins.setEnabled(uri, enabled);
 	}
 
-	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
+	async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
 
@@ -273,7 +273,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			entry ??= await this._resumeSession(sessionId);
-			await entry.send(prompt, attachments);
+			await entry.send(prompt, attachments, turnId);
 		});
 	}
 

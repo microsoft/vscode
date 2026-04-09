@@ -265,6 +265,19 @@ export const mcpServerSchema: IJSONSchema = {
 								description: localize('app.mcp.json.headers', "Additional headers sent to the server."),
 								additionalProperties: { type: 'string' },
 							},
+							oauth: {
+								type: 'object',
+								description: localize('app.mcp.json.oauth', "OAuth configuration for authenticating with the server."),
+								additionalProperties: false,
+								minProperties: 1,
+								properties: {
+									clientId: {
+										type: 'string',
+										minLength: 1,
+										description: localize('app.mcp.json.oauth.clientId', "The OAuth client ID to use when authenticating with the server.")
+									}
+								}
+							},
 							...mcpDevModeProps(false),
 						}
 					},

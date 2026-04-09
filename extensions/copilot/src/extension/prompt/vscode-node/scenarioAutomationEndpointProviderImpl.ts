@@ -38,6 +38,16 @@ export class ScenarioAutomationEndpointProviderImpl extends ProductionEndpointPr
 			}
 		}
 
-		return super.getChatEndpoint(requestOrFamilyOrModel);
+		try {
+			return await super.getChatEndpoint(requestOrFamilyOrModel);
+		} catch (error) {
+			// In scenario automation, some model families (e.g. copilot-fast → gpt-4o-mini) may
+			// not be available via the capi proxy. Fall back to copilot-base.
+			if (typeof requestOrFamilyOrModel === 'string') {
+				this._logService.trace(`ScenarioAutomation: failed to resolve model family '${requestOrFamilyOrModel}', falling back to copilot-base`);
+				return super.getChatEndpoint('copilot-base');
+			}
+			throw error;
+		}
 	}
 }

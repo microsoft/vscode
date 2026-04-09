@@ -18,6 +18,11 @@ import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
 
+interface IIsolationPickerItem {
+	readonly mode: IsolationMode;
+	readonly checked?: boolean;
+}
+
 /**
  * A self-contained widget for selecting the isolation mode.
  *
@@ -114,31 +119,32 @@ export class IsolationPicker extends Disposable {
 			return;
 		}
 
-		const items: IActionListItem<IsolationMode>[] = [
+		const currentIsolationMode = this._getSessionIsolationMode();
+		const items: IActionListItem<IIsolationPickerItem>[] = [
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
-				item: 'worktree',
+				item: { mode: 'worktree', checked: currentIsolationMode === 'worktree' || undefined },
 			},
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.folder', "Folder"),
 				group: { title: '', icon: Codicon.folder },
-				item: 'workspace',
+				item: { mode: 'workspace', checked: currentIsolationMode === 'workspace' || undefined },
 			},
 		];
 
 		const triggerElement = this._triggerElement;
-		const delegate: IActionListDelegate<IsolationMode> = {
-			onSelect: (mode) => {
+		const delegate: IActionListDelegate<IIsolationPickerItem> = {
+			onSelect: ({ mode }) => {
 				this.actionWidgetService.hide();
 				this._setModeOnSession(mode);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		this.actionWidgetService.show<IsolationMode>(
+		this.actionWidgetService.show<IIsolationPickerItem>(
 			'isolationPicker',
 			false,
 			items,

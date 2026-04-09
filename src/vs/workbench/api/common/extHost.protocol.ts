@@ -3510,11 +3510,13 @@ export interface IMcpAuthenticationDetails {
 	authorizationServerMetadata: IAuthorizationServerMetadata;
 	resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined;
 	scopes: string[] | undefined;
+	clientId?: string;
 }
 
 export interface IMcpAuthenticationOptions {
 	errorOnUserInteraction?: boolean;
 	forceNewRegistration?: boolean;
+	clientId?: string;
 }
 
 export const enum IAuthResourceMetadataSource {
@@ -3756,8 +3758,16 @@ export interface GitDiffChangeDto extends GitChangeDto {
 	readonly deletions: number;
 }
 
+export interface GitRemoteDto {
+	readonly name: string;
+	readonly fetchUrl?: string;
+	readonly pushUrl?: string;
+	readonly isReadOnly: boolean;
+}
+
 export interface GitRepositoryStateDto {
 	readonly HEAD?: GitBranchDto;
+	readonly remotes: readonly GitRemoteDto[];
 	readonly mergeChanges: readonly GitChangeDto[];
 	readonly indexChanges: readonly GitChangeDto[];
 	readonly workingTreeChanges: readonly GitChangeDto[];
