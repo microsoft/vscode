@@ -69,10 +69,10 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		append(description, document.createTextNode(' '));
 		const learnMore = append(description, $('a.sessions-policy-blocked-link')) as HTMLAnchorElement;
 		learnMore.textContent = localize('policyBlocked.learnMore', "Learn more");
-		learnMore.href = 'https://code.visualstudio.com';
+		learnMore.href = 'https://aka.ms/VSCode/Agents/docs';
 		this._register(addDisposableListener(learnMore, EventType.CLICK, (e) => {
 			e.preventDefault();
-			this.openerService.open(URI.parse('https://code.visualstudio.com'));
+			this.openerService.open(URI.parse('https://aka.ms/VSCode/Agents/docs'));
 		}));
 
 		// Open VS Code button
