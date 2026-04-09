@@ -264,6 +264,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 	private initialized = false;
 	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
+	private avatarImg: HTMLImageElement | undefined;
 
 	constructor(
 		contextMenuActionsProvider: () => IAction[],
@@ -301,11 +302,13 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private registerListeners(): void {
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async (e) => {
 			await this.addAccountsFromProvider(e.id);
+			this.updateAvatar();
 		}));
 
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider((e) => {
 			this.groupedAccounts.delete(e.id);
 			this.problematicProviders.delete(e.id);
+			this.updateAvatar();
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
@@ -321,6 +324,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					this.logService.error(e);
 				}
 			}
+			this.updateAvatar();
 		}));
 	}
 
@@ -351,6 +355,51 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 
 		this.initialized = true;
+		this.updateAvatar();
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		this.avatarImg = $('img.accounts-avatar') as HTMLImageElement;
+		this.avatarImg.style.display = 'none';
+		this.avatarImg.onerror = () => {
+			this.avatarImg!.style.display = 'none';
+			this.label.classList.remove('has-avatar');
+		};
+		append(this.label, this.avatarImg);
+
+		this.updateAvatar();
+	}
+
+	private updateAvatar(): void {
+		if (!this.avatarImg) {
+			return;
+		}
+
+		// Find the first account that has an icon URL
+		let avatarUrl: string | undefined;
+		for (const accounts of this.groupedAccounts.values()) {
+			for (const account of accounts) {
+				if (account.iconUrl) {
+					avatarUrl = account.iconUrl;
+					break;
+				}
+			}
+			if (avatarUrl) {
+				break;
+			}
+		}
+
+		if (avatarUrl) {
+			this.avatarImg.src = avatarUrl;
+			this.avatarImg.style.display = '';
+			this.label.classList.add('has-avatar');
+		} else {
+			this.avatarImg.src = '';
+			this.avatarImg.style.display = 'none';
+			this.label.classList.remove('has-avatar');
+		}
 	}
 
 	//#region overrides
