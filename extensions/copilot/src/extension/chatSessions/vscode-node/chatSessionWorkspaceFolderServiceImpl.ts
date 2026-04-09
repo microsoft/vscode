@@ -7,7 +7,7 @@ import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IGitService } from '../../../platform/git/common/gitService';
-import { parseGitChangesRaw } from '../../../platform/git/vscode-node/utils';
+import { buildTempIndexEnv, getChangedFilePaths, isGvfsRepository, parseGitChangesRaw, stageChangedFiles } from '../../../platform/git/vscode-node/utils';
 import { DiffChange } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
 import { SequencerByKey } from '../../../util/vs/base/common/async';
@@ -119,43 +119,60 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 			if (hasUntrackedChanges) {
 				// Tracked + untracked changes
 				const tmpDirName = `vscode-sessions-${generateUuid()}`;
-				const diffIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, 'diff.index');
+				const tmpDir = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName);
+				const diffIndexFile = path.join(tmpDir, 'diff.index');
+				const pathspecFile = path.join(tmpDir, 'pathspec.txt');
+				const env = buildTempIndexEnv(diffIndexFile);
 
 				try {
-					// Create temp index file directory
-					await fs.mkdir(path.dirname(diffIndexFile), { recursive: true });
+					// Create temp directory
+					await fs.mkdir(tmpDir, { recursive: true });
 
 					try {
 						// Populate temp index from HEAD, fall back to empty tree if no commits exist
-						await this.gitService.exec(repository.rootUri, ['read-tree', 'HEAD'], { GIT_INDEX_FILE: diffIndexFile });
+						await this.gitService.exec(repository.rootUri, ['read-tree', 'HEAD'], env);
 					} catch {
 						// Fall back to empty tree for repositories with no commits
-						await this.gitService.exec(repository.rootUri, ['read-tree', ChatSessionWorkspaceFolderService.EMPTY_TREE_OBJECT], { GIT_INDEX_FILE: diffIndexFile });
+						await this.gitService.exec(repository.rootUri, ['read-tree', ChatSessionWorkspaceFolderService.EMPTY_TREE_OBJECT], env);
 					}
 
-					// Stage entire working directory into temp index
-					await this.gitService.exec(repository.rootUri, ['add', '-A', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
+					// Stage only changed files into temp index instead of the entire working
+					// directory. `git add -A -- .` scans all directories, which in GVFS repos
+					// hydrates every placeholder directory (>10min on large repos). Using the
+					// git extension's already-computed change list and --pathspec-from-file
+					// limits staging to only modified files (~0.5s).
+					const changedFiles = getChangedFilePaths(repository);
+					await stageChangedFiles(this.gitService, repository.rootUri, changedFiles, env, pathspecFile);
 
-					// Diff the temp index with the base branch
+					// Diff the temp index with the base branch.
+					// --no-renames is added for GVFS repos because rename detection downloads
+					// blob content for similarity analysis, which is extremely expensive.
+					// Renames will appear as delete+add pairs instead.
+					const gvfs = await isGvfsRepository(this.gitService, repository.rootUri);
+					const noRenamesArg = gvfs ? ['--no-renames'] : [];
 					const result = repositoryProperties.baseBranchName
-						? await this.gitService.exec(repository.rootUri, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', repositoryProperties.baseBranchName, '--'], { GIT_INDEX_FILE: diffIndexFile })
-						: await this.gitService.exec(repository.rootUri, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--'], { GIT_INDEX_FILE: diffIndexFile });
+						? await this.gitService.exec(repository.rootUri, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', ...noRenamesArg, '--merge-base', repositoryProperties.baseBranchName, '--'], env)
+						: await this.gitService.exec(repository.rootUri, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', ...noRenamesArg, '--'], env);
 					diffChanges.push(...parseGitChangesRaw(repository.rootUri.fsPath, result));
 				} catch (error) {
 					this.logService.error(`[ChatSessionWorkspaceFolderService][getWorkspaceChanges] Error while processing workspace changes: ${error}`);
 					return [];
 				} finally {
 					try {
-						await fs.rm(path.dirname(diffIndexFile), { recursive: true, force: true });
+						await fs.rm(tmpDir, { recursive: true, force: true });
 					} catch (error) {
 						this.logService.error(`[ChatSessionWorkspaceFolderService][getWorkspaceChanges] Error while cleaning up temp index file: ${error}`);
 					}
 				}
 			} else {
-				// Tracked changes
+				// Tracked changes only (no untracked files).
+				// --no-renames added for GVFS repos to avoid expensive blob hydration
+				// for similarity analysis during rename detection.
+				const gvfs = await isGvfsRepository(this.gitService, repository.rootUri);
+				const noRenamesArg = gvfs ? ['--no-renames'] : [];
 				const result = repositoryProperties.baseBranchName
-					? await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', repositoryProperties.baseBranchName, '--'])
-					: await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--']);
+					? await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', ...noRenamesArg, '--merge-base', repositoryProperties.baseBranchName, '--'])
+					: await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', ...noRenamesArg, '--']);
 				diffChanges.push(...parseGitChangesRaw(repository.rootUri.fsPath, result));
 			}
 

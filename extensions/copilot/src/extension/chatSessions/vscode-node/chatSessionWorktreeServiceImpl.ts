@@ -12,7 +12,7 @@ import { IVSCodeExtensionContext } from '../../../platform/extContext/common/ext
 import { IGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
 import { IGitService, RepoContext } from '../../../platform/git/common/gitService';
 import { toGitUri } from '../../../platform/git/common/utils';
-import { parseGitChangesRaw } from '../../../platform/git/vscode-node/utils';
+import { buildTempIndexEnv, getChangedFilePaths, isGvfsRepository, parseGitChangesRaw, stageChangedFiles } from '../../../platform/git/vscode-node/utils';
 import { DiffChange } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
@@ -717,35 +717,47 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		if (hasUntrackedChanges) {
 			// Tracked + untracked changes
 			const tmpDirName = `vscode-sessions-${sessionId}-${generateUuid()}`;
-			const diffIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, 'diff.index');
+			const tmpDir = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName);
+			const diffIndexFile = path.join(tmpDir, 'diff.index');
+			const pathspecFile = path.join(tmpDir, 'pathspec.txt');
+			const env = buildTempIndexEnv(diffIndexFile);
 
 			try {
 
-				// Create temp index file directory
-				await fs.mkdir(path.dirname(diffIndexFile), { recursive: true });
+				// Create temp directory
+				await fs.mkdir(tmpDir, { recursive: true });
 
 				// Populate temp index from HEAD
-				await this.gitService.exec(worktreePath, ['read-tree', 'HEAD'], { GIT_INDEX_FILE: diffIndexFile });
+				await this.gitService.exec(worktreePath, ['read-tree', 'HEAD'], env);
 
-				// Stage entire working directory into temp index
-				await this.gitService.exec(worktreePath, ['add', '-A', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
+				// Stage only changed files into temp index instead of the entire working
+				// directory. See stageChangedFiles() for GVFS performance rationale.
+				const changedFiles = getChangedFilePaths(worktreeRepository);
+				await stageChangedFiles(this.gitService, worktreePath, changedFiles, env, pathspecFile);
 
-				// Diff the temp index with the base branch
-				const result = await this.gitService.exec(worktreePath, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', worktreeProperties.baseBranchName, '--'], { GIT_INDEX_FILE: diffIndexFile });
+				// Diff the temp index with the base branch.
+				// --no-renames added for GVFS repos to avoid expensive blob hydration
+				// for similarity analysis during rename detection.
+				const gvfs = await isGvfsRepository(this.gitService, worktreePath);
+				const noRenamesArg = gvfs ? ['--no-renames'] : [];
+				const result = await this.gitService.exec(worktreePath, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', ...noRenamesArg, '--merge-base', worktreeProperties.baseBranchName, '--'], env);
 				changes.push(...parseGitChangesRaw(worktreeProperties.worktreePath, result));
 			} catch (error) {
 				this.logService.error(`[ChatSessionWorktreeService][_getWorktreeChanges] Error while processing worktree changes for session ${sessionId}: ${error}`);
 				return undefined;
 			} finally {
 				try {
-					await fs.rm(path.dirname(diffIndexFile), { recursive: true, force: true });
+					await fs.rm(tmpDir, { recursive: true, force: true });
 				} catch (error) {
 					this.logService.error(`[ChatSessionWorktreeService][_getWorktreeChanges] Error while cleaning up temp index file for session ${sessionId}: ${error}`);
 				}
 			}
 		} else {
-			// Tracked changes
-			const result = await this.gitService.exec(worktreePath, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', worktreeProperties.baseBranchName, '--']);
+			// Tracked changes only (no untracked files).
+			// --no-renames added for GVFS repos to avoid expensive blob hydration.
+			const gvfs = await isGvfsRepository(this.gitService, worktreePath);
+			const noRenamesArg = gvfs ? ['--no-renames'] : [];
+			const result = await this.gitService.exec(worktreePath, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', ...noRenamesArg, '--merge-base', worktreeProperties.baseBranchName, '--']);
 			changes.push(...parseGitChangesRaw(worktreeProperties.worktreePath, result));
 		}
 

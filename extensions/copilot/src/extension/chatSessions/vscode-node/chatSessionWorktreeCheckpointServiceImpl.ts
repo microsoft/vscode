@@ -8,6 +8,7 @@ import { promises as fs } from 'fs';
 import { Uri } from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IGitService } from '../../../platform/git/common/gitService';
+import { buildTempIndexEnv, getChangedFilePaths, stageChangedFiles } from '../../../platform/git/vscode-node/utils';
 import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import * as path from '../../../util/vs/base/common/path';
@@ -206,25 +207,36 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 
 	private async _createCheckpoint(sessionId: string, repositoryUri: Uri, turnNumber: number, parentCheckpointRef?: string): Promise<string | undefined> {
 		const tmpDirName = `vscode-sessions-${sessionId}-${generateUuid()}`;
-		const checkpointIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, `checkpoint.index`);
+		const tmpDir = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName);
+		const checkpointIndexFile = path.join(tmpDir, 'checkpoint.index');
+		const pathspecFile = path.join(tmpDir, 'pathspec.txt');
+		const env = buildTempIndexEnv(checkpointIndexFile);
 
 		try {
-			// Create temp index file directory
-			await fs.mkdir(path.dirname(checkpointIndexFile), { recursive: true });
+			// Create temp directory
+			await fs.mkdir(tmpDir, { recursive: true });
 
 			// Resolve parent checkpoint ref
 			const parentCommitOid = parentCheckpointRef
 				? await this.gitService.exec(repositoryUri, ['rev-parse', parentCheckpointRef])
 				: undefined;
 
-			// Populate temp index from previous checkpoint tree (or HEAD for the baseline)
-			await this.gitService.exec(repositoryUri, ['read-tree', parentCommitOid ?? 'HEAD'], { GIT_INDEX_FILE: checkpointIndexFile });
+			// Populate temp index from HEAD so that repository.changes (which is
+			// relative to HEAD) is the correct delta to apply on top.
+			// NOTE: Previously this used `read-tree <parentCommitOid ?? 'HEAD'>`. We
+			// always use HEAD now because getChangedFilePaths() returns changes
+			// relative to HEAD. The parent checkpoint linkage is preserved via -p in
+			// the commit-tree call below.
+			await this.gitService.exec(repositoryUri, ['read-tree', 'HEAD'], env);
 
-			// Stage entire working directory into temp index
-			await this.gitService.exec(repositoryUri, ['add', '-A', '--', '.'], { GIT_INDEX_FILE: checkpointIndexFile });
+			// Stage only changed files into temp index instead of the entire working
+			// directory. See stageChangedFiles() for GVFS performance rationale.
+			const repository = await this.gitService.getRepository(repositoryUri);
+			const changedFiles = repository ? getChangedFilePaths(repository) : [];
+			await stageChangedFiles(this.gitService, repositoryUri, changedFiles, env, pathspecFile);
 
 			// Write the temp index as a tree object
-			const treeOid = await this.gitService.exec(repositoryUri, ['write-tree'], { GIT_INDEX_FILE: checkpointIndexFile });
+			const treeOid = await this.gitService.exec(repositoryUri, ['write-tree'], env);
 
 			// Create a commit pointing to the tree, chained to the previous checkpoint
 			const commitTreeArgs = ['commit-tree', treeOid, ...(parentCommitOid ? ['-p', parentCommitOid] : []), '-m', `Session ${sessionId} - checkpoint turn ${turnNumber}`];
@@ -241,7 +253,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 			return undefined;
 		} finally {
 			try {
-				await fs.rm(path.dirname(checkpointIndexFile), { recursive: true, force: true });
+				await fs.rm(tmpDir, { recursive: true, force: true });
 			} catch (error) {
 				this.logService.error(`[ChatSessionWorktreeCheckpointService][_createCheckpoint] Error while cleaning up temp index file for session ${sessionId}: ${error}`);
 			}
