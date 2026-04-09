@@ -852,6 +852,7 @@ suite('ChatService', () => {
 		testService.processPendingRequests(target.sessionResource);
 		const result = await resent.deferred;
 		assert.ok(ChatSendResult.isSent(result));
+		await result.data.responseCompletePromise;
 
 		// The agent should have been invoked twice: first request + re-sent queued request
 		assert.strictEqual(invokedMessages.length, 2);
@@ -952,6 +953,7 @@ suite('ChatService', () => {
 
 		const result3 = await resent3.deferred;
 		assert.ok(ChatSendResult.isSent(result3));
+		await result3.data.responseCompletePromise;
 
 		// Verify the agent received all 3 queued messages on the target session
 		const queuedInvocations = invocationOrder.filter(m => m.includes('queued-'));
@@ -1107,6 +1109,224 @@ suite('ChatService', () => {
 		assert.strictEqual(requests.length, 1);
 		const responseContent = requests[0].response?.response.toString();
 		assert.ok(!responseContent?.includes(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING), 'Response should not contain the settings gate message');
+	});
+
+	test('switching between sessions disposes previous models and releases all references', async () => {
+		const testService = createChatService();
+
+		// Create 3 sessions with some content
+		const sessions: { resource: URI; ref: IChatModelReference }[] = [];
+		for (let i = 0; i < 3; i++) {
+			const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+			const model = ref.object as ChatModel;
+			model.addRequest({ parts: [], text: `request in session ${i}` }, { variables: [] }, 0);
+			sessions.push({ resource: model.sessionResource, ref });
+		}
+
+		// Save all sessions so they can be restored later
+		for (const s of sessions) {
+			s.ref.dispose();
+		}
+		await testService.waitForModelDisposals();
+
+		// Verify all models are disposed
+		for (const s of sessions) {
+			assert.strictEqual(testService.getSession(s.resource), undefined, `Session ${s.resource} should be disposed after ref release`);
+		}
+
+		// Now simulate "clicking through sessions" — load each one, switch to next
+		// This mimics chatViewPane.loadSession() pattern: acquire new, release old
+		let currentRef: IChatModelReference | undefined;
+		for (const s of sessions) {
+			const newRef = await testService.acquireOrLoadSession(s.resource, ChatAgentLocation.Chat, CancellationToken.None, 'test#switch');
+			assert.ok(newRef, `Should be able to restore session ${s.resource}`);
+
+			// Release old ref (like ChatViewPane.showModel does)
+			currentRef?.dispose();
+			currentRef = newRef;
+		}
+
+		// At this point, only the last session should have a live model
+		await testService.waitForModelDisposals();
+		const debugInfo = testService.getChatModelReferenceDebugInfo();
+		assert.deepStrictEqual({
+			totalModels: debugInfo.totalModels,
+			totalReferences: debugInfo.totalReferences,
+			models: debugInfo.models.map(m => ({
+				resource: m.sessionResource.toString(),
+				refCount: m.referenceCount,
+				holders: m.holders,
+				pendingDisposal: m.pendingDisposal,
+				createdBy: m.createdBy,
+			})),
+		}, {
+			totalModels: 1,
+			totalReferences: 1,
+			models: [{
+				resource: sessions[2].resource.toString(),
+				refCount: 1,
+				holders: [{ holder: 'test#switch', count: 1 }],
+				pendingDisposal: false,
+				createdBy: 'test#switch',
+			}],
+		});
+		assert.strictEqual(debugInfo.models[0].sessionResource.toString(), sessions[2].resource.toString(),
+			'The live model should be the last session we switched to');
+
+		// Verify the first two sessions' models are gone
+		await testService.waitForModelDisposals();
+		assert.strictEqual(testService.getSession(sessions[0].resource), undefined, 'Session 0 model should be disposed');
+		assert.strictEqual(testService.getSession(sessions[1].resource), undefined, 'Session 1 model should be disposed');
+		assert.ok(testService.getSession(sessions[2].resource), 'Session 2 model should still be alive');
+
+		currentRef!.dispose();
+		await testService.waitForModelDisposals();
+	});
+
+	test('previousModelRef pattern in ChatViewPane does not cause double-reference retention', async () => {
+		const testService = createChatService();
+
+		// Create 3 sessions
+		const sessions: { resource: URI }[] = [];
+		for (let i = 0; i < 3; i++) {
+			const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+			const model = ref.object as ChatModel;
+			model.addRequest({ parts: [], text: `request ${i}` }, { variables: [] }, 0);
+			sessions.push({ resource: model.sessionResource });
+			ref.dispose();
+		}
+		await testService.waitForModelDisposals();
+
+		// Simulate the ChatViewPane._previousModelRef pattern:
+		// showModel() does:
+		//   this._previousModelRef.value = this.modelRef.value;  // <-- stores ref
+		//   this.modelRef.value = undefined;                      // <-- disposes same ref!
+		// This should NOT cause the model to stay alive because the
+		// MutableDisposable setter disposes the old value after assigning the new one.
+
+		// Load session 0
+		const ref0 = await testService.acquireOrLoadSession(sessions[0].resource, ChatAgentLocation.Chat, CancellationToken.None, 'test');
+		assert.ok(ref0);
+
+		// "Switch" to session 1 using the buggy pattern
+		const previousRef = ref0; // save reference (like _previousModelRef.value = modelRef.value)
+		// Now dispose the ref (like modelRef.value = undefined which disposes via setter)
+		ref0.dispose();
+
+		// The previousRef IS ref0 — same object. It's now disposed.
+		// So previousRef is holding a dead reference.
+
+		// Load session 1
+		const ref1 = await testService.acquireOrLoadSession(sessions[1].resource, ChatAgentLocation.Chat, CancellationToken.None, 'test');
+		assert.ok(ref1);
+
+		await testService.waitForModelDisposals();
+
+		// Session 0 should be disposed because its ref was disposed and
+		// previousRef is the same object (also disposed)
+		assert.strictEqual(testService.getSession(sessions[0].resource), undefined,
+			'Session 0 should be disposed -- the "previous ref" pattern did not keep it alive');
+
+		// Only session 1 should be alive
+		const debugInfo = testService.getChatModelReferenceDebugInfo();
+		assert.strictEqual(debugInfo.totalModels, 1, 'Only session 1 should be alive');
+
+		ref1.dispose();
+		// Clean up previousRef — it's already disposed, calling again should be a no-op
+		previousRef.dispose();
+		await testService.waitForModelDisposals();
+	});
+
+	test('serializer _previous field does not retain data after model disposal', async () => {
+		const testService = createChatService();
+
+		// Create a session with content
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const model = ref.object as ChatModel;
+		const sessionResource = model.sessionResource;
+		model.addRequest({ parts: [], text: 'some request with data' }, { variables: [] }, 0);
+
+		// Force serialization to populate dataSerializer._previous
+		// (happens in willDisposeModel)
+		ref.dispose();
+		await testService.waitForModelDisposals();
+
+		// Model should be gone
+		assert.strictEqual(testService.getSession(sessionResource), undefined);
+
+		// Restore and dispose again to verify clean disposal cycle
+		const ref2 = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'test');
+		assert.ok(ref2);
+		const model2 = ref2.object as ChatModel;
+		assert.ok(model2.dataSerializer, 'Restored model should have a dataSerializer');
+
+		ref2.dispose();
+		await testService.waitForModelDisposals();
+		assert.strictEqual(testService.getSession(sessionResource), undefined, 'Model should be disposed after second cycle');
+	});
+
+	test('model becomes unreachable after all references released', async () => {
+		const testService = createChatService();
+
+		// Create a session with non-trivial content to track
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		let model: ChatModel | undefined = ref.object as ChatModel;
+		const sessionResource = model.sessionResource;
+		model.addRequest({ parts: [], text: 'a request' }, { variables: [] }, 0);
+
+		// Use WeakRef to detect GC
+		const weakModel = new WeakRef(model);
+
+		// Dispose the reference and clear the local strong reference
+		ref.dispose();
+		model = undefined;
+		await testService.waitForModelDisposals();
+
+		// Model should not be in the store
+		assert.strictEqual(testService.getSession(sessionResource), undefined, 'Model should be gone from store');
+
+		// The reference debug snapshot should show no models
+		const debugInfo = testService.getChatModelReferenceDebugInfo();
+		assert.strictEqual(debugInfo.totalModels, 0, 'No models should be tracked');
+
+		// Force GC and check weak ref
+		if (typeof globalThis.gc === 'function') {
+			globalThis.gc();
+			// After GC, the weak reference should be cleared
+			assert.strictEqual(weakModel.deref(), undefined, 'Model should be GC\'d after all references released');
+		}
+	});
+
+	test('rapid session switching accumulates at most 2 live models', async () => {
+		const testService = createChatService();
+
+		// Create 5 sessions with content
+		const sessionResources: URI[] = [];
+		for (let i = 0; i < 5; i++) {
+			const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+			const model = ref.object as ChatModel;
+			model.addRequest({ parts: [], text: `session ${i} request` }, { variables: [] }, 0);
+			sessionResources.push(model.sessionResource);
+			ref.dispose();
+		}
+		await testService.waitForModelDisposals();
+
+		// Now rapidly switch through all sessions without waiting for disposal
+		let currentRef: IChatModelReference | undefined;
+		for (const resource of sessionResources) {
+			const newRef = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'test#rapid');
+			assert.ok(newRef);
+			currentRef?.dispose();
+			currentRef = newRef;
+		}
+
+		// After waiting for disposals, should be exactly 1
+		await testService.waitForModelDisposals();
+		const finalDebugInfo = testService.getChatModelReferenceDebugInfo();
+		assert.strictEqual(finalDebugInfo.totalModels, 1, 'Should have exactly 1 model after waiting for disposals');
+
+		currentRef!.dispose();
+		await testService.waitForModelDisposals();
 	});
 });
 

@@ -85,8 +85,7 @@ type AgentStatusSettingMode = 'hidden' | 'badge' | 'compact';
 function shouldForceHiddenAgentStatus(configurationService: IConfigurationService): boolean {
 	const aiFeaturesDisabled = configurationService.getValue<boolean>(ChatConfiguration.AIDisabled) === true;
 	const aiCustomizationsDisabled = configurationService.getValue<boolean>('disableAICustomizations') === true
-		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true
-		|| configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationMenuEnabled) === false;
+		|| configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
 
 	return aiFeaturesDisabled && aiCustomizationsDisabled;
 }
@@ -233,7 +232,6 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				|| e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)
 				|| e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
-				|| e.affectsConfiguration(ChatConfiguration.ChatCustomizationMenuEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.SignInTitleBarEnabled)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
@@ -1461,7 +1459,6 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 				e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)
 				|| e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)
 				|| e.affectsConfiguration(ChatConfiguration.AIDisabled)
-				|| e.affectsConfiguration(ChatConfiguration.ChatCustomizationMenuEnabled)
 				|| e.affectsConfiguration('disableAICustomizations')
 				|| e.affectsConfiguration('workbench.disableAICustomizations')
 			) {

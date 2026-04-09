@@ -42,6 +42,7 @@ function toGitRepositoryState(dto: GitRepositoryStateDto | undefined): GitReposi
 			ahead: dto.HEAD.ahead,
 			behind: dto.HEAD.behind,
 		} satisfies GitBranch : undefined,
+		remotes: dto?.remotes ?? [],
 		mergeChanges: dto?.mergeChanges?.map(c => ({
 			uri: URI.revive(c.uri),
 			originalUri: c.originalUri ? URI.revive(c.originalUri) : undefined,

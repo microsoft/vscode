@@ -17,7 +17,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
-import { collectErrorMessages, collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
+import { collectErrorMessages, collectSingleLineErrorMessage, ILogService, sanitizeNetworkErrorForTelemetry } from '../../../platform/log/common/logService';
 import { outputChannel } from '../../../platform/log/vscode/outputChannelLogTarget';
 import { FetchEvent, IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IFetcher, userAgentLibraryHeader } from '../../../platform/networking/common/networking';
@@ -520,7 +520,7 @@ function collectFetcherTelemetry(accessor: ServicesAccessor): void {
 				probeResults[key] = `Status: ${response.status}`;
 				logService.debug(`Fetcher telemetry probe: ${library} ${probeResults[key]} (${Date.now() - requestStartTime}ms)`);
 			} catch (e) {
-				probeResults[key] = `Error: ${collectSingleLineErrorMessage(e, true)}`;
+				probeResults[key] = `Error: ${sanitizeNetworkErrorForTelemetry(collectSingleLineErrorMessage(e, true))}`;
 				logService.debug(`Fetcher telemetry probe: ${library} ${probeResults[key]} (${Date.now() - requestStartTime}ms)`);
 			}
 		}

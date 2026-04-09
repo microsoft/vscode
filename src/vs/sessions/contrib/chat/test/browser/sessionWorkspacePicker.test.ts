@@ -312,7 +312,11 @@ suite('WorkspacePicker - Connection Status', () => {
 		const picker = createTestPicker(disposables, providersService, storage);
 
 		const selected: IWorkspaceSelection[] = [];
-		disposables.add(picker.onDidSelectWorkspace(w => selected.push(w)));
+		disposables.add(picker.onDidSelectWorkspace(w => {
+			if (w) {
+				selected.push(w);
+			}
+		}));
 
 		// Disconnect then reconnect
 		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);

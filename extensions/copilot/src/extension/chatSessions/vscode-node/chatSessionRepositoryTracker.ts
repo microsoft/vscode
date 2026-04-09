@@ -8,7 +8,6 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableResourceMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { relative } from '../../../util/vs/base/common/path';
-import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { ICopilotCLIChatSessionItemProvider } from './copilotCLIChatSessions';
@@ -18,7 +17,6 @@ export class ChatSessionRepositoryTracker extends Disposable {
 
 	constructor(
 		private readonly sessionItemProvider: ICopilotCLIChatSessionItemProvider,
-		@IChatSessionMetadataStore private readonly metadataStore: IChatSessionMetadataStore,
 		@IChatSessionWorktreeService private readonly worktreeService: IChatSessionWorktreeService,
 		@IChatSessionWorkspaceFolderService private readonly workspaceFolderService: IChatSessionWorkspaceFolderService,
 		@ILogService private readonly logService: ILogService
@@ -82,7 +80,7 @@ export class ChatSessionRepositoryTracker extends Disposable {
 		this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangesWorkspaceFile] File changed in workspace ${uri.toString()}. Updating session properties.`);
 
 		const worktreeSessionId = await this.worktreeService.getSessionIdForWorktree(uri);
-		const workspaceSessionIds = await this.metadataStore.getSessionIdForWorkspaceFolder(uri);
+		const workspaceSessionIds = this.workspaceFolderService.clearWorkspaceChanges(uri);
 
 		if (worktreeSessionId) {
 			// Worktree
@@ -100,14 +98,10 @@ export class ChatSessionRepositoryTracker extends Disposable {
 			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangesWorkspaceFile] Updated session properties for worktree ${uri.toString()}.`);
 		} else if (workspaceSessionIds.length > 0) {
 			// Workspace
-			for (const sessionId of workspaceSessionIds) {
-				this.workspaceFolderService.clearWorkspaceChanges(sessionId);
-			}
-
 			// This is still using the old ChatSessionItem API so there is no need to refresh each session
 			// associated with the workspace folder. When the new controller API is fully adopted we will
 			// have to refresh each session.
-			await this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: '' });
+			await this.sessionItemProvider.refreshSession({ reason: 'update', sessionIds: workspaceSessionIds });
 			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangesWorkspaceFile] Updated session properties for workspace ${uri.toString()}.`);
 		} else {
 			this.logService.trace(`[ChatSessionRepositoryTracker][onDidChangesWorkspaceFile] No session associated with workspace ${uri.toString()}.`);

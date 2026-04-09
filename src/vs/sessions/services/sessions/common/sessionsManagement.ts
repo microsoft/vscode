@@ -114,6 +114,11 @@ export interface ISessionsManagementService {
 	createNewSession(providerId: string, workspace: ISessionWorkspace): ISession;
 
 	/**
+	 * Unset the new session
+	 */
+	unsetNewSession(): void;
+
+	/**
 	 * Send a request, creating a new chat in the session.
 	 */
 	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;

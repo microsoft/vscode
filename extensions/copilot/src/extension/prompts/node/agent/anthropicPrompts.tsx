@@ -6,6 +6,7 @@
 import { BasePromptElementProps, PromptElement, PromptElementProps, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
 import type { LanguageModelToolInformation } from 'vscode';
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { isHiddenModelG } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled, isAnthropicCustomToolSearchEnabled, isAnthropicToolSearchEnabled, TOOL_SEARCH_TOOL_NAME } from '../../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
@@ -644,3 +645,21 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 }
 
 PromptRegistry.registerPrompt(AnthropicPromptResolver);
+
+class HiddenModelGPromptResolver implements IAgentPrompt {
+	static readonly familyPrefixes: readonly string[] = [];
+
+	static matchesModel(endpoint: IChatEndpoint): boolean {
+		return isHiddenModelG(endpoint);
+	}
+
+	resolveSystemPrompt(_endpoint: IChatEndpoint): SystemPrompt | undefined {
+		return Claude46OpusPrompt;
+	}
+
+	resolveReminderInstructions(_endpoint: IChatEndpoint): ReminderInstructionsConstructor | undefined {
+		return AnthropicReminderInstructionsOptimized;
+	}
+}
+
+PromptRegistry.registerPrompt(HiddenModelGPromptResolver);

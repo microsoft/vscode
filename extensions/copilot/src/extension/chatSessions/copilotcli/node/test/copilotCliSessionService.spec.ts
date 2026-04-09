@@ -38,7 +38,7 @@ import { IChatDelegationSummaryService } from '../../common/delegationSummarySer
 import { getCopilotCLISessionDir } from '../cliHelpers';
 import { ICopilotCLISDK } from '../copilotCli';
 import { CopilotCLISession, ICopilotCLISession } from '../copilotcliSession';
-import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker } from '../copilotcliSessionService';
+import { CopilotCLISessionService, CopilotCLISessionWorkspaceTracker, ICopilotCLISessionItem } from '../copilotcliSessionService';
 import { CopilotCLIMCPHandler } from '../mcpHandler';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from './testHelpers';
@@ -67,7 +67,7 @@ class NullChatSessionWorkspaceFolderService extends mock<IChatSessionWorkspaceFo
 	override getSessionWorkspaceFolder = vi.fn(async () => undefined);
 	override handleRequestCompleted = vi.fn(async () => { });
 	override getWorkspaceChanges = vi.fn(async () => undefined);
-	override clearWorkspaceChanges = vi.fn(() => { });
+	override clearWorkspaceChanges: IChatSessionWorkspaceFolderService['clearWorkspaceChanges'] = vi.fn((_sessionIdOrFolderUri: string | Uri) => []);
 }
 
 class NullChatSessionWorktreeService extends mock<IChatSessionWorktreeService>() {
@@ -197,6 +197,50 @@ describe('CopilotCLISessionService', () => {
 			expect(createSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
 				clientName: 'vscode'
 			}));
+		});
+
+		it('passes reasoningEffort to session manager when provided', async () => {
+			const createSessionSpy = vi.spyOn(manager, 'createSession');
+			await service.createSession({ model: 'gpt-test', reasoningEffort: 'high', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(createSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
+				model: 'gpt-test',
+			}));
+		});
+
+		it('does not set reasoningEffort when not provided', async () => {
+			const createSessionSpy = vi.spyOn(manager, 'createSession');
+			await service.createSession({ model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(createSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
+				model: 'gpt-test',
+			}));
+			const callArgs = createSessionSpy.mock.calls[0][0];
+			expect(callArgs.reasoningEffort).toBeUndefined();
+		});
+	});
+
+	describe('CopilotCLISessionService.getSession', () => {
+		it('passes reasoningEffort to session manager when creating a new session', async () => {
+			const targetId = 'reasoning-get';
+			manager.sessions.set(targetId, new MockCliSdkSession(targetId, new Date()));
+			const getSessionSpy = vi.spyOn(manager, 'getSession');
+			await service.getSession({ sessionId: targetId, model: 'gpt-test', reasoningEffort: 'medium', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(getSessionSpy).toHaveBeenCalledWith(expect.objectContaining({
+				model: 'gpt-test',
+			}), true);
+		});
+
+		it('does not set reasoningEffort when not provided', async () => {
+			const targetId = 'no-reasoning-get';
+			manager.sessions.set(targetId, new MockCliSdkSession(targetId, new Date()));
+			const getSessionSpy = vi.spyOn(manager, 'getSession');
+			await service.getSession({ sessionId: targetId, model: 'gpt-test', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(getSessionSpy).toHaveBeenCalled();
+			const callArgs = getSessionSpy.mock.calls[0][0];
+			expect(callArgs.reasoningEffort).toBeUndefined();
 		});
 	});
 
@@ -675,6 +719,92 @@ describe('CopilotCLISessionService', () => {
 			await service.createSession({ model: 'gpt-test', sessionId: id, ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
 
 			expect(service.isNewSessionId(id)).toBe(false);
+		});
+	});
+
+	describe('CopilotCLISessionService.forkSession', () => {
+		it('delegates to sessionManager.forkSession and returns the new session id', async () => {
+			const sourceId = 'source-session';
+			manager.sessions.set(sourceId, new MockCliSdkSession(sourceId, new Date()));
+			const forkSpy = vi.spyOn(manager, 'forkSession');
+
+			const newId = await service.forkSession({ sessionId: sourceId, requestId: undefined, workspace: workspaceInfoFor(URI.file('/workspace')) }, CancellationToken.None);
+
+			expect(forkSpy).toHaveBeenCalledWith(sourceId, undefined);
+			expect(newId).toBeTruthy();
+			expect(newId).not.toBe(sourceId);
+		});
+
+		it('stores forked session metadata via storeForkedSessionMetadata', async () => {
+			const sourceId = 'meta-source';
+			manager.sessions.set(sourceId, new MockCliSdkSession(sourceId, new Date()));
+			const metadataStore = new MockChatSessionMetadataStore();
+			const storeMetadataSpy = vi.spyOn(metadataStore, 'storeForkedSessionMetadata');
+
+			const sdk = {
+				getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, LocalSession: MockLocalSession })),
+				getRequestId: vi.fn(() => undefined),
+			} as unknown as ICopilotCLISDK;
+			const services = disposables.add(createExtensionUnitTestingServices());
+			const accessor = services.createTestingAccessor();
+			const configurationService = accessor.get(IConfigurationService);
+			const authService = { getCopilotToken: vi.fn(async () => ({ token: 'test-token' })) } as unknown as IAuthenticationService;
+			const nullMcpServer = disposables.add(new NullMcpService());
+			const delegationService = new class extends mock<IChatDelegationSummaryService>() {
+				override extractPrompt(): { prompt: string; reference: never } | undefined { return undefined; }
+			}();
+			const localService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), new MockFileSystemService(), new CopilotCLIMCPHandler(logService, authService, configurationService, nullMcpServer), new NullCopilotCLIAgents(), new NullWorkspaceService(), new NullCustomSessionTitleService(), configurationService, new MockSkillLocations(), delegationService, metadataStore, new NullAgentSessionsWorkspace(), new NullChatSessionWorkspaceFolderService(), new NullChatSessionWorktreeService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), new class extends mock<IChatPromptFileService>() { override get customAgentPromptFiles() { return []; } }()));
+			const localManager = await localService.getSessionManager() as unknown as MockCliSdkSessionManager;
+			localManager.sessions.set(sourceId, new MockCliSdkSession(sourceId, new Date()));
+
+			const newId = await localService.forkSession({ sessionId: sourceId, requestId: undefined, workspace: workspaceInfoFor(URI.file('/workspace')) }, CancellationToken.None);
+
+			expect(storeMetadataSpy).toHaveBeenCalledWith(sourceId, newId, expect.stringContaining('Forked:'));
+		});
+
+		it('fires onDidCreateSession with the forked session id and title', async () => {
+			const sourceId = 'event-source';
+			manager.sessions.set(sourceId, new MockCliSdkSession(sourceId, new Date()));
+
+			const created: ICopilotCLISessionItem[] = [];
+			disposables.add(service.onDidCreateSession(item => created.push(item)));
+
+			const newId = await service.forkSession({ sessionId: sourceId, requestId: undefined, workspace: workspaceInfoFor(URI.file('/workspace')) }, CancellationToken.None);
+
+			expect(created).toHaveLength(1);
+			expect(created[0].id).toBe(newId);
+			expect(created[0].label).toContain('Forked:');
+		});
+
+		it('passes toEventId to sessionManager.forkSession when requestId matches a stored copilot request id', async () => {
+			const sourceId = 'truncate-source';
+			const sdkSession = new MockCliSdkSession(sourceId, new Date());
+			sdkSession.events.push({ type: 'user.message', id: 'sdk-event-1', data: { content: 'hello' }, timestamp: '2024-01-01T00:00:00.000Z' });
+			manager.sessions.set(sourceId, sdkSession);
+
+			const sdk = {
+				getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, LocalSession: MockLocalSession })),
+				getRequestId: vi.fn(() => ({ vscodeRequestId: 'vsc-req-1', copilotRequestId: 'sdk-event-1' })),
+			} as unknown as ICopilotCLISDK;
+			const services = disposables.add(createExtensionUnitTestingServices());
+			const accessor = services.createTestingAccessor();
+			const configurationService = accessor.get(IConfigurationService);
+			const authService = { getCopilotToken: vi.fn(async () => ({ token: 'test-token' })) } as unknown as IAuthenticationService;
+			const nullMcpServer = disposables.add(new NullMcpService());
+			const delegationService = new class extends mock<IChatDelegationSummaryService>() {
+				override extractPrompt(): { prompt: string; reference: never } | undefined { return undefined; }
+				override async summarize(): Promise<string | undefined> { return undefined; }
+			}();
+			const metadataStore = new MockChatSessionMetadataStore();
+			await metadataStore.updateRequestDetails(sourceId, [{ vscodeRequestId: 'vsc-req-1', copilotRequestId: 'sdk-event-1', toolIdEditMap: {} }]);
+			const localService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), new MockFileSystemService(), new CopilotCLIMCPHandler(logService, authService, configurationService, nullMcpServer), new NullCopilotCLIAgents(), new NullWorkspaceService(), new NullCustomSessionTitleService(), configurationService, new MockSkillLocations(), delegationService, metadataStore, new NullAgentSessionsWorkspace(), new NullChatSessionWorkspaceFolderService(), new NullChatSessionWorktreeService(), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), new class extends mock<IChatPromptFileService>() { override get customAgentPromptFiles() { return []; } }()));
+			const localManager = await localService.getSessionManager() as unknown as MockCliSdkSessionManager;
+			localManager.sessions.set(sourceId, sdkSession);
+			const forkSpy = vi.spyOn(localManager, 'forkSession');
+
+			await localService.forkSession({ sessionId: sourceId, requestId: 'vsc-req-1', workspace: workspaceInfoFor(URI.file('/workspace')) }, CancellationToken.None);
+
+			expect(forkSpy).toHaveBeenCalledWith(sourceId, 'sdk-event-1');
 		});
 	});
 

@@ -10,6 +10,8 @@ import { l10n, Uri } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
+import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
+import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { GithubRepoId, IGitService } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem, SessionInfo } from '../../../platform/github/common/githubAPI';
@@ -24,6 +26,7 @@ import { DeferredPromise, retry, RunOnceScheduler } from '../../../util/vs/base/
 import { Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
+import { joinPath } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
@@ -311,6 +314,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 		@IDomainService private readonly _domainService: IDomainService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IFileSystemService private readonly _fileSystemService: IFileSystemService,
 	) {
 		super();
 		this.registerCommands();
@@ -778,19 +782,24 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// TODO: Expand to multi-root workspaces, etc...
 		const folder = workspaceFolders[0];
 		try {
-			// Find all .md files in .github/agents/
-			const pattern = new vscode.RelativePattern(folder, '.github/agents/*.md');
-			const files = await vscode.workspace.findFiles(pattern);
+			// Find all .md files in .github/agents/ using the file system service
+			const agentsDir = joinPath(folder.uri, '.github/agents');
+			const entries = await this._fileSystemService.readDirectory(agentsDir);
 
-			for (const file of files) {
+			for (const [name, type] of entries) {
+				// Only process .md files
+				if (!(type & FileType.File) || !name.toLowerCase().endsWith('.md')) {
+					continue;
+				}
+
 				// Extract agent name from filename (e.g., "my-agent.md" -> "my-agent" or "myagent.agent.md" -> "myagent")
-				const fileName = pathLib.basename(file.fsPath);
-				const agentName = fileName.replace(/\.agent\.md$/i, '').replace(/\.md$/i, '');
+				const agentName = name.replace(/\.agent\.md$/i, '').replace(/\.md$/i, '');
 
 				if (!agentName) {
 					continue;
 				}
 
+				const fileUri = joinPath(agentsDir, name);
 				if (remoteAgentNames.has(agentName.toLowerCase())) {
 					// This local file matches a remote agent
 					matches.add(agentName.toLowerCase());
@@ -798,12 +807,15 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					// This local file has no corresponding remote agent
 					localOnly.push({
 						name: agentName,
-						path: vscode.workspace.asRelativePath(file)
+						path: vscode.workspace.asRelativePath(fileUri)
 					});
 				}
 			}
 		} catch (error) {
-			this.logService.warn(`Error scanning for local agents in ${folder.uri.fsPath}: ${error}`);
+			if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') {
+				return { matches, localOnly };
+			}
+			this.logService.warn(`Error scanning for local agents in ${folder.uri.toString()}: ${error}`);
 		}
 
 		return { matches, localOnly };

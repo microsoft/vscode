@@ -12,7 +12,6 @@ import * as path from 'path';
 const REPO_ROOT = import.meta.dirname;
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
-const isPreRelease = process.argv.includes('--prerelease');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
 const sourceMapOutDir = './dist-sourcemaps';
 
@@ -323,8 +322,8 @@ async function moveSourceMapsToSeparateDir(): Promise<void> {
 }
 
 async function main() {
-	if (!isDev) {
-		applyPackageJsonPatch(isPreRelease);
+	if (!isDev) { // TODO@joaomoreno
+		applyPackageJsonPatch();
 	}
 
 	await typeScriptServerPluginPackageJsonInstall();
@@ -426,15 +425,41 @@ async function main() {
 	}
 }
 
-function applyPackageJsonPatch(isPreRelease: boolean) {
+function applyPackageJsonPatch() {
+	const quality = process.env['VSCODE_QUALITY'];
+
+	if (!quality) {
+		throw new Error('VSCODE_QUALITY environment variable is not set. This should be set by the build pipeline to ensure correct versioning and pre-release status in package.json.');
+	}
+
 	const packagejsonPath = path.join(import.meta.dirname, './package.json');
 	const json = JSON.parse(fs.readFileSync(packagejsonPath).toString());
+	const isPreRelease = quality !== 'stable';
+
+	const rootPackageJsonPath = path.join(import.meta.dirname, '../../package.json');
+	const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath).toString());
+	const vscodeVersion = rootPackageJson.version;
+
+	const [, vscodeMinor, vscodePatch] = vscodeVersion.split('.');
+	const newMajor = 0; // Keep major version at 0
+	const newMinor = parseInt(vscodeMinor, 10) - (115 - 43); // VS Code 1.115.x -> Copilot Chat 0.43.x
+	const newPatch = isPreRelease ? getDateBasedPatch() : vscodePatch; // For stable releases, keep the same patch number as VS Code
+
 	const newProps = {
 		buildType: 'prod',
 		isPreRelease,
+		version: `${newMajor}.${newMinor}.${newPatch}`
 	};
 
 	fs.writeFileSync(packagejsonPath, JSON.stringify({ ...json, ...newProps }, null, '\t'));
+}
+
+function getDateBasedPatch(): string {
+	const now = new Date();
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, '0');
+	const day = String(now.getDate()).padStart(2, '0');
+	return `${year}${month}${day}01`; // TODO@joaomoreno fix this asap
 }
 
 main();

@@ -13,6 +13,8 @@ import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { CopilotCLIModels, type CopilotCLIModelInfo, type ICopilotCLISDK } from '../copilotCli';
+import { DefaultsOnlyConfigurationService } from '../../../../../platform/configuration/common/defaultsOnlyConfigurationService';
+import { InMemoryConfigurationService } from '../../../../../platform/configuration/test/common/inMemoryConfigurationService';
 
 function createMockExtensionContext(): IVSCodeExtensionContext {
 	const state = new Map<string, unknown>();
@@ -88,6 +90,11 @@ class MockAuthenticationService {
 		this._onDidAuthenticationChange.dispose();
 	}
 }
+class MockConfigurationService extends InMemoryConfigurationService {
+	constructor() {
+		super(new DefaultsOnlyConfigurationService());
+	}
+}
 
 describe('CopilotCLIModels', () => {
 	const disposables = new DisposableStore();
@@ -114,6 +121,7 @@ describe('CopilotCLIModels', () => {
 			extensionContext,
 			logService,
 			auth as unknown as IAuthenticationService,
+			new MockConfigurationService()
 		);
 		disposables.add(models);
 		disposables.add({ dispose: () => auth.dispose() });
@@ -229,6 +237,7 @@ describe('CopilotCLIModels', () => {
 				extensionContext,
 				logService,
 				auth as unknown as IAuthenticationService,
+				new MockConfigurationService()
 			);
 			disposables.add(models);
 

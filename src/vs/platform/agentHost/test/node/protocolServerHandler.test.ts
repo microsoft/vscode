@@ -9,7 +9,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../../common/agentService.js';
+import type { IAgentCreateSessionConfig, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../common/agentService.js';
 import { IResourceReadResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
@@ -17,7 +17,7 @@ import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, Prot
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -77,10 +77,10 @@ class MockAgentService implements IAgentService {
 	private readonly _onDidNotification = new Emitter<import('../../common/state/sessionActions.js').INotification>();
 	readonly onDidNotification = this._onDidNotification.event;
 
-	private _stateManager!: SessionStateManager;
+	private _stateManager!: AgentHostStateManager;
 
 	/** Connect to the state manager so dispatchAction works correctly. */
-	setStateManager(sm: SessionStateManager): void {
+	setStateManager(sm: AgentHostStateManager): void {
 		this._stateManager = sm;
 	}
 
@@ -101,10 +101,7 @@ class MockAgentService implements IAgentService {
 	}
 	unsubscribe(_resource: URI): void { }
 	async shutdown(): Promise<void> { }
-	async getResourceMetadata(): Promise<IResourceMetadata> { return { resources: [] }; }
 	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
-	async refreshModels(): Promise<void> { }
-	async listAgents(): Promise<IAgentDescriptor[]> { return []; }
 	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<IResourceListResult> {
 		this.browsedUris.push(uri);
@@ -125,6 +122,8 @@ class MockAgentService implements IAgentService {
 	async resourceCopy(): Promise<{}> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
+	async createTerminal(): Promise<void> { }
+	async disposeTerminal(): Promise<void> { }
 
 	dispose(): void {
 		this._onDidAction.dispose();
@@ -159,7 +158,7 @@ function waitForResponse(transport: MockProtocolTransport, id: number): Promise<
 suite('ProtocolServerHandler', () => {
 
 	let disposables: DisposableStore;
-	let stateManager: SessionStateManager;
+	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
@@ -190,7 +189,7 @@ suite('ProtocolServerHandler', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
+		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
@@ -427,28 +426,16 @@ suite('ProtocolServerHandler', () => {
 
 	// ---- Extension methods: auth ----------------------------------------
 
-	test('getResourceMetadata returns resource metadata via extension request', async () => {
-		const transport = connectClient('client-metadata');
-		transport.sent.length = 0;
-
-		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'getResourceMetadata'));
-		const resp = await responsePromise as { result?: { resources: unknown[] } };
-
-		assert.ok(resp?.result);
-		assert.ok(Array.isArray(resp.result!.resources));
-	});
-
-	test('authenticate returns result via extension request', async () => {
+	test('authenticate returns result via typed request', async () => {
 		const transport = connectClient('client-auth');
 		transport.sent.length = 0;
 
 		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
-		const resp = await responsePromise as { result?: { authenticated: boolean } };
+		const resp = await responsePromise as { result?: Record<string, unknown>; error?: { code: number; message: string } };
 
-		assert.ok(resp?.result);
-		assert.strictEqual(resp.result!.authenticated, true);
+		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
+		assert.deepStrictEqual(resp.result, {});
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {

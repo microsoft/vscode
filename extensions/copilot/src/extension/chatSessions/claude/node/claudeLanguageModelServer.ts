@@ -156,16 +156,8 @@ export class ClaudeLanguageModelServer extends Disposable {
 		try {
 			const requestBody: AnthropicMessagesRequest = JSON.parse(bodyString);
 
-			const endpoints = await this.claudeCodeModels.getEndpoints();
-			if (endpoints.length === 0) {
-				this.error('No Claude models with Messages API available');
-				this.sendErrorResponse(res, 404, 'not_found_error', 'No Claude models with Messages API available');
-				return;
-			}
-
-			const endpointModel = sessionId ? this.sessionStateService.getModelIdForSession(sessionId) : undefined;
-			let selectedEndpoint = endpoints.find(e => e.model === endpointModel);
-			selectedEndpoint ??= this.selectEndpoint(endpoints, requestBody.model);
+			const fallbackModelId = sessionId ? this.sessionStateService.getModelIdForSession(sessionId) : undefined;
+			const selectedEndpoint = await this.claudeCodeModels.resolveEndpoint(requestBody.model, fallbackModelId);
 			if (!selectedEndpoint) {
 				this.error('No model found matching criteria');
 				this.sendErrorResponse(res, 404, 'not_found_error', 'No model found matching criteria');
@@ -229,7 +221,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 				messages: messagesForLogging,
 				finishedCb: async () => undefined,
 				location: ChatLocation.MessagesProxy,
-				enableThinking: true,
+				modelCapabilities: { enableThinking: true },
 				userInitiatedRequest: isUserInitiatedMessage
 			}, tokenSource.token);
 
@@ -247,40 +239,6 @@ export class ClaudeLanguageModelServer extends Disposable {
 		} finally {
 			tokenSource.dispose();
 		}
-	}
-
-	private selectEndpoint(endpoints: readonly IChatEndpoint[], requestedModel?: string): IChatEndpoint | undefined {
-		if (requestedModel) {
-			// Handle Claude model name mapping
-			// e.g. claude-sonnet-4-20250514 -> claude-sonnet-4.20250514
-			let mappedModel = requestedModel;
-			if (requestedModel.startsWith('claude-')) {
-				const parts = requestedModel.split('-');
-				if (parts.length >= 4) {
-					// claude-sonnet-4-20250514 -> ['claude', 'sonnet', '4', '20250514']
-					const [claude, model, major, minor] = parts;
-					mappedModel = `${claude}-${model}-${major}.${minor}`;
-				}
-			}
-
-			// Try to find exact match first by family or model
-			let selectedEndpoint = endpoints.find(e => e.family === mappedModel || e.model === mappedModel);
-
-			// If not found, try partial match for common Claude model patterns
-			if (!selectedEndpoint && requestedModel.startsWith('claude-sonnet-4')) {
-				selectedEndpoint = endpoints.find(e => e.model.includes('claude-sonnet-4')) ?? endpoints.find(e => e.model.includes('claude'));
-			} else if (!selectedEndpoint && requestedModel.startsWith('claude-3-5-haiku')) {
-				selectedEndpoint = endpoints.find(e => e.model.includes('gpt-4o-mini')) ?? endpoints.find(e => e.model.includes('mini'));
-			} else if (!selectedEndpoint && requestedModel.startsWith('claude-')) {
-				// Generic Claude fallback
-				selectedEndpoint = endpoints.find(e => e.model.includes('claude') || e.family?.includes('claude'));
-			}
-
-			return selectedEndpoint;
-		}
-
-		// Use first available model if no criteria specified
-		return endpoints[0];
 	}
 
 	private sendErrorResponse(

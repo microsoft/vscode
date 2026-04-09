@@ -1499,6 +1499,8 @@ export default tseslint.config(
 					'when': 'hasNode',
 					'allow': [
 						'@github/copilot-sdk',
+						'@microsoft/dev-tunnels-contracts',
+						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -1613,6 +1615,16 @@ export default tseslint.config(
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
+					'layer': 'node',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/common/diff/**', // diffing logic used by the agent host
 					]
 				},
 				{

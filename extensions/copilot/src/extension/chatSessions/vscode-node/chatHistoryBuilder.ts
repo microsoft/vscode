@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ChatReferenceBinaryData, ChatRequestTurn2 } from '../../../vscodeTypes';
+import { tryParseClaudeModelId } from '../claude/node/claudeModelId';
 import { completeToolInvocation, createFormattedToolInvocation } from '../claude/common/toolInvocationFormatter';
 import { AssistantMessageContent, ContentBlock, IClaudeCodeSession, ImageBlock, ISubagentSession, StoredMessage, SYNTHETIC_MODEL_ID, TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock } from '../claude/node/sessionParser/claudeSessionSchema';
 
@@ -359,46 +360,27 @@ function extractSubagentToolParts(
 
 /**
  * Looks ahead from a given index in the message array to find the model ID
- * from the first non-synthetic assistant message. This is the model that was
- * used to respond to the preceding user request.
+ * from the first non-synthetic assistant message. Converts SDK model IDs
+ * to endpoint format using {@link tryParseClaudeModelId}.
  *
  * @param messages The session's stored messages
  * @param startIndex The index to start looking from (typically after user messages)
- * @param modelIdMap Optional map from SDK model IDs to endpoint model IDs
  * @returns The endpoint model ID, or undefined if not found
  */
 function findModelIdForRequest(
 	messages: readonly StoredMessage[],
 	startIndex: number,
-	modelIdMap?: ReadonlyMap<string, string>,
 ): string | undefined {
 	for (let j = startIndex; j < messages.length; j++) {
 		const msg = messages[j];
 		if (msg.type === 'assistant' && msg.message.role === 'assistant') {
 			const assistantMsg = msg.message as AssistantMessageContent;
 			if (assistantMsg.model && assistantMsg.model !== SYNTHETIC_MODEL_ID) {
-				return modelIdMap?.get(assistantMsg.model) ?? assistantMsg.model;
+				return tryParseClaudeModelId(assistantMsg.model)?.toEndpointModelId() ?? assistantMsg.model;
 			}
 		}
 	}
 	return undefined;
-}
-
-/**
- * Collects all unique SDK model IDs from assistant messages in a session.
- * These can then be mapped to endpoint model IDs via {@link IClaudeCodeModels.mapSdkModelToEndpointModel}.
- */
-export function collectSdkModelIds(session: IClaudeCodeSession): Set<string> {
-	const sdkModelIds = new Set<string>();
-	for (const msg of session.messages) {
-		if (msg.type === 'assistant' && msg.message.role === 'assistant') {
-			const assistantMsg = msg.message as AssistantMessageContent;
-			if (assistantMsg.model && assistantMsg.model !== SYNTHETIC_MODEL_ID) {
-				sdkModelIds.add(assistantMsg.model);
-			}
-		}
-	}
-	return sdkModelIds;
 }
 
 // #endregion
@@ -414,10 +396,8 @@ export function collectSdkModelIds(session: IClaudeCodeSession): Set<string> {
  * when we encounter a user message with actual text (a new user request).
  *
  * @param session The Claude Code session to convert
- * @param modelIdMap Optional map from SDK model IDs (e.g., 'claude-opus-4-5-20251101') to
- *   endpoint model IDs. When provided, request turns will include the mapped model ID.
  */
-export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: ReadonlyMap<string, string>): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
+export function buildChatHistory(session: IClaudeCodeSession): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
 	const result: (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] = [];
 	const toolContext: ToolContext = {
 		unprocessedToolCalls: new Map(),
@@ -467,7 +447,7 @@ export function buildChatHistory(session: IClaudeCodeSession, modelIdMap?: Reado
 
 			// Check for slash command patterns (e.g., /compact, /init)
 			const commandInfo = extractCommandInfo(userContents);
-			const modelId = findModelIdForRequest(messages, i, modelIdMap);
+			const modelId = findModelIdForRequest(messages, i);
 			if (commandInfo) {
 				// Finalize any pending response first
 				if (pendingResponseParts.length > 0) {

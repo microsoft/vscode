@@ -31,6 +31,7 @@ import { IClaudeToolPermissionService } from '../common/claudeToolPermissionServ
 import { claudeEditTools, getAffectedUrisForEditTool } from '../common/claudeTools';
 import { IClaudeCodeSdkService } from './claudeCodeSdkService';
 import { ClaudeLanguageModelServer, IClaudeLanguageModelServerConfig } from './claudeLanguageModelServer';
+import { type ParsedClaudeModelId } from './claudeModelId';
 import { resolvePromptToContentBlocks } from './claudePromptResolver';
 import { IClaudeSessionStateService } from './claudeSessionStateService';
 import { ClaudeSettingsChangeTracker } from './claudeSettingsChangeTracker';
@@ -80,7 +81,7 @@ export class ClaudeAgentManager extends Disposable {
 			const langModelServer = await this.getLangModelServer();
 			const serverConfig = langModelServer.getConfig();
 
-			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}, modelId=${modelId}, permissionMode=${permissionMode}.`);
+			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}, modelId=${modelId.toEndpointModelId()}, permissionMode=${permissionMode}.`);
 			let session: ClaudeCodeSession;
 			if (this._sessions.has(claudeSessionId)) {
 				this.logService.trace(`[ClaudeAgentManager] Reusing Claude session ${claudeSessionId}.`);
@@ -161,7 +162,7 @@ export class ClaudeCodeSession extends Disposable {
 	private _abortController = new AbortController();
 	private _editTracker: ExternalEditTracker;
 	private _settingsChangeTracker: ClaudeSettingsChangeTracker;
-	private _currentModelId: string;
+	private _currentModelId: ParsedClaudeModelId;
 	private _currentPermissionMode: PermissionMode;
 	private _isResumed: boolean;
 	private _yieldInProgress = false;
@@ -173,14 +174,15 @@ export class ClaudeCodeSession extends Disposable {
 	/**
 	 * Sets the model on the active SDK session, or stores it for the next session start.
 	 */
-	private async _setModel(modelId: string): Promise<void> {
+	private async _setModel(modelId: ParsedClaudeModelId): Promise<void> {
 		if (modelId === this._currentModelId) {
 			return;
 		}
 		this._currentModelId = modelId;
 		if (this._queryGenerator) {
-			this.logService.trace(`[ClaudeCodeSession] Setting model to ${modelId} on active session`);
-			await this._queryGenerator.setModel(modelId);
+			const sdkId = modelId.toSdkModelId();
+			this.logService.trace(`[ClaudeCodeSession] Setting model to ${sdkId} on active session`);
+			await this._queryGenerator.setModel(sdkId);
 		}
 	}
 
@@ -202,7 +204,7 @@ export class ClaudeCodeSession extends Disposable {
 		private readonly serverConfig: IClaudeLanguageModelServerConfig,
 		private readonly langModelServer: ClaudeLanguageModelServer,
 		public readonly sessionId: string,
-		initialModelId: string,
+		initialModelId: ParsedClaudeModelId,
 		initialPermissionMode: PermissionMode,
 		isNewSession: boolean,
 		@ILogService private readonly logService: ILogService,
@@ -437,10 +439,11 @@ export class ClaudeCodeSession extends Disposable {
 				? { resume: this.sessionId }
 				: { sessionId: this.sessionId }),
 			// Pass the model selection to the SDK
-			model: this._currentModelId,
+			model: this._currentModelId.toSdkModelId(),
 			// Pass the permission mode to the SDK
 			permissionMode: this._currentPermissionMode,
 			hooks: this._buildHooks(token),
+			includeHookEvents: true,
 			mcpServers,
 			settings: {
 				env: {
@@ -559,7 +562,7 @@ export class ClaudeCodeSession extends Disposable {
 
 			// Increment user-initiated message count for this model
 			// This is used by the language model server to track which requests are user-initiated
-			this.langModelServer.incrementUserInitiatedMessageCount(this._currentModelId);
+			this.langModelServer.incrementUserInitiatedMessageCount(this._currentModelId.toEndpointModelId());
 
 			// Create a capturing token for this request to group tool calls under the request
 			// we use the last text block in the prompt as the label for the token, since that is most representative of the user's intent
@@ -622,6 +625,7 @@ export class ClaudeCodeSession extends Disposable {
 	 */
 	private async _processMessages(): Promise<void> {
 		const otelToolSpans = new Map<string, ISpanHandle>();
+		const otelHookSpans = new Map<string, ISpanHandle>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
 			for await (const message of this._queryGenerator!) {
@@ -655,6 +659,7 @@ export class ClaudeCodeSession extends Disposable {
 				}, {
 					unprocessedToolCalls,
 					otelToolSpans,
+					otelHookSpans,
 				});
 
 				if (result?.requestComplete) {
@@ -680,6 +685,11 @@ export class ClaudeCodeSession extends Disposable {
 				span.end();
 			}
 			otelToolSpans.clear();
+			for (const [, span] of otelHookSpans) {
+				span.setStatus(SpanStatusCode.ERROR, 'session ended before hook completed');
+				span.end();
+			}
+			otelHookSpans.clear();
 		}
 	}
 

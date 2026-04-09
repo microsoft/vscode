@@ -202,13 +202,13 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		protected override async createSessionsOptions(options: { model?: string; workingDirectory?: Uri; workspace: IWorkspaceInfo; mcpServers?: SessionOptions['mcpServers']; sessionId?: string; debugTargetSessionIds?: readonly string[] }) {
 			const testOptionsProvider = this.instantiationService.invokeFunction((accessor) => accessor.get(ITestSessionOptionsProvider));
 			const overrideOptions = await testOptionsProvider.getOptions();
-			const result = await super.createSessionsOptions({ ...options, agent: undefined });
-			const mutableOptions = result.sessionOptions as SessionOptions;
-			mutableOptions.authInfo = overrideOptions.authInfo ?? result.sessionOptions.authInfo;
-			mutableOptions.copilotUrl = overrideOptions.copilotUrl ?? result.sessionOptions.copilotUrl;
+			const sessionOptions = await super.createSessionsOptions({ ...options, agent: undefined });
+			const mutableOptions = sessionOptions as SessionOptions;
+			mutableOptions.authInfo = overrideOptions.authInfo ?? sessionOptions.authInfo;
+			mutableOptions.copilotUrl = overrideOptions.copilotUrl ?? sessionOptions.copilotUrl;
 			mutableOptions.enableStreaming = true;
 			mutableOptions.skipCustomInstructions = true;
-			return result;
+			return sessionOptions;
 		}
 	}
 
@@ -314,7 +314,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async getRepositoryProperties() { return undefined; },
 		async handleRequestCompleted() { },
 		async getWorkspaceChanges() { return undefined; },
-		clearWorkspaceChanges() { },
+		clearWorkspaceChanges() { return []; },
 	} as IChatSessionWorkspaceFolderService);
 	testingServiceCollection.define(IChatSessionWorktreeService, {
 		_serviceBrand: undefined,

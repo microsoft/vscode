@@ -54,7 +54,7 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService, ToolCallCancelledError } from '../../tools/common/toolsService';
 import { ReadFileParams } from '../../tools/node/readFileTool';
 import { isHookAbortError, processHookResults } from './hookResultProcessor';
-import { applyPromptOverrides } from './promptOverride';
+import { applyConfiguredPromptOverrides } from './promptOverride';
 
 export const enum ToolCallLimitBehavior {
 	Confirm,
@@ -103,7 +103,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'enableThinking' | 'reasoningEffort'>;
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities'>;
 
 interface StartHookResult {
 	/**
@@ -758,9 +758,16 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// (see CapturingToken setup in defaultIntentRequestHandler).
 				if (parentChatSessionId && chatSessionId) {
 					const childLabel = debugLogLabel ?? `runSubagent-${agentName}`;
-					this._instantiationService.invokeFunction(accessor =>
-						accessor.get(IChatDebugFileLoggerService).startChildSession(
-							chatSessionId, parentChatSessionId, childLabel, parentTraceContext?.spanId));
+					const fileLogger = this._instantiationService.invokeFunction(accessor =>
+						accessor.get(IChatDebugFileLoggerService));
+					fileLogger.startChildSession(
+						chatSessionId, parentChatSessionId, childLabel, parentTraceContext?.spanId);
+					// Also register the invoke_agent span's ID so that hook spans
+					// (whose parentSpanId is this span) are routed to the child session.
+					const invokeSpanId = span.getSpanContext()?.spanId;
+					if (invokeSpanId) {
+						fileLogger.registerSpanSession(invokeSpanId, chatSessionId);
+					}
 				}
 
 				// Emit session start event and metric for top-level agent invocations (not subagents)
@@ -1300,12 +1307,14 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// Possible the tool call resulted in new tools getting added.
 		availableTools = await this.getAvailableTools(outputStream, token);
 
-		// Apply debug prompt/tool overrides from YAML file, only when the setting is explicitly configured
+		// Apply debug prompt/tool overrides from either inline YAML text or a YAML file.
+		const promptOverride = this._configurationService.getConfig(ConfigKey.Advanced.DebugPromptOverrideString);
 		const promptOverrideFile = this._configurationService.getConfig(ConfigKey.Advanced.DebugPromptOverrideFile);
 		let effectiveBuildPromptResult: IBuildPromptResult = buildPromptResult;
-		if (promptOverrideFile) {
-			const overrideResult = await applyPromptOverrides(
-				URI.file(promptOverrideFile),
+		if (promptOverride || promptOverrideFile) {
+			const overrideResult = await applyConfiguredPromptOverrides(
+				promptOverride,
+				promptOverrideFile,
 				buildPromptResult.messages,
 				availableTools,
 				this._fileSystemService,
@@ -1415,8 +1424,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		let statefulMarker: string | undefined;
 		const toolCalls: IToolCall[] = [];
 		let thinkingItem: ThinkingDataItem | undefined;
-		const rawEffort = this.options.request.modelConfiguration?.reasoningEffort;
-		const reasoningEffort = typeof rawEffort === 'string' ? rawEffort : undefined;
 		const shouldDisableThinking = isContinuation && isAnthropicFamily(endpoint) && !ToolCallingLoop.messagesContainThinking(effectiveBuildPromptResult.messages);
 		const enableThinking = !shouldDisableThinking;
 		let phase: string | undefined;
@@ -1468,8 +1475,9 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				})),
 			},
 			userInitiatedRequest: (iterationNumber === 0 && !isContinuation && !this.options.request.subAgentInvocationId && !this.options.request.isSystemInitiated) || this.stopHookUserInitiated,
-			enableThinking,
-			reasoningEffort,
+			modelCapabilities: {
+				enableThinking,
+			},
 		}, token).finally(() => {
 			this.stopHookUserInitiated = false;
 		});
