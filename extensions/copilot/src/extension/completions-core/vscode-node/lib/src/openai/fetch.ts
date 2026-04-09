@@ -615,6 +615,7 @@ export class LiveOpenAIFetcher extends OpenAIFetcher {
 			clientCompletionId: generateUuid(),
 			meanLogProb: undefined,
 			meanAlternativeLogProb: undefined,
+			copilotAnnotations: accumulator.annotations.current,
 		});
 
 		const completions: { accumulator: CompletionAccumulator; isFinished: boolean; yielded: boolean }[] = [];
