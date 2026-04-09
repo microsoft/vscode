@@ -403,15 +403,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private getIcon(session: IAgentSession, statusOnly?: boolean): ThemeIcon {
 		if (session.status === AgentSessionStatus.InProgress) {
-			return Codicon.sessionInProgress;
+			return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 		}
 
 		if (session.status === AgentSessionStatus.NeedsInput) {
-			return Codicon.circleFilled;
+			return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 		}
 
 		if (session.status === AgentSessionStatus.Failed) {
-			return Codicon.error;
+			return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 		}
 
 		if (statusOnly) {
@@ -433,18 +433,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 
 		if (!session.isRead() && !session.isArchived()) {
-			return Codicon.circleFilled;
+			return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 		}
 
 		if (!statusOnly && session.providerType === AgentSessionProviders.Local) {
-			return Codicon.circleSmallFilled;
+			return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 
 		if (!statusOnly) {
 			return session.icon;
 		}
 
-		return Codicon.circleSmallFilled;
+		return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {

@@ -361,13 +361,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
 				'default': 'some'
 			},
-			'workbench.editor.modalMinWidth': {
-				'type': 'number',
-				'description': localize('modalMinWidth', "Controls the minimum width of modal editor overlays in pixels."),
-				'default': 400,
-				'minimum': 0,
-				'multipleOf': 1
-			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
 				'description': localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally. Note that System Preferences > Trackpad > More Gestures > 'Swipe between pages' must be set to 'Swipe with two or three fingers'."),

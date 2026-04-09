@@ -62,6 +62,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'textEditGroup':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
+				case 'thinking':
 					return objectsEqual(a, b);
 
 				// Static types that won't change after being pushed can use strict equality.
@@ -77,7 +78,6 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'progressMessage':
 				case 'pullRequest':
 				case 'questionCarousel':
-				case 'thinking':
 				case 'undoStop':
 				case 'warning':
 				case 'treeData':
@@ -151,6 +151,8 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
+	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
+	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
 }, {
 	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
 });

@@ -235,7 +235,7 @@ suite('AgentEventMapper', () => {
 		assert.strictEqual(reasoning.partId, partId);
 	});
 
-	test('message event returns undefined', () => {
+	test('message event with no prior deltas creates responsePart', () => {
 		const event: IAgentMessageEvent = {
 			session,
 			type: 'message',
@@ -244,6 +244,71 @@ suite('AgentEventMapper', () => {
 			content: 'Some full message',
 		};
 
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].type, 'session/responsePart');
+		const part = (actions[0] as IResponsePartAction).part;
+		assert.strictEqual(part.kind, 'markdown');
+		assert.strictEqual(part.content, 'Some full message');
+	});
+
+	test('message event after deltas returns undefined', () => {
+		// First send a delta so the mapper tracks a current markdown part
+		const delta: IAgentDeltaEvent = { session, type: 'delta', messageId: 'msg-1', content: 'hello' };
+		mapper.mapProgressEventToActions(delta, session.toString(), turnId);
+
+		const event: IAgentMessageEvent = {
+			session,
+			type: 'message',
+			role: 'assistant',
+			messageId: 'msg-1',
+			content: 'hello',
+		};
+
+		const result = mapper.mapProgressEventToActions(event, session.toString(), turnId);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('message event after tool_start creates responsePart for post-tool text', () => {
+		// Delta before tool call
+		const delta: IAgentDeltaEvent = { session, type: 'delta', messageId: 'msg-1', content: 'before' };
+		mapper.mapProgressEventToActions(delta, session.toString(), turnId);
+
+		// Tool call clears the current markdown part
+		const toolStart: IAgentToolStartEvent = {
+			session, type: 'tool_start',
+			toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
+			invocationMessage: 'Running', toolInput: 'ls',
+		};
+		mapper.mapProgressEventToActions(toolStart, session.toString(), turnId);
+
+		// Message event with text that came after the tool call
+		const msg: IAgentMessageEvent = {
+			session, type: 'message', role: 'assistant',
+			messageId: 'msg-2', content: 'after tool',
+		};
+		const actions = mapToArray(mapper.mapProgressEventToActions(msg, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].type, 'session/responsePart');
+		const part = (actions[0] as IResponsePartAction).part;
+		assert.strictEqual(part.kind, 'markdown');
+		assert.strictEqual(part.content, 'after tool');
+	});
+
+	test('message event with user role returns undefined', () => {
+		const event: IAgentMessageEvent = {
+			session, type: 'message', role: 'user',
+			messageId: 'msg-1', content: 'user text',
+		};
+		const result = mapper.mapProgressEventToActions(event, session.toString(), turnId);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('message event with empty content returns undefined', () => {
+		const event: IAgentMessageEvent = {
+			session, type: 'message', role: 'assistant',
+			messageId: 'msg-1', content: '',
+		};
 		const result = mapper.mapProgressEventToActions(event, session.toString(), turnId);
 		assert.strictEqual(result, undefined);
 	});

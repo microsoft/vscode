@@ -135,6 +135,10 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
+	setCommonProperty(name: string, value: string): void {
+		this._commonProperties[name] = value;
+	}
+
 	private _flushPendingEvents(): void {
 		if (this._isExperimentPropertySet) {
 			return;
@@ -213,6 +217,11 @@ export class TelemetryService implements ITelemetryService {
 
 		// add common properties
 		data = mixin(data, this._commonProperties);
+
+		// tag error-level events so the backend can identify them generically
+		if (eventLevel === TelemetryLevel.ERROR) {
+			data = { ...data, 'isError': true };
+		}
 
 		// Log to the appenders of sufficient level
 		this._appenders.forEach(a => a.log(eventName, data ?? {}));

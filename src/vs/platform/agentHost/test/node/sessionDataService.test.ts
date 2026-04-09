@@ -80,3 +80,74 @@ suite('SessionDataService', () => {
 		await service.cleanupOrphanedData(new Set());
 	});
 });
+
+suite('SessionDataService — openDatabase ref-counting', () => {
+
+	const disposables = new DisposableStore();
+	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
+	let service: SessionDataService;
+
+	setup(() => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		service = new SessionDataService(basePath, fileService, new NullLogService(), () => ':memory:');
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns a functional database reference', async () => {
+		const session = AgentSession.uri('copilot', 'ref-test');
+		const ref = service.openDatabase(session);
+		disposables.add(ref);
+
+		await ref.object.createTurn('turn-1');
+		const edits = await ref.object.getFileEdits([]);
+		assert.deepStrictEqual(edits, []);
+		await ref.object.close();
+	});
+
+	test('multiple references share the same database', async () => {
+		const session = AgentSession.uri('copilot', 'shared-test');
+		const ref1 = service.openDatabase(session);
+		const ref2 = service.openDatabase(session);
+
+		assert.strictEqual(ref1.object, ref2.object);
+
+		ref1.dispose();
+		ref2.dispose();
+		await ref1.object.close();
+	});
+
+	test('database remains usable until last reference is disposed', async () => {
+		const session = AgentSession.uri('copilot', 'refcount-test');
+		const ref1 = service.openDatabase(session);
+		const ref2 = service.openDatabase(session);
+
+		ref1.dispose();
+
+		// ref2 still works
+		await ref2.object.createTurn('turn-1');
+
+		ref2.dispose();
+
+		await ref1.object.close();
+	});
+
+	test('new reference after all disposed gets a fresh database', async () => {
+		const session = AgentSession.uri('copilot', 'reopen-test');
+		const ref1 = service.openDatabase(session);
+		const db1 = ref1.object;
+		ref1.dispose();
+
+		const ref2 = service.openDatabase(session);
+		disposables.add(ref2);
+		// New reference — may or may not be the same object, but must be functional
+		await ref2.object.createTurn('turn-1');
+		assert.notStrictEqual(ref2.object, db1);
+
+		await ref2.object.close();
+	});
+});

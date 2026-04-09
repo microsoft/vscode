@@ -45,6 +45,23 @@
 	background-color: var(--vscode-sessionsPanel-background);
 }
 
+.agent-sessions-workbench .part.panel > .content .pane-body,
+.agent-sessions-workbench .part.panel > .content .chat-debug-editor,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home,
+.agent-sessions-workbench .part.panel > .content .chat-debug-home-content,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview,
+.agent-sessions-workbench .part.panel > .content .chat-debug-overview-content {
+	background-color: var(--vscode-sessionsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer {
+	--vscode-panel-background: var(--vscode-sessionsPanel-background);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer .monaco-list-rows {
+	background: var(--vscode-sessionsPanel-background) !important;
+}
+
 /* Terminal body background */
 .agent-sessions-workbench .part.panel .terminal-wrapper {
 	background-color: var(--vscode-sessionsPanel-background);

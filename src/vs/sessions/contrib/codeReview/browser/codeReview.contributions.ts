@@ -15,13 +15,13 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../agentFeedback/browser/sessionEditorComments.js';
 import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, MAX_CODE_REVIEWS_PER_SESSION_VERSION, PRReviewStateKind } from './codeReviewService.js';
+import { CopilotCloudSessionType } from '../../../services/sessions/common/session.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -41,7 +41,9 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				tooltip,
 				category: CHAT_CATEGORY,
 				icon,
-				precondition: canRunSessionCodeReviewContextKey,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.hasAgentSessionChanges,
+					canRunSessionCodeReviewContextKey),
 				menu: [
 					{
 						id: MenuId.ChatEditingSessionChangesToolbar,
@@ -49,8 +51,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 						order: 7,
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
-							ChatContextKeys.hasAgentSessionChanges,
-							ChatContextKeys.agentSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+							ChatContextKeys.agentSessionType.notEqualsTo(CopilotCloudSessionType.id),
 						),
 					},
 				],
@@ -69,7 +70,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				return;
 			}
 
-			// Get changes from ISessionData
+			// Get changes from ISession
 			const sessionData = sessionManagementService.getSession(resource);
 			const changes = sessionData?.changes.get();
 			if (!changes || changes.length === 0) {

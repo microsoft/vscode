@@ -12,10 +12,16 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 export type IsolationMode = 'worktree' | 'workspace';
+
+interface IIsolationPickerItem {
+	readonly mode: IsolationMode;
+	readonly checked?: boolean;
+}
 
 /**
  * A self-contained widget for selecting the isolation mode.
@@ -42,6 +48,7 @@ export class IsolationPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 		this._isolationOptionEnabled = this.configurationService.getValue<boolean>('github.copilot.chat.cli.isolationOption.enabled') !== false;
@@ -58,12 +65,12 @@ export class IsolationPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			const chat = session?.activeChat.read(reader);
-			if (chat instanceof CopilotCLISession) {
-				const isLoading = chat.loading.read(reader);
-				this._hasGitRepo = !isLoading && !!chat.gitRepository;
+			const isLoading = session?.loading.read(reader);
+			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			if (providerSession) {
+				this._hasGitRepo = !isLoading && !!providerSession.gitRepository;
 				// Read isolation mode from session — session is the source of truth
-				chat.isolationModeObservable.read(reader);
+				providerSession.isolationMode.read(reader);
 			} else {
 				this._hasGitRepo = false;
 			}
@@ -72,8 +79,9 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _getSessionIsolationMode(): IsolationMode {
-		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		return session instanceof CopilotCLISession ? session.isolationMode : 'worktree';
+		const session = this.sessionsManagementService.activeSession.get();
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		return providerSession?.isolationMode.get() ?? 'worktree';
 	}
 
 	render(container: HTMLElement): void {
@@ -111,31 +119,32 @@ export class IsolationPicker extends Disposable {
 			return;
 		}
 
-		const items: IActionListItem<IsolationMode>[] = [
+		const currentIsolationMode = this._getSessionIsolationMode();
+		const items: IActionListItem<IIsolationPickerItem>[] = [
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.worktree', "Worktree"),
 				group: { title: '', icon: Codicon.worktree },
-				item: 'worktree',
+				item: { mode: 'worktree', checked: currentIsolationMode === 'worktree' || undefined },
 			},
 			{
 				kind: ActionListItemKind.Action,
 				label: localize('isolationMode.folder', "Folder"),
 				group: { title: '', icon: Codicon.folder },
-				item: 'workspace',
+				item: { mode: 'workspace', checked: currentIsolationMode === 'workspace' || undefined },
 			},
 		];
 
 		const triggerElement = this._triggerElement;
-		const delegate: IActionListDelegate<IsolationMode> = {
-			onSelect: (mode) => {
+		const delegate: IActionListDelegate<IIsolationPickerItem> = {
+			onSelect: ({ mode }) => {
 				this.actionWidgetService.hide();
 				this._setModeOnSession(mode);
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		this.actionWidgetService.show<IsolationMode>(
+		this.actionWidgetService.show<IIsolationPickerItem>(
 			'isolationPicker',
 			false,
 			items,
@@ -151,11 +160,9 @@ export class IsolationPicker extends Disposable {
 	}
 
 	private _setModeOnSession(mode: IsolationMode): void {
-		const session = this.sessionsManagementService.activeSession.get()?.activeChat.get();
-		if (!(session instanceof CopilotCLISession)) {
-			throw new Error('IsolationPicker requires a CopilotCLISession');
-		}
-		session.setIsolationMode(mode);
+		const session = this.sessionsManagementService.activeSession.get();
+		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		providerSession?.setIsolationMode(mode);
 	}
 
 	private _updateTriggerLabel(): void {

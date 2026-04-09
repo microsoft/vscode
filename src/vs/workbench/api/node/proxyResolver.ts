@@ -101,11 +101,6 @@ export function connectProxyResolver(
 					promises.push(certs);
 				}
 			}
-			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
-			if (initData.environment.extensionTestsLocationURI && https.globalAgent.testCertificates?.length) {
-				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
-				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
-			}
 			const result = (await Promise.all(promises)).flat();
 			const nodeSystemCertErrors = collectNodeSystemCertErrors(useNodeSystemCerts, extHostLogService);
 			mainThreadTelemetry.$publicLog2<AdditionalCertificatesEvent, AdditionalCertificatesClassification>('additionalCertificates', {

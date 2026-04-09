@@ -11,11 +11,10 @@ import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import * as os from 'os';
-import { AgentHostIpcChannels, AgentSession } from '../common/agentService.js';
-import { SessionStatus } from '../common/state/sessionState.js';
+import { AgentHostIpcChannels } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { ProtocolServerHandler, type IProtocolSideEffectHandler } from './protocolServerHandler.js';
+import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
@@ -28,9 +27,19 @@ import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { localize } from '../../../nls.js';
 import { FileService } from '../../files/common/fileService.js';
+import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
+import { InstantiationService } from '../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { SessionDataService } from './sessionDataService.js';
+import { ISessionDataService } from '../common/sessionDataService.js';
+import { IDiffComputeService } from '../common/diffComputeService.js';
+import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
+import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
+import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { AgentPluginManager } from './agentPluginManager.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -70,7 +79,18 @@ function startAgentHost(): void {
 	let agentService: AgentService;
 	try {
 		agentService = new AgentService(logService, fileService, sessionDataService);
-		agentService.registerProvider(new CopilotAgent(logService, fileService, sessionDataService));
+		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
+		const diServices = new ServiceCollection();
+		diServices.set(ILogService, logService);
+		diServices.set(IFileService, fileService);
+		diServices.set(ISessionDataService, sessionDataService);
+		diServices.set(IAgentPluginManager, pluginManager);
+
+		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
+		diServices.set(IDiffComputeService, diffComputeService);
+
+		const instantiationService = new InstantiationService(diServices);
+		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;
@@ -89,7 +109,7 @@ function startAgentHost(): void {
 	server.registerChannel(AgentHostIpcChannels.ConnectionTracker, connectionTrackerChannel);
 
 	// Start WebSocket server for external clients if configured
-	startWebSocketServer(agentService, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
+	startWebSocketServer(agentService, fileService, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});
 
@@ -103,10 +123,10 @@ function startAgentHost(): void {
 /**
  * When the parent process passes WebSocket configuration via environment
  * variables, start a protocol server that external clients can connect to.
- * This reuses the same {@link AgentService} and {@link SessionStateManager}
+ * This reuses the same {@link AgentService} and {@link AgentHostStateManager}
  * that the IPC channel uses, so both IPC and WebSocket clients share state.
  */
-async function startWebSocketServer(agentService: AgentService, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
+async function startWebSocketServer(agentService: AgentService, fileService: IFileService, logService: ILogService, disposables: DisposableStore, onConnectionCountChanged: (count: number) => void): Promise<void> {
 	const port = process.env['VSCODE_AGENT_HOST_PORT'];
 	const socketPath = process.env['VSCODE_AGENT_HOST_SOCKET_PATH'];
 
@@ -135,56 +155,17 @@ async function startWebSocketServer(agentService: AgentService, logService: ILog
 		logService,
 	));
 
-	// Create a side-effect handler that delegates to AgentService
-	const sideEffects: IProtocolSideEffectHandler = {
-		handleAction(action) {
-			agentService.dispatchAction(action, 'ws-server', 0);
-		},
-		async handleCreateSession(command) {
-			await agentService.createSession({
-				provider: command.provider,
-				model: command.model,
-				workingDirectory: command.workingDirectory,
-				session: URI.parse(command.session),
-			});
-		},
-		handleDisposeSession(session) {
-			agentService.disposeSession(URI.parse(session));
-		},
-		async handleListSessions() {
-			const sessions = await agentService.listSessions();
-			return sessions.map(s => ({
-				resource: s.session.toString(),
-				provider: AgentSession.provider(s.session) ?? 'copilot',
-				title: s.summary ?? 'Session',
-				status: SessionStatus.Idle,
-				createdAt: s.startTime,
-				modifiedAt: s.modifiedTime,
-				workingDirectory: s.workingDirectory,
-			}));
-		},
+	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
+	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
 
-		handleGetResourceMetadata() {
-			return agentService.getResourceMetadataSync();
-		},
-		async handleAuthenticate(params) {
-			return agentService.authenticate(params);
-		},
-		handleBrowseDirectory(uri) {
-			return agentService.browseDirectory(URI.parse(uri));
-		},
-		async handleRestoreSession(session) {
-			return agentService.restoreSession(URI.parse(session));
-		},
-		handleFetchContent(uri) {
-			return agentService.fetchContent(URI.parse(uri));
-		},
-		getDefaultDirectory() {
-			return URI.file(os.homedir()).toString();
-		},
-	};
-
-	const protocolHandler = disposables.add(new ProtocolServerHandler(agentService.stateManager, wsServer, sideEffects, logService));
+	const protocolHandler = disposables.add(new ProtocolServerHandler(
+		agentService,
+		agentService.stateManager,
+		wsServer,
+		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		clientFileSystemProvider,
+		logService,
+	));
 	disposables.add(protocolHandler.onDidChangeConnectionCount(onConnectionCountChanged));
 
 	const listenTarget = socketPath ?? `${host}:${port}`;

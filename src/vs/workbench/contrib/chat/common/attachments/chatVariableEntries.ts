@@ -56,7 +56,14 @@ export const enum OmittedState {
 	NotOmitted,
 	Partial,
 	Full,
+	ImageLimitExceeded,
 }
+
+/**
+ * The maximum number of images allowed per request.
+ * Claude has an upstream limit where more than 20 images causes issues.
+ */
+export const MAX_IMAGES_PER_REQUEST = 20;
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';

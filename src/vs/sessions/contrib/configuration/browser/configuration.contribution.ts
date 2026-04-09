@@ -5,6 +5,7 @@
 
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ThemeSettingDefaults } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
@@ -28,12 +29,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'extensions.ignoreRecommendations': true,
 
 		'files.autoSave': 'afterDelay',
-		'files.watcherExclude': {
-			'**/.git/objects/**': true,
-			'**/.git/subtree-cache/**': true,
-			'**/node_modules/*/**': true,
-			'**/.hg/store/**': true
-		},
 
 		'git.autofetch': true,
 		'git.branchRandomName.enable': true,
@@ -45,6 +40,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 			'plaintext': true,
 		},
 		'github.copilot.chat.claudeCode.enabled': true,
+		'github.copilot.chat.cli.autoCommit.enabled': false,
 		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.cli.isolationOption.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
@@ -66,9 +62,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
-		'workbench.editor.modalMinWidth': 600,
 		'workbench.panel.showLabels': false,
-		'workbench.colorTheme': 'VS Code Dark',
+		'workbench.colorTheme': ThemeSettingDefaults.COLOR_THEME_DARK,
 
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',

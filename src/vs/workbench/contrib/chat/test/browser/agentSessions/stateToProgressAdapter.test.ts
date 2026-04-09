@@ -93,9 +93,11 @@ suite('stateToProgressAdapter', () => {
 			const turn = createTurn({
 				responseParts: [{
 					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-						_meta: { toolKind: 'terminal', language: 'shellscript' },
 						toolInput: 'echo hello',
-						content: [{ type: ToolResultContentType.Text, text: 'hello' }],
+						content: [
+							{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t1', title: 'Terminal' },
+							{ type: ToolResultContentType.Text, text: 'hello' },
+						],
 						success: true,
 					})
 				} as IToolCallResponsePart],
@@ -149,9 +151,11 @@ suite('stateToProgressAdapter', () => {
 			const turn = createTurn({
 				responseParts: [{
 					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
-						_meta: { toolKind: 'terminal' },
 						toolInput: 'bad-command',
-						content: [{ type: ToolResultContentType.Text, text: 'error' }],
+						content: [
+							{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t2', title: 'Terminal' },
+							{ type: ToolResultContentType.Text, text: 'error' },
+						],
 						success: false,
 					})
 				} as IToolCallResponsePart],
@@ -187,10 +191,12 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.source, ToolDataSource.Internal);
 		});
 
-		test('sets terminal toolSpecificData', () => {
+		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({
-				_meta: { toolKind: 'terminal' },
 				toolInput: 'ls -la',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t3', title: 'Terminal' },
+				],
 			});
 
 			const invocation = toolCallStateToInvocation(tc);
@@ -212,9 +218,11 @@ suite('stateToProgressAdapter', () => {
 
 		test('finalizes terminal tool with output and exit code', () => {
 			const tc = createToolCallState({
-				_meta: { toolKind: 'terminal' },
 				toolInput: 'echo hi',
 				status: ToolCallStatus.Running,
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t4', title: 'Terminal' },
+				],
 			});
 			const invocation = toolCallStateToInvocation(tc);
 
@@ -224,12 +232,14 @@ suite('stateToProgressAdapter', () => {
 				toolName: 'test_tool',
 				displayName: 'Test Tool',
 				invocationMessage: 'Running test tool...',
-				_meta: { toolKind: 'terminal' },
 				toolInput: 'echo hi',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				success: true,
 				pastTenseMessage: 'Ran echo hi',
-				content: [{ type: ToolResultContentType.Text, text: 'output text' }],
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t4', title: 'Terminal' },
+					{ type: ToolResultContentType.Text, text: 'output text' },
+				],
 			});
 
 			assert.ok(invocation.toolSpecificData);
@@ -276,15 +286,21 @@ suite('stateToProgressAdapter', () => {
 				toolInput: JSON.stringify({ path: '/home/user/file.ts' }),
 				content: [{
 					type: ToolResultContentType.FileEdit,
-					beforeURI: 'agenthost-content:///session/snap/before',
-					afterURI: 'agenthost-content:///session/snap/after',
+					before: {
+						uri: URI.file('/home/user/file.ts').toString(),
+						content: { uri: 'agenthost-content:///session/snap/before' },
+					},
+					after: {
+						uri: URI.file('/home/user/file.ts').toString(),
+						content: { uri: 'agenthost-content:///session/snap/after' },
+					},
 				}],
 			});
 
 			assert.strictEqual(fileEdits.length, 1);
 			assert.strictEqual(fileEdits[0].resource.fsPath.replace(/\\/g, '/'), '/home/user/file.ts');
-			assert.strictEqual(fileEdits[0].beforeContentUri.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
-			assert.strictEqual(fileEdits[0].afterContentUri.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
+			assert.strictEqual(fileEdits[0].beforeContentUri?.toString(), URI.parse('agenthost-content:///session/snap/before').toString());
+			assert.strictEqual(fileEdits[0].afterContentUri?.toString(), URI.parse('agenthost-content:///session/snap/after').toString());
 			assert.ok(fileEdits[0].undoStopId);
 		});
 
@@ -324,7 +340,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(fileEdits.length, 0);
 		});
 
-		test('returns empty file edits when toolInput has no path', () => {
+		test('returns empty file edits when FileEdit has no before or after', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
 			const invocation = toolCallStateToInvocation(tc);
 
@@ -340,36 +356,39 @@ suite('stateToProgressAdapter', () => {
 				toolInput: JSON.stringify({ content: 'no path field' }),
 				content: [{
 					type: ToolResultContentType.FileEdit,
-					beforeURI: 'agenthost-content:///before',
-					afterURI: 'agenthost-content:///after',
 				}],
 			});
 
 			assert.strictEqual(fileEdits.length, 0);
 		});
 
-		test('returns empty file edits when toolInput is invalid JSON', () => {
+		test('returns file edit for create (only after present)', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
 			const invocation = toolCallStateToInvocation(tc);
 
 			const fileEdits = finalizeToolInvocation(invocation, {
 				status: ToolCallStatus.Completed,
 				toolCallId: 'tc-1',
-				toolName: 'edit_file',
-				displayName: 'Edit File',
-				invocationMessage: 'Editing file...',
+				toolName: 'create_file',
+				displayName: 'Create File',
+				invocationMessage: 'Creating file...',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 				success: true,
-				pastTenseMessage: 'Edited',
-				toolInput: 'not json',
+				pastTenseMessage: 'Created file',
 				content: [{
 					type: ToolResultContentType.FileEdit,
-					beforeURI: 'agenthost-content:///before',
-					afterURI: 'agenthost-content:///after',
+					after: {
+						uri: URI.file('/home/user/new-file.ts').toString(),
+						content: { uri: 'agenthost-content:///snap/after' },
+					},
 				}],
 			});
 
-			assert.strictEqual(fileEdits.length, 0);
+			assert.strictEqual(fileEdits.length, 1);
+			assert.strictEqual(fileEdits[0].kind, 'create');
+			assert.strictEqual(fileEdits[0].resource.fsPath.replace(/\\/g, '/'), '/home/user/new-file.ts');
+			assert.strictEqual(fileEdits[0].beforeContentUri, undefined);
+			assert.ok(fileEdits[0].afterContentUri);
 		});
 	});
 
@@ -464,15 +483,14 @@ suite('stateToProgressAdapter', () => {
 						status: ToolCallStatus.PendingConfirmation,
 						confirmationTitle: 'Run command',
 						toolInput: 'echo hello',
-						_meta: { toolKind: 'terminal' },
 					},
 				},
 			]));
 			assert.strictEqual(result.length, 1);
-			// PendingConfirmation invocations have terminal toolSpecificData for shell tools
+			// PendingConfirmation tools have input-style specific data (no terminal content yet)
 			const invocation = result[0] as { toolSpecificData?: { kind: string } };
 			assert.ok(invocation.toolSpecificData);
-			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+			assert.strictEqual(invocation.toolSpecificData.kind, 'input');
 		});
 
 		test('includes all parts in correct order', () => {
@@ -503,5 +521,115 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result[0].kind, 'thinking');
 			assert.strictEqual(result[1].kind, 'markdownContent');
 		});
+	});
+
+	suite('terminal content blocks', () => {
+
+		test('completed tool call with terminal content block sets terminalCommandUri', () => {
+			const tc = createCompletedToolCall({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'npm test',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal' },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
+			});
+
+			const history = turnsToHistory([turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			assert.ok(serialized.toolSpecificData);
+			assert.strictEqual(serialized.toolSpecificData.kind, 'terminal');
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandUri?: { toString(): string } };
+			assert.ok(termData.terminalCommandUri);
+			assert.strictEqual(termData.terminalCommandUri.toString(), 'agenthost-terminal:/abc123');
+		});
+
+		test('terminal content block skips output from text content', () => {
+			const tc = createCompletedToolCall({
+				_meta: {
+					toolKind: 'terminal',
+				},
+				toolInput: 'npm test',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///abc123', title: 'Terminal' },
+					{ type: ToolResultContentType.Text, text: 'text-output' },
+				],
+				success: true,
+			});
+
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
+			});
+
+			const history = turnsToHistory([turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+			const termData = serialized.toolSpecificData as { kind: 'terminal'; terminalCommandUri?: { toString(): string }; terminalCommandOutput?: { text: string } };
+			// Terminal content block URI should be set
+			assert.ok(termData.terminalCommandUri);
+			// Text content is still extracted as output
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'text-output');
+		});
+
+		test('running tool call with terminal content block sets terminalCommandUri', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'npm test',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///running-term', title: 'Terminal' },
+				],
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandUri?: { toString(): string } };
+			assert.ok(termData.terminalCommandUri);
+			assert.strictEqual(termData.terminalCommandUri.toString(), 'agenthost-terminal:/running-term');
+		});
+
+		test('finalize preserves terminal URI from content block', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'echo hello',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///final-term', title: 'Terminal' },
+				],
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				_meta: { toolKind: 'terminal' },
+				toolInput: 'echo hello',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran echo hello',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///final-term', title: 'Terminal' },
+				],
+			});
+
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandUri?: { toString(): string }; terminalCommandState?: { exitCode: number } };
+			assert.ok(termData.terminalCommandUri);
+			assert.strictEqual(termData.terminalCommandUri.toString(), 'agenthost-terminal:/final-term');
+			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
+		});
+
 	});
 });
