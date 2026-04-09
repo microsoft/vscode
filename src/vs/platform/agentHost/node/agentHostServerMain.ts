@@ -38,8 +38,14 @@ import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IDiffComputeService } from '../common/diffComputeService.js';
+import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { SessionDataService } from './sessionDataService.js';
+import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
+import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
+import { AgentPluginManager } from './agentPluginManager.js';
+import { IAgentPluginManager } from '../common/agentPluginManager.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -149,7 +155,7 @@ async function main(): Promise<void> {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
-	// Create the agent service (owns SessionStateManager + AgentSideEffects internally)
+	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
 	const agentService = new AgentService(logService, fileService, sessionDataService);
 	disposables.add(agentService);
 
@@ -157,11 +163,14 @@ async function main(): Promise<void> {
 	if (!options.quiet) {
 		// Production agents (require DI)
 		const diServices = new ServiceCollection();
+		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IProductService, productService);
 		diServices.set(INativeEnvironmentService, environmentService);
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
+		diServices.set(IAgentPluginManager, pluginManager);
+		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
 		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
@@ -187,12 +196,17 @@ async function main(): Promise<void> {
 			: undefined,
 	}, logService));
 
+
+	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
+	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+
 	// Wire up protocol handler
 	disposables.add(new ProtocolServerHandler(
 		agentService,
 		agentService.stateManager,
 		wsServer,
 		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		clientFileSystemProvider,
 		logService,
 	));
 

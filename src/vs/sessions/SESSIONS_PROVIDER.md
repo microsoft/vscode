@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Sessions Provider architecture introduces an **extensible provider model** for managing agent sessions in the Sessions window. Instead of hardcoding session types and backends, multiple providers register with a central registry (`ISessionsProvidersService`), which aggregates sessions from all providers and routes actions to the correct one.
+The Sessions Provider architecture introduces an **extensible provider model** for managing agent sessions in the Agent Sessions window. Instead of hardcoding session types and backends, multiple providers register with a central registry (`ISessionsProvidersService`), which aggregates sessions from all providers and routes actions to the correct one.
 
 This design allows new compute environments (remote agent hosts, cloud backends, third-party agents) to plug in without modifying core session management code.
 
@@ -43,7 +43,7 @@ This design allows new compute environments (remote agent hosts, cloud backends,
 
 ### `ISessionData` — Universal Session Facade
 
-**File:** `src/vs/sessions/contrib/sessions/common/sessionData.ts`
+**File:** `src/vs/sessions/services/sessions/common/session.ts`
 
 The common session interface exposed by all providers. It is a self-contained facade — consumers should not reach back to underlying services to resolve additional data. All mutable properties are **observables** for reactive UI binding.
 

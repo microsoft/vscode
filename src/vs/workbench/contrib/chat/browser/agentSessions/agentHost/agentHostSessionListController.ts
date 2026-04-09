@@ -9,9 +9,22 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
+import type { ISessionFileDiff } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatSessionStatus, IChatSessionFileChange2, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
+
+function mapDiffsToChanges(diffs: readonly ISessionFileDiff[] | readonly { readonly uri: string; readonly added?: number; readonly removed?: number }[] | undefined, connectionAuthority: string): readonly IChatSessionFileChange2[] | undefined {
+	if (!diffs || diffs.length === 0) {
+		return undefined;
+	}
+	return diffs.map(d => ({
+		uri: toAgentHostUri(URI.parse(d.uri), connectionAuthority),
+		insertions: d.added ?? 0,
+		deletions: d.removed ?? 0,
+	}));
+}
 
 /**
  * Provides session list items for the chat sessions sidebar by querying
@@ -33,6 +46,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _provider: string,
 		private readonly _connection: IAgentConnection,
 		private readonly _description: string | undefined,
+		private readonly _connectionAuthority: string,
 		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
@@ -54,6 +68,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 						lastRequestStarted: n.summary.modifiedAt,
 						lastRequestEnded: n.summary.modifiedAt,
 					},
+					changes: mapDiffsToChanges(n.summary.diffs, this._connectionAuthority),
 				};
 				this._items.push(item);
 				this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [item] });
@@ -67,9 +82,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			}
 		}));
 
-		// Refresh on turnComplete actions for metadata updates (title, timing)
+		// Refresh on turnComplete and diffsChanged actions for metadata updates
 		this._register(this._connection.onDidAction(e => {
-			if (e.action.type === 'session/turnComplete' && isSessionAction(e.action) && AgentSession.provider(e.action.session) === this._provider) {
+			if ((e.action.type === 'session/turnComplete' || e.action.type === 'session/diffsChanged') && isSessionAction(e.action) && AgentSession.provider(e.action.session) === this._provider) {
 				const cts = new CancellationTokenSource();
 				this.refresh(cts.token).finally(() => cts.dispose());
 			}
@@ -97,6 +112,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					lastRequestStarted: s.modifiedTime,
 					lastRequestEnded: s.modifiedTime,
 				},
+				changes: mapDiffsToChanges(s.diffs, this._connectionAuthority),
 			}));
 		} catch {
 			this._items = [];

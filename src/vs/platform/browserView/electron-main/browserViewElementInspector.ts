@@ -60,6 +60,12 @@ interface INode {
 	pseudoElements?: INode[];
 }
 
+interface ILayoutMetricsResult {
+	cssVisualViewport?: {
+		scale?: number;
+	};
+}
+
 function useScopedDisposal() {
 	const store = new DisposableStore() as DisposableStore & { [Symbol.dispose](): void };
 	store[Symbol.dispose] = () => store.dispose();
@@ -76,7 +82,7 @@ export class BrowserViewElementInspector extends Disposable {
 
 	private readonly _connectionPromise: Promise<ICDPConnection>;
 
-	constructor(browser: BrowserView) {
+	constructor(private readonly browser: BrowserView) {
 		super();
 
 		this._connectionPromise = browser.attach().then(
@@ -130,7 +136,10 @@ export class BrowserViewElementInspector extends Disposable {
 
 				try {
 					const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
-					resolve(nodeData);
+					resolve({
+						...nodeData,
+						url: this.browser.getURL()
+					});
 				} catch (err) {
 					reject(err);
 				}
@@ -173,7 +182,28 @@ export class BrowserViewElementInspector extends Disposable {
 			return undefined;
 		}
 
-		return extractNodeData(connection, { objectId: result.objectId });
+		const nodeData = await extractNodeData(connection, { objectId: result.objectId });
+		return {
+			...nodeData,
+			url: this.browser.getURL()
+		};
+	}
+
+	async getVisualViewportScale(): Promise<number> {
+		try {
+			const connection = await this._connectionPromise;
+			const result = await connection.sendCommand('Page.getLayoutMetrics') as ILayoutMetricsResult;
+			if (typeof result.cssVisualViewport?.scale === 'number') {
+				const scale = Number(result.cssVisualViewport.scale);
+				if (Number.isFinite(scale) && scale > 0) {
+					return scale;
+				}
+			}
+		} catch {
+			// Ignore execution errors while loading and use defaults.
+		}
+
+		return 1;
 	}
 }
 

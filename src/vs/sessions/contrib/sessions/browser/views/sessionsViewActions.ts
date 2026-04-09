@@ -20,11 +20,12 @@ import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/commo
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
-import { ISessionsManagementService } from '../sessionsManagementService.js';
-import { ISession, SessionStatus } from '../../common/sessionData.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
+import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 //  Constants
 
@@ -276,8 +277,8 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.sectionArchive',
-			title: localize2('archiveSection', "Archive All"),
-			icon: Codicon.archive,
+			title: localize2('archiveSection', "Mark All as Done"),
+			icon: Codicon.check,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -299,10 +300,10 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
 				message: context.sessions.length === 1
-					? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 session from '{0}'?", context.label)
-					: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", context.sessions.length, context.label),
-				detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
-				primaryButton: localize('archiveSectionSessions.archive', "Archive All"),
+					? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label)
+					: localize('archiveSectionSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label),
+				detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
+				primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
 				}
@@ -327,8 +328,8 @@ registerAction2(class UnarchiveSectionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.sectionUnarchive',
-			title: localize2('unarchiveSection', "Unarchive All"),
-			icon: Codicon.unarchive,
+			title: localize2('unarchiveSection', "Restore All"),
+			icon: Codicon.discard,
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
@@ -350,8 +351,8 @@ registerAction2(class UnarchiveSectionAction extends Action2 {
 			const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 			if (!skipConfirmation) {
 				const confirmed = await dialogService.confirm({
-					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} sessions?", context.sessions.length),
-					primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
+					message: localize('unarchiveSectionSessions.confirm', "Are you sure you want to restore {0} sessions?", context.sessions.length),
+					primaryButton: localize('unarchiveSectionSessions.unarchive', "Restore All"),
 					checkbox: {
 						label: localize('doNotAskAgain2', "Do not ask me again")
 					}
@@ -384,7 +385,7 @@ registerAction2(class PinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
@@ -422,7 +423,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
@@ -455,12 +456,12 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.archiveSession',
-			title: localize2('archiveSession', "Archive"),
-			icon: Codicon.archive,
+			title: localize2('archiveSession', "Mark as Done"),
+			icon: Codicon.check,
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
 			}, {
 				id: SessionItemContextMenuId,
@@ -486,12 +487,12 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.unarchiveSession',
-			title: localize2('unarchiveSession', "Unarchive"),
-			icon: Codicon.unarchive,
+			title: localize2('unarchiveSession', "Restore"),
+			icon: Codicon.discard,
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
 			}, {
 				id: SessionItemContextMenuId,
@@ -546,7 +547,7 @@ registerAction2(class RenameSessionAction extends Action2 {
 		if (newTitle) {
 			const trimmedTitle = newTitle.trim();
 			if (trimmedTitle) {
-				await sessionsManagementService.renameChat(session.mainChat, trimmedTitle);
+				await sessionsManagementService.renameChat(session, session.mainChat.resource, trimmedTitle);
 			}
 		}
 	}
@@ -626,6 +627,10 @@ registerAction2(class OpenSessionInNewWindowAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+
+		sessionsManagementService.openNewSessionView(); // running this first to address focus issues
+
 		for (const session of sessions) {
 			await chatWidgetService.openSession(session.resource, AUX_WINDOW_GROUP, {
 				auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
@@ -665,6 +670,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			id: 'agentSession.markAsDone',
 			title: localize2('markAsDone', "Mark as Done"),
 			icon: Codicon.check,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				id: Menus.CommandCenter,
 				order: 103,
@@ -680,8 +686,19 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ContextKeyExpr.equals('sessions.hasPullRequest', true),
-					ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
+					ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals('sessions.hasGitRepository', true),
+							ContextKeyExpr.equals('sessions.hasPullRequest', false),
+							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
+							ContextKeyExpr.equals('sessions.hasUncommittedChanges', false),
+						),
+						ContextKeyExpr.and(
+							ContextKeyExpr.equals('sessions.hasGitRepository', true),
+							ContextKeyExpr.equals('sessions.hasPullRequest', true),
+							ContextKeyExpr.equals('sessions.hasOpenPullRequest', false),
+						)
+					)
 				)
 			}]
 		});
@@ -711,7 +728,8 @@ registerAction2(class AddChatAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsAuxiliaryWindowContext.negate(),
 					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate()
+					IsNewChatSessionContext.negate(),
+					ActiveSessionSupportsMultiChatContext
 				)
 			}]
 		});
@@ -732,7 +750,7 @@ registerAction2(class AddChatAction extends Action2 {
 		});
 
 		if (query) {
-			await sessionsManagementService.sendAndCreateChat({ query }, activeSession);
+			await sessionsManagementService.sendAndCreateChat(activeSession, { query });
 		}
 	}
 });

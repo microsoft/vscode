@@ -6,6 +6,7 @@
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IGitHubChangedFile } from '../common/types.js';
 import { GitHubApiClient } from './githubApiClient.js';
 import { GitHubRepositoryFetcher } from './fetchers/githubRepositoryFetcher.js';
 import { GitHubPRFetcher } from './fetchers/githubPRFetcher.js';
@@ -13,6 +14,7 @@ import { GitHubPRCIFetcher } from './fetchers/githubPRCIFetcher.js';
 import { GitHubRepositoryModel } from './models/githubRepositoryModel.js';
 import { GitHubPullRequestModel } from './models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from './models/githubPullRequestCIModel.js';
+import { GitHubChangesFetcher } from './fetchers/githubChangesFetcher.js';
 
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
@@ -34,6 +36,11 @@ export interface IGitHubService {
 	 * The model is cached by owner/repo/headRef key and disposed when the service is disposed.
 	 */
 	getPullRequestCI(owner: string, repo: string, headRef: string): GitHubPullRequestCIModel;
+
+	/**
+	 * List files changed between two refs using the GitHub compare API.
+	 */
+	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]>;
 }
 
 export const IGitHubService = createDecorator<IGitHubService>('sessionsGitHubService');
@@ -46,6 +53,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 	private readonly _apiClient: GitHubApiClient;
 	private readonly _repoFetcher: GitHubRepositoryFetcher;
+	private readonly _changesFetcher: GitHubChangesFetcher;
 	private readonly _prFetcher: GitHubPRFetcher;
 	private readonly _ciFetcher: GitHubPRCIFetcher;
 
@@ -61,6 +69,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 
 		this._apiClient = this._register(instantiationService.createInstance(GitHubApiClient));
 		this._repoFetcher = new GitHubRepositoryFetcher(this._apiClient);
+		this._changesFetcher = new GitHubChangesFetcher(this._apiClient);
 		this._prFetcher = new GitHubPRFetcher(this._apiClient);
 		this._ciFetcher = new GitHubPRCIFetcher(this._apiClient);
 	}
@@ -96,5 +105,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 			this._ciModels.set(key, model);
 		}
 		return model;
+	}
+
+	getChangedFiles(owner: string, repo: string, base: string, head: string): Promise<readonly IGitHubChangedFile[]> {
+		return this._changesFetcher.getChangedFiles(owner, repo, base, head);
 	}
 }

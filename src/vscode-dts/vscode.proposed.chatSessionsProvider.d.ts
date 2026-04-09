@@ -594,8 +594,15 @@ declare module 'vscode' {
 		/**
 		 * The initial option selections for the session, provided with the first request.
 		 * Contains the options the user selected (or defaults) before the session was created.
+		 *
+		 * @deprecated Use `inputState` instead
 		 */
 		readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+
+		/**
+		 * The current input state of the chat session.
+		 */
+		readonly inputState: ChatSessionInputState;
 	}
 
 	export interface ChatSessionCapabilities {
@@ -683,30 +690,16 @@ declare module 'vscode' {
 		readonly when?: string;
 
 		/**
-		 * When true, displays a searchable QuickPick with a "See more..." option.
-		 * Recommended for option groups with additional async items (e.g., repositories).
-		 */
-		readonly searchable?: boolean;
-
-		/**
 		 * An icon for the option group shown in UI.
 		 */
 		readonly icon?: ThemeIcon;
 
 		/**
-		 * Handler for dynamic search when `searchable` is true.
-		 * Called when the user types in the searchable QuickPick or clicks "See more..." to load additional items.
-		 *
-		 * @param query The search query entered by the user. Empty string for initial load.
-		 * @param token A cancellation token.
-		 * @returns Additional items to display in the searchable QuickPick.
-		 */
-		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
-
-		/**
 		 * Optional commands.
 		 *
 		 * These commands will be displayed at the bottom of the group.
+		 *
+		 * For extensions using the legacy `commands` API, these commands are passed the sessionResource as the first argument.
 		 *
 		 * For extensions that use the new `provideChatSessionInputState` API, these commands are passed a context object
 		 * `{ inputState: ChatSessionInputState; sessionResource: Uri | undefined }` that they can use to determine which session and options they are being invoked for.
