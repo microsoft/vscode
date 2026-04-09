@@ -5,17 +5,14 @@
 
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -28,9 +25,7 @@ import { localize } from '../../../../../nls.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
-import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { Action, Separator } from '../../../../../base/common/actions.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -38,6 +33,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { Menus } from '../../../../browser/menus.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -84,7 +81,6 @@ export class SessionsView extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -149,37 +145,12 @@ export class SessionsView extends ViewPane {
 
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
 
-		// Search & Filter icon buttons (ActionBar with toolbar pattern)
-		const hoverDelegate = this._register(createInstantHoverDelegate());
-		const actionBar = this._register(new ActionBar(headerActions, {
-			hoverDelegate,
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'sessionsView.header',
+			toolbarOptions: { primaryGroup: () => true },
 		}));
-		actionBar.push(new Action(
-			'sessionsViewPane.find',
-			localize('findSession', "Find Session"),
-			ThemeIcon.asClassName(Codicon.search),
-			true,
-			() => this.openFind(),
-		), { icon: true, label: false });
-
-		actionBar.push(new Action(
-			'sessionsViewPane.filter',
-			localize('filterSessions', "Filter Sessions"),
-			ThemeIcon.asClassName(Codicon.settings),
-			true,
-			() => {
-				const filterViewItem = actionBar.viewItems[actionBar.viewItems.length - 1];
-				const anchor = filterViewItem instanceof BaseActionViewItem && filterViewItem.element
-					? filterViewItem.element
-					: actionBar.getContainer();
-				const menu = this.menuService.createMenu(SessionsViewFilterSubMenu, this.scopedContextKeyService);
-				this.contextMenuService.showContextMenu({
-					getActions: () => Separator.join(...menu.getActions().map(([, actions]) => actions)),
-					getAnchor: () => anchor,
-					onHide: () => menu.dispose(),
-				});
-			},
-		), { icon: true, label: false });
 
 		// Container for the tree's find widget (rendered in-place in the header)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));

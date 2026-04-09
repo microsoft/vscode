@@ -64,6 +64,24 @@ KeybindingsRegistry.registerKeybindingRule({
 
 //  View Title Menu
 
+MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+	command: {
+		id: 'sessionsViewPane.find',
+		title: localize2('find', "Find Session"),
+		icon: Codicon.search,
+	},
+	group: 'navigation',
+	order: 0,
+});
+
+MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+	submenu: SessionsViewFilterSubMenu,
+	title: localize2('filterSessions', "Filter Sessions"),
+	icon: Codicon.settings,
+	group: 'navigation',
+	order: 1,
+});
+
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
 	submenu: SessionsViewFilterOptionsSubMenu,
 	title: localize2('filter', "Filter"),
