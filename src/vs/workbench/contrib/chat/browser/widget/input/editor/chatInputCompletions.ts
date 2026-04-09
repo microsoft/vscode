@@ -12,7 +12,7 @@ import { isPatternInWord } from '../../../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { basename } from '../../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { assertType } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -1043,7 +1043,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				return undefined;
 			}
 
-			if (model) {
+			if (model && model.uri.scheme !== Schemas.vscodeChatInput) {
 				return codeEditor;
 			}
 		}
@@ -1099,7 +1099,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			return {
 				label: { label: basename, description: labelDescription },
-				filterText: `${basename} ${typedLeader}${basename} ${uriLabel}`,
+				filterText: `${typedLeader}${basename} ${basename} ${uriLabel}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
 				kind: kind === FileKind.FILE ? CompletionItemKind.File : CompletionItemKind.Folder,
@@ -1121,12 +1121,13 @@ class BuiltinDynamicCompletions extends Disposable {
 			pattern = info.varWord.word.toLowerCase().slice(1); // remove leading # or @
 		}
 
+		const activeResource = this.findActiveCodeEditor()?.getModel()?.uri;
 		const seen = new ResourceSet();
 		const len = result.suggestions.length;
 
 		// HISTORY
 		// always take the last N items
-		for (const [i, item] of this.historyService.getHistory().entries()) {
+		for (const item of this.historyService.getHistory()) {
 			const resource = isDiffEditorInput(item) ? item.modified.resource : item.resource;
 			if (!resource || seen.has(resource) || !this.instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, resource.scheme))) {
 				// ignore editors without a resource
@@ -1144,7 +1145,8 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			seen.add(resource);
-			const newLen = result.suggestions.push(makeCompletionItem(resource, FileKind.FILE, i === 0 ? localize('activeFile', 'Active file') : undefined, i === 0));
+			const isActiveFile = !!activeResource && isEqual(resource, activeResource);
+			const newLen = result.suggestions.push(makeCompletionItem(resource, FileKind.FILE, isActiveFile ? localize('activeFile', 'Active file') : undefined, isActiveFile));
 			if (newLen - len >= 5) {
 				break;
 			}
