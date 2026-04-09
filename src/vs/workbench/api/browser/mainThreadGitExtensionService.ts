@@ -38,11 +38,11 @@ function toGitRepositoryState(dto: GitRepositoryStateDto | undefined): GitReposi
 			name: dto.HEAD.name,
 			commit: dto.HEAD.commit,
 			remote: dto.HEAD.remote,
-			base: dto.HEAD.base,
 			upstream: dto.HEAD.upstream,
 			ahead: dto.HEAD.ahead,
 			behind: dto.HEAD.behind,
 		} satisfies GitBranch : undefined,
+		remotes: dto?.remotes ?? [],
 		mergeChanges: dto?.mergeChanges?.map(c => ({
 			uri: URI.revive(c.uri),
 			originalUri: c.originalUri ? URI.revive(c.originalUri) : undefined,

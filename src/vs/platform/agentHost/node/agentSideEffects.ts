@@ -3,22 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SequencerByKey } from '../../../base/common/async.js';
 import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment } from '../common/agentService.js';
+import { IAgent, IAgentAttachment, IAgentProgressEvent } from '../common/agentService.js';
+import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
 import {
+	CustomizationStatus,
 	PendingMessageKind,
+	type ISessionCustomization,
 	type ISessionModelInfo,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
+import { CommandAutoApprover } from './commandAutoApprover.js';
+import { NodeWorkerDiffComputeService } from './diffComputeService.js';
+import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -48,13 +56,21 @@ export class AgentSideEffects extends Disposable {
 	private readonly _toolCallAgents = new Map<string, string>();
 	/** Per-agent event mapper instances (stateful for partId tracking). */
 	private readonly _eventMappers = new Map<string, AgentEventMapper>();
+	/** Auto-approver for shell commands parsed via tree-sitter. */
+	private readonly _commandAutoApprover: CommandAutoApprover;
+	/** Shared diff compute service for calculating line-level diffs in a worker thread. */
+	private readonly _diffComputeService: IDiffComputeService;
+	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
+	private readonly _diffComputationSequencer = new SequencerByKey<string>();
 
 	constructor(
-		private readonly _stateManager: SessionStateManager,
+		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
 		private readonly _logService: ILogService,
 	) {
 		super();
+		this._commandAutoApprover = this._register(new CommandAutoApprover(this._logService));
+		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -80,7 +96,11 @@ export class AgentSideEffects extends Disposable {
 			} catch {
 				models = [];
 			}
-			return { provider: d.provider, displayName: d.displayName, description: d.description, models };
+			const protectedResources = a.getProtectedResources();
+			return {
+				provider: d.provider, displayName: d.displayName, description: d.description, models,
+				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
+			};
 		}));
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
@@ -116,6 +136,61 @@ export class AgentSideEffects extends Disposable {
 		return approved;
 	}
 
+	/**
+	 * Initializes async resources (tree-sitter WASM) used for command
+	 * auto-approval. Await this before any session events can arrive to
+	 * guarantee that {@link _tryAutoApproveToolReady} is fully synchronous.
+	 */
+	initialize(): Promise<void> {
+		return this._commandAutoApprover.initialize();
+	}
+
+	/**
+	 * Synchronously attempts to auto-approve a `tool_ready` event based on
+	 * permission kind. Returns `true` if auto-approved (event should not be
+	 * dispatched to the state manager), or `false` to proceed normally.
+	 */
+	private _tryAutoApproveToolReady(
+		e: { readonly toolCallId: string; readonly session: URI; readonly permissionKind?: string; readonly permissionPath?: string; readonly toolInput?: string },
+		sessionKey: ProtocolURI,
+		agent: IAgent,
+	): boolean {
+		// Write auto-approval: only within the session's working directory,
+		// then apply the default glob patterns for protected files.
+		if (e.permissionKind === 'write' && e.permissionPath) {
+			const sessionState = this._stateManager.getSessionState(sessionKey);
+			const workDir = sessionState?.workingDirectory ?? sessionState?.summary.workingDirectory;
+			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
+			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
+				if (this._shouldAutoApproveEdit(e.permissionPath)) {
+					this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
+					this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+					agent.respondToPermissionRequest(e.toolCallId, true);
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// Shell auto-approval: parse the command via tree-sitter (synchronous
+		// after initialize() has been awaited) and match against default rules.
+		if (e.permissionKind === 'shell' && e.toolInput) {
+			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput);
+			if (result === 'approved') {
+				this._logService.trace(`[AgentSideEffects] Auto-approving shell command`);
+				this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+				agent.respondToPermissionRequest(e.toolCallId, true);
+				return true;
+			}
+			if (result === 'denied') {
+				this._logService.trace(`[AgentSideEffects] Shell command denied by rule`);
+			}
+			return false;
+		}
+
+		return false;
+	}
+
 	// ---- Agent registration -------------------------------------------------
 
 	/**
@@ -141,30 +216,21 @@ export class AgentSideEffects extends Disposable {
 			const sessionKey = e.session.toString();
 			const turnId = this._stateManager.getActiveTurnId(sessionKey);
 			if (turnId) {
-				// Check if this is a write permission request that can be auto-approved
-				// based on the built-in default patterns.
-				if (e.type === 'tool_ready' && e.permissionKind === 'write' && e.permissionPath) {
-					if (this._shouldAutoApproveEdit(e.permissionPath)) {
-						this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
-						agent.respondToPermissionRequest(e.toolCallId, true);
+				// Auto-approve tool_ready events synchronously before dispatching.
+				// Tree-sitter is pre-warmed via initialize(), so this is fully sync.
+				if (e.type === 'tool_ready') {
+					if (this._tryAutoApproveToolReady(e, sessionKey, agent)) {
 						return;
 					}
 				}
 
-				const actions = agentMapper.mapProgressEventToActions(e, sessionKey, turnId);
-				if (actions) {
-					if (Array.isArray(actions)) {
-						for (const action of actions) {
-							this._stateManager.dispatchServerAction(action);
-						}
-					} else {
-						this._stateManager.dispatchServerAction(actions);
-					}
-				}
+				this._dispatchProgressActions(agentMapper, e, sessionKey, turnId);
 			}
 
-			// After a turn completes (idle event), try to consume the next queued message
+			// After a turn completes (idle event), compute session diffs and
+			// try to consume the next queued message
 			if (e.type === 'idle') {
+				this._computeSessionDiffs(sessionKey, turnId);
 				this._tryConsumeNextQueuedMessage(sessionKey);
 			}
 
@@ -182,6 +248,19 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	// ---- Side-effect handlers --------------------------------------------------
+
+	private _dispatchProgressActions(mapper: AgentEventMapper, e: IAgentProgressEvent, sessionKey: ProtocolURI, turnId: string): void {
+		const actions = mapper.mapProgressEventToActions(e, sessionKey, turnId);
+		if (actions) {
+			if (Array.isArray(actions)) {
+				for (const action of actions) {
+					this._stateManager.dispatchServerAction(action);
+				}
+			} else {
+				this._stateManager.dispatchServerAction(actions);
+			}
+		}
+	}
 
 	handleAction(action: ISessionAction): void {
 		switch (action.type) {
@@ -205,7 +284,7 @@ export class AgentSideEffects extends Disposable {
 					path: a.path,
 					displayName: a.displayName,
 				}));
-				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments).catch(err => {
+				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
 					this._logService.error('[AgentSideEffects] sendMessage failed', err);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionError,
@@ -252,6 +331,80 @@ export class AgentSideEffects extends Disposable {
 				this._syncPendingMessages(action.session);
 				break;
 			}
+			case ActionType.SessionTruncated: {
+				const agent = this._options.getAgent(action.session);
+				let turnIndex: number | undefined;
+				if (action.turnId !== undefined) {
+					const state = this._stateManager.getSessionState(action.session);
+					if (state) {
+						const idx = state.turns.findIndex(t => t.id === action.turnId);
+						if (idx >= 0) {
+							turnIndex = idx;
+						}
+					}
+				}
+				agent?.truncateSession?.(URI.parse(action.session), turnIndex).catch(err => {
+					this._logService.error('[AgentSideEffects] truncateSession failed', err);
+				});
+				// Turns were removed — recompute diffs from scratch (no changedTurnId)
+				this._computeSessionDiffs(action.session);
+				break;
+			}
+			case ActionType.SessionActiveClientChanged: {
+				const agent = this._options.getAgent(action.session);
+				const refs = action.activeClient?.customizations;
+				if (!agent?.setClientCustomizations || !refs?.length) {
+					break;
+				}
+				// Publish initial "loading" status for all customizations
+				const loading: ISessionCustomization[] = refs.map(r => ({
+					customization: r,
+					enabled: true,
+					status: CustomizationStatus.Loading,
+				}));
+				this._stateManager.dispatchServerAction({
+					type: ActionType.SessionCustomizationsChanged,
+					session: action.session,
+					customizations: loading,
+				});
+				agent.setClientCustomizations(
+					action.activeClient!.clientId,
+					refs,
+					(synced) => {
+						// Incremental progress: publish updated statuses
+						const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+						this._stateManager.dispatchServerAction({
+							type: ActionType.SessionCustomizationsChanged,
+							session: action.session,
+							customizations: statuses,
+						});
+					},
+				).then(synced => {
+					// Final status
+					const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+					this._stateManager.dispatchServerAction({
+						type: ActionType.SessionCustomizationsChanged,
+						session: action.session,
+						customizations: statuses,
+					});
+				}).catch(err => {
+					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
+				});
+				break;
+			}
+			case ActionType.SessionCustomizationToggled: {
+				const agent = this._options.getAgent(action.session);
+				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
+				break;
+			}
+			case ActionType.SessionIsReadChanged: {
+				this._persistSessionFlag(action.session, 'isRead', action.isRead ? 'true' : '');
+				break;
+			}
+			case ActionType.SessionIsDoneChanged: {
+				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
+				break;
+			}
 		}
 	}
 
@@ -259,6 +412,15 @@ export class AgentSideEffects extends Disposable {
 		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
 		ref.object.setMetadata('customTitle', title).catch(err => {
 			this._logService.warn('[AgentSideEffects] Failed to persist session title', err);
+		}).finally(() => {
+			ref.dispose();
+		});
+	}
+
+	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
+		const ref = this._options.sessionDataService.openDatabase(URI.parse(session));
+		ref.object.setMetadata(key, value).catch(err => {
+			this._logService.warn(`[AgentSideEffects] Failed to persist ${key}`, err);
 		}).finally(() => {
 			ref.dispose();
 		});
@@ -339,7 +501,7 @@ export class AgentSideEffects extends Disposable {
 			path: a.path,
 			displayName: a.displayName,
 		}));
-		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments).catch(err => {
+		agent.sendMessage(URI.parse(session), msg.userMessage.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction({
 				type: ActionType.SessionError,
@@ -348,6 +510,54 @@ export class AgentSideEffects extends Disposable {
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
 		});
+	}
+
+	// ---- Session diff computation ----------------------------------------------
+
+	/**
+	 * Asynchronously (re)computes aggregated diff statistics for a session
+	 * and dispatches {@link ActionType.SessionDiffsChanged} to update the
+	 * session summary. Fire-and-forget: errors are logged but do not fail
+	 * the turn.
+	 */
+	private _computeSessionDiffs(session: ProtocolURI, changedTurnId?: string): void {
+		// Chain onto any pending computation for this session to ensure
+		// sequential access to previousDiffs (avoids stale-read races).
+		this._diffComputationSequencer.queue(session, () => this._doComputeSessionDiffs(session, changedTurnId));
+	}
+
+	private async _doComputeSessionDiffs(session: ProtocolURI, changedTurnId?: string): Promise<void> {
+		let ref: ReturnType<ISessionDataService['openDatabase']>;
+		try {
+			ref = this._options.sessionDataService.openDatabase(URI.parse(session));
+		} catch {
+			return;
+		}
+		try {
+			// Build incremental options when a specific turn triggered the recomputation
+			let incremental: IIncrementalDiffOptions | undefined;
+			if (changedTurnId) {
+				const previousDiffs = this._stateManager.getSessionState(session)?.summary.diffs;
+				if (previousDiffs) {
+					incremental = { changedTurnId, previousDiffs };
+				}
+			}
+
+			const diffs = await computeSessionDiffs(ref.object, this._diffComputeService, incremental);
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionDiffsChanged,
+				session,
+				diffs,
+			});
+			// Persist diffs to the session database so they survive restarts
+			ref.object.setMetadata('diffs', JSON.stringify(diffs)).catch(err => {
+				this._logService.warn('[AgentSideEffects] Failed to persist session diffs', err);
+			});
+		} catch (err) {
+			this._logService.warn('[AgentSideEffects] Failed to compute session diffs', err);
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	override dispose(): void {

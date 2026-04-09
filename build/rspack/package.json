@@ -1,0 +1,18 @@
+{
+  "name": "code-oss-dev-rspack",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "serve-out": "rspack serve --config rspack.serve-out.config.mts"
+  },
+  "devDependencies": {
+    "@rspack/cli": "^1.3.18",
+    "@rspack/core": "^1.3.18",
+    "@vscode/esm-url-webpack-plugin": "^1.0.1-3"
+  },
+  "dependencies": {
+    "@vscode/component-explorer": "^0.2.1-8",
+    "@vscode/component-explorer-webpack-plugin": "^0.3.1-5"
+  }
+}

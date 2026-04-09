@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
+import { FileEditKind } from '../../common/state/sessionState.js';
 import type { Database } from '@vscode/sqlite3';
 
 suite('SessionDatabase', () => {
@@ -125,6 +126,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -136,7 +138,9 @@ suite('SessionDatabase', () => {
 			assert.deepStrictEqual(edits, [{
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
+				originalPath: undefined,
 				addedLines: 5,
 				removedLines: 2,
 			}]);
@@ -149,6 +153,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('a-before'),
 				afterContent: new TextEncoder().encode('a-after'),
@@ -158,6 +163,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new TextEncoder().encode('b-before'),
 				afterContent: new TextEncoder().encode('b-after'),
@@ -178,6 +184,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('hello'),
@@ -187,6 +194,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('world'),
@@ -222,6 +230,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v1'),
 				afterContent: new TextEncoder().encode('v1-after'),
@@ -231,6 +240,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('v2'),
 				afterContent: new TextEncoder().encode('v2-after'),
@@ -254,6 +264,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/file.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -281,6 +292,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-bin',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/image.png',
 				beforeContent: new Uint8Array(0),
 				afterContent: binary,
@@ -300,6 +312,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'auto-turn',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/x',
 				beforeContent: new Uint8Array(0),
 				afterContent: new Uint8Array(0),
@@ -330,6 +343,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
@@ -353,6 +367,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-1',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/a.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('a'),
@@ -362,6 +377,7 @@ suite('SessionDatabase', () => {
 			await db.storeFileEdit({
 				turnId: 'turn-2',
 				toolCallId: 'tc-2',
+				kind: FileEditKind.Edit,
 				filePath: '/workspace/b.ts',
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('b'),

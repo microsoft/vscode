@@ -4,10 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
-import { join } from '../../../../base/common/path.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -16,12 +12,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
-import { SessionDataService } from '../../node/sessionDataService.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
 
@@ -33,15 +28,6 @@ suite('AgentService (node dispatcher)', () => {
 	let fileService: FileService;
 
 	setup(async () => {
-		const nullSessionDataService: ISessionDataService = {
-			_serviceBrand: undefined,
-			getSessionDataDir: () => URI.parse('inmemory:/session-data'),
-			getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
-			openDatabase: () => { throw new Error('not implemented'); },
-			tryOpenDatabase: async () => undefined,
-			deleteSessionData: async () => { },
-			cleanupOrphanedData: async () => { },
-		};
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 
@@ -49,7 +35,7 @@ suite('AgentService (node dispatcher)', () => {
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/testDir' }));
 		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }), VSBuffer.fromString('hello'));
 
-		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService));
+		service = disposables.add(new AgentService(new NullLogService(), fileService, createNullSessionDataService()));
 		copilotAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
@@ -88,24 +74,6 @@ suite('AgentService (node dispatcher)', () => {
 
 			copilotAgent.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello' });
 			assert.ok(envelopes.some(e => e.action.type === ActionType.SessionResponsePart));
-		});
-	});
-
-	// ---- listAgents -----------------------------------------------------
-
-	suite('listAgents', () => {
-
-		test('returns descriptors from all registered providers', async () => {
-			service.registerProvider(copilotAgent);
-
-			const agents = await service.listAgents();
-			assert.strictEqual(agents.length, 1);
-			assert.ok(agents.some(a => a.provider === 'copilot'));
-		});
-
-		test('returns empty array when no providers are registered', async () => {
-			const agents = await service.listAgents();
-			assert.strictEqual(agents.length, 0);
 		});
 	});
 
@@ -168,20 +136,14 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('listSessions overlays custom title from session database', async () => {
-			// Use a real SessionDataService with disk-backed SQLite to verify
-			// that listSessions reads custom titles from the database.
-			const testDir = join(tmpdir(), `vscode-agent-svc-test-${randomUUID()}`);
-			mkdirSync(testDir, { recursive: true });
-			const diskFileService = disposables.add(new FileService(new NullLogService()));
-			disposables.add(diskFileService.registerProvider('file', disposables.add(new DiskFileSystemProvider(new NullLogService()))));
-			const sessionDataService = new SessionDataService(URI.file(testDir), diskFileService, new NullLogService());
+			// Pre-seed a custom title in an in-memory database
+			const db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('customTitle', 'My Custom Title');
 
-			// Pre-seed a custom title in the database for a known session ID
 			const sessionId = 'test-session-abc';
 			const sessionUri = AgentSession.uri('copilot', sessionId);
-			const ref = sessionDataService.openDatabase(sessionUri);
-			await ref.object.setMetadata('customTitle', 'My Custom Title');
-			ref.dispose();
+
+			const sessionDataService = createSessionDataService(db);
 
 			// Create a mock that returns a session with that ID
 			const agent = new MockAgent('copilot');
@@ -190,14 +152,12 @@ suite('AgentService (node dispatcher)', () => {
 			// Manually add the session to the mock
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
-			const svc = disposables.add(new AgentService(new NullLogService(), diskFileService, sessionDataService));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'My Custom Title');
-
-			rmSync(testDir, { recursive: true, force: true });
 		});
 
 		test('listSessions uses SDK title when no custom title exists', async () => {
@@ -209,46 +169,6 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
-		});
-
-		test('refreshModels publishes models in root state via agentsChanged', async () => {
-			service.registerProvider(copilotAgent);
-
-			const envelopes: IActionEnvelope[] = [];
-			disposables.add(service.onDidAction(e => envelopes.push(e)));
-
-			service.refreshModels();
-
-			// Model fetch is async inside AgentSideEffects — wait for it
-			await new Promise(r => setTimeout(r, 50));
-
-			const agentsChanged = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
-			assert.ok(agentsChanged);
-		});
-	});
-
-	// ---- getResourceMetadata --------------------------------------------
-
-	suite('getResourceMetadata', () => {
-
-		test('aggregates protected resources from all providers', async () => {
-			service.registerProvider(copilotAgent);
-
-			const mockAgent = new MockAgent('other');
-			disposables.add(toDisposable(() => mockAgent.dispose()));
-			service.registerProvider(mockAgent);
-
-			const metadata = await service.getResourceMetadata();
-			// copilot agent returns one resource (https://api.github.com),
-			// generic MockAgent('other') returns empty
-			assert.deepStrictEqual(metadata, {
-				resources: [{ resource: 'https://api.github.com', authorization_servers: ['https://github.com/login/oauth'] }],
-			});
-		});
-
-		test('returns empty resources when no providers registered', async () => {
-			const metadata = await service.getResourceMetadata();
-			assert.deepStrictEqual(metadata, { resources: [] });
 		});
 	});
 
@@ -375,20 +295,20 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
-	// ---- browseDirectory ------------------------------------------------
+	// ---- resourceList ------------------------------------------------
 
-	suite('browseDirectory', () => {
+	suite('resourceList', () => {
 
 		test('throws when the directory does not exist', async () => {
 			await assert.rejects(
-				() => service.browseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
+				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/nonexistent' })),
 				/Directory not found/,
 			);
 		});
 
 		test('throws when the target is not a directory', async () => {
 			await assert.rejects(
-				() => service.browseDirectory(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
+				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
 				/Not a directory/,
 			);
 		});

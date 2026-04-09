@@ -155,5 +155,8 @@
 		"github-enterprise": [
 			"GitHub.copilot-chat"
 		]
-	}
+	},
+	"builtInExtensionsEnabledWithAutoUpdates": [
+		"GitHub.copilot-chat"
+	]
 }

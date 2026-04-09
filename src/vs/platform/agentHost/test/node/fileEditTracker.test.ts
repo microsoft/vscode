@@ -9,9 +9,15 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
+import { createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
 
@@ -30,7 +36,12 @@ suite('FileEditTracker', () => {
 		db = disposables.add(await SessionDatabase.open(':memory:'));
 		await db.createTurn('turn-1');
 
-		tracker = new FileEditTracker('copilot:/test-session', db, fileService, new NullLogService());
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, fileService);
+		services.set(IDiffComputeService, createZeroDiffComputeService());
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		tracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 	});
 
 	teardown(async () => {
@@ -51,14 +62,14 @@ suite('FileEditTracker', () => {
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
 
 		// URIs are parseable session-db: URIs
-		const beforeFields = parseSessionDbUri(fileEdit.beforeURI);
+		const beforeFields = parseSessionDbUri(fileEdit.before!.content.uri);
 		assert.ok(beforeFields);
 		assert.strictEqual(beforeFields.sessionUri, 'copilot:/test-session');
 		assert.strictEqual(beforeFields.toolCallId, 'tc-1');
 		assert.strictEqual(beforeFields.filePath, '/workspace/test.txt');
 		assert.strictEqual(beforeFields.part, 'before');
 
-		const afterFields = parseSessionDbUri(fileEdit.afterURI);
+		const afterFields = parseSessionDbUri(fileEdit.after!.content.uri);
 		assert.ok(afterFields);
 		assert.strictEqual(afterFields.part, 'after');
 

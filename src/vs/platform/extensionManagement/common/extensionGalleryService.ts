@@ -775,28 +775,32 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			try {
 				galleryExtension = await this.getLatestGalleryExtension(extensionInfo, options, resourceApi, extensionGalleryManifest, token);
 				if (isString(galleryExtension)) {
-					// fallback to query
-					this.telemetryService.publicLog2<
-						{
-							extension: string;
-							preRelease: boolean;
-							compatible: boolean;
-							errorCode: string;
-						},
-						{
-							owner: 'sandy081';
-							comment: 'Report the fallback to the Marketplace query for fetching extensions';
-							extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
-							preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
-							compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
-							errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
-						}>('galleryService:fallbacktoquery', {
-							extension: extensionInfo.id,
-							preRelease: !!extensionInfo.preRelease,
-							compatible: !!options.compatible,
-							errorCode: galleryExtension
-						});
-					toQuery.push(extensionInfo);
+					if (galleryExtension === 'BUILT_IN_LATEST_IS_OUTDATED') {
+						this.logService.debug(`Skipping query API fallback for auto-update builtin extension ${extensionInfo.id} because the latest gallery version is older than the product version`);
+					} else {
+						// fallback to query
+						this.telemetryService.publicLog2<
+							{
+								extension: string;
+								preRelease: boolean;
+								compatible: boolean;
+								errorCode: string;
+							},
+							{
+								owner: 'sandy081';
+								comment: 'Report the fallback to the Marketplace query for fetching extensions';
+								extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension id' };
+								preRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get pre-release version' };
+								compatible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Get compatible version' };
+								errorCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error code or reason' };
+							}>('galleryService:fallbacktoquery', {
+								extension: extensionInfo.id,
+								preRelease: !!extensionInfo.preRelease,
+								compatible: !!options.compatible,
+								errorCode: galleryExtension
+							});
+						toQuery.push(extensionInfo);
+					}
 				} else {
 					result.push(galleryExtension);
 				}
@@ -856,6 +860,19 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension, rawGalleryExtension.versions, extensionInfo, options, allTargetPlatforms);
 
 		if (!rawGalleryExtensionVersion) {
+			const extensionId = getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName);
+			if (this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === extensionId.toLowerCase())) {
+
+				// For built-in extensions that we need to be updated out of band (productService.builtInExtensionsEnabledWithAutoUpdates)
+				// there are a few interesting scenarios to consider:
+				//   - If we find a matching MAJOR.MINOR version in the gallery that is engine compatible, we should return that version (normal flow).
+				//	 - Otherwise, if we find a newer (MAJOR.MINOR) version in the gallery, it means the product is outdated and we should query all versions to find the best match for that particular product veresion.
+				//   - Otherwise, if we find a older (MAJOR.MINOR) version in the gallery, the product will already be shipping the latest version as built-in, we should skip the query API fallback.
+				const latestVersion = rawGalleryExtension.versions.length > 0 ? rawGalleryExtension.versions[0].version : undefined;
+				if (latestVersion && (semver.major(latestVersion) < semver.major(this.productService.version) || (semver.major(latestVersion) === semver.major(this.productService.version) && semver.minor(latestVersion) < semver.minor(this.productService.version)))) {
+					return 'BUILT_IN_LATEST_IS_OUTDATED';
+				}
+			}
 			return 'NOT_COMPATIBLE';
 		}
 
@@ -998,6 +1015,15 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		if (excludeVersionRange && semver.satisfies(extension.version, excludeVersionRange)) {
 			return false;
+		}
+
+		// For built-in extensions that have auto updates enabled, lock them in to product's major and minor version
+		if (this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === extension.id.toLowerCase())) {
+			const productMajorMinor = `${semver.major(productVersion.version)}.${semver.minor(productVersion.version)}`;
+			const extensionMajorMinor = `${semver.major(extension.version)}.${semver.minor(extension.version)}`;
+			if (productMajorMinor !== extensionMajorMinor) {
+				return false;
+			}
 		}
 
 		// Specific version

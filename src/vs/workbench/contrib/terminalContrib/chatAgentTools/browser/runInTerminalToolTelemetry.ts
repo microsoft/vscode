@@ -128,6 +128,7 @@ export class RunInTerminalToolTelemetry {
 			requestUnsandboxedExecutionReason: string | undefined;
 			outputLineCount: number;
 			nonZeroExitCode: -1 | 0 | 1;
+			exitCodeValue: number;
 			timingConnectMs: number;
 			pollDurationMs: number;
 			timingExecuteMs: number;
@@ -159,6 +160,7 @@ export class RunInTerminalToolTelemetry {
 			requestUnsandboxedExecutionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason the model gave for requesting unsandboxed execution, if any' };
 			outputLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many lines of output were produced, this is -1 when isBackground is true or if there\'s an error' };
 			nonZeroExitCode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command exited with a non-zero code (-1=error/unknown, 0=zero exit code, 1=non-zero)' };
+			exitCodeValue: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The actual exit code of the terminal command (-1 if unknown)' };
 			timingConnectMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to start up and connect to' };
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to execute the command' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
@@ -187,6 +189,7 @@ export class RunInTerminalToolTelemetry {
 			requestUnsandboxedExecutionReason: state.requestUnsandboxedExecutionReason,
 			outputLineCount: state.outputLineCount,
 			nonZeroExitCode: state.exitCode === undefined ? -1 : state.exitCode === 0 ? 0 : 1,
+			exitCodeValue: state.exitCode ?? -1,
 			timingConnectMs: state.timingConnectMs,
 			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
