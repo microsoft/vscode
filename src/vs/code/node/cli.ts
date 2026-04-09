@@ -385,7 +385,7 @@ export async function main(argv: string[]): Promise<void> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
+			addArg(argv, `--inspect-brk=${portMain}`);
 			addArg(argv, `--remote-debugging-port=${portRenderer}`);
 			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
